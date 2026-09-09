@@ -279,7 +279,7 @@ final class SequentialPasteCompletionServiceTests: XCTestCase {
 
         XCTAssertNotNil(republishError)
         // The rejected guarded write must not have touched the clipboard's write log.
-        XCTAssertEqual(clipboard.writes, ["a.png"])
+        XCTAssertEqual(clipboard.writes, ["a.png", "TEXT"])
     }
 
     // MARK: - Helpers

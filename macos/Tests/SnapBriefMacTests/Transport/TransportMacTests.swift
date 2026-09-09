@@ -236,7 +236,10 @@ final class TransportMacTests: XCTestCase {
             .eventSourceUnixProcessID, value: Int64(ProcessInfo.processInfo.processIdentifier))
         XCTAssertTrue(MacPasteIntentObserver.isOwnEvent(ownProcess))
 
+        // An event built inside the test process carries our own pid, so a truly foreign event is
+        // modelled by overriding the source pid.
         let foreign = try XCTUnwrap(CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true))
+        foreign.setIntegerValueField(.eventSourceUnixProcessID, value: 1)
         XCTAssertFalse(MacPasteIntentObserver.isOwnEvent(foreign))
     }
 
