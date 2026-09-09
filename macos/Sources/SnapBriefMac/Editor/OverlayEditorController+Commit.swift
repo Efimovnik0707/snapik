@@ -21,6 +21,10 @@ extension OverlayEditorController {
             capture.note = shotNoteChipView.note
         }
 
+        // R1 fix: this edit is being kept, so the pre-edit backup (if any) written by
+        // `backUpOriginalSourceIfNeeded` is no longer needed.
+        deleteOriginalSourceBackupIfNeeded(capture)
+
         let coreCapture = capture.toCore()
         let coreAnnotations = coreCapture.annotations
         close()
@@ -32,10 +36,16 @@ extension OverlayEditorController {
 
     /// Port of `OnWindowKeyDown`'s Escape branch (`:737-742`) + `CancelEdit`/`OnClosing`
     /// (`:768-778`). For a brand-new (never-committed) capture, the one PNG written so far
-    /// (SPEC §3.4) is deleted; nothing is reported back except cancellation.
+    /// (SPEC §3.4) is deleted. For a *reopened* capture (finding R1), a crop/resize during this
+    /// edit may already have overwritten `source/{captureId}.png` on disk even though nothing was
+    /// ever committed; the pre-edit backup written by `backUpOriginalSourceIfNeeded` is restored
+    /// here so cancelling truly leaves the capture untouched. Nothing is reported back except
+    /// cancellation either way.
     func cancelEditing() {
         if let capture, isNewCapture {
             deleteCurrentSourceIfExists(capture)
+        } else if let capture, hasBackedUpOriginalSource {
+            restoreOriginalSourceBackup(capture)
         }
         close()
         delegate?.overlayEditorDidCancel(self)
@@ -55,6 +65,13 @@ extension OverlayEditorController {
         guard let captureId = capture?.id else {
             completion(.failure(SnapBriefError.invalidOperation("No capture to save.")))
             return
+        }
+        // R1 fix: this is about to overwrite `source/{captureId}.png` on disk immediately, ahead
+        // of any commit. For a reopened capture (never for a brand-new one — `isNewCapture`
+        // already gets a clean delete-on-cancel above), snapshot the pre-edit bytes once, before
+        // the very first such overwrite in this edit session.
+        if !isNewCapture {
+            backUpOriginalSourceIfNeeded(captureId: captureId)
         }
         let sessionId = workspaceContext.session.id
         let store = workspaceContext.assetStore
@@ -79,6 +96,56 @@ extension OverlayEditorController {
         guard currentSourcePath != nil else { return }
         let url = workspaceContext.sessionDirectory.appendingPathComponent("source/\(capture.id.digitsLowercase).png")
         try? FileManager.default.removeItem(at: url)
+    }
+
+    // MARK: - Reopened-capture pre-edit backup (SPEC §1.8 point 3 / §3.4, finding R1)
+
+    /// `DefaultSessionAssetStore.saveOriginalPNG` always writes to this exact path, keyed only by
+    /// `(sessionId, captureId)` (see the doc comment on `currentSourcePath` in
+    /// `OverlayEditorController.swift`), so it is also the one place a reopened capture's pre-edit
+    /// bytes live on disk before the first crop/resize of this edit session overwrites them.
+    private func originalSourceURL(captureId: SBGuid) -> URL {
+        workspaceContext.sessionDirectory.appendingPathComponent("source/\(captureId.digitsLowercase).png")
+    }
+
+    private func originalSourceBackupURL(captureId: SBGuid) -> URL {
+        workspaceContext.sessionDirectory.appendingPathComponent("source/\(captureId.digitsLowercase).orig.tmp")
+    }
+
+    /// Snapshots the pre-edit PNG once per edit session, before `persistCurrentSource`'s first
+    /// overwrite for a *reopened* capture. A no-op for a brand-new capture (`isNewCapture`, guarded
+    /// by the caller) and for every crop/resize after the first in this session.
+    private func backUpOriginalSourceIfNeeded(captureId: SBGuid) {
+        guard !hasBackedUpOriginalSource else { return }
+        hasBackedUpOriginalSource = true
+        let source = originalSourceURL(captureId: captureId)
+        guard FileManager.default.fileExists(atPath: source.path) else { return }
+        let backup = originalSourceBackupURL(captureId: captureId)
+        try? FileManager.default.removeItem(at: backup)
+        try? FileManager.default.copyItem(at: source, to: backup)
+    }
+
+    /// Port of `CancelEdit`'s "leave the file untouched" guarantee for a *reopened* capture: undoes
+    /// `persistCurrentSource`'s immediate on-disk overwrite by atomically swapping the pre-edit
+    /// backup back into place.
+    private func restoreOriginalSourceBackup(_ capture: EditorCapture) {
+        let backup = originalSourceBackupURL(captureId: capture.id)
+        guard FileManager.default.fileExists(atPath: backup.path) else { return }
+        let destination = originalSourceURL(captureId: capture.id)
+        do {
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: backup)
+        } catch {
+            try? FileManager.default.removeItem(at: backup)
+        }
+        hasBackedUpOriginalSource = false
+    }
+
+    /// This edit is being kept (commit), so the pre-edit backup — if `persistCurrentSource` ever
+    /// wrote one — is discarded rather than left behind on disk.
+    private func deleteOriginalSourceBackupIfNeeded(_ capture: EditorCapture) {
+        guard hasBackedUpOriginalSource else { return }
+        try? FileManager.default.removeItem(at: originalSourceBackupURL(captureId: capture.id))
+        hasBackedUpOriginalSource = false
     }
 
     // MARK: - Errors (SPEC §1.2 step 8 error text, §1.6 step 6, §1.13 point 10)

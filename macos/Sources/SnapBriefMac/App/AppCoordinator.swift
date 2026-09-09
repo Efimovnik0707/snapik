@@ -54,6 +54,19 @@ final class AppCoordinator {
     /// second paste intent observed mid-flight is ignored (SPEC §1.11 point 3).
     var isCompletingPasteIntent = false
 
+    /// R8 fix: the app that was frontmost before the *first* capture of a "+ Снимок" chain
+    /// activated this app, remembered for every controller in that chain instead of each one
+    /// re-reading `NSWorkspace.shared.frontmostApplication` (which can race with the previous
+    /// controller's own `close()`-time reactivation and report SnapBrief itself). Set in
+    /// `beginOverlayCapture()`; cleared in `AppCoordinator+OverlayEditorDelegate.swift` once a
+    /// chain ends (commit without a next capture, or cancel).
+    var captureSeriesPreviousApp: NSRunningApplication?
+    /// R8 fix: set synchronously by `overlayEditorRequestsNextCapture` so the deferred check in
+    /// `overlayEditor(_:didCommit:)` can tell "+ Снимок" (chain continues) apart from "Готово"
+    /// (chain ends) — both delegate calls for one commit happen synchronously, back to back, in
+    /// `OverlayEditorController.commit(addNext:)`.
+    var nextCaptureRequested = false
+
     // `internal` (not `private`): used from `AppCoordinator+Package.swift`.
     var isBusy = false
     var isSessionResetting = false
@@ -154,6 +167,12 @@ final class AppCoordinator {
         case "capture":
             if let overlay, overlay.isPresented {
                 overlay.handleGlobalHotkey()
+            } else if pendingCommitTask != nil {
+                // R3 fix: a previous commit is still being folded into the session
+                // (`overlayEditor(_:didCommit:)`'s `pendingCommitTask`, cleared once that finishes)
+                // — `overlay` is already `nil` at this point, so without this check a hotkey here
+                // would race a brand-new capture against that in-flight append/save.
+                return
             } else {
                 Task { @MainActor in await self.newCapture() }
             }
@@ -208,12 +227,25 @@ final class AppCoordinator {
 
     // `internal` (not `private`): called from `AppCoordinator+OverlayEditorDelegate.swift`.
     func beginOverlayCapture() async {
+        // R3 fix: the single funnel point for both entry paths — `newCapture()` (fresh hotkey/
+        // stack button) and `overlayEditorRequestsNextCapture` ("+ Снимок") — so a second call
+        // can never stand up a second overlay while one is already up.
+        guard overlay == nil else { return }
+
+        // R8 fix: remember the pre-chain frontmost app once, at the very start of a "+ Снимок"
+        // series; every controller in the chain gets the same value (see
+        // `previousFrontmostApplicationOverride`'s doc comment).
+        if captureSeriesPreviousApp == nil {
+            captureSeriesPreviousApp = NSWorkspace.shared.frontmostApplication
+        }
+
         hideAllOwnWindows()
         try? await Task.sleep(nanoseconds: 120_000_000)
 
         guard let frame = await captureDesktopFrame() else {
             stackWindow?.setStatus(StatusStrings.captureNotCompleted("no screen frame"), isError: true)
             stackWindow?.reveal()
+            captureSeriesPreviousApp = nil
             return
         }
 
@@ -224,6 +256,7 @@ final class AppCoordinator {
 
         let controller = OverlayEditorController(
             frame: frame, workspace: context, settings: settings, language: language)
+        controller.previousFrontmostApplicationOverride = captureSeriesPreviousApp
         controller.delegate = self
         overlay = controller
         controller.present()
@@ -273,7 +306,12 @@ final class AppCoordinator {
     /// `OverlayEditorController.presentExisting` (a fresh frame is still snapped first — the
     /// background shade behind the reopened capture must match the current desktop, SPEC §1.9).
     func openCapture(_ captureId: SBGuid) async {
-        guard !isBusy, let capture = workspace.session.captures.first(where: { $0.id == captureId }) else { return }
+        // R5 fix: don't reopen a capture into a session that a paste-intent rotation
+        // (`completePasteIntent`/`startNewSession`) is in the middle of retiring — that race is
+        // exactly what left `overlayEditor(_:didCommit:)`'s session-id check needs to guard against.
+        guard !isCompletingPasteIntent, !isBusy,
+            let capture = workspace.session.captures.first(where: { $0.id == captureId })
+        else { return }
         isBusy = true
         defer { isBusy = false }
 
@@ -308,6 +346,10 @@ final class AppCoordinator {
         do {
             try workspace.removeCapture(captureId)
             removedStack.append((capture, index))
+            // R2 fix: a restored capture (`restoreRemoved`) reuses this same id; without dropping
+            // the cached bitmap here, `stackWindow?.refresh()` right below would still find a hit
+            // for a capture that briefly wasn't in the session.
+            stackWindow?.invalidateThumbnail(for: captureId)
             invalidatePrepared()
             stackWindow?.refresh()
             if await save() { stackWindow?.setStatus(StatusStrings.captureDeleted, isError: false) }

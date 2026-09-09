@@ -71,6 +71,11 @@ final class OverlayEditorController {
     /// `DeleteCreatedSourcesExcept` for. This field exists only so `close()`/`cancel()` for a
     /// *brand-new, never-committed* capture can delete that one file.
     var currentSourcePath: String?
+    /// R1 fix: set once `persistCurrentSource` has backed up a *reopened* capture's pre-edit PNG
+    /// (see `OverlayEditorController+Commit.swift`'s `backUpOriginalSourceIfNeeded`/
+    /// `restoreOriginalSourceBackup`/`deleteOriginalSourceBackupIfNeeded`). Always `false` for a
+    /// brand-new capture, which has its own delete-on-cancel path instead.
+    var hasBackedUpOriginalSource = false
 
     var colorIndex = 0
     let thicknesses: [Double] = [3, 4, 6, 9]
@@ -97,6 +102,14 @@ final class OverlayEditorController {
     /// explicit `NSApp.activate`, and that activation must not permanently steal focus from
     /// whatever the user was in).
     private var previousFrontmostApplication: NSRunningApplication?
+    /// R8 fix: when set (by the shell, before `present()`), `activateAndShowWindows()` uses this
+    /// instead of reading `NSWorkspace.shared.frontmostApplication` itself. A "+ Снимок" chain's
+    /// later controllers read that value only *after* the previous controller's own `close()`
+    /// already reactivated it (asynchronously) and after this app's own `NSApp.activate` — a race
+    /// that can report SnapBrief itself as frontmost instead of the app the whole chain started
+    /// from. The shell (`AppCoordinator`) captures the value once, at the start of the chain, and
+    /// passes it to every controller in that chain.
+    var previousFrontmostApplicationOverride: NSRunningApplication?
 
     init(frame: DesktopFrame, workspace: EditorWorkspaceContext, settings: HotkeySettings, language: String) {
         desktopFrame = frame
@@ -190,7 +203,7 @@ final class OverlayEditorController {
     /// `makeKeyAndOrderFront` — the app itself has to be activated first. Remembers the previously
     /// frontmost app so `close()` can hand focus back.
     private func activateAndShowWindows() {
-        previousFrontmostApplication = NSWorkspace.shared.frontmostApplication
+        previousFrontmostApplication = previousFrontmostApplicationOverride ?? NSWorkspace.shared.frontmostApplication
         NSApp.activate(ignoringOtherApps: true)
         for slot in slots {
             slot.window.orderFrontRegardless()

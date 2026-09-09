@@ -125,6 +125,10 @@ enum SmokeTestRunner {
         // B — demo image with a rectangle, C — an 8x8 checkerboard with an opaque redaction *and*
         // a blur region (so point 12's blur/redaction pixel checks below have something to bite
         // into) plus a capture-level note.
+        // R4 fix: an asymmetric marker on capture A's top 4 rows (a color that appears nowhere
+        // else in the demo image) so the pixel checks in point 12 below can catch a vertical flip
+        // that a same-position `pixelsEqual` comparison against the unmarked source could miss.
+        let flipMarkerColor = NSColor(hex: "#FF00FF")
         let annotationNotes = ["Увеличить кнопку", "Перенести пункт выше", "Уточнить подпись"]
         var captures: [CaptureItem] = []
         for index in 0..<3 {
@@ -132,6 +136,9 @@ enum SmokeTestRunner {
             do {
                 if index == 2 {
                     image = try makeCheckerboardImage(width: 1920, height: 1080)
+                } else if index == 0 {
+                    let demoImage = try await DemoSessionFactory.renderDemoImage(index: index, width: 1920, height: 1080)
+                    image = try markTopRows(of: demoImage, color: flipMarkerColor)
                 } else {
                     image = try await DemoSessionFactory.renderDemoImage(index: index, width: 1920, height: 1080)
                 }
@@ -231,6 +238,11 @@ enum SmokeTestRunner {
                 // Content starts right below the 48px header; the far corner is untouched by any
                 // annotation on capture A, so it must survive unchanged into the export.
                 check("export corner pixel matches source", pixelsEqual(sourceA, ax: 0, ay: 0, exportA, bx: 0, by: 48))
+                // R4 fix: direct-color checks against the asymmetric top marker (finding R4) — a
+                // vertical flip would either move the marker away from row 48 or leave it visible
+                // at the bottom instead of only the top.
+                check("export marker row matches marker color", pixelColorMatches(exportA, x: 0, y: 48, color: flipMarkerColor))
+                check("export bottom content row is not the marker color", !pixelColorMatches(exportA, x: 0, y: 1127, color: flipMarkerColor))
                 // A point well inside the redaction rectangle, away from its number label.
                 check("export redaction pixel opaque black", pixelIsApproximatelyBlack(exportC, x: 1300, y: 648))
                 // A checkerboard corner inside the blur rectangle: blurring must mix it with its
@@ -326,6 +338,65 @@ enum SmokeTestRunner {
 
     private static func pixelsEqual(_ a: CGImage, ax: Int, ay: Int, _ b: CGImage, bx: Int, by: Int) -> Bool {
         !pixelsDiffer(a, ax: ax, ay: ay, b, bx: bx, by: by)
+    }
+
+    /// R4 fix: direct comparison against a known `NSColor`, used for the flip-marker checks —
+    /// unlike `pixelsEqual`/`pixelsDiffer` this doesn't need a second image/coordinate at all.
+    private static func pixelColorMatches(_ image: CGImage, x: Int, y: Int, color: NSColor, tolerance: CGFloat = 0.08) -> Bool {
+        guard let pixel = colorAt(image, x: x, y: y), let reference = color.usingColorSpace(.deviceRGB) else { return false }
+        return abs(pixel.redComponent - reference.redComponent) < tolerance
+            && abs(pixel.greenComponent - reference.greenComponent) < tolerance
+            && abs(pixel.blueComponent - reference.blueComponent) < tolerance
+    }
+
+    /// R4 fix: overwrites `image`'s top 4 rows (top-left-origin sense, matching `colorAt`'s
+    /// convention: row 0 is the raw buffer's first row) with `color`, directly in the raw pixel
+    /// buffer — deliberately sidesteps any `CGContext.draw(_:in:)` CTM/flip subtlety (see
+    /// `AnnotationPainter.draw`'s own "unflip before drawing" comment for how easy that is to get
+    /// backwards) since this helper only needs to produce an asymmetric marker for the pixel
+    /// checks in point 12 below, not render anything. Assumes `image` is one of this file's own
+    /// `CGImageAlphaInfo.premultipliedLast`, no-byte-order-flag, 8-bit-per-component contexts
+    /// (`DemoSessionFactory.renderDemoImage`'s output, the only caller) — `[R, G, B, A]` per pixel
+    /// in memory, 4 bytes per pixel.
+    private static func markTopRows(of image: CGImage, color: NSColor) throws -> CGImage {
+        guard
+            let provider = image.dataProvider,
+            let sourceData = provider.data,
+            let rgb = color.usingColorSpace(.deviceRGB)
+        else {
+            throw SnapBriefError.invalidOperation("SmokeTestRunner: could not read the source bitmap to add the flip marker.")
+        }
+        let byteCount = CFDataGetLength(sourceData)
+        var bytes = [UInt8](repeating: 0, count: byteCount)
+        CFDataGetBytes(sourceData, CFRange(location: 0, length: byteCount), &bytes)
+
+        let bytesPerRow = image.bytesPerRow
+        let r = UInt8((rgb.redComponent * 255).rounded())
+        let g = UInt8((rgb.greenComponent * 255).rounded())
+        let b = UInt8((rgb.blueComponent * 255).rounded())
+        let markedRows = min(4, image.height)
+        for row in 0..<markedRows {
+            var offset = row * bytesPerRow
+            for _ in 0..<image.width where offset + 3 < byteCount {
+                bytes[offset] = r
+                bytes[offset + 1] = g
+                bytes[offset + 2] = b
+                bytes[offset + 3] = 255
+                offset += 4
+            }
+        }
+
+        guard
+            let markedProvider = CGDataProvider(data: Data(bytes) as CFData),
+            let marked = CGImage(
+                width: image.width, height: image.height, bitsPerComponent: image.bitsPerComponent,
+                bitsPerPixel: image.bitsPerPixel, bytesPerRow: bytesPerRow,
+                space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: image.bitmapInfo,
+                provider: markedProvider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        else {
+            throw SnapBriefError.invalidOperation("SmokeTestRunner: could not rebuild the flip-marked source bitmap.")
+        }
+        return marked
     }
 
     /// An `blocksPerSide`x`blocksPerSide` checkerboard, used as capture C's source image (SPEC

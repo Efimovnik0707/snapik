@@ -161,6 +161,11 @@ final class EditorCapture {
     var image: CGImage
     var sourceImagePath: String
     var displayLabel: String = "A"
+    /// Port of `CaptureItem.Title` (`EditorModels.cs:133-198`). Not surfaced anywhere in this
+    /// zone's UI (SPEC has no editor affordance for it); threaded through `toCore`/`fromCore` only
+    /// so a reopened capture's title round-trips instead of being silently blanked on every commit
+    /// (finding R7).
+    var title: String = ""
     var note: String = ""
     var annotations: [EditorAnnotation] = []
     var dpiX: Double
@@ -201,7 +206,8 @@ final class EditorCapture {
         annotations = snapshot.annotations.map { $0.clone() }
     }
 
-    /// Port of `CaptureItem.ToCore()` (`:167-176`). `Title` is always empty (SPEC §2.4).
+    /// Port of `CaptureItem.ToCore()` (`:167-176`). `title` round-trips whatever `fromCore` last
+    /// set (finding R7) rather than always writing `""`.
     func toCore() -> CaptureItem {
         CaptureItem(
             id: id,
@@ -210,7 +216,7 @@ final class EditorCapture {
             pixelHeight: image.height,
             dpiX: dpiX > 0 ? dpiX : 96,
             dpiY: dpiY > 0 ? dpiY : 96,
-            title: "",
+            title: title,
             note: note,
             annotations: annotations.map { $0.toCore(imageWidth: image.width, imageHeight: image.height) })
     }
@@ -218,6 +224,7 @@ final class EditorCapture {
     /// Port of `CaptureItem.FromCore(CoreCapture, BitmapSource)` (`:178-184`).
     static func fromCore(_ item: CaptureItem, image: CGImage) -> EditorCapture {
         let capture = EditorCapture(id: item.id, image: image, sourceImagePath: item.sourceImagePath, dpiX: item.dpiX, dpiY: item.dpiY)
+        capture.title = item.title
         capture.note = item.note
         capture.annotations = item.annotations.map { EditorAnnotation.fromCore($0, imageWidth: image.width, imageHeight: image.height) }
         return capture

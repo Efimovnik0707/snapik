@@ -89,12 +89,25 @@ final class EdgeStackWindowController: NSWindowController {
     func refresh() {
         guard let coordinator else { return }
         let captures = coordinator.workspace.session.captures
+        // R2 fix: drop any cached thumbnail for a capture no longer in the session (deleted, or
+        // left behind by a session rotation), so a stale bitmap can never resurface for a
+        // different capture that later reuses the same id.
+        let liveIds = Set(captures.map(\.id))
+        thumbnailCache = thumbnailCache.filter { liveIds.contains($0.key) }
         let rows: [StackCaptureRow] = captures.enumerated().map { index, capture in
             let label = (try? CaptureLabels.forIndex(index)) ?? "?"
             return StackCaptureRow(id: capture.id, label: label, thumbnail: thumbnail(for: capture))
         }
         contentContainer.reload(rows: rows)
         resizeToFitContent()
+    }
+
+    /// R2 fix: `refresh()`'s cache lookup keys only on `capture.id`, which never changes across a
+    /// crop/resize/re-edit — without this, reopening and committing a capture (`replaceCapture`)
+    /// would keep showing the pre-edit thumbnail bitmap forever. Called by
+    /// `AppCoordinator.overlayEditor(_:didCommit:)` for its `replaceCapture` branch.
+    func invalidateThumbnail(for id: SBGuid) {
+        thumbnailCache.removeValue(forKey: id)
     }
 
     private func thumbnail(for capture: CaptureItem) -> NSImage? {

@@ -23,20 +23,52 @@ extension AppCoordinator: OverlayEditorDelegate {
 
         if editor === overlay { overlay = nil }
 
+        // R5 fix: `editor` was built against a specific session (`workspaceContext.session.id`,
+        // frozen at `beginOverlayCapture`/`openCapture` time). If a paste-intent-driven
+        // `startNewSession()` rotated the session while this edit was still open, `committed`'s
+        // `sourceImagePath` and index belong to the *old* session, not the current one — folding
+        // it in here would silently corrupt the new session instead.
+        guard editor.workspaceContext.session.id == workspace.session.id else {
+            captureSeriesPreviousApp = nil
+            stackWindow?.setStatus(StatusStrings.couldNotSave("сессия изменилась"), isError: true)
+            stackWindow?.reveal()
+            return
+        }
+
+        // R8 fix: `overlayEditorRequestsNextCapture` (if it's coming at all for this commit) is
+        // called synchronously right after this method returns, from the same
+        // `OverlayEditorController.commit(addNext:)` call. Deferring the check by one turn lets
+        // that synchronous call set `nextCaptureRequested` first, telling "+ Снимок" (chain
+        // continues, keep `captureSeriesPreviousApp`) apart from "Готово" (chain ends here) without
+        // threading `addNext` through the `OverlayEditorDelegate` protocol.
+        nextCaptureRequested = false
+        Task { @MainActor [weak self] in
+            guard let self, !self.nextCaptureRequested else { return }
+            self.captureSeriesPreviousApp = nil
+        }
+
         pendingCommitTask = Task { @MainActor in
             do {
                 if self.workspace.session.captures.contains(where: { $0.id == committed.id }) {
                     try self.workspace.replaceCapture(committed)
+                    // R2 fix: `replaceCapture` reuses the same `captureId`, so the stack's
+                    // thumbnail cache (keyed only on that id) must be dropped or `refresh()` right
+                    // below would keep showing the pre-edit bitmap.
+                    self.stackWindow?.invalidateThumbnail(for: committed.id)
                 } else {
                     try self.workspace.appendCapture(committed)
                 }
                 self.stackWindow?.refresh()
                 let succeeded = await self.saveAndCopyCommittedPackage()
                 self.stackWindow?.reveal()
+                // R3 fix: only non-nil while this fold-in is actually in flight, so
+                // `AppCoordinator.handleHotkey`'s reentrancy guard reliably reflects that.
+                self.pendingCommitTask = nil
                 return succeeded
             } catch {
                 self.stackWindow?.setStatus(StatusStrings.captureNotCompleted("\(error)"), isError: true)
                 self.stackWindow?.reveal()
+                self.pendingCommitTask = nil
                 return false
             }
         }
@@ -45,6 +77,9 @@ extension AppCoordinator: OverlayEditorDelegate {
     /// Port of Esc-before-selection (`:107`): session unchanged, overlay closes.
     func overlayEditorDidCancel(_ editor: OverlayEditorController) {
         if editor === overlay { overlay = nil }
+        // R8 fix: cancelling always ends the "+ Снимок" chain (there is no "cancel, but keep
+        // going" path), so the remembered pre-chain frontmost app is forgotten here.
+        captureSeriesPreviousApp = nil
         stackWindow?.reveal()
     }
 
@@ -53,10 +88,16 @@ extension AppCoordinator: OverlayEditorDelegate {
     /// that commit's save-and-copy to actually finish, and only start the next capture if it
     /// succeeded (finding 5).
     func overlayEditorRequestsNextCapture(_ editor: OverlayEditorController) {
+        // R8 fix: must be set synchronously, before this method returns — see the doc comment on
+        // `overlayEditor(_:didCommit:)`'s deferred check above.
+        nextCaptureRequested = true
         if editor === overlay { overlay = nil }
         Task { @MainActor in
             let succeeded = await self.pendingCommitTask?.value ?? false
-            guard succeeded else { return }
+            guard succeeded else {
+                self.captureSeriesPreviousApp = nil
+                return
+            }
             await self.beginOverlayCapture()
         }
     }

@@ -122,6 +122,9 @@ extension OverlayEditorController {
             }
         }
         let sourceCapture = EditorCapture(id: capture.id, image: resizeSourceImage, sourceImagePath: capture.sourceImagePath, dpiX: capture.dpiX, dpiY: capture.dpiY)
+        // Finding R7 sibling: carry `title` across too, or the resize's `toCore()` would blank it
+        // the same way the fixed `EditorCapture.toCore()` no longer does on its own.
+        sourceCapture.title = capture.title
         sourceCapture.note = capture.note
         sourceCapture.annotations = remapped.annotations
 

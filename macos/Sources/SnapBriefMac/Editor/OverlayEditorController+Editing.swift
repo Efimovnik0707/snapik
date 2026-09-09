@@ -167,7 +167,7 @@ extension OverlayEditorController {
 
     /// Port of `OnCropRequested` (`:668-714`).
     private func cropRequested(_ bounds: CGRect) {
-        guard let capture, !busyCrop, captureResizeCorner < 0, canvasView?.manipulating != true else { return }
+        guard let capture, !busyCrop, !isModalOpen, captureResizeCorner < 0, canvasView?.manipulating != true else { return }
         guard let pixelRect = EditorGeometry.cropRequestPixelRect(bounds: bounds, imageWidth: capture.image.width, imageHeight: capture.image.height) else { return }
         guard let cropped = capture.image.cropping(to: pixelRect) else { return }
 
