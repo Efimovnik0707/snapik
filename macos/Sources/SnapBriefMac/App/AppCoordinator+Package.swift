@@ -26,7 +26,19 @@ extension AppCoordinator {
             }
             ownedClipboardReceipt = receipt
             ownedClipboardPromptText = export.manifest.promptText
-            notificationService.notify("Снимки скопированы", language: language)
+            // Finding 4: gate on "Уведомления о копировании и сохранении".
+            if settings.showNotifications { notificationService.notify("Снимки скопированы", language: language) }
+            // Finding 24: two §1.20 dictionary strings otherwise unused anywhere in the port —
+            // a VoiceOver announcement for the copy, independent of the notification toggle above
+            // (a distinct accessibility channel, not the system notification).
+            NSAccessibility.post(
+                element: NSApp as Any, notification: .announcementRequested,
+                userInfo: [
+                    .announcement:
+                        "\(MacUiText.text("Скопировано", language: language)). "
+                        + MacUiText.text("Изображения и комментарии готовы к вставке", language: language),
+                    .priority: NSAccessibilityPriorityLevel.medium.rawValue,
+                ])
             stackWindow?.setStatus("", isError: false)
             return true
         } catch {
@@ -71,7 +83,8 @@ extension AppCoordinator {
             }
             ownedClipboardReceipt = newReceipt
             ownedClipboardPromptText = export.manifest.promptText
-            notificationService.notify("Снимки скопированы", language: language)
+            // Finding 4: gate on "Уведомления о копировании и сохранении".
+            if settings.showNotifications { notificationService.notify("Снимки скопированы", language: language) }
         } catch {
             stackWindow?.setStatus(StatusStrings.sessionSavedButClipboardNotUpdated("\(error)"), isError: true)
         }
@@ -120,9 +133,15 @@ extension AppCoordinator {
             stackWindow?.setStatus(StatusStrings.makeACaptureFirst, isError: true)
             return nil
         }
+        // Finding 7: SPEC §1.9 "Сохранить пакет…" shows progress/result status text that was
+        // never actually printed.
+        stackWindow?.setStatus(StatusStrings.preparingPngAndText, isError: false)
         do {
             let export = try await workspace.prepareExport(renderer: ExportImageRenderer())
             prepared = export
+            stackWindow?.setStatus(
+                StatusStrings.prepared(imageCount: export.imagePathsInOrder().count, noteCount: export.manifest.noteCount),
+                isError: false)
             return export
         } catch {
             stackWindow?.setStatus(StatusStrings.couldNotPrepare("\(error)"), isError: true)
@@ -188,6 +207,8 @@ extension AppCoordinator {
     // MARK: - Fast save (SPEC §1.14)
 
     func saveFullscreen() async {
+        // Finding 11: don't race a paste-intent-driven session rotation that's still in flight.
+        guard !isCompletingPasteIntent else { return }
         guard !isBusy else { return }
         isBusy = true
         let wasVisible = stackWindow?.isVisible ?? false
@@ -201,7 +222,8 @@ extension AppCoordinator {
                 throw SnapBriefError.invalidData("no screen frame")
             }
             try FastSaveService.save(frame.image, settings: settings)
-            notificationService.notify("Снимок сохранён", language: language)
+            // Finding 4: gate on "Уведомления о копировании и сохранении".
+            if settings.showNotifications { notificationService.notify("Снимок сохранён", language: language) }
         } catch {
             stackWindow?.setStatus(StatusStrings.couldNotSaveScreen("\(error)"), isError: true)
             stackWindow?.reveal()
@@ -224,7 +246,7 @@ extension AppCoordinator {
         }
         guard !isSessionResetting, !isCompletingPasteIntent else { return }
 
-        Task { await completePasteIntent(intent, receiptAtIntent: receiptAtIntent, promptAtIntent: promptAtIntent) }
+        Task { @MainActor in await completePasteIntent(intent, receiptAtIntent: receiptAtIntent, promptAtIntent: promptAtIntent) }
     }
 
     /// Port of `CompletePasteIntentAsync` (`:194-230`): runs the Codex Desktop text catch-up

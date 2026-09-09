@@ -39,7 +39,10 @@ echo "== 3. --demo (synthetic captures, real windows) =="
 PID=$!
 sleep 3;  screencapture -x "$OUT/runner-desktop-1.png" || true
 sleep 3;  screencapture -x "$OUT/runner-desktop-2.png" || true
+for i in $(seq 1 12); do kill -0 $PID 2>/dev/null || break; sleep 1; done
+if kill -0 $PID 2>/dev/null; then echo "demo did not exit in 18s, killing"; kill -9 $PID; fi
 wait $PID 2>/dev/null; echo "demo exit code: $?"
+ps aux | grep -i "[S]napBrief" || true
 tail -40 "$OUT/demo.log"
 
 echo "== 4. --capture-test (real ScreenCaptureKit capture, needs TCC) =="

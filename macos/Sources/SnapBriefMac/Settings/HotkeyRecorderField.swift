@@ -4,6 +4,10 @@ import SnapBriefCore
 
 protocol HotkeyRecorderFieldDelegate: AnyObject {
     func hotkeyRecorderField(_ field: HotkeyRecorderField, didRecord id: String)
+    /// Finding 8: recording is about to start consuming every keystroke (Enter included, SPEC
+    /// §7.3) — the delegate uses this to stop the window's default button from also reacting to
+    /// Enter while the field is armed.
+    func hotkeyRecorderFieldDidBeginRecording(_ field: HotkeyRecorderField)
     func hotkeyRecorderFieldDidFinishRecording(_ field: HotkeyRecorderField)
 }
 
@@ -65,6 +69,7 @@ final class HotkeyRecorderField: NSView {
         isRecording = true
         label.stringValue = MacUiText.text("Нажмите клавишу…", language: language)
         layer?.borderColor = DarkPalette.focusRing.cgColor
+        delegate?.hotkeyRecorderFieldDidBeginRecording(self)
     }
 
     private func stopRecording() {

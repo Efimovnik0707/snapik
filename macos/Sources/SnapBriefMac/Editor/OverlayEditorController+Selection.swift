@@ -3,6 +3,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 extension OverlayEditorController {
     /// Wires one screen's selection-mode mouse callbacks. Selection is scoped to whichever screen
     /// receives the initiating `mouseDown` (AppKit keeps delivering `mouseDragged`/`mouseUp` to
@@ -53,7 +54,7 @@ extension OverlayEditorController {
     /// Port of `OnWindowMouseUp`'s background-click completion branch (`:186-193`, SPEC §1.8
     /// "Клик вне снимка по затемнённому фону").
     private func backgroundClicked(screenIndex: Int, point: CGPoint) {
-        guard capture != nil, !busyCrop, screenIndex == activeScreenIndex else { return }
+        guard capture != nil, !busyCrop, !isModalOpen, screenIndex == activeScreenIndex else { return }
         guard !cropRectLocal.contains(point) else { return }
         commit(addNext: false)
     }
@@ -76,6 +77,11 @@ extension OverlayEditorController {
         }
 
         activeScreenIndex = screenIndex
+        // Finding 18: multi-monitor — only `present()`'s very first screen was ever made key, so
+        // a selection drawn on any other screen never received keyboard focus (Esc/tool letters/
+        // Cmd+S/Cmd+Z/Cmd+C, chip text entry). Make the screen the selection actually happened on
+        // key instead.
+        slots[screenIndex].window.makeKeyAndOrderFront(nil)
         let newCapture = EditorCapture(image: cropped, sourceImagePath: "")
         newCapture.displayLabel = (try? CaptureLabels.forIndex(captureIndex)) ?? "A"
         capture = newCapture
@@ -131,16 +137,20 @@ extension OverlayEditorController {
         return CGPoint(x: flipped.x + global.minX, y: global.maxY - flipped.y)
     }
 
-    // MARK: - Remember last region (SPEC §1.13 point 9, simplified)
+    // MARK: - Remember last region (SPEC §1.16)
 
     /// Port of `RestoreLastRegion`/`RememberCurrentRegion` (`OverlayEditorWindow.Save.cs:47-83`).
-    /// Persisted next to the session directory: `EditorWorkspaceContext` has no dedicated
-    /// settings/state path for this (see the final report's deviation notes), so this uses a
-    /// hidden file beside the sessions root rather than under the shell's own app-support layout.
+    /// Finding 13: this is `SessionWorkspace.regionPath` (`Sources/SnapBriefMac/App`, outside this
+    /// zone), passed in via `EditorWorkspaceContext` rather than re-derived here.
     private var lastRegionURL: URL {
-        workspaceContext.sessionDirectory.deletingLastPathComponent().appendingPathComponent(".snapbrief-last-region.json")
+        workspaceContext.regionPath
     }
 
+    /// Port of the `last-region.json` shape (SPEC §1.16): Windows' own separate serializer writes
+    /// PascalCase keys (`Left/Top/Width/Height/X/Y/W/H`), unlike `SnapBriefJson`'s camelCase
+    /// elsewhere. Encoding always writes that PascalCase shape; decoding also accepts the
+    /// lowercase shape this port wrote before finding 13's fix, so an existing local file from an
+    /// older build still restores once instead of being silently discarded.
     private struct SavedRegion: Codable {
         let left: Int
         let top: Int
@@ -150,6 +160,63 @@ extension OverlayEditorController {
         let y: Double
         let w: Double
         let h: Double
+
+        private enum PascalCodingKeys: String, CodingKey {
+            case left = "Left", top = "Top", width = "Width", height = "Height"
+            case x = "X", y = "Y", w = "W", h = "H"
+        }
+
+        private enum LegacyCodingKeys: String, CodingKey {
+            case left, top, width, height, x, y, w, h
+        }
+
+        init(left: Int, top: Int, width: Int, height: Int, x: Double, y: Double, w: Double, h: Double) {
+            self.left = left
+            self.top = top
+            self.width = width
+            self.height = height
+            self.x = x
+            self.y = y
+            self.w = w
+            self.h = h
+        }
+
+        init(from decoder: Decoder) throws {
+            if let container = try? decoder.container(keyedBy: PascalCodingKeys.self),
+                let left = try? container.decode(Int.self, forKey: .left)
+            {
+                self.left = left
+                top = try container.decode(Int.self, forKey: .top)
+                width = try container.decode(Int.self, forKey: .width)
+                height = try container.decode(Int.self, forKey: .height)
+                x = try container.decode(Double.self, forKey: .x)
+                y = try container.decode(Double.self, forKey: .y)
+                w = try container.decode(Double.self, forKey: .w)
+                h = try container.decode(Double.self, forKey: .h)
+                return
+            }
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            left = try legacy.decode(Int.self, forKey: .left)
+            top = try legacy.decode(Int.self, forKey: .top)
+            width = try legacy.decode(Int.self, forKey: .width)
+            height = try legacy.decode(Int.self, forKey: .height)
+            x = try legacy.decode(Double.self, forKey: .x)
+            y = try legacy.decode(Double.self, forKey: .y)
+            w = try legacy.decode(Double.self, forKey: .w)
+            h = try legacy.decode(Double.self, forKey: .h)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: PascalCodingKeys.self)
+            try container.encode(left, forKey: .left)
+            try container.encode(top, forKey: .top)
+            try container.encode(width, forKey: .width)
+            try container.encode(height, forKey: .height)
+            try container.encode(x, forKey: .x)
+            try container.encode(y, forKey: .y)
+            try container.encode(w, forKey: .w)
+            try container.encode(h, forKey: .h)
+        }
     }
 
     func restoreLastRegionIfNeeded() {
@@ -171,6 +238,9 @@ extension OverlayEditorController {
         guard let screenIndex = slots.firstIndex(where: { $0.screen.frame.contains(centerScreen) }) else { return }
 
         activeScreenIndex = screenIndex
+        // Finding 18: same multi-monitor key-window fix as `finishSelection` — the remembered
+        // region can restore onto any screen, not just `present()`'s first one.
+        slots[screenIndex].window.makeKeyAndOrderFront(nil)
         let newCapture = EditorCapture(image: cropped, sourceImagePath: "")
         newCapture.displayLabel = (try? CaptureLabels.forIndex(captureIndex)) ?? "A"
         capture = newCapture

@@ -3,13 +3,14 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 enum DemoSessionFactory {
     /// Port of `SeedDemoAsync`: three synthetic 1280x720 captures labeled A/B/C — A gets a
     /// rectangle annotation, B an arrow, both noted; C gets a capture-level note only. Also sets
     /// the (UI-hidden, but still persisted) legacy global note.
     static func seedDemoSession(in workspace: SessionWorkspace) async throws {
         for index in 0..<3 {
-            let image = renderDemoImage(index: index)
+            let image = try renderDemoImage(index: index)
             guard let data = ImageCodec.encode(image, format: .png) else {
                 throw SnapBriefError.invalidData("Could not encode demo capture \(index).")
             }
@@ -42,14 +43,16 @@ enum DemoSessionFactory {
     /// Port of `CreateDemoBitmap`: background `#F5F7FA`, a white "window" inset by 52/48, a header
     /// bar `#E8EDF6`, a blue accent rectangle that shifts per index, and title/body text. Segoe UI
     /// is replaced by the system font (SPEC §1.19, §9.12).
-    static func renderDemoImage(index: Int, width: Int = 1280, height: Int = 720) -> CGImage {
+    static func renderDemoImage(index: Int, width: Int = 1280, height: Int = 720) throws -> CGImage {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard
             let context = CGContext(
                 data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                 space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else {
-            fatalError("Could not allocate demo image bitmap context.")
+            // Finding 25: this path is reachable from `--smoke-test` (`SmokeTestRunner.swift`),
+            // where a `fatalError` would crash the whole process instead of failing one check.
+            throw SnapBriefError.invalidOperation("DemoSessionFactory: could not allocate the demo image bitmap context.")
         }
 
         // Flip so all drawing below can use top-left-origin coordinates, matching the WPF source.
@@ -94,7 +97,7 @@ enum DemoSessionFactory {
             ])
 
         guard let image = context.makeImage() else {
-            fatalError("Could not render demo image.")
+            throw SnapBriefError.invalidOperation("DemoSessionFactory: could not render the demo image.")
         }
         return image
     }
@@ -126,19 +129,25 @@ enum DemoSessionFactory {
     /// `--demo-screenshot` must never touch `ScreenCaptureKit`/`CGRequestScreenCaptureAccess`
     /// (SPEC §9.1, CONTRACTS.md "Shell").
     private static func presentDemoOverlay(coordinator: AppCoordinator) {
+        // Finding 25: `syntheticDesktopFrame()` now throws instead of crashing the process; this
+        // CI-only convenience path simply skips presenting the overlay on failure.
+        guard let frame = try? syntheticDesktopFrame() else { return }
         let context = EditorWorkspaceContext(
             session: coordinator.workspace.session, sessionDirectory: coordinator.workspace.sessionDirectory,
-            assetStore: coordinator.workspace.assetStore, nextCaptureIndex: coordinator.workspace.session.captures.count)
+            assetStore: coordinator.workspace.assetStore, nextCaptureIndex: coordinator.workspace.session.captures.count,
+            regionPath: coordinator.workspace.regionPath)
         let controller = OverlayEditorController(
-            frame: syntheticDesktopFrame(), workspace: context, settings: coordinator.settings, language: coordinator.language)
+            frame: frame, workspace: context, settings: coordinator.settings, language: coordinator.language)
         controller.delegate = coordinator
         coordinator.overlay = controller
         controller.present()
     }
 
     /// A gradient `CGImage` sized to the (points-space) virtual desktop, standing in for a real
-    /// `DesktopFrame` capture — no `ScreenCaptureKit`/`CGDisplayCreateImage` call involved.
-    private static func syntheticDesktopFrame() -> DesktopFrame {
+    /// `DesktopFrame` capture — no `ScreenCaptureKit`/`CGDisplayCreateImage` call involved. Not
+    /// `private`: also used by `App/SmokeTestRunner.swift` to drive the editor test hooks (SPEC
+    /// §8.4 points 6, 9, 10) without a real screen capture.
+    static func syntheticDesktopFrame() throws -> DesktopFrame {
         let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 1
         let pointsRect = ScreenGeometry.globalPointsRect
         let width = max(1, Int((pointsRect.width * scale).rounded()))
@@ -154,13 +163,15 @@ enum DemoSessionFactory {
                 colors: [NSColor(hex: "#1B2635").cgColor, NSColor(hex: "#3A4B66").cgColor] as CFArray,
                 locations: [0, 1])
         else {
-            fatalError("Could not allocate the synthetic demo desktop bitmap.")
+            // Finding 25: reachable from `--smoke-test`; a `fatalError` here would crash the
+            // whole process instead of failing one check.
+            throw SnapBriefError.invalidOperation("DemoSessionFactory: could not allocate the synthetic demo desktop bitmap.")
         }
         context.drawLinearGradient(
             gradient, start: CGPoint(x: 0, y: 0), end: CGPoint(x: CGFloat(width), y: CGFloat(height)), options: [])
 
         guard let image = context.makeImage() else {
-            fatalError("Could not render the synthetic demo desktop bitmap.")
+            throw SnapBriefError.invalidOperation("DemoSessionFactory: could not render the synthetic demo desktop bitmap.")
         }
         return DesktopFrame(image: image, left: 0, top: 0, pixelWidth: width, pixelHeight: height, scale: scale)
     }

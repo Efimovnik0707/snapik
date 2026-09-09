@@ -10,6 +10,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 final class AppCoordinator {
     let options: CommandLineOptions
     let workspace: SessionWorkspace
@@ -36,6 +37,11 @@ final class AppCoordinator {
 
     // `internal` (not `private`): mutated from `AppCoordinator+OverlayEditorDelegate.swift`.
     var overlay: OverlayEditorController?
+    /// The in-flight commit started by `overlayEditor(_:didCommit:annotations:)`, `Bool` = whether
+    /// `saveAndCopyCommittedPackage()` actually succeeded. Finding 5: `overlayEditorRequestsNextCapture`
+    /// awaits this before starting the next capture, instead of racing ahead of the append.
+    /// `internal` (not `private`): set/read from `AppCoordinator+OverlayEditorDelegate.swift`.
+    var pendingCommitTask: Task<Bool, Never>?
     private var removedStack: [(capture: CaptureItem, index: Int)] = []
     // `internal` (not `private`): used from `AppCoordinator+Package.swift`.
     var prepared: PreparedExport?
@@ -79,6 +85,15 @@ final class AppCoordinator {
 
         hotkeyService.onHotkeyPressed = { [weak self] name in self?.handleHotkey(name) }
         pasteIntentObserver.onPasteIntent = { [weak self] intent in self?.handlePasteIntent(intent) }
+        // Finding 16/7: surface the Mac-only "event tap could not be reactivated" failure as the
+        // Windows-parity "Вставка остановлена: {e}" status. `PasteIntentObserving` itself has no
+        // such hook (Core protocol, CONTRACTS.md), so this only wires up when the concrete Mac
+        // type is in play — true for every real run; only test doubles fall through silently.
+        if let macObserver = self.pasteIntentObserver as? MacPasteIntentObserver {
+            macObserver.onStopped = { [weak self] error in
+                self?.stackWindow?.setStatus(StatusStrings.pasteStopped("\(error)"), isError: true)
+            }
+        }
     }
 
     // MARK: - Startup
@@ -97,21 +112,19 @@ final class AppCoordinator {
 
         registerHotkeys()
 
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self else { return }
             if self.options.demo {
                 do {
                     try await DemoSessionFactory.seedDemoSession(in: self.workspace)
                 } catch {
-                    await MainActor.run { self.stackWindow?.setStatus(StatusStrings.failedToRestoreSession("\(error)"), isError: true) }
+                    self.stackWindow?.setStatus(StatusStrings.failedToRestoreSession("\(error)"), isError: true)
                 }
             } else {
                 _ = await self.workspace.loadCurrent()
             }
-            await MainActor.run {
-                self.stackWindow?.refresh()
-                self.stackWindow?.reveal()
-            }
+            self.stackWindow?.refresh()
+            self.stackWindow?.reveal()
         }
     }
 
@@ -142,10 +155,10 @@ final class AppCoordinator {
             if let overlay, overlay.isPresented {
                 overlay.handleGlobalHotkey()
             } else {
-                Task { await self.newCapture() }
+                Task { @MainActor in await self.newCapture() }
             }
         case "fullscreen-save":
-            Task { await self.saveFullscreen() }
+            Task { @MainActor in await self.saveFullscreen() }
         default:
             break
         }
@@ -154,15 +167,30 @@ final class AppCoordinator {
     // MARK: - Capture loop (SPEC §1.2 point 3, §1.9)
 
     func newCapture() async {
+        // Finding 11: don't race a paste-intent-driven session rotation that's still in flight.
+        guard !isCompletingPasteIntent else { return }
         guard !isBusy else { return }
         isBusy = true
-        defer { isBusy = false; stackWindow?.reveal() }
+        defer { isBusy = false }
 
-        guard await ensureCurrentCaptureSession() else { return }
+        guard await ensureCurrentCaptureSession() else {
+            // Finding 21: only reveal here on a failure path — a successful path leaves the
+            // overlay in charge of the screen until it commits or cancels.
+            stackWindow?.reveal()
+            return
+        }
         await beginOverlayCapture()
     }
 
     /// Port of `EnsureCurrentCaptureSessionAsync` (§1.12).
+    ///
+    /// Deviation: the Windows source also has an explicit "could not verify the clipboard" error
+    /// branch here (`StatusStrings.couldNotVerifyClipboardBeforeCapture`, SPEC §1.12), but
+    /// `ClipboardServicing.capture(_:)` (CONTRACTS.md, `Sources/SnapBriefCore/Transport`, outside
+    /// this zone) has no failure case to report — `MacClipboardService.capture` always succeeds
+    /// synchronously reading `NSPasteboard`. That branch is therefore unreachable on macOS as the
+    /// protocol is currently shaped; wiring it for real needs a `Result`-returning `capture(_:)`
+    /// in Core, which is a plan deviation flagged here rather than silently worked around.
     private func ensureCurrentCaptureSession() async -> Bool {
         guard !workspace.session.captures.isEmpty else { return true }
 
@@ -185,12 +213,14 @@ final class AppCoordinator {
 
         guard let frame = await captureDesktopFrame() else {
             stackWindow?.setStatus(StatusStrings.captureNotCompleted("no screen frame"), isError: true)
+            stackWindow?.reveal()
             return
         }
 
         let context = EditorWorkspaceContext(
             session: workspace.session, sessionDirectory: workspace.sessionDirectory,
-            assetStore: workspace.assetStore, nextCaptureIndex: workspace.session.captures.count)
+            assetStore: workspace.assetStore, nextCaptureIndex: workspace.session.captures.count,
+            regionPath: workspace.regionPath)
 
         let controller = OverlayEditorController(
             frame: frame, workspace: context, settings: settings, language: language)
@@ -211,10 +241,15 @@ final class AppCoordinator {
         }
 
         return await withCheckedContinuation { continuation in
-            captureService.captureDesktop(includeCursor: settings.captureCursor) { result in
+            captureService.captureDesktop(includeCursor: settings.captureCursor) { [weak self] result in
+                // Finding 2: `ScreenCaptureService` now already redispatches to main, but this
+                // stays wrapped defensively per the review's explicit instruction.
                 switch result {
-                case .success(let frame): continuation.resume(returning: frame)
-                case .failure: continuation.resume(returning: nil)
+                case .success(let frame):
+                    continuation.resume(returning: frame)
+                case .failure(let error):
+                    Task { @MainActor in self?.stackWindow?.setStatus(StatusStrings.captureSetupFailed("\(error)"), isError: true) }
+                    continuation.resume(returning: nil)
                 }
             }
         }
@@ -232,26 +267,39 @@ final class AppCoordinator {
 
     // MARK: - Stack actions (SPEC §1.9)
 
+    /// Port of `OnOpenCaptureClick` (SPEC §1.9 "Клик по миниатюре"). Finding 1: the previous
+    /// implementation always opened a *fresh* selection over the new frame, discarding the saved
+    /// capture entirely; this now loads the capture's own saved pixels and reopens it in place via
+    /// `OverlayEditorController.presentExisting` (a fresh frame is still snapped first — the
+    /// background shade behind the reopened capture must match the current desktop, SPEC §1.9).
     func openCapture(_ captureId: SBGuid) async {
         guard !isBusy, let capture = workspace.session.captures.first(where: { $0.id == captureId }) else { return }
         isBusy = true
-        defer { isBusy = false; stackWindow?.reveal() }
+        defer { isBusy = false }
+
+        let sourceURL = workspace.sessionDirectory.appendingPathComponent(capture.sourceImagePath)
+        guard let sourceImage = ImageCodec.loadImage(at: sourceURL) else {
+            stackWindow?.setStatus(StatusStrings.couldNotOpenCapture("missing source image"), isError: true)
+            stackWindow?.reveal()
+            return
+        }
 
         hideAllOwnWindows()
         try? await Task.sleep(nanoseconds: 120_000_000)
         guard let frame = await captureDesktopFrame() else {
             stackWindow?.setStatus(StatusStrings.couldNotOpenCapture("no screen frame"), isError: true)
+            stackWindow?.reveal()
             return
         }
 
         let index = workspace.session.captures.firstIndex(where: { $0.id == capture.id }) ?? 0
         let context = EditorWorkspaceContext(
             session: workspace.session, sessionDirectory: workspace.sessionDirectory,
-            assetStore: workspace.assetStore, nextCaptureIndex: index)
+            assetStore: workspace.assetStore, nextCaptureIndex: index, regionPath: workspace.regionPath)
         let controller = OverlayEditorController(frame: frame, workspace: context, settings: settings, language: language)
         controller.delegate = self
         overlay = controller
-        controller.present()
+        controller.presentExisting(capture: capture, image: sourceImage)
     }
 
     func removeCapture(_ captureId: SBGuid) async {

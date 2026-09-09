@@ -10,6 +10,7 @@ final class EdgeStackPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+@MainActor
 final class EdgeStackWindowController: NSWindowController {
     weak var coordinator: AppCoordinator?
 
@@ -121,7 +122,10 @@ final class EdgeStackWindowController: NSWindowController {
     /// Port of `PositionAtEdge` (`EdgeStackWindow.xaml.cs:364-369`): right edge, vertically
     /// centered, never above 24pt from the top of the work area.
     private func positionAtEdge() {
-        guard let window, let screen = NSScreen.main else { return }
+        // Finding 14: `NSScreen.main` follows key-window focus (nil when SnapBrief itself has no
+        // key window), which made positioning nondeterministic; the primary display
+        // (`NSScreen.screens.first`) is the deterministic Windows-equivalent of "the screen".
+        guard let window, let screen = NSScreen.screens.first else { return }
         let workArea = screen.visibleFrame
         let height = max(window.frame.height, ThemeMetrics.stackMinHeight)
         let x = workArea.maxX - ThemeMetrics.stackWidth - ThemeMetrics.stackEdgeInset
@@ -134,7 +138,7 @@ final class EdgeStackWindowController: NSWindowController {
 
 extension EdgeStackWindowController: EdgeStackContentViewDelegate {
     func edgeStackContentDidRequestNewCapture() {
-        Task { await coordinator?.newCapture() }
+        Task { @MainActor in await coordinator?.newCapture() }
     }
 
     func edgeStackContentDidRequestHide() {
@@ -146,19 +150,19 @@ extension EdgeStackWindowController: EdgeStackContentViewDelegate {
     }
 
     func edgeStackContent(_ view: EdgeStackContentView, didOpenCaptureId id: SBGuid) {
-        Task { await coordinator?.openCapture(id) }
+        Task { @MainActor in await coordinator?.openCapture(id) }
     }
 
     func edgeStackContent(_ view: EdgeStackContentView, didRequestRemoveCaptureId id: SBGuid) {
-        Task { await coordinator?.removeCapture(id) }
+        Task { @MainActor in await coordinator?.removeCapture(id) }
     }
 
     func edgeStackContent(_ view: EdgeStackContentView, didReorderCaptureId id: SBGuid, toIndex index: Int) {
-        Task { await coordinator?.reorderCapture(captureId: id, toIndex: index) }
+        Task { @MainActor in await coordinator?.reorderCapture(captureId: id, toIndex: index) }
     }
 
     func edgeStackContentDidRequestRestore() {
-        Task { await coordinator?.restoreRemoved() }
+        Task { @MainActor in await coordinator?.restoreRemoved() }
     }
 
     func edgeStackContentHeaderMouseDown(with event: NSEvent) {
@@ -171,15 +175,15 @@ extension EdgeStackWindowController: EdgeStackContentViewDelegate {
         let language = coordinator.language
         let menu = NSMenu()
 
-        menu.addItem(makeItem("Импортировать файл…", language: language) { Task { await coordinator.importFiles() } })
-        menu.addItem(makeItem("Вставить изображение из буфера", language: language) { Task { await coordinator.importFromClipboard() } })
+        menu.addItem(makeItem("Импортировать файл…", language: language) { Task { @MainActor in await coordinator.importFiles() } })
+        menu.addItem(makeItem("Вставить изображение из буфера", language: language) { Task { @MainActor in await coordinator.importFromClipboard() } })
         if coordinator.hasRemovedCapture {
-            menu.addItem(makeItem("Вернуть удалённый снимок", language: language) { Task { await coordinator.restoreRemoved() } })
+            menu.addItem(makeItem("Вернуть удалённый снимок", language: language) { Task { @MainActor in await coordinator.restoreRemoved() } })
         }
-        menu.addItem(makeItem("Новая сессия", language: language) { Task { await coordinator.startNewSession() } })
+        menu.addItem(makeItem("Новая сессия", language: language) { Task { @MainActor in await coordinator.startNewSession() } })
         menu.addItem(.separator())
-        menu.addItem(makeItem("Копировать пакет", language: language) { Task { await coordinator.copyPackage() } })
-        menu.addItem(makeItem("Сохранить пакет…", language: language) { Task { await coordinator.savePackageAs() } })
+        menu.addItem(makeItem("Копировать пакет", language: language) { Task { @MainActor in await coordinator.copyPackage() } })
+        menu.addItem(makeItem("Сохранить пакет…", language: language) { Task { @MainActor in await coordinator.savePackageAs() } })
         menu.addItem(makeItem("Настройки", language: language) { [weak self] in self?.openSettings() })
         menu.addItem(.separator())
         menu.addItem(makeItem("Выйти", language: language) { NSApp.terminate(nil) })

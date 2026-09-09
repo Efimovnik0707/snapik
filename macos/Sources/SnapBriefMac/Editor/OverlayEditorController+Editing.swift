@@ -5,6 +5,7 @@ import SnapBriefCore
 
 /// Port of `CropBorder` (`OverlayEditorWindow.xaml:45`): a 2pt `#2F8CFF` border with a transparent
 /// interior, hosting the `AnnotationCanvasView`.
+@MainActor
 final class CropBorderContainerView: NSView {
     override var isFlipped: Bool { true }
 
@@ -16,8 +17,13 @@ final class CropBorderContainerView: NSView {
     }
 }
 
+@MainActor
 extension OverlayEditorController {
-    /// Port of `SetupEditor` (`:228-257`).
+    /// Port of `SetupEditor` (`:228-257`). `setupEditor()` is re-run after every crop/resize/
+    /// undo-redo restore, not just the initial capture — finding 20: only the very first call
+    /// (fresh selection or `presentExisting`) should default the tool to Rectangle; every later
+    /// call preserves whatever tool was active, matching the Windows source (`SetupEditor` there
+    /// does not touch the active tool at all; only initial construction does).
     func setupEditor() {
         guard let capture, let screenIndex = activeScreenIndex else { return }
         settingUp = true
@@ -25,6 +31,11 @@ extension OverlayEditorController {
         slot.contentView.hintView.isHidden = true
         slot.contentView.holeRectLocal = cropRectLocal
 
+        // `canvasContainerView` is created only on the very first `setupEditor()` call for this
+        // controller and never torn down mid-session (`teardownEditingViews()` is reserved for a
+        // future "edit again" flow — see its doc comment below), so `== nil` doubles as "is this
+        // the first call" for the tool-reset decision above.
+        let isInitialSetup = canvasContainerView == nil
         if canvasContainerView == nil {
             let container = CropBorderContainerView(frame: cropRectLocal)
             let canvas = AnnotationCanvasView(frame: NSRect(origin: .zero, size: cropRectLocal.size))
@@ -40,7 +51,10 @@ extension OverlayEditorController {
             canvasView?.frame = NSRect(origin: .zero, size: cropRectLocal.size)
         }
 
-        canvasView?.tool = .rectangle
+        if isInitialSetup {
+            canvasView?.tool = .rectangle
+        }
+        canvasView?.language = language
         canvasView?.activeColor = EditorTheme.annotationPalette[colorIndex]
         canvasView?.activeThickness = thicknesses[thicknessIndex]
         canvasView?.capture = capture
@@ -52,7 +66,7 @@ extension OverlayEditorController {
             slot.contentView.addSubview(toolbar)
             toolbarView = toolbar
         }
-        toolbarView?.setActiveTool(.rectangle)
+        toolbarView?.setActiveTool(canvasView?.tool ?? .rectangle)
 
         setupCaptureHandles(on: slot)
 
@@ -192,7 +206,11 @@ extension OverlayEditorController {
 
 /// `NSMenu` requires an `@objc` target/selector pair; this small `NSObject` forwards each item to
 /// the controller via a weak reference (the controller itself is a plain Swift class, not
-/// `NSObject`, so it cannot be a menu target directly).
+/// `NSObject`, so it cannot be a menu target directly). `NSObject` itself isn't main-actor by
+/// default, and every forwarding method below calls into the now-`@MainActor` controller, so this
+/// needs its own explicit annotation (finding 2) — `NSMenu.popUp` only ever invokes these targets
+/// synchronously from the main thread's event-tracking loop, so this is not a change in behavior.
+@MainActor
 final class MoreToolsMenuTarget: NSObject {
     weak var controller: OverlayEditorController?
 

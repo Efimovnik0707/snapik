@@ -17,6 +17,7 @@ import AppKit
 /// - Overrides `canBecomeKey`/`canBecomeMain` to `true`: unlike the non-activating stack panel
 ///   (SPEC §9.8, `EdgeStackWindow`), the overlay must accept keyboard focus for text-field editing
 ///   inside comment chips and for `keyDown` tool/undo/redo/Escape handling (SPEC §7.5).
+@MainActor
 final class OverlayWindow: NSWindow {
     /// Set by `OverlayEditorController+Keys.wireKeyEquivalents`. Returning `true` consumes the
     /// event; `false` falls through to normal `performKeyEquivalent`/`keyDown` delivery.

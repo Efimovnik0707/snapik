@@ -91,6 +91,62 @@ final class TransportMacTests: XCTestCase {
         XCTAssertFalse(observer.isRunning)
     }
 
+    // Replaces test 36: with the trigger keys physically held down, `MacInputInjector` times out
+    // without ever posting a synthetic key event (`MacInputInjector.swift:93-108`).
+    func testInputInjectorDoesNotSynthesizeWhenTriggerKeysStayPhysicallyHeld() throws {
+        let injector = MacInputInjector(
+            physicalKeys: AlwaysHeldKeyState(), releaseTimeout: 0.02, releasePollInterval: 0.005)
+
+        let expectation = expectation(description: "injectPaste completion")
+        var succeeded: Bool?
+        injector.injectPaste(alternate: false) { result in
+            succeeded = result
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 2)
+        XCTAssertEqual(succeeded, false)
+    }
+
+    // Replaces test 39: `MacClipboardService` funnels every pasteboard operation through the
+    // single queue it was constructed with, standing in for the Windows STA work queue's
+    // dedicated, serialized apartment thread.
+    func testMacClipboardServiceOperationsRunOnADedicatedSerializedQueue() throws {
+        let pasteboard = try XCTUnwrap(NSPasteboard(name: .init("snapbrief-test-transport-queue")))
+        let dedicatedQueue = DispatchQueue(label: "live.yesworkflow.snapbrief.tests.clipboard")
+        let key = DispatchSpecificKey<Bool>()
+        dedicatedQueue.setSpecific(key: key, value: true)
+        let service = MacClipboardService(pasteboard: pasteboard, queue: dedicatedQueue)
+
+        let expectation = expectation(description: "capture completion runs on the dedicated queue")
+        var ranOnDedicatedQueue = false
+        service.capture { _ in
+            ranOnDedicatedQueue = DispatchQueue.getSpecific(key: key) == true
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 5)
+        XCTAssertTrue(ranOnDedicatedQueue)
+        pasteboard.clearContents()
+    }
+
+    // Replaces test 40: raw PNG bytes carry the PNG signature and decode to a correct bitmap
+    // (the DIB-header analogue via TIFF, CONTRACTS.md), read straight off disk with no
+    // `NSPasteboard` involved at all (not even a private one).
+    func testRawPngBytesExposeSignatureAndDecodableRepresentationWithoutSystemClipboard() throws {
+        let pngData = try Self.makeSinglePixelPNG()
+        let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        XCTAssertEqual(Array(pngData.prefix(8)), signature)
+
+        let path = try Self.writeTempFile(data: pngData, name: "raw.png")
+        let rawBytes = try XCTUnwrap(FileManager.default.contents(atPath: path))
+        XCTAssertEqual(rawBytes, pngData)
+
+        let image = try XCTUnwrap(NSImage(data: rawBytes))
+        let tiff = try XCTUnwrap(image.tiffRepresentation)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: tiff))
+        XCTAssertEqual(bitmap.pixelsWide, 1)
+        XCTAssertEqual(bitmap.pixelsHigh, 1)
+    }
+
     // MARK: - Helpers
 
     private static func makeSinglePixelPNG() throws -> Data {
@@ -112,4 +168,8 @@ final class TransportMacTests: XCTestCase {
 
 private final class StubForegroundTarget: ForegroundTargetServicing {
     func currentTarget() -> ForegroundTarget? { nil }
+}
+
+private final class AlwaysHeldKeyState: MacPhysicalKeyStateReading {
+    func isKeyDown(_ keyCode: CGKeyCode) -> Bool { true }
 }

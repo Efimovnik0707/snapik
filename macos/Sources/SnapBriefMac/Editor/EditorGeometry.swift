@@ -266,6 +266,16 @@ enum EditorGeometry {
             height: oldCropRectLocal.height * pixelRect.height / CGFloat(imageHeight))
     }
 
+    /// Port of the reopen-from-stack scale rule (SPEC §1.9 point 2, `OverlayEditorWindow.xaml.cs:156-163`):
+    /// `min(0.72*W/imgW, 0.72*H/imgH)`, centered in the editing window.
+    static func reopenCropRect(imageSize: CGSize, windowSize: CGSize) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
+        let scale = min(0.72 * windowSize.width / imageSize.width, 0.72 * windowSize.height / imageSize.height)
+        let w = imageSize.width * scale
+        let h = imageSize.height * scale
+        return CGRect(x: (windowSize.width - w) / 2, y: (windowSize.height - h) / 2, width: w, height: h)
+    }
+
     // MARK: - Blur radius (SPEC §1.7)
 
     /// Port of `BlurRadius` (`AnnotationCanvas.cs:463`): `clamp(round(thickness*3), 4, 36)`.

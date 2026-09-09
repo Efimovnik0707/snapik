@@ -3,13 +3,16 @@ import AppKit
 import SnapBriefCore
 import UniformTypeIdentifiers
 
+@MainActor
 extension OverlayEditorController {
     /// Port of `OnSaveImageClick` (`Save.cs:14-43`). Cancelling the panel does **not** end the
     /// capture (SPEC §1.13 point 4) — this method only ever calls `showHintError`/
     /// `overlayEditor(_:didSaveFileAt:)`, never `commit`/`close`.
     func saveToFile() {
-        guard capture != nil, !busyCrop, captureResizeCorner < 0, canvasView?.manipulating != true, let screenIndex = activeScreenIndex else { return }
-        busyCrop = true
+        guard capture != nil, !busyCrop, !isModalOpen, captureResizeCorner < 0, canvasView?.manipulating != true, let screenIndex = activeScreenIndex else { return }
+        // Finding 27: the `NSSavePanel` being on screen is tracked by its own flag, not reused
+        // from `busyCrop` (which means "a crop/resize PNG write is in flight" everywhere else).
+        isModalOpen = true
 
         let window = slots[screenIndex].window
         let panel = NSSavePanel()
@@ -36,7 +39,7 @@ extension OverlayEditorController {
 
         panel.begin { [weak self] response in
             guard let self else { return }
-            self.busyCrop = false
+            self.isModalOpen = false
             if self.isPresented { window.level = originalLevel }
             guard response == .OK, let url = panel.url else { return }
             self.finishSave(to: url)

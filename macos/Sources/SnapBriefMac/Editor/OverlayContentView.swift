@@ -40,7 +40,9 @@ final class OverlayContentView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         addSubview(hintView)
-        hintView.text = EditorStrings.selectHint("ru")
+        // No hardcoded-language default here (finding 22): `OverlayEditorController.
+        // createOverlayWindows()` sets `hintView.text` in the caller's real UI language
+        // immediately after constructing this view, before it is ever shown on screen.
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }

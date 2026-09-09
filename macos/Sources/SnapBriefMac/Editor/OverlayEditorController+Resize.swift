@@ -3,6 +3,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 extension OverlayEditorController {
     /// Port of `InitializeCaptureHandles` (`Resize.cs:58-101`).
     func setupCaptureHandles(on slot: OverlayScreenSlot) {
@@ -57,7 +58,7 @@ extension OverlayEditorController {
     // MARK: - Drag lifecycle (SPEC §1.6)
 
     private func captureResizeDragStarted(corner: Int) {
-        guard capture != nil, !busyCrop else { return }
+        guard capture != nil, !busyCrop, !isModalOpen else { return }
         captureResizeCorner = corner
         resizeOriginalCropRectLocal = cropRectLocal
         resizeOutlineView?.isHidden = false
@@ -86,7 +87,10 @@ extension OverlayEditorController {
         applyCaptureResize(requestedRectLocal: requestedRect)
     }
 
-    private func updateCropVisual() {
+    /// Internal (not private): reused by `OverlayEditorController+SmokeTest.swift` to reset the
+    /// crop-rect visual after a synthetic, never-committed corner drag (`smokeRunCaptureResizeProbe`,
+    /// SPEC §8.4 point 9).
+    func updateCropVisual() {
         guard let screenIndex = activeScreenIndex else { return }
         slots[screenIndex].contentView.holeRectLocal = cropRectLocal
         updateCaptureHandles()

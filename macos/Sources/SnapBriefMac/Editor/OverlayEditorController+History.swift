@@ -3,6 +3,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 extension OverlayEditorController {
     /// Port of `SnapshotState()` (`:643`).
     func snapshotState() -> OverlaySnapshot? {
@@ -21,14 +22,14 @@ extension OverlayEditorController {
 
     /// Port of `OnUndoClick` (`:629-634`).
     func performUndo() {
-        guard !busyCrop, captureResizeCorner < 0, let current = snapshotState() else { return }
+        guard !busyCrop, !isModalOpen, captureResizeCorner < 0, let current = snapshotState() else { return }
         guard let previous = history.undo(current: current) else { return }
         restoreState(previous)
     }
 
     /// Port of `OnRedoClick` (`:636-641`).
     func performRedo() {
-        guard !busyCrop, captureResizeCorner < 0, let current = snapshotState() else { return }
+        guard !busyCrop, !isModalOpen, captureResizeCorner < 0, let current = snapshotState() else { return }
         guard let next = history.redo(current: current) else { return }
         restoreState(next)
     }

@@ -18,6 +18,7 @@ final class EditorTextView: NSTextView {
     }
 }
 
+@MainActor
 extension OverlayEditorController {
     /// Wires one window's Cmd-modified shortcuts (SPEC §7.5 points 1, 4, 5). AppKit routes
     /// `performKeyEquivalent(with:)` to the window before ordinary `keyDown` delivery, which is

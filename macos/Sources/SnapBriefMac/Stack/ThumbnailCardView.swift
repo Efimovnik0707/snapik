@@ -68,6 +68,8 @@ final class ThumbnailCardView: NSView {
         deleteButton.target = self
         deleteButton.action = #selector(removeClicked)
         addSubview(deleteButton)
+
+        setAccessibilityRole(.button)
     }
 
     func configure(id: SBGuid, label: String, image: NSImage?) {
@@ -75,6 +77,14 @@ final class ThumbnailCardView: NSView {
         imageView.image = image
         badgeLabel.stringValue = label
         layoutSubviews()
+    }
+
+    /// Finding 23/24 (§1.20 dictionary): the full-bleed "open capture" button has no name of its
+    /// own, and the delete button's accessibility description was a hardcoded Russian string
+    /// regardless of `language`.
+    func applyLocalization(language: String) {
+        setAccessibilityLabel(MacUiText.text("Открыть снимок", language: language))
+        deleteButton.setAccessibilityLabel(MacUiText.text("Удалить", language: language))
     }
 
     override func layout() {

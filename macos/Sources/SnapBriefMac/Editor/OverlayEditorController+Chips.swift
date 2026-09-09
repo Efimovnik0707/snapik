@@ -4,6 +4,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 extension OverlayEditorController {
     // MARK: - Canvas event handlers (SPEC §1.3/§1.4)
 
@@ -87,6 +88,13 @@ extension OverlayEditorController {
             guard let self, let annotation, !self.settingUp else { return }
             annotation.note = text
             self.refreshLabels()
+            // Finding 12: matches the shot-note chip's own `onNoteChanged` below — typing a note
+            // does not push an undo step (SPEC §1.5: "Изменение текста заметки историю не
+            // пушит"), but it must still clear redo and refresh the undo/redo-button baseline so a
+            // later undo doesn't resurrect a stale redo entry.
+            self.history.clearRedo()
+            self.lastSnapshot = self.snapshotState()
+            self.refreshUndoRedoButtons()
         }
         chip.onCloseClicked = { [weak self, weak annotation] in
             guard let self, let annotation else { return }

@@ -3,6 +3,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 extension OverlayEditorController {
     /// Port of `Complete(bool addNext)` (`OverlayEditorWindow.xaml.cs:719-727`, SPEC §1.8). All
     /// five completion paths (background click, Cmd+C, "Готово", "+ Снимок", repeated hotkey)
@@ -13,7 +14,7 @@ extension OverlayEditorController {
     /// delegate callback(s) fire, so the shell knows to start a brand-new
     /// `OverlayEditorController` right away.
     func commit(addNext: Bool) {
-        guard let capture, !busyCrop, captureResizeCorner < 0, canvasView?.manipulating != true else { return }
+        guard let capture, !busyCrop, !isModalOpen, captureResizeCorner < 0, canvasView?.manipulating != true else { return }
 
         rememberCurrentRegionIfNeeded()
         if let shotNoteChipView, shotNoteChipView.superview != nil {

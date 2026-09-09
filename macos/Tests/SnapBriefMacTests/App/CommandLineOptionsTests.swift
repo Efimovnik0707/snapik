@@ -42,4 +42,9 @@ final class CommandLineOptionsTests: XCTestCase {
         let options = CommandLineOptions.parse(arguments: ["--demo-screenshot", "/tmp/shots"], environment: [:])
         XCTAssertEqual(options.demoScreenshotDirectory?.path, "/tmp/shots")
     }
+
+    func test_capture_test_flag_is_parsed() {
+        let options = CommandLineOptions.parse(arguments: ["--capture-test", "/tmp/frame.png"], environment: [:])
+        XCTAssertEqual(options.captureTestPath?.path, "/tmp/frame.png")
+    }
 }

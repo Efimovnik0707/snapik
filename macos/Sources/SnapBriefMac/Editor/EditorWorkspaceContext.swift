@@ -11,4 +11,8 @@ struct EditorWorkspaceContext {
     let sessionDirectory: URL
     let assetStore: SessionAssetStore
     let nextCaptureIndex: Int
+    /// Where "remember last region" persists its state (SPEC §1.16), owned by the shell's
+    /// `SessionWorkspace.regionPath` (`Sources/SnapBriefMac/App`, outside this zone) and passed in
+    /// here rather than re-derived, since this zone has no view onto the shell's app-support layout.
+    let regionPath: URL
 }

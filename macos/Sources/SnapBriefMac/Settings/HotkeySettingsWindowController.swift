@@ -2,6 +2,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate {
     private weak var coordinator: AppCoordinator?
     /// Called once the window has fully closed (Save, Cancel, or the red-close-button-equivalent
@@ -157,6 +158,11 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         generalTab.languagePopup.selectItem(at: language == "en" ? 1 : 0)
         cancelButton.title = MacUiText.text("Отмена", language: language)
         saveButton.title = MacUiText.text("Сохранить", language: language)
+        // Finding 24: two §1.20 dictionary strings otherwise unused anywhere in the port —
+        // supplementary accessibility names for the "Клавиши" tab button (a menu-item-like
+        // control) and its content pane (the tab's header, for VoiceOver users tabbing in).
+        tabButtons[1].setAccessibilityLabel(MacUiText.text("Горячие клавиши…", language: language))
+        hotkeysTab.setAccessibilityTitle(MacUiText.text("Настройки клавиш", language: language))
         showTab(selectedTabIndex)
     }
 
@@ -211,12 +217,21 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
             window?.close()
         } catch let hotkeyError as GlobalHotkeyService.HotkeyError {
             coordinator.hotkeyService.unregisterAll()
-            showError(
+            let text =
                 hotkeyError.isConflict
-                    ? "Эта клавиша уже занята. Освободите её в другом приложении или выберите другую."
-                    : "Не удалось назначить сочетание. Возможно, оно уже занято — нажмите другое.")
+                ? "Эта клавиша уже занята. Освободите её в другом приложении или выберите другую."
+                : "Не удалось назначить сочетание. Возможно, оно уже занято — нажмите другое."
+            // Finding 17 (SPEC §1.17 step 3): every registration error is also written to
+            // startup.log, tagged with the hotkey combination that was being assigned.
+            StartupLog.write(
+                coordinator.options,
+                "Hotkey registration failed for capture=\(candidate.captureId) fullscreenSave=\(candidate.fullscreenSaveId): \(hotkeyError)")
+            showError(text)
         } catch {
             coordinator.hotkeyService.unregisterAll()
+            StartupLog.write(
+                coordinator.options,
+                "Settings save failed for capture=\(candidate.captureId) fullscreenSave=\(candidate.fullscreenSaveId): \(error)")
             showError("Не удалось сохранить настройки: \(error)")
         }
     }
@@ -258,7 +273,15 @@ extension HotkeySettingsWindowController: HotkeyRecorderFieldDelegate {
         // Value already stored on the field itself; nothing else to update here.
     }
 
+    /// Finding 8: while a field is recording, every keystroke — including Enter — belongs to the
+    /// recording (SPEC §7.3), so the window's default button must stop reacting to Enter until
+    /// recording ends.
+    func hotkeyRecorderFieldDidBeginRecording(_ field: HotkeyRecorderField) {
+        saveButton.keyEquivalent = ""
+    }
+
     func hotkeyRecorderFieldDidFinishRecording(_ field: HotkeyRecorderField) {
+        saveButton.keyEquivalent = "\r"
         window?.makeFirstResponder(saveButton)
     }
 }

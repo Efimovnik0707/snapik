@@ -2,6 +2,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let options: CommandLineOptions
     private var coordinator: AppCoordinator!
@@ -44,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBar.onOpenSettings = { [weak self] in self?.stackWindow.openSettings() }
         statusBar.onNewCapture = { [weak self] in
             guard let self else { return }
-            Task { await self.coordinator.newCapture() }
+            Task { @MainActor in await self.coordinator.newCapture() }
         }
         statusBar.onQuit = { NSApp.terminate(nil) }
         statusBar.onLaunchAtLoginError = { [weak self] message in
@@ -55,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Port of `OnClosing` (`:764-772`): force-save before quitting; if the save fails, cancel
     /// the quit and reveal the stack so the user sees why (SPEC §9.7).
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self else {
                 NSApp.reply(toApplicationShouldTerminate: true)
                 return

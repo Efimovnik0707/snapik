@@ -3,6 +3,7 @@ import AppKit
 
 /// `NSStatusItem` equivalent of the Windows tray icon. Left click shows the stack, right/Control
 /// click opens the menu (macOS cannot distinguish a double click on a status item — SPEC §9.7).
+@MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
@@ -90,7 +91,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else { return }
-        if event.type == .rightMouseUp {
+        // Finding 15: Control-click (macOS has no distinct right-click on a laptop trackpad by
+        // default) must also open the menu, not just a literal right-mouse-button click.
+        if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
             // CHECK-API: temporary `statusItem.menu` assignment is the standard way to show a
             // menu from a status item button that also has its own left-click action.
             statusItem.menu = menu

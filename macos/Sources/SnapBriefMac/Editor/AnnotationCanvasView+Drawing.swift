@@ -13,6 +13,7 @@
 import AppKit
 import SnapBriefCore
 
+@MainActor
 extension AnnotationCanvasView {
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext, let capture else { return }

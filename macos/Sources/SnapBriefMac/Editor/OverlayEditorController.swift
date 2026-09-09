@@ -27,6 +27,7 @@ struct OverlayScreenSlot {
 /// capture by the shell (`AppCoordinator`, out of this zone); `present()` shows the overlay
 /// windows, and exactly one of the `OverlayEditorDelegate` completion methods fires before the
 /// controller is torn down.
+@MainActor
 final class OverlayEditorController {
     weak var delegate: OverlayEditorDelegate?
 
@@ -52,6 +53,11 @@ final class OverlayEditorController {
     var captureIndex: Int
     var settingUp = false
     var busyCrop = false
+    /// True only while the Cmd+S `NSSavePanel` is on screen (SPEC §1.13 point 1's "холст держит
+    /// мышь"/crop/corner-drag guards are `busyCrop`/`captureResizeCorner`; a modal file dialog is
+    /// a distinct kind of "busy" — finding 27 — kept separate so `busyCrop`'s meaning stays
+    /// "a crop or resize PNG write is in flight").
+    var isModalOpen = false
 
     let history = EditorHistory()
     var lastSnapshot: OverlaySnapshot?
@@ -86,6 +92,12 @@ final class OverlayEditorController {
     var shotNoteChipView: ShotNoteChipView?
     var contextNoteButtonView: ContextNoteButtonView?
 
+    /// SPEC §1.2 step 5 / §9.8: the frontmost app before this overlay activates itself, restored
+    /// by `close()` (finding 3 — an `.accessory` app's window never becomes key without an
+    /// explicit `NSApp.activate`, and that activation must not permanently steal focus from
+    /// whatever the user was in).
+    private var previousFrontmostApplication: NSRunningApplication?
+
     init(frame: DesktopFrame, workspace: EditorWorkspaceContext, settings: HotkeySettings, language: String) {
         desktopFrame = frame
         workspaceContext = workspace
@@ -99,7 +111,57 @@ final class OverlayEditorController {
     func present() {
         guard !isPresented else { return }
         isPresented = true
+        createOverlayWindows()
+        activateAndShowWindows()
+        if let first = slots.first {
+            first.window.makeKeyAndOrderFront(nil)
+            first.window.makeFirstResponder(first.contentView)
+        }
+        restoreLastRegionIfNeeded()
+    }
 
+    /// SPEC §1.9 point 2: reopen a capture already saved to the stack. `desktopFrame` (passed to
+    /// `init`) is a **fresh** screenshot (so the background layer behind the shade matches the
+    /// current desktop and a corner-drag can still reveal newly-visible screen area is *not*
+    /// possible per §1.6 — expansion for a reopened capture only ever draws from `image`, wired
+    /// through `updateCaptureHandles`'s `isNewCapture == false` branch); `image` is the capture's
+    /// own saved pixels, shown centered and scaled down to fit the screen.
+    func presentExisting(capture: CaptureItem, image: CGImage) {
+        guard !isPresented else { return }
+        isPresented = true
+        createOverlayWindows()
+        activateAndShowWindows()
+
+        guard let screenIndex = slots.firstIndex(where: { $0.screen == NSScreen.main }) ?? slots.indices.first else {
+            close()
+            return
+        }
+        slots[screenIndex].window.makeKeyAndOrderFront(nil)
+        slots[screenIndex].window.makeFirstResponder(slots[screenIndex].contentView)
+
+        activeScreenIndex = screenIndex
+        isNewCapture = false
+        captureResizeCorner = -1
+        resizeSourceImage = nil
+
+        let editorCapture = EditorCapture.fromCore(capture, image: image)
+        editorCapture.displayLabel = (try? CaptureLabels.forIndex(captureIndex)) ?? "A"
+        self.capture = editorCapture
+        currentSourcePath = capture.sourceImagePath
+
+        let contentSize = slots[screenIndex].contentView.bounds.size
+        cropRectLocal = EditorGeometry.reopenCropRect(
+            imageSize: CGSize(width: image.width, height: image.height), windowSize: contentSize)
+
+        slots[screenIndex].contentView.hintView.isHidden = true
+        slots[screenIndex].contentView.holeRectLocal = cropRectLocal
+
+        setupEditor()
+    }
+
+    /// Shared window-construction half of `present()`/`presentExisting()` (SPEC §9.5: one
+    /// `OverlayWindow` per `NSScreen`).
+    private func createOverlayWindows() {
         for screen in NSScreen.screens {
             let window = OverlayWindow(screenFrame: screen.frame)
             let contentView = OverlayContentView(frame: NSRect(origin: .zero, size: screen.frame.size))
@@ -117,20 +179,22 @@ final class OverlayEditorController {
             window.title = "SnapBrief — Оверлей \(slots.count)"
             contentView.screenIndex = slots.count - 1
             contentView.desktopImage = screenSlice(for: slot)
+            contentView.hintView.text = EditorStrings.selectHint(language)
 
             wireSelectionCallbacks(contentView, screenIndex: slots.count - 1)
             wireKeyEquivalents(window)
         }
+    }
 
+    /// Finding 3: an `.accessory`-policy app's borderless windows never become key purely from
+    /// `makeKeyAndOrderFront` — the app itself has to be activated first. Remembers the previously
+    /// frontmost app so `close()` can hand focus back.
+    private func activateAndShowWindows() {
+        previousFrontmostApplication = NSWorkspace.shared.frontmostApplication
+        NSApp.activate(ignoringOtherApps: true)
         for slot in slots {
             slot.window.orderFrontRegardless()
         }
-        if let first = slots.first {
-            first.window.makeKeyAndOrderFront(nil)
-            first.window.makeFirstResponder(first.contentView)
-        }
-
-        restoreLastRegionIfNeeded()
     }
 
     /// Crops this screen's slice of the composited desktop bitmap (SPEC §9.5).
@@ -147,7 +211,7 @@ final class OverlayEditorController {
 
     func handleGlobalHotkey() {
         guard isPresented else { return }
-        guard capture != nil, !busyCrop, captureResizeCorner < 0, canvasView?.manipulating != true else { return }
+        guard capture != nil, !busyCrop, !isModalOpen, captureResizeCorner < 0, canvasView?.manipulating != true else { return }
         commit(addNext: true)
     }
 
@@ -158,6 +222,11 @@ final class OverlayEditorController {
             slot.window.orderOut(nil)
         }
         slots.removeAll()
+        // Finding 3: hand focus back to whatever app was frontmost before this overlay activated
+        // itself (`activateAndShowWindows()`), matching the Windows port's plain non-activating
+        // `ShowStackWithoutActivation` behavior for everything downstream of the overlay closing.
+        previousFrontmostApplication?.activate(options: [])
+        previousFrontmostApplication = nil
     }
 
     // MARK: - Helpers shared by the extensions in this zone

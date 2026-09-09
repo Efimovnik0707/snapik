@@ -17,6 +17,11 @@ import SnapBriefCore
 
 public final class MacPasteIntentObserver: PasteIntentObserving {
     public var onPasteIntent: ((PasteIntent) -> Void)?
+    /// Fired if the event tap is disabled by the system (timeout or user input) and cannot be
+    /// reactivated (finding 16). Not part of `PasteIntentObserving` — only `AppCoordinator`
+    /// (which knows the concrete Mac type) wires this up, to surface SPEC's
+    /// "Вставка остановлена: {e}" status (finding 7).
+    public var onStopped: ((Error) -> Void)?
 
     private let foreground: ForegroundTargetServicing
     private let clipboardSequence: () -> Int
@@ -107,6 +112,16 @@ public final class MacPasteIntentObserver: PasteIntentObserving {
             guard let gesture = keyState.observeV(isKeyDown: type == .keyDown, isInjected: false) else { return }
             guard type == .keyDown else { return }
             emitIntent(alternate: gesture == .optionV)
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            // Port of finding 16: the system disables the tap under load or explicit user
+            // action; re-enable it immediately (Apple's documented recovery), and surface an
+            // error if that reactivation didn't actually take.
+            guard let tap = eventTap else { return }
+            CGEvent.tapEnable(tap: tap, enable: true)
+            if !CGEvent.tapIsEnabled(tap: tap) {
+                let error = TransportError.other("Не удалось повторно включить перехватчик событий вставки.")
+                DispatchQueue.main.async { [weak self] in self?.onStopped?(error) }
+            }
         default:
             break
         }
@@ -124,10 +139,10 @@ public final class MacPasteIntentObserver: PasteIntentObserving {
 
     private static func modifierRole(for keyCode: CGKeyCode) -> PasteIntentModifierKey? {
         switch keyCode {
-        case 0x37: return .command // kVK_Command
-        case 0x3A: return .option // kVK_Option
-        case 0x38: return .shift // kVK_Shift
-        case 0x3B: return .control // kVK_Control
+        case 0x37, 0x36: return .command // kVK_Command, kVK_RightCommand
+        case 0x3A, 0x3D: return .option // kVK_Option, kVK_RightOption
+        case 0x38, 0x3C: return .shift // kVK_Shift, kVK_RightShift
+        case 0x3B, 0x3E: return .control // kVK_Control, kVK_RightControl
         default: return nil
         }
     }

@@ -6,6 +6,7 @@ import SnapBriefCore
 /// Custom drawing surface for the active capture's annotations (SPEC §6.3). `isFlipped = true` so
 /// its coordinate system matches the WPF `Canvas` (top-left origin, Y down) the spec's formulas
 /// were written against, and the `IconPath`/IconPath-style geometry used elsewhere in the editor.
+@MainActor
 final class AnnotationCanvasView: NSView {
     /// The capture currently being edited. Reassigning it (as `OverlayEditorController` does on
     /// every `setupEditor`/undo-redo restore) resets the selection, mirroring
@@ -22,6 +23,10 @@ final class AnnotationCanvasView: NSView {
     var tool: EditorTool = .rectangle
     var activeColor: NSColor = EditorTheme.accent
     var activeThickness: Double = 4
+    /// Set by the controller on every `setupEditor()` (finding 22): the real UI language, used
+    /// only for a new Text-tool draft's placeholder ("Текст"/"Text") — everywhere else on this
+    /// view text is either annotation-authored or drawn by `AnnotationPainter`/the controller.
+    var language: String = "ru"
     /// Forced to 0 by the overlay (SPEC §1.3: "холст разметки `AnnotationCanvas` ... с
     /// `ImagePadding = 0`"); left configurable to match the Windows default of 28 for any future
     /// non-overlay host.
@@ -161,7 +166,8 @@ final class AnnotationCanvasView: NSView {
             kind: tool,
             points: [start, start],
             color: tool == .conceal ? .black : activeColor,
-            thickness: activeThickness)
+            thickness: activeThickness,
+            text: EditorStrings.defaultText(language))
         needsDisplay = true
     }
 

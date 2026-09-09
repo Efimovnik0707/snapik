@@ -31,13 +31,16 @@ public final class ScreenCaptureService: ScreenCaptureServicing {
         CGRequestScreenCaptureAccess()
     }
 
+    /// Port of finding 2 (CONTRACTS.md "Shell"/review): `captureDesktopAsync` runs on the
+    /// cooperative thread pool, so `completion` is always redispatched onto the main queue here —
+    /// every caller (`AppCoordinator`) touches AppKit from it.
     public func captureDesktop(includeCursor: Bool, completion: @escaping (Result<DesktopFrame, Error>) -> Void) {
         Task {
             do {
                 let frame = try await captureDesktopAsync(includeCursor: includeCursor)
-                completion(.success(frame))
+                DispatchQueue.main.async { completion(.success(frame)) }
             } catch {
-                completion(.failure(error))
+                DispatchQueue.main.async { completion(.failure(error)) }
             }
         }
     }

@@ -47,6 +47,10 @@ final class EdgeStackContentView: NSView {
     private let restoreButton = NSButton()
 
     private var draggingCardIndex: Int?
+    /// Finding 23/24: cards need the current language to localize their "Открыть снимок"/
+    /// "Удалить" accessibility labels (§1.20 dictionary), even though their visible content has
+    /// no text of its own.
+    private var currentLanguage = "ru"
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -120,7 +124,7 @@ final class EdgeStackContentView: NSView {
         moreButton.action = #selector(moreClicked)
         headerView.addSubview(moreButton)
 
-        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Свернуть")
+        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Свернуть в трей")
         closeButton.isBordered = false
         closeButton.contentTintColor = DarkPalette.secondaryTextBF
         closeButton.target = self
@@ -141,6 +145,7 @@ final class EdgeStackContentView: NSView {
             let card = ThumbnailCardView(frame: .zero)
             card.delegate = self
             card.configure(id: row.id, label: row.label, image: row.thumbnail)
+            card.applyLocalization(language: currentLanguage)
             listContainer.addSubview(card)
             return card
         }
@@ -160,8 +165,12 @@ final class EdgeStackContentView: NSView {
 
     func applyLocalization(language: String) {
         moreButton.toolTip = MacUiText.text("Ещё", language: language)
-        closeButton.toolTip = MacUiText.text("Свернуть в трей", language: language)
+        let hideLabel = MacUiText.text("Свернуть в трей", language: language)
+        closeButton.toolTip = hideLabel
+        closeButton.setAccessibilityLabel(hideLabel)
         restoreButton.title = MacUiText.text("Вернуть", language: language)
+        currentLanguage = language
+        for card in cardViews { card.applyLocalization(language: language) }
     }
 
     // MARK: - Layout

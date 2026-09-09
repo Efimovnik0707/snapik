@@ -1,5 +1,6 @@
 // Port of literal RU strings from OverlayEditorWindow.xaml / .xaml.cs / CaptureOverlay.xaml,
-// routed through `UiLanguage.text(_:language:)`, SPEC §1.20, §6.1-6.3.
+// routed through `MacUiText.text(_:language:)` (which itself falls back to Core's
+// `UiLanguage.text(_:language:)`), SPEC §1.20, §6.1-6.3.
 import Foundation
 import SnapBriefCore
 
@@ -9,8 +10,11 @@ import SnapBriefCore
 /// call site here routes explicitly through `UiLanguage.text`). Unknown keys simply return
 /// themselves (SPEC §1.20), matching the C# fallback.
 enum EditorStrings {
+    /// Routes through `MacUiText` (`Sources/SnapBriefMac/App/MacUiText.swift`) rather than Core's
+    /// `UiLanguage.text` directly, so the 3 macOS-adapted strings (SPEC §1.20, e.g. "Сохранить на
+    /// компьютер (Cmd+S)" instead of the Windows "(Ctrl+S)") apply here too.
     static func text(_ value: String, language: String) -> String {
-        UiLanguage.text(value, language: language)
+        MacUiText.text(value, language: language)
     }
 
     // Hint / selection mode
