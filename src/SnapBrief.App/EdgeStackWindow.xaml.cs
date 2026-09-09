@@ -238,7 +238,7 @@ public partial class EdgeStackWindow : Window
                 return;
             }
 
-            SetStatus($"Снимки сохранены, но вставка текста не завершена: {completion.Message}", true);
+            SetStatus($"{UiLanguage.Text("Снимки сохранены, но вставка не завершена")}: {completion.Message}", true);
         }
         catch (Exception ex)
         {

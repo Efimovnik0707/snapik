@@ -163,8 +163,8 @@ public interface IClipboardService
         string text,
         uint expectedSequenceNumber,
         CancellationToken cancellationToken);
-    Task<ClipboardWriteReceipt> SetFileDropGuardedAsync(
-        IReadOnlyList<string> pngPaths,
+    Task<ClipboardWriteReceipt> SetPngOnlyGuardedAsync(
+        string pngPath,
         uint expectedSequenceNumber,
         CancellationToken cancellationToken);
     Task<ClipboardWriteReceipt> SetPngGuardedAsync(string pngPath, uint expectedSequenceNumber, CancellationToken cancellationToken);

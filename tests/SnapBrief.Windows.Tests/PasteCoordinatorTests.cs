@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Windows;
@@ -261,39 +263,35 @@ public sealed partial class PasteCoordinatorTests : IDisposable
         Assert.Equal("Снимок A. Снимок B.", formats.Text);
     }
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(3)]
-    public async Task FileDropPackage_ExposesOnlyOrderedFiles_ForClaudeDesktop(int imageCount)
+    [Fact]
+    public async Task PngOnlyDataObject_ExposesExactDecodablePngHGlobalWithoutCompetingFormats()
     {
-        var paths = new List<string>();
-        for (var index = 0; index < imageCount; index++)
-            paths.Add(await WriteValidPngAsync($"claude-{index}.png"));
+        var path = await WriteValidPngAsync("claude-native.png");
+        var expectedBytes = await File.ReadAllBytesAsync(path);
 
-        using var queue = new StaWorkQueue("Claude file-drop data object test");
+        using var queue = new StaWorkQueue("Claude PNG-only data object test");
         var formats = await queue.InvokeAsync(() =>
         {
-            var data = WindowsClipboardService.CreateFileDropDataObject(paths);
+            var data = WindowsClipboardService.CreatePngOnlyDataObject(path);
             return (
-                Png: data.GetDataPresent("PNG", false),
+                PngBytes: ReadRawFormat(data, "PNG"),
                 Dib: data.GetDataPresent(DataFormats.Dib, false),
                 Bitmap: data.GetDataPresent(DataFormats.Bitmap, false),
                 Text: data.GetDataPresent(DataFormats.UnicodeText, false),
                 NativeFormats: data.GetFormats(autoConvert: false),
-                Files: data.GetFileDropList().Cast<string>().ToArray());
+                Files: data.GetDataPresent(DataFormats.FileDrop, false));
         }, CancellationToken.None);
 
-        Assert.False(formats.Png);
+        Assert.Equal(expectedBytes, formats.PngBytes);
         Assert.False(formats.Dib);
         Assert.False(formats.Bitmap);
         Assert.False(formats.Text);
-        Assert.Equal([DataFormats.FileDrop], formats.NativeFormats);
-        Assert.Equal(paths, formats.Files);
+        Assert.False(formats.Files);
+        Assert.Equal(["PNG"], formats.NativeFormats);
+        var decoded = DecodeSinglePixelRgbaPng(formats.PngBytes);
+        Assert.Equal((1, 1), (decoded.Width, decoded.Height));
+        Assert.Equal(new byte[] { 3, 2, 1, 255 }, decoded.Rgba);
     }
-
-    [Fact]
-    public void EmptyFileDropPackage_IsRejectedBeforeClipboardAccess() =>
-        Assert.Throws<ArgumentException>(() => WindowsClipboardService.CreateFileDropDataObject([]));
 
     [Fact]
     public void EmptyPackage_IsRejectedBeforeClipboardAccess() =>
@@ -333,32 +331,97 @@ public sealed partial class PasteCoordinatorTests : IDisposable
     private static byte[] ReadRawFormat(string path, string formatName, int byteCount)
     {
         var data = WindowsClipboardService.CreatePngDataObject(path);
+        return ReadRawFormat(data, formatName, byteCount);
+    }
+
+    private static byte[] ReadRawFormat(System.Windows.IDataObject data, string formatName)
+    {
         var oleData = (System.Runtime.InteropServices.ComTypes.IDataObject)data;
-        var format = new FORMATETC
-        {
-            cfFormat = unchecked((short)DataFormats.GetDataFormat(formatName).Id),
-            dwAspect = DVASPECT.DVASPECT_CONTENT,
-            lindex = -1,
-            tymed = TYMED.TYMED_HGLOBAL,
-        };
+        var format = CreateFormat(formatName);
         oleData.GetData(ref format, out var medium);
         try
         {
-            var pointer = GlobalLock(medium.unionmember);
-            if (pointer == 0) throw new InvalidOperationException("Could not lock PNG clipboard HGLOBAL.");
-            try
-            {
-                var bytes = new byte[byteCount];
-                Marshal.Copy(pointer, bytes, 0, bytes.Length);
-                return bytes;
-            }
-            finally { _ = GlobalUnlock(medium.unionmember); }
+            var size = checked((int)GlobalSize(medium.unionmember));
+            return ReadGlobalBytes(medium.unionmember, size);
         }
         finally { ReleaseStgMedium(ref medium); }
     }
 
+    private static byte[] ReadRawFormat(System.Windows.IDataObject data, string formatName, int byteCount)
+    {
+        var oleData = (System.Runtime.InteropServices.ComTypes.IDataObject)data;
+        var format = CreateFormat(formatName);
+        oleData.GetData(ref format, out var medium);
+        try
+        {
+            return ReadGlobalBytes(medium.unionmember, byteCount);
+        }
+        finally { ReleaseStgMedium(ref medium); }
+    }
+
+    private static FORMATETC CreateFormat(string formatName) => new()
+    {
+        cfFormat = unchecked((short)DataFormats.GetDataFormat(formatName).Id),
+        dwAspect = DVASPECT.DVASPECT_CONTENT,
+        lindex = -1,
+        tymed = TYMED.TYMED_HGLOBAL,
+    };
+
+    private static byte[] ReadGlobalBytes(nint memory, int byteCount)
+    {
+        var pointer = GlobalLock(memory);
+        if (pointer == 0) throw new InvalidOperationException("Could not lock clipboard HGLOBAL.");
+        try
+        {
+            var bytes = new byte[byteCount];
+            Marshal.Copy(pointer, bytes, 0, bytes.Length);
+            return bytes;
+        }
+        finally { _ = GlobalUnlock(memory); }
+    }
+
+    private static (int Width, int Height, byte[] Rgba) DecodeSinglePixelRgbaPng(byte[] png)
+    {
+        Assert.Equal(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }, png[..8]);
+        var offset = 8;
+        var width = 0;
+        var height = 0;
+        using var compressed = new MemoryStream();
+        while (offset < png.Length)
+        {
+            var length = checked((int)BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(offset, 4)));
+            var type = System.Text.Encoding.ASCII.GetString(png, offset + 4, 4);
+            var data = png.AsSpan(offset + 8, length);
+            if (type == "IHDR")
+            {
+                width = checked((int)BinaryPrimitives.ReadUInt32BigEndian(data[..4]));
+                height = checked((int)BinaryPrimitives.ReadUInt32BigEndian(data.Slice(4, 4)));
+                Assert.Equal(8, data[8]);
+                Assert.Equal(6, data[9]);
+                Assert.Equal(0, data[12]);
+            }
+            else if (type == "IDAT") compressed.Write(data);
+            else if (type == "IEND") break;
+            offset = checked(offset + 12 + length);
+        }
+
+        Assert.Equal(1, width);
+        Assert.Equal(1, height);
+        compressed.Position = 0;
+        using var inflater = new ZLibStream(compressed, CompressionMode.Decompress);
+        using var scanlines = new MemoryStream();
+        inflater.CopyTo(scanlines);
+        var decoded = scanlines.ToArray();
+        Assert.Equal(5, decoded.Length);
+        Assert.Equal(0, decoded[0]);
+        return (width, height, decoded[1..]);
+    }
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern nint GlobalLock(nint memory);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern nuint GlobalSize(nint memory);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -376,9 +439,9 @@ public sealed partial class PasteCoordinatorTests : IDisposable
         {
             Require(expected); Writes.AddRange(pngPaths); Writes.Add("TEXT"); return Receipt();
         }
-        public Task<ClipboardWriteReceipt> SetFileDropGuardedAsync(IReadOnlyList<string> pngPaths, uint expected, CancellationToken cancellationToken)
+        public Task<ClipboardWriteReceipt> SetPngOnlyGuardedAsync(string pngPath, uint expected, CancellationToken cancellationToken)
         {
-            Require(expected); Writes.AddRange(pngPaths); return Receipt();
+            Require(expected); Writes.Add(pngPath); return Receipt();
         }
         public Task<ClipboardWriteReceipt> SetPngGuardedAsync(string path, uint expected, CancellationToken cancellationToken)
         {

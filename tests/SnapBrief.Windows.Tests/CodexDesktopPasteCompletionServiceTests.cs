@@ -24,7 +24,7 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
-    public async Task InterceptedClaudeCtrlV_DispatchesOrderedFilesThenImmutableText_Unverified(int imageCount)
+    public async Task InterceptedClaudeCtrlV_DispatchesOrderedPngImagesThenImmutableText_Unverified(int imageCount)
     {
         var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
         var clipboard = new FakeClipboard(41);
@@ -47,10 +47,11 @@ public sealed class CodexDesktopPasteCompletionServiceTests
             "Снимок A.");
 
         Assert.Equal(CodexPasteCompletionStatus.CompletedUnverified, result.Status);
-        Assert.Equal(paths, clipboard.WrittenFiles);
+        Assert.Equal(paths.Concat(["TEXT"]), clipboard.Writes);
         Assert.Equal("Снимок A.", clipboard.WrittenText);
-        Assert.Equal(new ClipboardWriteReceipt(43), result.TextClipboardReceipt);
-        Assert.Equal([HotkeyGesture.CtrlV, HotkeyGesture.CtrlV], input.Gestures);
+        Assert.Equal(new ClipboardWriteReceipt((uint)(42 + imageCount)), result.TextClipboardReceipt);
+        Assert.Equal(imageCount + 1, input.Gestures.Count);
+        Assert.All(input.Gestures, gesture => Assert.Equal(HotkeyGesture.CtrlV, gesture));
         Assert.False(result.Message.Contains("accepted", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -66,7 +67,7 @@ public sealed class CodexDesktopPasteCompletionServiceTests
             .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
 
         Assert.Equal(CodexPasteCompletionStatus.NotApplicable, result.Status);
-        Assert.Null(clipboard.WrittenFiles);
+        Assert.Empty(clipboard.Writes);
         Assert.Null(clipboard.WrittenText);
         Assert.Empty(input.Gestures);
     }
@@ -83,7 +84,7 @@ public sealed class CodexDesktopPasteCompletionServiceTests
             .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
 
         Assert.Equal(CodexPasteCompletionStatus.NotApplicable, result.Status);
-        Assert.Null(clipboard.WrittenFiles);
+        Assert.Empty(clipboard.Writes);
         Assert.Null(clipboard.WrittenText);
         Assert.Empty(input.Gestures);
     }
@@ -105,13 +106,13 @@ public sealed class CodexDesktopPasteCompletionServiceTests
 
         Assert.Equal(CodexPasteCompletionStatus.TargetLost, result.Status);
         Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
-        Assert.Equal([@"C:\shots\0.png"], clipboard.WrittenFiles);
+        Assert.Equal([@"C:\shots\0.png"], clipboard.Writes);
         Assert.Null(clipboard.WrittenText);
         Assert.Empty(input.Gestures);
     }
 
     [Fact]
-    public async Task ClaudeFocusLossAfterAttachmentPaste_ReturnsFilesReceipt()
+    public async Task ClaudeFocusLossAfterFirstImagePaste_ReturnsCurrentReceiptAndStopsSequence()
     {
         var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
         var clipboard = new FakeClipboard(41);
@@ -125,6 +126,53 @@ public sealed class CodexDesktopPasteCompletionServiceTests
         Assert.Equal(CodexPasteCompletionStatus.TargetLost, result.Status);
         Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
         Assert.Equal([HotkeyGesture.CtrlV], input.Gestures);
+        Assert.Equal([@"C:\shots\0.png"], clipboard.Writes);
+        Assert.Null(clipboard.WrittenText);
+    }
+
+    [Fact]
+    public async Task ClaudeClipboardChangeAfterFirstImagePaste_StopsBeforeSecondImageAndText()
+    {
+        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var clipboard = new FakeClipboard(41);
+        var input = new FakeInput { AfterDispatch = clipboard.ExternalWrite };
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
+
+        var result = await Create(clipboard, new FakeTarget(claude), input)
+            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png", @"C:\shots\1.png"], "text");
+
+        Assert.Equal(CodexPasteCompletionStatus.ClipboardChanged, result.Status);
+        Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
+        Assert.Equal([@"C:\shots\0.png"], clipboard.Writes);
+        Assert.Single(input.Gestures);
+        Assert.Null(clipboard.WrittenText);
+    }
+
+    [Fact]
+    public async Task ClaudeCancellationAfterFirstImagePaste_ReturnsCurrentReceiptWithoutContinuing()
+    {
+        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var clipboard = new FakeClipboard(41);
+        using var cancellation = new CancellationTokenSource();
+        var input = new FakeInput { AfterDispatch = cancellation.Cancel };
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
+        var service = new CodexDesktopPasteCompletionService(
+            clipboard,
+            new FakeTarget(claude),
+            input,
+            TimeSpan.FromSeconds(1));
+
+        var result = await service.CompleteClaudeAsync(
+            intent,
+            new ClipboardWriteReceipt(41),
+            [@"C:\shots\0.png", @"C:\shots\1.png"],
+            "text",
+            cancellation.Token);
+
+        Assert.Equal(CodexPasteCompletionStatus.Cancelled, result.Status);
+        Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
+        Assert.Equal([@"C:\shots\0.png"], clipboard.Writes);
+        Assert.Single(input.Gestures);
         Assert.Null(clipboard.WrittenText);
     }
 
@@ -292,16 +340,16 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     private sealed class FakeClipboard(uint sequence) : IClipboardService
     {
         private uint currentSequence = sequence;
-        public IReadOnlyList<string>? WrittenFiles { get; private set; }
+        public List<string> Writes { get; } = [];
         public string? WrittenText { get; private set; }
         public bool FailWrite { get; set; }
         public bool ChangeAfterWrite { get; set; }
         public Task<ClipboardSnapshot> CaptureAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ClipboardWriteReceipt> SetPackageGuardedAsync(IReadOnlyList<string> pngPaths, string text, uint expectedSequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ClipboardWriteReceipt> SetFileDropGuardedAsync(IReadOnlyList<string> pngPaths, uint expectedSequenceNumber, CancellationToken cancellationToken)
+        public Task<ClipboardWriteReceipt> SetPngOnlyGuardedAsync(string pngPath, uint expectedSequenceNumber, CancellationToken cancellationToken)
         {
             if (FailWrite || expectedSequenceNumber != currentSequence) throw new ClipboardChangedException();
-            WrittenFiles = pngPaths.ToArray();
+            Writes.Add(pngPath);
             var receipt = new ClipboardWriteReceipt(++currentSequence);
             if (ChangeAfterWrite) currentSequence++;
             return Task.FromResult(receipt);
@@ -311,6 +359,7 @@ public sealed class CodexDesktopPasteCompletionServiceTests
         {
             if (FailWrite || expectedSequenceNumber != currentSequence) throw new ClipboardChangedException();
             WrittenText = text;
+            Writes.Add("TEXT");
             var receipt = new ClipboardWriteReceipt(++currentSequence);
             if (ChangeAfterWrite) currentSequence++;
             return Task.FromResult(receipt);
@@ -341,6 +390,7 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     {
         public List<HotkeyGesture> Gestures { get; } = [];
         public Action? BeforeFinalGuard { get; set; }
+        public Action? AfterDispatch { get; set; }
         public Task SendAsync(HotkeyGesture gesture, CancellationToken cancellationToken)
         {
             Gestures.Add(gesture);
@@ -352,6 +402,7 @@ public sealed class CodexDesktopPasteCompletionServiceTests
             BeforeFinalGuard?.Invoke();
             if (!await finalGuard(cancellationToken)) return false;
             Gestures.Add(gesture);
+            AfterDispatch?.Invoke();
             return true;
         }
     }

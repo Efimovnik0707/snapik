@@ -39,7 +39,8 @@ internal static class UiLanguage
         ["Копировать пакет"] = "Copy package", ["Сохранить пакет…"] = "Save package…", ["Импортировать файл…"] = "Import file…",
         ["Вставить изображение из буфера"] = "Paste image from clipboard", ["Вернуть удалённый снимок"] = "Restore deleted capture",
         ["Горячие клавиши…"] = "Settings…", ["Настройки клавиш"] = "Settings", ["Снимок сохранён"] = "Capture saved",
-        ["Снимки скопированы"] = "Captures copied", ["Скопировано"] = "Copied", ["Изображения и комментарии готовы к вставке"] = "Images and comments are ready to paste"
+        ["Снимки скопированы"] = "Captures copied", ["Скопировано"] = "Copied", ["Изображения и комментарии готовы к вставке"] = "Images and comments are ready to paste",
+        ["Снимки сохранены, но вставка не завершена"] = "Captures were saved, but pasting did not finish"
     };
     internal static string Text(string value, string? language = null) => (language ?? Current) == "en" ? (English.TryGetValue(value, out var translated) ? translated : value) : (English.FirstOrDefault(pair => pair.Value == value).Key ?? value);
     internal static void Apply(DependencyObject root, string? language = null)

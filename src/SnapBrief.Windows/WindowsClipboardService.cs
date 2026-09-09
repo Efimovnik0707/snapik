@@ -33,12 +33,12 @@ public sealed partial class WindowsClipboardService : IClipboardService, IDispos
             return new ClipboardWriteReceipt(GetClipboardSequenceNumber());
         }, cancellationToken);
 
-    public Task<ClipboardWriteReceipt> SetFileDropGuardedAsync(
-        IReadOnlyList<string> pngPaths,
+    public Task<ClipboardWriteReceipt> SetPngOnlyGuardedAsync(
+        string pngPath,
         uint expectedSequenceNumber,
         CancellationToken cancellationToken) => queue.InvokeAsync(() =>
         {
-            var data = CreateFileDropDataObject(pngPaths);
+            var data = CreatePngOnlyDataObject(pngPath);
             SetDataObjectWithRetry(data, expectedSequenceNumber);
             return new ClipboardWriteReceipt(GetClipboardSequenceNumber());
         }, cancellationToken);
@@ -198,10 +198,22 @@ public sealed partial class WindowsClipboardService : IClipboardService, IDispos
     {
         var bytes = File.ReadAllBytes(pngPath);
         var image = DecodePng(bytes);
-        var data = new DataObject();
-        data.SetData("PNG", new MemoryStream(bytes, writable: false), false);
+        var data = CreatePngOnlyDataObject(bytes);
         data.SetData(DataFormats.Dib, CreateDib(image), false);
         data.SetData(DataFormats.Bitmap, image, true);
+        return data;
+    }
+
+    internal static DataObject CreatePngOnlyDataObject(string pngPath) =>
+        CreatePngOnlyDataObject(File.ReadAllBytes(pngPath));
+
+    private static DataObject CreatePngOnlyDataObject(byte[] bytes)
+    {
+        var data = new DataObject();
+        // Chromium reads its registered PNG format as the complete HGLOBAL byte
+        // range. A fixed-size stream preserves the file's exact encoded bytes when
+        // WPF persists the data object with copy:true.
+        data.SetData("PNG", new MemoryStream(bytes, writable: false), false);
         return data;
     }
 
@@ -219,21 +231,6 @@ public sealed partial class WindowsClipboardService : IClipboardService, IDispos
         foreach (var path in pngPaths) files.Add(path);
         data.SetFileDropList(files);
         data.SetText(text, TextDataFormat.UnicodeText);
-        return data;
-    }
-
-    internal static DataObject CreateFileDropDataObject(IReadOnlyList<string> pngPaths)
-    {
-        ArgumentNullException.ThrowIfNull(pngPaths);
-        if (pngPaths.Count == 0) throw new ArgumentException("A file-drop package needs at least one PNG path.", nameof(pngPaths));
-
-        // The Claude Desktop path stages attachments separately from prompt text.
-        // Keep this object to one native format so the receiver sees an ordered
-        // file list without competing image or text representations.
-        var files = new StringCollection();
-        foreach (var path in pngPaths) files.Add(path);
-        var data = new DataObject();
-        data.SetFileDropList(files);
         return data;
     }
 
