@@ -261,6 +261,40 @@ public sealed partial class PasteCoordinatorTests : IDisposable
         Assert.Equal("Снимок A. Снимок B.", formats.Text);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task FileDropPackage_ExposesOnlyOrderedFiles_ForClaudeDesktop(int imageCount)
+    {
+        var paths = new List<string>();
+        for (var index = 0; index < imageCount; index++)
+            paths.Add(await WriteValidPngAsync($"claude-{index}.png"));
+
+        using var queue = new StaWorkQueue("Claude file-drop data object test");
+        var formats = await queue.InvokeAsync(() =>
+        {
+            var data = WindowsClipboardService.CreateFileDropDataObject(paths);
+            return (
+                Png: data.GetDataPresent("PNG", false),
+                Dib: data.GetDataPresent(DataFormats.Dib, false),
+                Bitmap: data.GetDataPresent(DataFormats.Bitmap, false),
+                Text: data.GetDataPresent(DataFormats.UnicodeText, false),
+                NativeFormats: data.GetFormats(autoConvert: false),
+                Files: data.GetFileDropList().Cast<string>().ToArray());
+        }, CancellationToken.None);
+
+        Assert.False(formats.Png);
+        Assert.False(formats.Dib);
+        Assert.False(formats.Bitmap);
+        Assert.False(formats.Text);
+        Assert.Equal([DataFormats.FileDrop], formats.NativeFormats);
+        Assert.Equal(paths, formats.Files);
+    }
+
+    [Fact]
+    public void EmptyFileDropPackage_IsRejectedBeforeClipboardAccess() =>
+        Assert.Throws<ArgumentException>(() => WindowsClipboardService.CreateFileDropDataObject([]));
+
     [Fact]
     public void EmptyPackage_IsRejectedBeforeClipboardAccess() =>
         Assert.Throws<ArgumentException>(() => WindowsClipboardService.CreatePackageDataObject([], "text"));
@@ -341,6 +375,10 @@ public sealed partial class PasteCoordinatorTests : IDisposable
         public Task<ClipboardWriteReceipt> SetPackageGuardedAsync(IReadOnlyList<string> pngPaths, string text, uint expected, CancellationToken cancellationToken)
         {
             Require(expected); Writes.AddRange(pngPaths); Writes.Add("TEXT"); return Receipt();
+        }
+        public Task<ClipboardWriteReceipt> SetFileDropGuardedAsync(IReadOnlyList<string> pngPaths, uint expected, CancellationToken cancellationToken)
+        {
+            Require(expected); Writes.AddRange(pngPaths); return Receipt();
         }
         public Task<ClipboardWriteReceipt> SetPngGuardedAsync(string path, uint expected, CancellationToken cancellationToken)
         {

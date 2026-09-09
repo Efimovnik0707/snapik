@@ -15,15 +15,18 @@ public sealed partial class WindowsPasteIntentObserver : IPasteIntentObserver
 
     private readonly Dispatcher dispatcher;
     private readonly PasteIntentKeyState keyState = new();
+    private readonly PasteIntentInterceptionState interceptionState = new();
     private readonly HookProcedure hookProcedure;
+    private readonly Func<PasteIntentObserved, bool>? shouldIntercept;
     private nint hookHandle;
     private bool disposed;
 
-    public WindowsPasteIntentObserver()
+    public WindowsPasteIntentObserver(Func<PasteIntentObserved, bool>? shouldIntercept = null)
     {
         dispatcher = Dispatcher.FromThread(Thread.CurrentThread)
             ?? throw new InvalidOperationException("Create the paste-intent observer on a WPF dispatcher thread.");
         hookProcedure = OnKeyboardHook;
+        this.shouldIntercept = shouldIntercept;
     }
 
     public event EventHandler<PasteIntentObserved>? PasteIntentObserved;
@@ -46,32 +49,54 @@ public sealed partial class WindowsPasteIntentObserver : IPasteIntentObserver
         var handle = hookHandle;
         hookHandle = 0;
         keyState.Reset();
+        interceptionState.Reset();
         if (!UnhookWindowsHookEx(handle))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not remove the passive paste-intent keyboard hook.");
     }
 
     private nint OnKeyboardHook(int code, nint message, nint data)
     {
+        var suppress = false;
         try
         {
             if (code >= 0 && TryClassifyMessage(message, out var isKeyDown))
             {
                 var input = Marshal.PtrToStructure<LowLevelKeyboardInput>(data);
-                var gesture = keyState.Observe(input.VirtualKey, isKeyDown, (input.Flags & InjectedFlag) != 0);
+                var isInjected = (input.Flags & InjectedFlag) != 0;
+                var gesture = keyState.Observe(input.VirtualKey, isKeyDown, isInjected);
+                var interceptThisGesture = false;
+                PasteIntentObserved? intentToPublish = null;
+                EventHandler<PasteIntentObserved>? handlerToNotify = null;
                 if (gesture is { } observed)
                 {
                     var foregroundWindow = GetForegroundWindow();
                     _ = GetWindowThreadProcessId(foregroundWindow, out var foregroundProcessId);
                     if (foregroundWindow != 0 && foregroundProcessId != 0 && foregroundProcessId != (uint)Environment.ProcessId)
                     {
-                        PasteIntentObserved?.Invoke(this, new PasteIntentObserved(
+                        var intent = new PasteIntentObserved(
                             observed,
                             foregroundWindow,
                             foregroundProcessId,
                             GetClipboardSequenceNumber(),
-                            DateTimeOffset.UtcNow));
+                            DateTimeOffset.UtcNow);
+                        var handler = PasteIntentObserved;
+                        interceptThisGesture = observed == HotkeyGesture.CtrlV &&
+                            handler is not null &&
+                            shouldIntercept?.Invoke(intent) == true;
+                        if (interceptThisGesture) intent = intent with { IsIntercepted = true };
+                        if (handler is not null)
+                        {
+                            intentToPublish = intent;
+                            handlerToNotify = handler;
+                        }
                     }
                 }
+                suppress = interceptionState.ShouldSuppress(
+                    input.VirtualKey,
+                    isKeyDown,
+                    isInjected,
+                    interceptThisGesture);
+                if (intentToPublish is not null) handlerToNotify!(this, intentToPublish);
             }
         }
         catch
@@ -79,6 +104,7 @@ public sealed partial class WindowsPasteIntentObserver : IPasteIntentObserver
             // Exceptions must never escape a native hook callback or interfere with input.
         }
 
+        if (suppress) return 1;
         return CallNextHookEx(hookHandle, code, message, data);
     }
 
@@ -136,6 +162,26 @@ public sealed partial class WindowsPasteIntentObserver : IPasteIntentObserver
 
     [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
     private static partial nint GetModuleHandle(string? moduleName);
+}
+
+internal sealed class PasteIntentInterceptionState
+{
+    private bool suppressPhysicalVUntilRelease;
+
+    public bool ShouldSuppress(uint virtualKey, bool isKeyDown, bool isInjected, bool interceptThisGesture)
+    {
+        if (isInjected || virtualKey != PasteIntentKeyState.V) return false;
+        if (!isKeyDown)
+        {
+            suppressPhysicalVUntilRelease = false;
+            return false;
+        }
+
+        if (interceptThisGesture) suppressPhysicalVUntilRelease = true;
+        return suppressPhysicalVUntilRelease;
+    }
+
+    public void Reset() => suppressPhysicalVUntilRelease = false;
 }
 
 internal sealed class PasteIntentKeyState

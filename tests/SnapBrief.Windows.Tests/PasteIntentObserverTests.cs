@@ -79,4 +79,24 @@ public sealed class PasteIntentObserverTests
         state.Reset();
         Assert.Null(state.Observe(PasteIntentKeyState.V, true, false));
     }
+
+    [Fact]
+    public void InterceptedPhysicalV_SuppressesInitialAndRepeatKeyDownsUntilRelease()
+    {
+        var state = new PasteIntentInterceptionState();
+
+        Assert.True(state.ShouldSuppress(PasteIntentKeyState.V, true, false, interceptThisGesture: true));
+        Assert.True(state.ShouldSuppress(PasteIntentKeyState.V, true, false, interceptThisGesture: false));
+        Assert.False(state.ShouldSuppress(PasteIntentKeyState.V, false, false, interceptThisGesture: false));
+        Assert.False(state.ShouldSuppress(PasteIntentKeyState.V, true, false, interceptThisGesture: false));
+    }
+
+    [Fact]
+    public void Interception_NeverSuppressesInjectedOrUnrelatedKeys()
+    {
+        var state = new PasteIntentInterceptionState();
+
+        Assert.False(state.ShouldSuppress(PasteIntentKeyState.V, true, true, interceptThisGesture: true));
+        Assert.False(state.ShouldSuppress(PasteIntentKeyState.LeftControl, true, false, interceptThisGesture: true));
+    }
 }

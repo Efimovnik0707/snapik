@@ -33,6 +33,16 @@ public sealed partial class WindowsClipboardService : IClipboardService, IDispos
             return new ClipboardWriteReceipt(GetClipboardSequenceNumber());
         }, cancellationToken);
 
+    public Task<ClipboardWriteReceipt> SetFileDropGuardedAsync(
+        IReadOnlyList<string> pngPaths,
+        uint expectedSequenceNumber,
+        CancellationToken cancellationToken) => queue.InvokeAsync(() =>
+        {
+            var data = CreateFileDropDataObject(pngPaths);
+            SetDataObjectWithRetry(data, expectedSequenceNumber);
+            return new ClipboardWriteReceipt(GetClipboardSequenceNumber());
+        }, cancellationToken);
+
     public Task<ClipboardWriteReceipt> SetPngGuardedAsync(string pngPath, uint expectedSequenceNumber, CancellationToken cancellationToken) =>
         queue.InvokeAsync(() =>
         {
@@ -209,6 +219,21 @@ public sealed partial class WindowsClipboardService : IClipboardService, IDispos
         foreach (var path in pngPaths) files.Add(path);
         data.SetFileDropList(files);
         data.SetText(text, TextDataFormat.UnicodeText);
+        return data;
+    }
+
+    internal static DataObject CreateFileDropDataObject(IReadOnlyList<string> pngPaths)
+    {
+        ArgumentNullException.ThrowIfNull(pngPaths);
+        if (pngPaths.Count == 0) throw new ArgumentException("A file-drop package needs at least one PNG path.", nameof(pngPaths));
+
+        // The Claude Desktop path stages attachments separately from prompt text.
+        // Keep this object to one native format so the receiver sees an ordered
+        // file list without competing image or text representations.
+        var files = new StringCollection();
+        foreach (var path in pngPaths) files.Add(path);
+        var data = new DataObject();
+        data.SetFileDropList(files);
         return data;
     }
 

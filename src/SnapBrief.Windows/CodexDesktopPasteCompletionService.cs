@@ -35,6 +35,7 @@ public sealed class CodexDesktopPasteCompletionService : ICodexDesktopPasteCompl
         // captured at the physical paste intent, not after the settlement delay.
         var target = foreground.Capture();
         if (intent.Gesture != HotkeyGesture.CtrlV ||
+            intent.IsIntercepted ||
             !target.IsUsable ||
             target.WindowHandle != intent.ForegroundWindowHandle ||
             target.ProcessId != intent.ForegroundProcessId ||
@@ -105,6 +106,113 @@ public sealed class CodexDesktopPasteCompletionService : ICodexDesktopPasteCompl
         {
             return Result(CodexPasteCompletionStatus.Failed, $"The guarded text paste failed: {ex.Message}", textReceipt, ex);
         }
+    }
+
+    public async Task<CodexPasteCompletionResult> CompleteClaudeAsync(
+        PasteIntentObserved intent,
+        ClipboardWriteReceipt ownedPackageReceipt,
+        IReadOnlyList<string> immutableImagePaths,
+        string immutablePromptText,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        ArgumentNullException.ThrowIfNull(immutableImagePaths);
+        ArgumentNullException.ThrowIfNull(immutablePromptText);
+
+        var target = foreground.Capture();
+        if (!intent.IsIntercepted ||
+            intent.Gesture != HotkeyGesture.CtrlV ||
+            !target.IsUsable ||
+            target.WindowHandle != intent.ForegroundWindowHandle ||
+            target.ProcessId != intent.ForegroundProcessId ||
+            !foreground.Matches(target, TargetProfiles.ClaudeDesktopCode))
+        {
+            return Result(CodexPasteCompletionStatus.NotApplicable, "Intercepted paste completion applies only to a physical Ctrl+V in Claude Desktop.");
+        }
+
+        if (intent.ClipboardSequenceNumber != ownedPackageReceipt.SequenceNumber)
+            return Result(CodexPasteCompletionStatus.StaleIntent, "The paste intent does not refer to SnapBrief's current package.");
+        if (immutableImagePaths.Count == 0 || string.IsNullOrEmpty(immutablePromptText))
+            return Result(CodexPasteCompletionStatus.NothingToDispatch, "The package needs at least one image and prompt text.");
+
+        ClipboardWriteReceipt? filesReceipt = null;
+        ClipboardWriteReceipt? textReceipt = null;
+        try
+        {
+            filesReceipt = await clipboard.SetFileDropGuardedAsync(
+                immutableImagePaths,
+                ownedPackageReceipt.SequenceNumber,
+                cancellationToken);
+
+            var rejectedStatus = CodexPasteCompletionStatus.ClipboardChanged;
+            if (!await SendGuardedAsync(HotkeyGesture.CtrlV, target, filesReceipt.Value, status => rejectedStatus = status, cancellationToken))
+                return GuardRejectedResult(rejectedStatus, "attachment", filesReceipt);
+
+            await Task.Delay(settlementDelay, cancellationToken);
+            if (!await clipboard.IsCurrentAsync(filesReceipt.Value, cancellationToken))
+                return Result(CodexPasteCompletionStatus.ClipboardChanged, "The clipboard changed before the Claude text paste.", filesReceipt);
+            if (!foreground.IsSame(target))
+                return Result(CodexPasteCompletionStatus.TargetLost, "Claude focus changed before the text paste.", filesReceipt);
+
+            textReceipt = await clipboard.SetTextGuardedAsync(
+                immutablePromptText,
+                filesReceipt.Value.SequenceNumber,
+                cancellationToken);
+            rejectedStatus = CodexPasteCompletionStatus.ClipboardChanged;
+            if (!await SendGuardedAsync(HotkeyGesture.CtrlV, target, textReceipt.Value, status => rejectedStatus = status, cancellationToken))
+                return GuardRejectedResult(rejectedStatus, "text", textReceipt);
+
+            return Result(
+                CodexPasteCompletionStatus.CompletedUnverified,
+                "Claude attachment and prompt paste shortcuts were dispatched; receiver acceptance was not observable.",
+                textReceipt);
+        }
+        catch (ClipboardChangedException ex)
+        {
+            return Result(CodexPasteCompletionStatus.ClipboardChanged, ex.Message, textReceipt ?? filesReceipt, ex);
+        }
+        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result(CodexPasteCompletionStatus.Cancelled, "The guarded Claude paste was cancelled.", textReceipt ?? filesReceipt, ex);
+        }
+        catch (Exception ex)
+        {
+            return Result(CodexPasteCompletionStatus.Failed, $"The guarded Claude paste failed: {ex.Message}", textReceipt ?? filesReceipt, ex);
+        }
+    }
+
+    private async Task<bool> SendGuardedAsync(
+        HotkeyGesture gesture,
+        TargetSnapshot target,
+        ClipboardWriteReceipt receipt,
+        Action<CodexPasteCompletionStatus> reject,
+        CancellationToken cancellationToken) => await input.SendGuardedAsync(
+            gesture,
+            async guardCancellationToken =>
+            {
+                if (!await clipboard.IsCurrentAsync(receipt, guardCancellationToken))
+                {
+                    reject(CodexPasteCompletionStatus.ClipboardChanged);
+                    return false;
+                }
+                if (!foreground.IsSame(target))
+                {
+                    reject(CodexPasteCompletionStatus.TargetLost);
+                    return false;
+                }
+                return true;
+            },
+            cancellationToken);
+
+    private static CodexPasteCompletionResult GuardRejectedResult(
+        CodexPasteCompletionStatus status,
+        string stage,
+        ClipboardWriteReceipt? textReceipt)
+    {
+        var reason = status == CodexPasteCompletionStatus.TargetLost
+            ? "Claude focus changed"
+            : "The clipboard changed";
+        return Result(status, $"{reason} while the {stage} paste keys were being released.", textReceipt);
     }
 
     private static CodexPasteCompletionResult Result(

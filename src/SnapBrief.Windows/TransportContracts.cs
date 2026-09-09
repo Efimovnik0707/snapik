@@ -163,6 +163,10 @@ public interface IClipboardService
         string text,
         uint expectedSequenceNumber,
         CancellationToken cancellationToken);
+    Task<ClipboardWriteReceipt> SetFileDropGuardedAsync(
+        IReadOnlyList<string> pngPaths,
+        uint expectedSequenceNumber,
+        CancellationToken cancellationToken);
     Task<ClipboardWriteReceipt> SetPngGuardedAsync(string pngPath, uint expectedSequenceNumber, CancellationToken cancellationToken);
     Task<ClipboardWriteReceipt> SetTextGuardedAsync(string text, uint expectedSequenceNumber, CancellationToken cancellationToken);
     Task<bool> IsCurrentAsync(ClipboardWriteReceipt receipt, CancellationToken cancellationToken);
@@ -309,7 +313,8 @@ public sealed record PasteIntentObserved(
     nint ForegroundWindowHandle,
     uint ForegroundProcessId,
     uint ClipboardSequenceNumber,
-    DateTimeOffset ObservedAtUtc);
+    DateTimeOffset ObservedAtUtc,
+    bool IsIntercepted = false);
 
 public interface IPasteIntentObserver : IDisposable
 {
@@ -336,6 +341,7 @@ public sealed record CodexPasteCompletionResult(
     ClipboardWriteReceipt? TextClipboardReceipt = null,
     Exception? Error = null)
 {
+    public ClipboardWriteReceipt? CurrentClipboardReceipt => TextClipboardReceipt;
     public bool TextWasDispatched => Status == CodexPasteCompletionStatus.CompletedUnverified;
 }
 
@@ -344,6 +350,12 @@ public interface ICodexDesktopPasteCompletionService
     Task<CodexPasteCompletionResult> CompleteAsync(
         PasteIntentObserved intent,
         ClipboardWriteReceipt ownedPackageReceipt,
+        string immutablePromptText,
+        CancellationToken cancellationToken = default);
+    Task<CodexPasteCompletionResult> CompleteClaudeAsync(
+        PasteIntentObserved intent,
+        ClipboardWriteReceipt ownedPackageReceipt,
+        IReadOnlyList<string> immutableImagePaths,
         string immutablePromptText,
         CancellationToken cancellationToken = default);
 }

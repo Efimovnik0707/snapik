@@ -22,6 +22,128 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task InterceptedClaudeCtrlV_DispatchesOrderedFilesThenImmutableText_Unverified(int imageCount)
+    {
+        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var clipboard = new FakeClipboard(41);
+        var target = new FakeTarget(claude);
+        var input = new FakeInput();
+        var service = Create(clipboard, target, input);
+        var paths = Enumerable.Range(0, imageCount).Select(index => $@"C:\shots\{index}.png").ToArray();
+        var intent = new PasteIntentObserved(
+            HotkeyGesture.CtrlV,
+            claude.WindowHandle,
+            claude.ProcessId,
+            41,
+            DateTimeOffset.UtcNow,
+            IsIntercepted: true);
+
+        var result = await service.CompleteClaudeAsync(
+            intent,
+            new ClipboardWriteReceipt(41),
+            paths,
+            "Снимок A.");
+
+        Assert.Equal(CodexPasteCompletionStatus.CompletedUnverified, result.Status);
+        Assert.Equal(paths, clipboard.WrittenFiles);
+        Assert.Equal("Снимок A.", clipboard.WrittenText);
+        Assert.Equal(new ClipboardWriteReceipt(43), result.TextClipboardReceipt);
+        Assert.Equal([HotkeyGesture.CtrlV, HotkeyGesture.CtrlV], input.Gestures);
+        Assert.False(result.Message.Contains("accepted", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task UninterceptedClaudeIntent_DoesNotWriteOrInject()
+    {
+        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var clipboard = new FakeClipboard(41);
+        var input = new FakeInput();
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow);
+
+        var result = await Create(clipboard, new FakeTarget(claude), input)
+            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
+
+        Assert.Equal(CodexPasteCompletionStatus.NotApplicable, result.Status);
+        Assert.Null(clipboard.WrittenFiles);
+        Assert.Null(clipboard.WrittenText);
+        Assert.Empty(input.Gestures);
+    }
+
+    [Fact]
+    public async Task InterceptedTerminalIntent_DoesNotWriteOrInject()
+    {
+        var terminal = new TargetSnapshot(101, 202, 303, "WindowsTerminal", "Claude Code");
+        var clipboard = new FakeClipboard(41);
+        var input = new FakeInput();
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
+
+        var result = await Create(clipboard, new FakeTarget(terminal), input)
+            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
+
+        Assert.Equal(CodexPasteCompletionStatus.NotApplicable, result.Status);
+        Assert.Null(clipboard.WrittenFiles);
+        Assert.Null(clipboard.WrittenText);
+        Assert.Empty(input.Gestures);
+    }
+
+    [Fact]
+    public async Task ClaudeFocusChangeDuringPhysicalRelease_StopsBeforeAnyPasteShortcut()
+    {
+        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var clipboard = new FakeClipboard(41);
+        var target = new FakeTarget(claude);
+        var input = new FakeInput
+        {
+            BeforeFinalGuard = () => target.Current = new TargetSnapshot(900, 901, 902, "Other", "Other")
+        };
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
+
+        var result = await Create(clipboard, target, input)
+            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
+
+        Assert.Equal(CodexPasteCompletionStatus.TargetLost, result.Status);
+        Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
+        Assert.Equal([@"C:\shots\0.png"], clipboard.WrittenFiles);
+        Assert.Null(clipboard.WrittenText);
+        Assert.Empty(input.Gestures);
+    }
+
+    [Fact]
+    public async Task ClaudeFocusLossAfterAttachmentPaste_ReturnsFilesReceipt()
+    {
+        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var clipboard = new FakeClipboard(41);
+        var target = new FakeTarget(claude) { LoseFocusAfterFirstSameCheck = true };
+        var input = new FakeInput();
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
+
+        var result = await Create(clipboard, target, input)
+            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
+
+        Assert.Equal(CodexPasteCompletionStatus.TargetLost, result.Status);
+        Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
+        Assert.Equal([HotkeyGesture.CtrlV], input.Gestures);
+        Assert.Null(clipboard.WrittenText);
+    }
+
+    [Fact]
+    public async Task InterceptedIntent_IsNotAlsoHandledByCodexCompletion()
+    {
+        var clipboard = new FakeClipboard(41);
+        var input = new FakeInput();
+        var intent = Intent(41) with { IsIntercepted = true };
+
+        var result = await Create(clipboard, new FakeTarget(Codex), input)
+            .CompleteAsync(intent, new ClipboardWriteReceipt(41), "text");
+
+        Assert.Equal(CodexPasteCompletionStatus.NotApplicable, result.Status);
+        Assert.Null(clipboard.WrittenText);
+        Assert.Empty(input.Gestures);
+    }
+
+    [Theory]
     [InlineData("Code", 101u, 202L)]
     [InlineData("ChatGPT", 999u, 202L)]
     [InlineData("ChatGPT", 101u, 999L)]
@@ -170,11 +292,20 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     private sealed class FakeClipboard(uint sequence) : IClipboardService
     {
         private uint currentSequence = sequence;
+        public IReadOnlyList<string>? WrittenFiles { get; private set; }
         public string? WrittenText { get; private set; }
         public bool FailWrite { get; set; }
         public bool ChangeAfterWrite { get; set; }
         public Task<ClipboardSnapshot> CaptureAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ClipboardWriteReceipt> SetPackageGuardedAsync(IReadOnlyList<string> pngPaths, string text, uint expectedSequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ClipboardWriteReceipt> SetFileDropGuardedAsync(IReadOnlyList<string> pngPaths, uint expectedSequenceNumber, CancellationToken cancellationToken)
+        {
+            if (FailWrite || expectedSequenceNumber != currentSequence) throw new ClipboardChangedException();
+            WrittenFiles = pngPaths.ToArray();
+            var receipt = new ClipboardWriteReceipt(++currentSequence);
+            if (ChangeAfterWrite) currentSequence++;
+            return Task.FromResult(receipt);
+        }
         public Task<ClipboardWriteReceipt> SetPngGuardedAsync(string pngPath, uint expectedSequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ClipboardWriteReceipt> SetTextGuardedAsync(string text, uint expectedSequenceNumber, CancellationToken cancellationToken)
         {
