@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import XCTest
+import SnapBriefCore
 
 @testable import SnapBriefMac
 
