@@ -9,47 +9,65 @@ namespace SnapBrief.App;
 internal static class CaptureFeedbackSound
 {
     private const int SampleRate = 44_100;
-    private const long TickThrottleMilliseconds = 80;
+    private const long TickThrottleMilliseconds = 170;
+    private const long CaptureSuppressionMilliseconds = 400;
+    private const string ResourcePrefix = "SnapBrief.App.Assets.Audio.";
     private static readonly object Gate = new();
     private static readonly SoundPlayer Player = new();
-    private static readonly byte[] CaptureWave = CreateCaptureWave();
-    private static readonly byte[] TickWave = CreateTickWave();
-    private static readonly MemoryStream CaptureStream = new(CaptureWave, writable: false);
-    private static readonly MemoryStream TickStream = new(TickWave, writable: false);
+    private static readonly Lazy<SoundAsset?> CaptureAsset = new(() => LoadAsset("camera-shutter.wav"));
+    private static readonly Lazy<SoundAsset?> TickAsset = new(() => LoadAsset("camera-dial-click.wav"));
+    private static long _lastCaptureTimestamp;
     private static long _lastTickTimestamp;
 
     internal static void Capture(bool enabled)
     {
-        if (enabled) Play(CaptureStream);
+        if (!enabled) return;
+        Interlocked.Exchange(ref _lastCaptureTimestamp, Stopwatch.GetTimestamp());
+        Play(CaptureAsset.Value);
     }
 
     internal static void Tick(bool enabled)
     {
         if (!enabled) return;
         var now = Stopwatch.GetTimestamp();
+        var captureTimestamp = Interlocked.Read(ref _lastCaptureTimestamp);
+        if (captureTimestamp != 0 && Stopwatch.GetElapsedTime(captureTimestamp, now).TotalMilliseconds < CaptureSuppressionMilliseconds) return;
         var previous = Interlocked.Read(ref _lastTickTimestamp);
         if (previous != 0 && Stopwatch.GetElapsedTime(previous, now).TotalMilliseconds < TickThrottleMilliseconds) return;
         Interlocked.Exchange(ref _lastTickTimestamp, now);
-        Play(TickStream);
+        Play(TickAsset.Value);
     }
 
     internal static void VerifyWaveHeaders()
     {
-        VerifyWave(CaptureWave);
-        VerifyWave(TickWave);
+        VerifyWave(CaptureAsset.Value?.Wave ?? throw new InvalidOperationException("Bundled camera shutter WAV is missing."));
+        VerifyWave(TickAsset.Value?.Wave ?? throw new InvalidOperationException("Bundled camera dial WAV is missing."));
     }
 
-    private static void Play(MemoryStream stream)
+    private static SoundAsset? LoadAsset(string fileName)
     {
+        try
+        {
+            using var resource = typeof(CaptureFeedbackSound).Assembly.GetManifestResourceStream(ResourcePrefix + fileName);
+            if (resource is null) return null;
+            using var buffer = new MemoryStream();
+            resource.CopyTo(buffer);
+            var wave = buffer.ToArray();
+            return new SoundAsset(wave, new MemoryStream(wave, writable: false));
+        }
+        catch { return null; }
+    }
+
+    private static void Play(SoundAsset? asset)
+    {
+        if (asset is null) return;
         try
         {
             lock (Gate)
             {
                 Player.Stop();
-                stream.Position = 0;
-                Player.Stream = stream;
-                // The blobs are tiny; loading them here prevents the asynchronous player from
-                // reading a stream after the next feedback sound has rebound the single player.
+                asset.Stream.Position = 0;
+                Player.Stream = asset.Stream;
                 Player.Load();
                 Player.Play();
             }
@@ -64,71 +82,8 @@ internal static class CaptureFeedbackSound
             BitConverter.ToInt32(wave, 4) != wave.Length - 8 || BitConverter.ToInt16(wave, 20) != 1 ||
             BitConverter.ToInt16(wave, 22) != 1 || BitConverter.ToInt32(wave, 24) != SampleRate ||
             BitConverter.ToInt16(wave, 34) != 16 || BitConverter.ToInt32(wave, 40) != wave.Length - 44)
-            throw new InvalidOperationException("Generated capture feedback is not a valid PCM WAV stream.");
+            throw new InvalidOperationException("Bundled capture feedback is not a valid 44.1 kHz mono PCM WAV stream.");
     }
 
-    private static byte[] CreateCaptureWave()
-    {
-        const double duration = .115;
-        var samples = new short[(int)(SampleRate * duration)];
-        uint noise = 0x51A7C0DE;
-        var filteredNoise = 0d;
-        for (var i = 0; i < samples.Length; i++)
-        {
-            var time = i / (double)SampleRate;
-            noise = noise * 1_664_525u + 1_013_904_223u;
-            var white = ((noise >> 8) / 8_388_607.5) - 1;
-            filteredNoise += .38 * (white - filteredNoise);
-
-            var first = Math.Exp(-time * 82) * (Math.Sin(2 * Math.PI * 2_450 * time) * .28 + filteredNoise * .22);
-            var secondTime = time - .047;
-            var second = secondTime < 0 ? 0 : Math.Exp(-secondTime * 68) *
-                (Math.Sin(2 * Math.PI * 1_720 * secondTime) * .22 + filteredNoise * .16);
-            samples[i] = ToPcm16((first + second) * .72);
-        }
-        return WriteWave(samples);
-    }
-
-    private static byte[] CreateTickWave()
-    {
-        const double duration = .026;
-        var samples = new short[(int)(SampleRate * duration)];
-        uint noise = 0x0C11C5E1;
-        var filteredNoise = 0d;
-        for (var i = 0; i < samples.Length; i++)
-        {
-            var time = i / (double)SampleRate;
-            noise = noise * 1_664_525u + 1_013_904_223u;
-            var white = ((noise >> 8) / 8_388_607.5) - 1;
-            filteredNoise += .22 * (white - filteredNoise);
-            var envelope = Math.Exp(-time * 190);
-            var sample = envelope * (Math.Sin(2 * Math.PI * 3_050 * time) * .11 + filteredNoise * .055);
-            samples[i] = ToPcm16(sample);
-        }
-        return WriteWave(samples);
-    }
-
-    private static short ToPcm16(double sample) => (short)Math.Round(Math.Clamp(sample, -1, 1) * short.MaxValue);
-
-    private static byte[] WriteWave(short[] samples)
-    {
-        using var stream = new MemoryStream(44 + samples.Length * sizeof(short));
-        using var writer = new BinaryWriter(stream);
-        writer.Write("RIFF"u8);
-        writer.Write(36 + samples.Length * sizeof(short));
-        writer.Write("WAVE"u8);
-        writer.Write("fmt "u8);
-        writer.Write(16);
-        writer.Write((short)1);
-        writer.Write((short)1);
-        writer.Write(SampleRate);
-        writer.Write(SampleRate * sizeof(short));
-        writer.Write((short)sizeof(short));
-        writer.Write((short)16);
-        writer.Write("data"u8);
-        writer.Write(samples.Length * sizeof(short));
-        foreach (var sample in samples) writer.Write(sample);
-        writer.Flush();
-        return stream.ToArray();
-    }
+    private sealed record SoundAsset(byte[] Wave, MemoryStream Stream);
 }
