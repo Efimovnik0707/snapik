@@ -25,7 +25,7 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
 
         XCTAssertEqual(final.status, .completedUnverified)
         XCTAssertEqual(clipboard.writtenText, "Снимок A.")
-        XCTAssertEqual(final.textClipboardReceipt, Self.receipt(42))
+        XCTAssertEqual(final.textClipboardReceipt, Self.textReceipt(42, text: "Снимок A."))
         XCTAssertEqual(input.gestures, [false])
         XCTAssertFalse(final.message.lowercased().contains("accepted"))
     }
@@ -87,7 +87,7 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
         let input = FakeInput()
         let service = Self.makeService(clipboard: clipboard, target: FakeTarget(initial: Self.codex), input: input)
 
-        let final = complete(service, intent: Self.intent(sequence: 42), receipt: Self.receipt(41), text: "text")
+        let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
         XCTAssertEqual(final.status, .clipboardChanged)
         XCTAssertNil(clipboard.writtenText)
@@ -105,7 +105,7 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
         XCTAssertEqual(final.status, .targetLost)
-        XCTAssertEqual(final.textClipboardReceipt, Self.receipt(42))
+        XCTAssertEqual(final.textClipboardReceipt, Self.textReceipt(42, text: "text"))
         XCTAssertTrue(input.gestures.isEmpty)
     }
 
@@ -132,7 +132,7 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
         XCTAssertEqual(final.status, .clipboardChanged)
-        XCTAssertEqual(final.textClipboardReceipt, Self.receipt(42))
+        XCTAssertEqual(final.textClipboardReceipt, Self.textReceipt(42, text: "text"))
         XCTAssertTrue(input.gestures.isEmpty)
     }
 
@@ -150,7 +150,7 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
         XCTAssertEqual(final.status, .targetLost)
-        XCTAssertEqual(final.textClipboardReceipt, Self.receipt(42))
+        XCTAssertEqual(final.textClipboardReceipt, Self.textReceipt(42, text: "text"))
         XCTAssertTrue(input.gestures.isEmpty)
     }
 
@@ -164,7 +164,7 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
         XCTAssertEqual(final.status, .clipboardChanged)
-        XCTAssertEqual(final.textClipboardReceipt, Self.receipt(42))
+        XCTAssertEqual(final.textClipboardReceipt, Self.textReceipt(42, text: "text"))
         XCTAssertTrue(input.gestures.isEmpty)
     }
 
@@ -207,6 +207,12 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
 
     private static func receipt(_ sequence: Int) -> ClipboardSnapshot {
         ClipboardSnapshot(sequence: sequence, hasText: false, text: nil, filePaths: [], hasImage: false)
+    }
+
+    /// Expected shape of the receipt returned by `setTextGuarded` (step 8, SPEC §5.4 `:2091`):
+    /// the clipboard now holds only the written text.
+    private static func textReceipt(_ sequence: Int, text: String) -> ClipboardSnapshot {
+        ClipboardSnapshot(sequence: sequence, hasText: true, text: text, filePaths: [], hasImage: false)
     }
 }
 
