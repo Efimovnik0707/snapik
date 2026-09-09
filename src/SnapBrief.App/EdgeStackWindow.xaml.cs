@@ -46,6 +46,7 @@ public partial class EdgeStackWindow : Window
     private bool _exiting;
     private bool _allowClose;
     private bool _sessionResetting;
+    private bool _pasteObservedForCurrentPackage;
     private Task _pasteIntentTransition = Task.CompletedTask;
     private Point _dragStart;
     private CaptureItem? _draggedCapture;
@@ -69,17 +70,32 @@ public partial class EdgeStackWindow : Window
         _saveTimer.Tick += OnSaveTimerTick;
         _pasteIntentObserver = new WindowsPasteIntentObserver(intent =>
         {
+            var receiptSeq = _ownedClipboardReceipt?.SequenceNumber;
             if (_sessionResetting || !_pasteIntentTransition.IsCompleted || _clipboardPublicationGate.CurrentCount == 0 ||
                 _ownedClipboardReceipt is not { } receipt ||
                 intent.ClipboardSequenceNumber != receipt.SequenceNumber ||
-                string.IsNullOrEmpty(_ownedClipboardPromptText) || _prepared is null) return false;
-            if (intent.Gesture != HotkeyGesture.CtrlV && intent.Gesture != HotkeyGesture.AltV) return false;
+                string.IsNullOrEmpty(_ownedClipboardPromptText) || _prepared is null)
+            {
+                StartupTrace.Write(_options, $"PasteIntent predicate: state not ready (resetting={_sessionResetting}, transitionDone={_pasteIntentTransition.IsCompleted}, gate={_clipboardPublicationGate.CurrentCount}, ownedSeq={receiptSeq}, intentSeq={intent.ClipboardSequenceNumber}, prompt={!string.IsNullOrEmpty(_ownedClipboardPromptText)}, prepared={_prepared is not null}, gesture={intent.Gesture})");
+                return false;
+            }
+            if (intent.Gesture != HotkeyGesture.CtrlV && intent.Gesture != HotkeyGesture.AltV)
+            {
+                StartupTrace.Write(_options, $"PasteIntent predicate: gesture {intent.Gesture} not intercepted");
+                return false;
+            }
             var target = foreground.Capture();
             if (!target.IsUsable || target.WindowHandle != intent.ForegroundWindowHandle ||
-                target.ProcessId != intent.ForegroundProcessId) return false;
+                target.ProcessId != intent.ForegroundProcessId)
+            {
+                StartupTrace.Write(_options, $"PasteIntent predicate: target mismatch (usable={target.IsUsable}, process={target.ProcessName}, hwnd={target.WindowHandle} vs {intent.ForegroundWindowHandle}, pid={target.ProcessId} vs {intent.ForegroundProcessId})");
+                return false;
+            }
             // Codex Desktop keeps the untouched CompleteAsync path: its physical Ctrl+V paste
             // already works against the composite package, so it must not be intercepted here.
-            return !foreground.Matches(target, SnapBrief.Windows.TargetProfiles.CodexDesktop);
+            var intercept = !foreground.Matches(target, SnapBrief.Windows.TargetProfiles.CodexDesktop);
+            StartupTrace.Write(_options, $"PasteIntent predicate: intercept={intercept}, gesture={intent.Gesture}, process={target.ProcessName}, title={target.WindowTitle}, seq={intent.ClipboardSequenceNumber}");
+            return intercept;
         });
 
         InitializeComponent();
@@ -194,6 +210,7 @@ public partial class EdgeStackWindow : Window
     {
         var receiptAtIntent = _ownedClipboardReceipt;
         var promptAtIntent = _ownedClipboardPromptText;
+        StartupTrace.Write(_options, $"PasteIntent observed: gesture={e.Gesture}, intercepted={e.IsIntercepted}, seq={e.ClipboardSequenceNumber}, ownedSeq={receiptAtIntent?.SequenceNumber}, pid={e.ForegroundProcessId}");
         if (receiptAtIntent is null || e.ClipboardSequenceNumber != receiptAtIntent.Value.SequenceNumber) return;
         if (promptAtIntent is null)
         {
@@ -221,6 +238,7 @@ public partial class EdgeStackWindow : Window
                 promptAtIntent,
                 CancellationToken.None);
 
+            StartupTrace.Write(_options, $"PasteIntent completion: intercepted={e.IsIntercepted}, images={pathsAtIntent.Length}, status={completion.Status}, message={completion.Message}");
             // A newer capture may have replaced the package while completion was waiting.
             // Never rotate that newer session in response to this older paste intent.
             if (_ownedClipboardReceipt != receiptAtIntent) return;
@@ -230,7 +248,9 @@ public partial class EdgeStackWindow : Window
 
             if (completion.Status == CodexPasteCompletionStatus.CompletedUnverified)
             {
-                await StartNewSessionAsync();
+                // Keep the package on the clipboard so the same stack can be pasted into
+                // several applications in a row; session rotation moves to the next capture.
+                await RepublishPackageForReuseAsync(pathsAtIntent, promptAtIntent);
                 return;
             }
 
@@ -245,9 +265,39 @@ public partial class EdgeStackWindow : Window
         }
         catch (Exception ex)
         {
+            StartupTrace.Write(_options, $"PasteIntent completion failed: {ex}");
             SetStatus($"Вставка замечена, но новая сессия не создана: {ex.Message}", true);
         }
         finally { _clipboardPublicationGate.Release(); }
+    }
+
+    // Runs inside the same critical section as the completion above (the gate is
+    // released by CompletePasteIntentAsync's finally), so the republish and the
+    // guard it depends on stay atomic with respect to other clipboard publishers.
+    private async Task RepublishPackageForReuseAsync(string[] pathsAtIntent, string promptAtIntent)
+    {
+        if (_ownedClipboardReceipt is not { } current || _prepared is null)
+        {
+            SetStatus(UiLanguage.Text("Пакет вытеснен другим приложением. Сессия сохранена."), true);
+            return;
+        }
+        try
+        {
+            var republished = await _clipboard.SetPackageGuardedAsync(pathsAtIntent, promptAtIntent, current.SequenceNumber, CancellationToken.None);
+            _ownedClipboardReceipt = republished;
+            _ownedClipboardPromptText = promptAtIntent;
+            _pasteObservedForCurrentPackage = true;
+            var template = UiLanguage.Text("Вставлено: {0} изображений · {1} заметок. Пакет остаётся в буфере, следующий снимок начнёт новую стопку");
+            SetStatus(string.Format(template, _prepared.Manifest.CaptureCount, _prepared.Manifest.NoteCount));
+        }
+        catch (ClipboardChangedException)
+        {
+            // Someone else copied in the meantime; leave their clipboard untouched and
+            // let the next capture's EnsureCurrentCaptureSessionAsync detect the mismatch.
+            _ownedClipboardReceipt = null;
+            _ownedClipboardPromptText = null;
+            SetStatus(UiLanguage.Text("Пакет вытеснен другим приложением. Сессия сохранена."), true);
+        }
     }
 
     private async void OnCaptureClick(object sender, RoutedEventArgs e) => await CaptureLoopAsync();
@@ -285,6 +335,16 @@ public partial class EdgeStackWindow : Window
 
     private async Task<bool> EnsureCurrentCaptureSessionAsync()
     {
+        if (_pasteObservedForCurrentPackage)
+        {
+            // A reusable package sat in the clipboard after a completed paste; rotation
+            // was deferred to this next capture. The old session is preserved on disk.
+            _pasteObservedForCurrentPackage = false;
+            _ownedClipboardReceipt = null;
+            _ownedClipboardPromptText = null;
+            return await StartNewSessionAsync();
+        }
+
         if (Captures.Count == 0) return true;
 
         try

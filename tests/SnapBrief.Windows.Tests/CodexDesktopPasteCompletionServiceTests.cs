@@ -356,6 +356,56 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     [Fact]
+    public async Task ReusablePackage_RepublishesFullPackageAfterCompletedPasteAndAcceptsNextIntent()
+    {
+        // Mirrors EdgeStackWindow.RepublishPackageForReuseAsync: after CompleteSequentialAsync
+        // reports CompletedUnverified, the app republishes the same package so it stays on the
+        // clipboard for the next application, then a fresh paste intent must line up with it.
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
+        var clipboard = new FakeClipboard(41);
+        var input = new FakeInput();
+        var service = Create(clipboard, new FakeTarget(grokBot), input);
+        var paths = new[] { @"C:\shots\0.png", @"C:\shots\1.png" };
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
+
+        var completion = await service.CompleteSequentialAsync(intent, new ClipboardWriteReceipt(41), paths, "Снимок A.");
+        Assert.Equal(CodexPasteCompletionStatus.CompletedUnverified, completion.Status);
+        var textReceipt = completion.TextClipboardReceipt!.Value;
+
+        var republished = await clipboard.SetPackageGuardedAsync(paths, "Снимок A.", textReceipt.SequenceNumber, CancellationToken.None);
+
+        Assert.Equal("PACKAGE:" + string.Join(",", paths), clipboard.Writes[^1]);
+        Assert.Equal("Снимок A.", clipboard.WrittenText);
+        Assert.NotEqual(textReceipt, republished);
+        Assert.True(await clipboard.IsCurrentAsync(republished, CancellationToken.None));
+
+        // A second paste intent against the republished sequence must still be interceptable.
+        var nextIntent = intent with { ClipboardSequenceNumber = republished.SequenceNumber };
+        var secondCompletion = await service.CompleteSequentialAsync(nextIntent, republished, paths, "Снимок A.");
+        Assert.Equal(CodexPasteCompletionStatus.CompletedUnverified, secondCompletion.Status);
+    }
+
+    [Fact]
+    public async Task ReusablePackage_DisplacedByAnotherAppLeavesClipboardUntouched()
+    {
+        var clipboard = new FakeClipboard(41);
+        var input = new FakeInput();
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
+        var service = Create(clipboard, new FakeTarget(grokBot), input);
+        var paths = new[] { @"C:\shots\0.png" };
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
+
+        var completion = await service.CompleteSequentialAsync(intent, new ClipboardWriteReceipt(41), paths, "Снимок A.");
+        var textReceipt = completion.TextClipboardReceipt!.Value;
+
+        // Another application copies something in the gap between completion and republish.
+        clipboard.ExternalWrite();
+
+        await Assert.ThrowsAsync<ClipboardChangedException>(() =>
+            clipboard.SetPackageGuardedAsync(paths, "Снимок A.", textReceipt.SequenceNumber, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task AltVAndEmptyPrompt_DoNotInject()
     {
         var clipboard = new FakeClipboard(41);
@@ -384,7 +434,15 @@ public sealed class CodexDesktopPasteCompletionServiceTests
         public bool FailWrite { get; set; }
         public bool ChangeAfterWrite { get; set; }
         public Task<ClipboardSnapshot> CaptureAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ClipboardWriteReceipt> SetPackageGuardedAsync(IReadOnlyList<string> pngPaths, string text, uint expectedSequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ClipboardWriteReceipt> SetPackageGuardedAsync(IReadOnlyList<string> pngPaths, string text, uint expectedSequenceNumber, CancellationToken cancellationToken)
+        {
+            if (FailWrite || expectedSequenceNumber != currentSequence) throw new ClipboardChangedException();
+            Writes.Add("PACKAGE:" + string.Join(",", pngPaths));
+            WrittenText = text;
+            var receipt = new ClipboardWriteReceipt(++currentSequence);
+            if (ChangeAfterWrite) currentSequence++;
+            return Task.FromResult(receipt);
+        }
         public Task<ClipboardWriteReceipt> SetPngOnlyGuardedAsync(string pngPath, uint expectedSequenceNumber, CancellationToken cancellationToken)
         {
             if (FailWrite || expectedSequenceNumber != currentSequence) throw new ClipboardChangedException();
