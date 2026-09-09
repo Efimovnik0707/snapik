@@ -28,6 +28,7 @@ targets += [
             .linkedFramework("Carbon"),
             .linkedFramework("ScreenCaptureKit"),
             .linkedFramework("ServiceManagement"),
+            .linkedFramework("UserNotifications"),
         ]
     ),
     .testTarget(
