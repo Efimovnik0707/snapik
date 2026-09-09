@@ -1,28 +1,53 @@
 #!/bin/bash
-# CI smoke: launches the built app in headless-ish mode on the runner's GUI session,
-# runs the built-in --smoke-test, captures runner screenshots of the real windows.
+# CI smoke: runs the built app on the runner's GUI session.
+#  1. --smoke-test  : export pipeline, sessions, settings round-trip (exit code matters)
+#  2. TCC grants    : on GitHub runners SIP is disabled, so Screen Recording / Accessibility /
+#                     Input Monitoring can be pre-granted in the TCC databases (best effort)
+#  3. --demo        : synthetic captures, real windows; the app saves its own window images,
+#                     the script captures the whole runner desktop while windows are up
+#  4. --capture-test: one real ScreenCaptureKit capture (only meaningful if TCC grant worked)
 set -uo pipefail
 APP="$1"
 BIN="$APP/Contents/MacOS/SnapBrief"
+BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Contents/Info.plist")
 OUT="smoke-out"; rm -rf "$OUT"; mkdir -p "$OUT"
 DATA="$(mktemp -d)/snapbrief-data"
-echo "== TCC status =="
-csrutil status || true
-echo "== 1. --smoke-test (export pipeline, sessions, settings round-trip) =="
-"$BIN" --smoke-test --data-dir "$DATA" > "$OUT/smoke-test.log" 2>&1
-RC=$?
-cat "$OUT/smoke-test.log"
-echo "smoke-test exit code: $RC"
-echo "== 2. --demo (synthetic captures, real windows) =="
+RC=0
+
+echo "== SIP =="; csrutil status || true
+
+echo "== 1. --smoke-test =="
+"$BIN" --smoke-test --data-dir "$DATA" > "$OUT/smoke-test.log" 2>&1; RC=$?
+cat "$OUT/smoke-test.log"; echo "smoke-test exit code: $RC"
+
+echo "== 2. TCC grants (best effort) =="
+grant() { # db service client
+  local db="$1" svc="$2" cli="$3"
+  sudo sqlite3 "$db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, indirect_object_identifier_type, indirect_object_identifier, flags, last_modified) VALUES ('$svc','$cli',0,2,4,1,0,'UNUSED',0,strftime('%s','now'));" 2>&1 && echo "granted $svc" || echo "grant failed $svc"
+}
+USER_TCC="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+SYS_TCC="/Library/Application Support/com.apple.TCC/TCC.db"
+grant "$USER_TCC" kTCCServiceScreenCapture "$BUNDLE_ID"
+grant "$SYS_TCC"  kTCCServiceScreenCapture "$BUNDLE_ID"
+grant "$SYS_TCC"  kTCCServiceAccessibility "$BUNDLE_ID"
+grant "$SYS_TCC"  kTCCServiceListenEvent   "$BUNDLE_ID"
+sudo killall tccd 2>/dev/null || true
+sleep 1
+
+echo "== 3. --demo (synthetic captures, real windows) =="
 "$BIN" --demo --data-dir "$DATA" --demo-screenshot "$OUT" > "$OUT/demo.log" 2>&1 &
 PID=$!
-sleep 6
-screencapture -x "$OUT/runner-desktop-1.png" || true
-sleep 2
-screencapture -x "$OUT/runner-desktop-2.png" || true
-kill $PID 2>/dev/null; wait $PID 2>/dev/null
-cat "$OUT/demo.log" | tail -40
+sleep 3;  screencapture -x "$OUT/runner-desktop-1.png" || true
+sleep 3;  screencapture -x "$OUT/runner-desktop-2.png" || true
+wait $PID 2>/dev/null; echo "demo exit code: $?"
+tail -40 "$OUT/demo.log"
+
+echo "== 4. --capture-test (real ScreenCaptureKit capture, needs TCC) =="
+timeout 40 "$BIN" --capture-test "$OUT/capture-test.png" --data-dir "$DATA" > "$OUT/capture-test.log" 2>&1
+echo "capture-test exit code: $? (informational)"
+tail -20 "$OUT/capture-test.log" 2>/dev/null || true
+
 ls -la "$OUT"
-echo "== sessions on disk =="
-find "$DATA" -maxdepth 3 | head -30
+echo "== sessions on disk =="; find "$DATA" -maxdepth 2 | head -20
+cp "$DATA/startup.log" "$OUT/startup.log" 2>/dev/null || true
 exit $RC

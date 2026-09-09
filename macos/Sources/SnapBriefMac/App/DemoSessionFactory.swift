@@ -99,20 +99,83 @@ enum DemoSessionFactory {
         return image
     }
 
-    /// `--demo-screenshot <dir>` (CI helper, CONTRACTS "Shell"): after the caller has shown the
-    /// stack/overlay, dump a PNG of every own window to `directory`, then terminate the app.
-    static func runScreenshotFlow(to directory: URL) {
+    /// `--demo-screenshot <dir>` (CI helper, CONTRACTS "Shell"): in addition to the stack window
+    /// `AppCoordinator.start()` already reveals, show the editor overlay (over a synthetic desktop
+    /// frame — never a real screen capture) and the settings window, then dump a PNG of every own
+    /// window to `directory` twice (2 s and 5 s after showing, matching the external CI script's
+    /// full-desktop `screencapture` at 3 s/6 s) before terminating at 8 s.
+    static func runScreenshotFlow(to directory: URL, coordinator: AppCoordinator) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        presentDemoOverlay(coordinator: coordinator)
+        coordinator.stackWindow?.openSettings()
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             captureWindowScreenshots(to: directory)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                NSApplication.shared.terminate(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                captureWindowScreenshots(to: directory)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    NSApplication.shared.terminate(nil)
+                }
             }
         }
     }
 
+    /// Presents `OverlayEditorController` the same way `AppCoordinator.beginOverlayCapture()`
+    /// does, but over a synthetic gradient frame instead of a real screen capture — `--demo`/
+    /// `--demo-screenshot` must never touch `ScreenCaptureKit`/`CGRequestScreenCaptureAccess`
+    /// (SPEC §9.1, CONTRACTS.md "Shell").
+    private static func presentDemoOverlay(coordinator: AppCoordinator) {
+        let context = EditorWorkspaceContext(
+            session: coordinator.workspace.session, sessionDirectory: coordinator.workspace.sessionDirectory,
+            assetStore: coordinator.workspace.assetStore, nextCaptureIndex: coordinator.workspace.session.captures.count)
+        let controller = OverlayEditorController(
+            frame: syntheticDesktopFrame(), workspace: context, settings: coordinator.settings, language: coordinator.language)
+        controller.delegate = coordinator
+        coordinator.overlay = controller
+        controller.present()
+    }
+
+    /// A gradient `CGImage` sized to the (points-space) virtual desktop, standing in for a real
+    /// `DesktopFrame` capture — no `ScreenCaptureKit`/`CGDisplayCreateImage` call involved.
+    private static func syntheticDesktopFrame() -> DesktopFrame {
+        let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 1
+        let pointsRect = ScreenGeometry.globalPointsRect
+        let width = max(1, Int((pointsRect.width * scale).rounded()))
+        let height = max(1, Int((pointsRect.height * scale).rounded()))
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+            let gradient = CGGradient(
+                colorsSpace: colorSpace,
+                colors: [NSColor(hex: "#1B2635").cgColor, NSColor(hex: "#3A4B66").cgColor] as CFArray,
+                locations: [0, 1])
+        else {
+            fatalError("Could not allocate the synthetic demo desktop bitmap.")
+        }
+        context.drawLinearGradient(
+            gradient, start: CGPoint(x: 0, y: 0), end: CGPoint(x: CGFloat(width), y: CGFloat(height)), options: [])
+
+        guard let image = context.makeImage() else {
+            fatalError("Could not render the synthetic demo desktop bitmap.")
+        }
+        return DesktopFrame(image: image, left: 0, top: 0, pixelWidth: width, pixelHeight: height, scale: scale)
+    }
+
     private static func captureWindowScreenshots(to directory: URL) {
         for window in NSApplication.shared.windows where window.isVisible {
+            // `sharingType == .none` (SPEC §9.8: `EdgeStackPanel`/`OverlayWindow` are deliberately
+            // excluded from *other* apps' screen captures) makes the window server hand back a
+            // blank image to *any* capture consumer, including our own `CGWindowListCreateImage`
+            // call below run by the very process that owns the window. Only for this CI-only
+            // dump, briefly allow capture, then restore the real runtime value right after.
+            let originalSharing = window.sharingType
+            if originalSharing == .none { window.sharingType = .readOnly }
+            defer { if originalSharing == .none { window.sharingType = originalSharing } }
+
             // CHECK-API: `.boundsIgnoreFraming` option name transcribed from
             // `CGWindowImageOption`; verify against the current SDK.
             guard

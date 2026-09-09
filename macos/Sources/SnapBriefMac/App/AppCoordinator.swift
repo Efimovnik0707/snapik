@@ -86,11 +86,9 @@ final class AppCoordinator {
     func start() {
         StartupLog.write(options, "AppCoordinator start entered")
 
-        if !captureService.hasScreenRecordingPermission {
-            captureService.requestScreenRecordingPermission()
-            stackWindow?.setStatus(StatusStrings.screenRecordingPermissionMissing, isError: true)
-        }
-
+        // Screen Recording is checked/requested lazily, at the first *real* capture
+        // (`captureDesktopFrame()`) instead of here — SPEC §9.1 as scoped by CONTRACTS.md
+        // "Shell": startup (including `--demo`) must never trigger the TCC prompt.
         do {
             try pasteIntentObserver.start()
         } catch {
@@ -203,7 +201,16 @@ final class AppCoordinator {
 
     // `internal` (not `private`): called from `AppCoordinator+Package.swift`'s `saveFullscreen`.
     func captureDesktopFrame() async -> DesktopFrame? {
-        await withCheckedContinuation { continuation in
+        // Port of SPEC §9.1's permission check, moved here (the single gate every real capture
+        // path — hotkey capture, thumbnail re-open, fullscreen save — goes through) so it never
+        // fires at app startup or during `--demo` (CONTRACTS.md "Shell").
+        guard captureService.hasScreenRecordingPermission else {
+            captureService.requestScreenRecordingPermission()
+            stackWindow?.setStatus(StatusStrings.screenRecordingPermissionMissing, isError: true)
+            return nil
+        }
+
+        return await withCheckedContinuation { continuation in
             captureService.captureDesktop(includeCursor: settings.captureCursor) { result in
                 switch result {
                 case .success(let frame): continuation.resume(returning: frame)

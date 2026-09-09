@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         StartupLog.write(options, "EdgeStack.Loaded entered")
 
         if options.demo, let screenshotDirectory = options.demoScreenshotDirectory {
-            DemoSessionFactory.runScreenshotFlow(to: screenshotDirectory)
+            DemoSessionFactory.runScreenshotFlow(to: screenshotDirectory, coordinator: coordinator)
         }
     }
 

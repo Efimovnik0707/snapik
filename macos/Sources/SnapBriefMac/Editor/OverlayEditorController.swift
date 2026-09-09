@@ -111,6 +111,10 @@ final class OverlayEditorController {
 
             let slot = OverlayScreenSlot(window: window, contentView: contentView, screen: screen, globalFlippedFrame: globalFlippedFrame)
             slots.append(slot)
+            // Distinct per-screen title, used only for accessibility and to name CI screenshot
+            // files (`DemoSessionFactory`/CONTRACTS.md "Shell" `--demo-screenshot`); SPEC has no
+            // opinion on this window's title.
+            window.title = "SnapBrief — Оверлей \(slots.count)"
             contentView.screenIndex = slots.count - 1
             contentView.desktopImage = screenSlice(for: slot)
 
