@@ -23,13 +23,6 @@ public sealed record OverlayEditResult(CaptureItem? Capture, bool AddNext, bool 
 public partial class OverlayEditorWindow : Window
 {
     private static OverlayEditorWindow? _active;
-    private static readonly Color[] Palette =
-    [
-        Color.FromRgb(47, 140, 255),
-        Color.FromRgb(255, 77, 79),
-        Color.FromRgb(255, 190, 46),
-        Color.FromRgb(40, 190, 128)
-    ];
 
     private readonly SessionWorkspace _workspace;
     private readonly DesktopFrame _frame;
@@ -47,9 +40,8 @@ public partial class OverlayEditorWindow : Window
     private Rect _cropRect;
     private CaptureItem? _capture;
     private OverlaySnapshot? _lastSnapshot;
-    private int _colorIndex;
-    private readonly double[] _thicknesses = [3, 4, 6, 9];
-    private int _thicknessIndex = 1;
+    private Color _activeColor = Color.FromRgb(47, 140, 255);
+    private double _activeThickness = 4;
     private bool _settingUp;
     private bool _busyCrop;
 
@@ -137,7 +129,27 @@ public partial class OverlayEditorWindow : Window
         if (workingAnnotation.Note != note.Text || window.ChipLayer.Children.Count != 1)
             throw new InvalidOperationException("The contextual note command did not bind the editor to its annotation.");
         _ = window.Surface.RenderAnnotated();
+        var oldColor = workingAnnotation.Color;
+        var oldThickness = workingAnnotation.Thickness;
+        window._appearanceBefore = window.SnapshotState();
+        window.ApplyAppearance(Colors.Red, 14);
+        window.ApplyAppearance(null, 2);
+        if (workingAnnotation.Color != Colors.Red || workingAnnotation.Thickness != 2)
+            throw new InvalidOperationException("Appearance changes must update the selected annotation in both slider directions.");
+        window.OnAppearanceClosed(window, EventArgs.Empty);
+        window.OnUndoClick(window, new RoutedEventArgs());
+        var restoredAnnotation = window._capture.Annotations.Single(a => a.Id == workingAnnotation.Id);
+        if (restoredAnnotation.Color != oldColor || restoredAnnotation.Thickness != oldThickness)
+            throw new InvalidOperationException("One undo must restore the appearance from before the property edit.");
         var result = window._capture.DeepClone();
+        var textAnnotation = new AnnotationItem { Kind = EditorTool.Text, Points = [new Point(100, 100), new Point(220, 160)] };
+        window._capture.Annotations.Add(textAnnotation);
+        window.OnAnnotationCreated(window, textAnnotation);
+        var textChip = window.ChipLayer.Children.OfType<Border>().Single(b => b.Tag is Guid id && id == textAnnotation.Id);
+        var textInput = ((Grid)textChip.Child).Children.OfType<TextBox>().Single();
+        textInput.Text = "Проверка текста";
+        if (textAnnotation.Text != textInput.Text || !string.IsNullOrEmpty(textAnnotation.Note))
+            throw new InvalidOperationException("Text tool input must update rendered text, not an annotation note.");
         return result;
     }
 
@@ -237,8 +249,9 @@ public partial class OverlayEditorWindow : Window
         Surface.Image = _capture.Image;
         Surface.Annotations = _capture.Annotations;
         Surface.Tool = EditorTool.Rectangle;
-        Surface.ActiveColor = Palette[_colorIndex];
-        Surface.ActiveThickness = _thicknesses[_thicknessIndex];
+        SyncAppearance();
+        Surface.ActiveColor = _activeColor;
+        Surface.ActiveThickness = _activeThickness;
         Hint.Visibility = Visibility.Collapsed;
         Toolbar.Visibility = Visibility.Visible;
         ShotNoteChip.Visibility = Visibility.Collapsed;
@@ -280,24 +293,15 @@ public partial class OverlayEditorWindow : Window
     private void OnToolClick(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Primitives.ToggleButton selected || !Enum.TryParse<EditorTool>(selected.Tag?.ToString(), out var tool)) return;
+        Surface.SelectAnnotation(null);
         Surface.Tool = tool;
+        SyncAppearance();
         foreach (var button in new[] { SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, ConcealTool, BlurTool, CropTool })
             button.IsChecked = ReferenceEquals(button, selected);
     }
 
-    private void OnColorClick(object sender, RoutedEventArgs e)
-    {
-        _colorIndex = (_colorIndex + 1) % Palette.Length;
-        Surface.ActiveColor = Palette[_colorIndex];
-        ColorSwatch.Fill = new SolidColorBrush(Palette[_colorIndex]);
-    }
-
-    private void OnThicknessClick(object sender, RoutedEventArgs e)
-    {
-        _thicknessIndex = (_thicknessIndex + 1) % _thicknesses.Length;
-        Surface.ActiveThickness = _thicknesses[_thicknessIndex];
-        ThicknessButton.Content = $"{_thicknesses[_thicknessIndex]:0} px";
-    }
+    private void OnColorClick(object sender, RoutedEventArgs e) => OpenAppearance();
+    private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenAppearance();
 
     private void OnMoreToolsClick(object sender, RoutedEventArgs e)
     {
@@ -314,12 +318,9 @@ public partial class OverlayEditorWindow : Window
         AddTool("Маркер    H", EditorTool.Highlight);
         AddTool("Текст    T", EditorTool.Text);
         AddTool("Скрыть сплошным    X", EditorTool.Conceal);
-        menu.Items.Add(new Separator());
-        menu.Items.Add(ActionItem($"Цвет отметки", () => OnColorClick(this, new RoutedEventArgs())));
-        menu.Items.Add(ActionItem($"Толщина · {_thicknesses[_thicknessIndex]:0} px", () => OnThicknessClick(this, new RoutedEventArgs())));
         menu.IsOpen = true;
 
-        void AddTool(string title, EditorTool tool) => menu.Items.Add(ActionItem(title, () => SelectToolMode(tool)));
+        void AddTool(string title, EditorTool tool) { var item = ActionItem(title, () => SelectToolMode(tool)); item.IsChecked = Surface.Tool == tool; menu.Items.Add(item); }
         static MenuItem ActionItem(string title, Action action)
         {
             var item = new MenuItem { Header = title, Foreground = Brushes.White, Background = Brushes.Transparent, Padding = new Thickness(10, 7, 10, 7) };
@@ -330,7 +331,9 @@ public partial class OverlayEditorWindow : Window
 
     private void SelectToolMode(EditorTool tool)
     {
+        Surface.SelectAnnotation(null);
         Surface.Tool = tool;
+        SyncAppearance();
         foreach (var button in new[] { SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, ConcealTool, BlurTool, CropTool })
             button.IsChecked = string.Equals(button.Tag?.ToString(), tool.ToString(), StringComparison.Ordinal);
         Surface.Focus();
@@ -342,7 +345,7 @@ public partial class OverlayEditorWindow : Window
         PushHistory();
         annotation.PropertyChanged += OnAnnotationPropertyChanged;
         RefreshLabels();
-        if (annotation.Kind == EditorTool.Rectangle)
+        if (annotation.Kind is EditorTool.Rectangle or EditorTool.Text)
         {
             _visibleChipIds.Add(annotation.Id);
             AddChip(annotation, focus: true);
@@ -353,6 +356,7 @@ public partial class OverlayEditorWindow : Window
 
     private void OnSelectionChanged(object sender, AnnotationItem? annotation)
     {
+        SyncAppearance();
         if (Mouse.LeftButton == MouseButtonState.Pressed) return;
         RepositionChips();
         UpdateContextNoteAffordance(annotation);
@@ -365,6 +369,7 @@ public partial class OverlayEditorWindow : Window
         if (_capture is not null && ChipLayer.Children.Count != _capture.Annotations.Count) RebuildChips();
         else RepositionChips();
         UpdateContextNoteAffordance(Surface.SelectedAnnotation);
+        SyncAppearance();
     }
 
     private void OnAnnotationPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -395,11 +400,11 @@ public partial class OverlayEditorWindow : Window
         var badgeHost = new Border { Width = 25, Height = 25, CornerRadius = new CornerRadius(13), Background = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Child = badge, VerticalAlignment = VerticalAlignment.Center };
         var note = new TextBox
         {
-            MinHeight = 32, MaxHeight = 78, Text = annotation.Note, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
+            MinHeight = 32, MaxHeight = 78, Text = annotation.Kind == EditorTool.Text ? annotation.Text : annotation.Note, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
             Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), CaretBrush = Brushes.White,
             SelectionBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Padding = new Thickness(7, 5, 7, 5), Tag = annotation
         };
-        note.TextChanged += (_, _) => { if (!_settingUp) { annotation.Note = note.Text; RefreshLabels(); } };
+        note.TextChanged += (_, _) => { if (!_settingUp) { if (annotation.Kind == EditorTool.Text) annotation.Text = note.Text; else annotation.Note = note.Text; RefreshLabels(); } };
         note.GotKeyboardFocus += (_, _) => Surface.SelectAnnotation(annotation.Id);
         var closePath = new System.Windows.Shapes.Path
         {
@@ -410,7 +415,7 @@ public partial class OverlayEditorWindow : Window
         var close = new Button
         {
             Width = 27, Height = 27, Padding = new Thickness(7), Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0), Content = closePath, ToolTip = "Удалить комментарий", Tag = annotation
+            BorderThickness = new Thickness(0), Content = closePath, ToolTip = annotation.Kind == EditorTool.Text ? "Закрыть ввод текста" : "Удалить комментарий", Tag = annotation
         };
         close.Click += OnDeleteAnnotationNoteClick;
         var grid = new Grid();
@@ -484,19 +489,8 @@ public partial class OverlayEditorWindow : Window
         var work = GetCropMonitorWorkArea();
         var width = Math.Max(Toolbar.ActualWidth, 380);
         var height = Math.Max(Toolbar.ActualHeight, 50);
-        var left = Math.Clamp(_cropRect.Left + (_cropRect.Width - width) / 2, work.Left + 8, Math.Max(work.Left + 8, work.Right - width - 8));
-        var top = _cropRect.Bottom - height - 10;
-        if (_cropRect.Height < height + 20) top = _cropRect.Bottom + 10;
-        if (top + height > work.Bottom - 8) top = _cropRect.Top - height - 10;
-        top = Math.Clamp(top, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - height - 8));
-        var toolbarRect = new Rect(left, top, width, height);
-        if (VisibleNoteRects().Any(rect => rect.IntersectsWith(toolbarRect)))
-        {
-            var alternateTop = Math.Clamp(_cropRect.Top + 10, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - height - 8));
-            var alternate = new Rect(left, alternateTop, width, height);
-            if (!VisibleNoteRects().Any(rect => rect.IntersectsWith(alternate))) top = alternateTop;
-        }
-        Toolbar.Margin = new Thickness(left, top, 0, 0);
+        var placement = PlaceToolbar(_cropRect, work, new Size(width, height), VisibleNoteRects().ToArray());
+        Toolbar.Margin = new Thickness(placement.Left, placement.Top, 0, 0);
 
         IEnumerable<Rect> VisibleNoteRects()
         {
@@ -567,7 +561,7 @@ public partial class OverlayEditorWindow : Window
         if (_capture is null || sender is not Button { Tag: AnnotationItem annotation }) return;
         if (!string.IsNullOrEmpty(annotation.Note)) _undo.Push(SnapshotState());
         _redo.Clear();
-        annotation.Note = string.Empty;
+        if (annotation.Kind != EditorTool.Text) annotation.Note = string.Empty;
         _lastSnapshot = SnapshotState();
         _visibleChipIds.Remove(annotation.Id);
         if (ChipLayer.Children.OfType<Border>().FirstOrDefault(border => border.Tag is Guid id && id == annotation.Id) is { } chip)
@@ -616,6 +610,7 @@ public partial class OverlayEditorWindow : Window
         _capture.Note = ShotNoteBox.Text;
         _redo.Clear();
         _lastSnapshot = SnapshotState();
+        SyncAppearance();
     }
 
     private void PushHistory()
@@ -624,6 +619,7 @@ public partial class OverlayEditorWindow : Window
         _undo.Push(_lastSnapshot);
         _redo.Clear();
         _lastSnapshot = SnapshotState();
+        SyncAppearance();
     }
 
     private void OnUndoClick(object sender, RoutedEventArgs e)
@@ -660,6 +656,7 @@ public partial class OverlayEditorWindow : Window
         UpdateCropVisual();
         RebuildChips();
         UpdateContextNoteAffordance(Surface.SelectedAnnotation);
+        SyncAppearance();
         PositionToolbar();
         PositionShotNote();
         Surface.InvalidateVisual();
@@ -793,5 +790,13 @@ public partial class OverlayEditorWindow : Window
 
     private sealed record OverlaySnapshot(CaptureSnapshot Capture, Rect CropRect, IReadOnlySet<Guid> VisibleChipIds, bool ShotNoteVisible);
 }
+
+
+
+
+
+
+
+
 
 
