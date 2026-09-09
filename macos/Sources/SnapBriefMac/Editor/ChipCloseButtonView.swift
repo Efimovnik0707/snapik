@@ -13,7 +13,7 @@ final class ChipCloseButtonView: NSView {
         toolTip = tooltip
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func draw(_ dirtyRect: NSRect) {
         let inset: CGFloat = bounds.width * 0.28

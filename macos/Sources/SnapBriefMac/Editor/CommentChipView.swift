@@ -90,7 +90,7 @@ final class CommentChipView: NSView {
         addSubview(closeButton)
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     /// Content-driven height, matching the WPF `TextBox`'s `MinHeight="32" MaxHeight="78"`
     /// auto-grow behavior, clamped and padded to the chip's own `MinHeight="40"`.

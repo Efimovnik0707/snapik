@@ -27,7 +27,7 @@ final class HintChipView: NSView {
         addSubview(label)
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override var intrinsicContentSize: NSSize {
         let textSize = label.attributedStringValue.size()

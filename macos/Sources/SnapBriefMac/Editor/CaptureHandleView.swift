@@ -26,7 +26,7 @@ final class CaptureHandleView: NSView {
         setAccessibilityLabel(EditorStrings.captureCorner("ru", corner + 1))
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func draw(_ dirtyRect: NSRect) {
         let markerRect = CGRect(x: (bounds.width - 8) / 2, y: (bounds.height - 8) / 2, width: 8, height: 8)

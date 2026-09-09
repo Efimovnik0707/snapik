@@ -43,7 +43,7 @@ final class OverlayContentView: NSView {
         hintView.text = EditorStrings.selectHint("ru")
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     private var mouseDownPoint: CGPoint?
 

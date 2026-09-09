@@ -26,7 +26,7 @@ final class ToolbarToggleButtonView: NSView {
         toolTip = tooltip
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -117,7 +117,7 @@ final class ToolbarActionButtonView: NSView {
         toolTip = tooltip
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     private func sizeToFitContent() {
         guard let textLabel else { return }
@@ -211,7 +211,7 @@ final class EditorToolbarView: NSView {
         setActiveTool(.rectangle)
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     func setActiveTool(_ tool: EditorTool) {
         for button in toolButtons { button.isChecked = button.tool == tool }

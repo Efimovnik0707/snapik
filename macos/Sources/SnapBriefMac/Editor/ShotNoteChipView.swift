@@ -14,7 +14,7 @@ final class ShotNoteChipView: NSView {
     private static let closeSize: CGFloat = 25
 
     private let titleLabel = NSTextField(labelWithString: "")
-    private let closeButton = ChipCloseButtonView(size: Self.closeSize, tooltip: EditorStrings.removeComment("ru"))
+    private let closeButton = ChipCloseButtonView(size: ShotNoteChipView.closeSize, tooltip: EditorStrings.removeComment("ru"))
     private let scrollView = NSScrollView()
     let textView = EditorTextView(frame: .zero)
 
@@ -78,7 +78,7 @@ final class ShotNoteChipView: NSView {
         addSubview(scrollView)
     }
 
-    required init?(coder: NSCoder) { super.init(coder: coder) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     func preferredHeight() -> CGFloat {
         textView.layoutManager?.ensureLayout(for: textView.textContainer!)
