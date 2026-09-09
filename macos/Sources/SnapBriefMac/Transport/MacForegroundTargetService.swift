@@ -22,13 +22,55 @@ import ApplicationServices
 import SnapBriefCore
 
 public final class MacForegroundTargetService: ForegroundTargetServicing {
-    public init() {}
+    /// HIGH-2 fix: `currentTarget()` can now run synchronously inside the CGEvent tap callback on
+    /// every V keystroke (`MacPasteIntentObserver.handle(type:event:)`, SPEC-DELTA-2A §1.2's "the
+    /// handler must be... as short as possible"); `CGWindowListCopyWindowInfo` walks every
+    /// on-screen window and is too expensive to call there each time. Instead this caches the
+    /// front app's window id/title, refreshed only when `NSWorkspace` reports the frontmost
+    /// application actually changed — a stale window id from switching windows *within* the same
+    /// still-frontmost app is an accepted approximation (SPEC-DELTA-2A review: "допустимо").
+    private var cachedWindow: (pid: pid_t, windowId: Int, title: String?)?
+    private var activationObserver: NSObjectProtocol?
+
+    public init() {
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard
+                let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            else { return }
+            self?.refreshCachedWindow(forPid: app.processIdentifier)
+        }
+        if let app = NSWorkspace.shared.frontmostApplication {
+            refreshCachedWindow(forPid: app.processIdentifier)
+        }
+    }
+
+    deinit {
+        if let activationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+        }
+    }
 
     public func currentTarget() -> ForegroundTarget? {
         guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
         let pid = app.processIdentifier
 
-        let (windowId, windowTitle) = Self.frontWindow(forPid: pid)
+        let windowId: Int
+        let windowTitle: String?
+        if let cached = cachedWindow, cached.pid == pid {
+            windowId = cached.windowId
+            windowTitle = cached.title
+        } else {
+            // Cache miss: the frontmost app changed since the last `didActivateApplicationNotification`
+            // we observed (e.g. this is the very first call). Falls back to the direct lookup once
+            // and primes the cache so the next call (almost always the matching `keyUp`, or the
+            // next V keystroke) hits the fast path above.
+            let resolved = Self.frontWindow(forPid: pid)
+            cachedWindow = (pid, resolved.windowId, resolved.title)
+            windowId = resolved.windowId
+            windowTitle = resolved.title
+        }
         let focusedElementId = TransportPermissions.hasAccessibilityAccess ? Self.focusedElementId(forPid: pid) : nil
 
         return ForegroundTarget(
@@ -37,6 +79,11 @@ public final class MacForegroundTargetService: ForegroundTargetServicing {
             windowTitle: windowTitle,
             windowId: windowId,
             focusedElementId: focusedElementId)
+    }
+
+    private func refreshCachedWindow(forPid pid: pid_t) {
+        let resolved = Self.frontWindow(forPid: pid)
+        cachedWindow = (pid, resolved.windowId, resolved.title)
     }
 
     /// SPEC §5.5: "номер переднего окна из `CGWindowListCopyWindowInfo` с `kCGWindowLayer == 0`",

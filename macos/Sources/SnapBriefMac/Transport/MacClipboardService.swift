@@ -129,8 +129,12 @@ public final class MacClipboardService: ClipboardServicing {
     private func captureCore() -> ClipboardSnapshot {
         let sequence = pasteboard.changeCount
         let text = pasteboard.string(forType: .string)
-        let filePaths = (pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL])?
-            .compactMap { $0.isFileURL ? $0.path : nil } ?? []
+        // LOW-2: without `.urlReadingFileURLsOnly`, `readObjects` also resolves plain-text/HTTP(S)
+        // URLs elsewhere on the pasteboard into `NSURL`s, which could leak into `filePaths`.
+        let filePaths = (
+            pasteboard.readObjects(
+                forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
+        )?.compactMap { $0.isFileURL ? $0.path : nil } ?? []
         let hasImage = pasteboard.canReadItem(withDataConformingToTypes: [
             NSPasteboard.PasteboardType.png.rawValue, NSPasteboard.PasteboardType.tiff.rawValue,
         ])

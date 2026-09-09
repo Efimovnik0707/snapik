@@ -192,8 +192,30 @@ extension OverlayEditorController {
             expandedChipId = nil
         }
         chip.setExpanded(expanded)
+        sortChipZOrder()
         repositionChips()
         positionToolbar()
+    }
+
+    /// Fix MEDIUM-1: z-order of chips isn't implied by document order alone — an expanded chip
+    /// (and, failing that, a focused one) must draw and hit-test above its collapsed siblings, or
+    /// an overlapping neighbor swallows its clicks. `ChipLayerView.hitTest` already walks
+    /// `subviews.reversed()`, so the highest-priority chip must be the *last* subview.
+    private func sortChipZOrder() {
+        guard let chipLayerView else { return }
+        chipLayerView.sortSubviews(
+            { a, b, _ in
+                func key(_ view: NSView) -> Int {
+                    guard let chip = view as? CommentChipView else { return 0 }
+                    if chip.isExpanded { return 2 }
+                    if chip.isEditing { return 1 }
+                    return 0
+                }
+                let ka = key(a)
+                let kb = key(b)
+                if ka == kb { return .orderedSame }
+                return ka < kb ? .orderedAscending : .orderedDescending
+            }, context: nil)
     }
 
     /// Port of `HasFocusedChipOtherThan` (`Comments.cs:13-14`).
@@ -204,7 +226,17 @@ extension OverlayEditorController {
     /// Port of `Finish()` (`:523-546`): an empty, non-Text chip is discarded; for a Comment that
     /// also deletes the pin annotation itself (and deselects it). Otherwise the chip just collapses.
     func finishChip(_ id: SBGuid) {
-        guard let chip = chipViews[id], let capture, let annotation = capture.annotations.first(where: { $0.id == id }) else { return }
+        guard let chip = chipViews[id] else { return }
+        // Fix LOW-4: the annotation may already be gone (e.g. deleted via the Delete key while
+        // this chip still had focus) — discard the now-orphaned chip instead of silently no-op'ing.
+        guard let capture, let annotation = capture.annotations.first(where: { $0.id == id }) else {
+            chip.removeFromSuperview()
+            chipViews[id] = nil
+            if expandedChipId == id { expandedChipId = nil }
+            repositionChips()
+            positionToolbar()
+            return
+        }
         let noteEmpty = (annotation.kind == .text ? annotation.text : annotation.note).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         if !chip.isTextInput, noteEmpty {

@@ -172,6 +172,31 @@ final class TransportMacTests: XCTestCase {
         pasteboard.clearContents()
     }
 
+    // LOW-1 review finding: `captureCore` reads `filePaths` with `.urlReadingFileURLsOnly` so a
+    // non-file URL sitting elsewhere on the pasteboard (e.g. `http://`) never leaks into it.
+    func testCaptureFilePathsExcludesNonFileURLs() throws {
+        let pasteboard = try XCTUnwrap(NSPasteboard(name: .init("snapbrief-test-transport-nonfileurl")))
+        let service = MacClipboardService(pasteboard: pasteboard, queue: .main)
+        let pngData = try Self.makeSinglePixelPNG()
+        let path = try Self.writeTempFile(data: pngData, name: "nonfileurl.png")
+
+        let httpItem = NSPasteboardItem()
+        httpItem.setString("https://example.com", forType: .URL)
+        let fileItem = NSPasteboardItem()
+        fileItem.setString(URL(fileURLWithPath: path).absoluteString, forType: .fileURL)
+        pasteboard.clearContents()
+        pasteboard.writeObjects([httpItem, fileItem])
+
+        let expectation = expectation(description: "capture")
+        service.capture { snapshot in
+            XCTAssertEqual(snapshot.filePaths, [path])
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 5)
+
+        pasteboard.clearContents()
+    }
+
     // SPEC-DELTA-2A §7: `capture`'s `ClipboardSnapshot` exposes exactly what `ClipboardEchoDetector`
     // needs (`hasFiles`, `text`, `hasImage`) from a real pasteboard round trip.
     func testCaptureReportsFilesTextAndImageForEchoDetector() throws {
@@ -241,6 +266,23 @@ final class TransportMacTests: XCTestCase {
         let foreign = try XCTUnwrap(CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true))
         foreign.setIntegerValueField(.eventSourceUnixProcessID, value: 1)
         XCTAssertFalse(MacPasteIntentObserver.isOwnEvent(foreign))
+    }
+
+    // HIGH-2 review finding: `currentTarget()` must stay cheap enough to call from a keystroke
+    // handler — this can't drive a real `didActivateApplicationNotification` in CI (no other app
+    // to activate), but it does confirm the cache-miss fallback path (`frontWindow` lookup) still
+    // returns a self-consistent target for the current (frontmost, in a CI test run) process, and
+    // that a second call reuses the primed cache without crashing or hanging.
+    func testForegroundTargetServiceCurrentTargetIsConsistentAcrossRepeatedCalls() throws {
+        let service = MacForegroundTargetService()
+        let first = service.currentTarget()
+        let second = service.currentTarget()
+        guard let first, let second else {
+            throw XCTSkip("No frontmost application reported in this environment")
+        }
+        XCTAssertEqual(first.processName, second.processName)
+        XCTAssertEqual(first.bundleIdentifier, second.bundleIdentifier)
+        XCTAssertEqual(first.windowId, second.windowId)
     }
 
     // MARK: - Helpers

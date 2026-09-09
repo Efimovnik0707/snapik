@@ -372,7 +372,6 @@ final class AppCoordinator {
 
         let previewController = CapturePreviewWindowController(
             capture: capture, image: sourceImage, displayLabel: displayLabel, language: language,
-            playSounds: settings.playSounds,
             persist: { [weak self] updated in await self?.persistPreviewChanges(updated) })
         previewController.present(on: stackWindow?.window?.screen) { [weak self] markupRequested in
             guard let self else { return }

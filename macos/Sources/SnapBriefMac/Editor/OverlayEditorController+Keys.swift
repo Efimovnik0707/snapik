@@ -12,6 +12,24 @@ final class EditorTextView: NSTextView {
     /// (no Shift) commits/collapses the chip instead of inserting a newline; Shift+Return falls
     /// through to the normal `NSTextView` newline-insertion behavior.
     var onCommit: (() -> Void)?
+    /// Fix MEDIUM-5: fired on actual first-responder transitions rather than
+    /// `NSTextViewDelegate.textDidBeginEditing`/`textDidEndEditing`, which only fire once real
+    /// *editing* begins/ends (e.g. after a keystroke), not on plain focus — a chip clicked and
+    /// then clicked away from without typing never reported gaining/losing focus at all.
+    var onFocusGained: (() -> Void)?
+    var onFocusLost: (() -> Void)?
+
+    override func becomeFirstResponder() -> Bool {
+        let result = super.becomeFirstResponder()
+        if result { onFocusGained?() }
+        return result
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let result = super.resignFirstResponder()
+        if result { onFocusLost?() }
+        return result
+    }
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == Keycode.escape, event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {

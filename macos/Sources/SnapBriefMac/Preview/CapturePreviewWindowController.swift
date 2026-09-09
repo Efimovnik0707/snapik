@@ -47,20 +47,22 @@ final class CapturePreviewWindowController: NSWindowController, NSWindowDelegate
     private var previousFrontmostApplication: NSRunningApplication?
     private var saveTimer: Timer?
     private var persistTask: Task<Void, Never>?
+    /// Fix MEDIUM-3: tracked via `NSMenu` tracking notifications so `windowDidResignKey` doesn't
+    /// treat a context menu (e.g. the comment `NSTextView`'s right-click menu) as "the user
+    /// switched away" and close the window out from under it.
+    private var isMenuTracking = false
 
     init(
         capture: CaptureItem,
         image: CGImage,
         displayLabel: String,
         language: String,
-        playSounds: Bool,
         persist: @escaping (CaptureItem) async -> Void
     ) {
         self.sourceImage = image
         self.language = language
         self.persist = persist
         self.model = PreviewCommentsModel(capture: capture, displayLabel: displayLabel, language: language)
-        _ = playSounds // Reserved: the preview window itself plays no capture/tick sounds (SPEC-DELTA-2 §1.6 only wires those into the stack and the capture commit path).
 
         let window = CapturePreviewWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
@@ -97,12 +99,18 @@ final class CapturePreviewWindowController: NSWindowController, NSWindowDelegate
         headerView.onDrag = { [weak self] event in self?.window?.performDrag(with: event) }
 
         imageScrollView.onViewportResized = { [weak self] in self?.updateFitZoom() }
+        imageScrollView.onMagnificationChanged = { [weak self] value in self?.applyExternalMagnification(value) }
 
         commentsPanel.onAddComment = { [weak self] in self?.addComment() }
         commentsPanel.onTextChanged = { [weak self] id, text in self?.textChanged(id: id, text: text) }
         commentsPanel.onDelete = { [weak self] id in self?.deleteComment(id: id) }
 
         window.onKeyDown = { [weak self] event in self?.handleKeyDown(event) ?? false }
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(menuTrackingBegan), name: NSMenu.didBeginTrackingNotification, object: nil)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(menuTrackingEnded), name: NSMenu.didEndTrackingNotification, object: nil)
 
         applyLocalization()
         model.rebuild()
@@ -114,6 +122,13 @@ final class CapturePreviewWindowController: NSWindowController, NSWindowDelegate
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func menuTrackingBegan() { isMenuTracking = true }
+    @objc private func menuTrackingEnded() { isMenuTracking = false }
 
     // MARK: - Presentation
 
@@ -144,9 +159,23 @@ final class CapturePreviewWindowController: NSWindowController, NSWindowDelegate
         }
     }
 
+    /// Fix MEDIUM-3: the previous synchronous close fired for transient key-window churn that
+    /// isn't "the user switched away" — a `NSTextView` context menu or a click on the stack
+    /// window's own panel both resign key momentarily. Defer one run-loop tick and re-check: only
+    /// close if the *new* key window doesn't belong to this app (or the app isn't active at all),
+    /// and never while a menu is tracking.
     func windowDidResignKey(_ notification: Notification) {
         guard canAutoClose, !closing else { return }
-        closePreview()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.canAutoClose, !self.closing, !self.isMenuTracking else { return }
+            if !NSApp.isActive {
+                self.closePreview()
+                return
+            }
+            let keyWindowBelongsToApp = NSApp.keyWindow.map { NSApp.windows.contains($0) } ?? false
+            guard !keyWindowBelongsToApp else { return }
+            self.closePreview()
+        }
     }
 
     func windowDidResize(_ notification: Notification) {
@@ -204,6 +233,16 @@ final class CapturePreviewWindowController: NSWindowController, NSWindowDelegate
         headerView.setFitActive(fitToWindow)
     }
 
+    /// Fix MEDIUM-2: mirrors a Cmd+wheel magnification change (applied directly by
+    /// `PreviewImageScrollView`) back into `zoom`/`fitToWindow`, so the header's percent readout
+    /// stays accurate and `windowDidResize` no longer snaps back to fit-to-window.
+    private func applyExternalMagnification(_ value: CGFloat) {
+        fitToWindow = false
+        zoom = value
+        headerView.setZoomText(Int((zoom * 100).rounded()))
+        headerView.setFitActive(fitToWindow)
+    }
+
     // MARK: - Fullscreen
 
     /// Port of `OnFullscreenClick`: toggling `WindowState.Maximized` — this is a plain
@@ -212,16 +251,27 @@ final class CapturePreviewWindowController: NSWindowController, NSWindowDelegate
     private func toggleFullscreen() {
         guard let window else { return }
         isFullscreen.toggle()
+        let targetFrame: NSRect?
         if isFullscreen {
             savedFrameBeforeFullscreen = window.frame
-            if let screen = window.screen ?? NSScreen.screens.first {
-                window.setFrame(screen.visibleFrame, display: true, animate: true)
-            }
-        } else if let saved = savedFrameBeforeFullscreen {
-            window.setFrame(saved, display: true, animate: true)
+            targetFrame = (window.screen ?? NSScreen.screens.first)?.visibleFrame
+        } else {
+            targetFrame = savedFrameBeforeFullscreen
         }
         headerView.updateFullscreenTooltip(isFullscreen: isFullscreen, language: language)
-        DispatchQueue.main.async { [weak self] in self?.updateFitZoom() }
+        guard let targetFrame else {
+            updateFitZoom()
+            return
+        }
+        // Fix LOW-3: computing fit zoom right after kicking off the animation raced the frame's
+        // final size — `updateFitZoom()` read `imageScrollView.bounds` mid-flight. Recompute it
+        // only once the animation has actually finished.
+        // CHECK-API: `NSWindow.animator().setFrame(_:display:)` — not verified against a compiler.
+        NSAnimationContext.runAnimationGroup({ context in
+            window.animator().setFrame(targetFrame, display: true)
+        }, completionHandler: { [weak self] in
+            self?.updateFitZoom()
+        })
     }
 
     // MARK: - Comments
@@ -302,8 +352,16 @@ final class CapturePreviewWindowController: NSWindowController, NSWindowDelegate
             switch event.charactersIgnoringModifiers {
             case "0": enableFit(); return true
             case "1": setZoom(1); return true
-            case "=", "+": setZoom(zoom * 1.2); return true
             case "-": setZoom(zoom / 1.2); return true
+            default: break
+            }
+        }
+        // Fix MEDIUM-4: "+" lives on the Shift layer of the "=" key, so a plain `flags == .command`
+        // check rejects Cmd+Plus outright (Shift is part of the mask). Tolerate Shift for this key
+        // only.
+        if flags.subtracting(.shift) == .command {
+            switch event.charactersIgnoringModifiers {
+            case "=", "+": setZoom(zoom * 1.2); return true
             default: break
             }
         }

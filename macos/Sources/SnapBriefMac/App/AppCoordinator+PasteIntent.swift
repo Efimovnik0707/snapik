@@ -11,6 +11,8 @@ import SnapBriefCore
 extension AppCoordinator {
     private static let receiverEchoWatchWindow: TimeInterval = 6
     private static let receiverEchoPollInterval: TimeInterval = 0.2
+    /// LOW-1: fallback timeout for `awaitCodexCompletion`'s watchdog.
+    private static let completionWatchdogTimeoutNanoseconds: UInt64 = 30 * 1_000_000_000
 
     // MARK: - Predicate wiring (SPEC-DELTA-2A §4)
 
@@ -55,12 +57,27 @@ extension AppCoordinator {
         else { return }
 
         let pathsAtIntent = prepared?.imagePathsInOrder().map(\.path) ?? []
+        // MEDIUM-6: while this sequence runs, a second physical Cmd+V/Ctrl+V must be swallowed
+        // (not just left to the predicate, which already rejects it via `transitionInFlight` and
+        // would otherwise let the raw keystroke through and paste the still-owned package again)
+        // — tell the observer directly, since the predicate only runs for gestures the observer
+        // decided to publish an intent for in the first place.
+        setSequenceInFlight(true)
         pasteIntentTransition = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.completePasteIntent(
                 intent, receiptAtIntent: receiptAtIntent, promptAtIntent: promptAtIntent, pathsAtIntent: pathsAtIntent)
             self.pasteIntentTransition = nil
+            self.setSequenceInFlight(false)
         }
+    }
+
+    /// MEDIUM-6: forwards "a paste-intent sequence is in flight" to the observer so its tap
+    /// callback can suppress a physical V without publishing another intent (see `handle(type:event:)`
+    /// in `MacPasteIntentObserver`). Only the concrete Mac observer type exposes this; test doubles
+    /// fall through silently, same pattern as `onStopped`/`onDiagnostic` in `AppCoordinator.init`.
+    private func setSequenceInFlight(_ inFlight: Bool) {
+        (pasteIntentObserver as? MacPasteIntentObserver)?.sequenceInFlight = inFlight
     }
 
     // MARK: - Completion (Part 1 §4.4/§4.5, `CompletePasteIntentAsync`/`CompleteSequentialAsync`)
@@ -76,17 +93,16 @@ extension AppCoordinator {
 
         let result: CodexPasteCompletionResult
         if intent.intercepted {
-            result = await withCheckedContinuation { (continuation: CheckedContinuation<CodexPasteCompletionResult, Never>) in
-                codexPasteCompletion.completeSequential(
+            result = await awaitCodexCompletion { completion in
+                self.codexPasteCompletion.completeSequential(
                     intent: intent, ownedPackageReceipt: receiptAtIntent, immutableImagePaths: pathsAtIntent,
-                    immutablePromptText: promptAtIntent
-                ) { continuation.resume(returning: $0) }
+                    immutablePromptText: promptAtIntent, completion: completion)
             }
         } else {
-            result = await withCheckedContinuation { (continuation: CheckedContinuation<CodexPasteCompletionResult, Never>) in
-                codexPasteCompletion.complete(
-                    intent: intent, ownedPackageReceipt: receiptAtIntent, immutablePromptText: promptAtIntent
-                ) { continuation.resume(returning: $0) }
+            result = await awaitCodexCompletion { completion in
+                self.codexPasteCompletion.complete(
+                    intent: intent, ownedPackageReceipt: receiptAtIntent, immutablePromptText: promptAtIntent,
+                    completion: completion)
             }
         }
 
@@ -112,6 +128,11 @@ extension AppCoordinator {
             let sequence = ownedClipboardReceipt?.sequence
             let snapshot = await captureClipboardSnapshot()
             if let sequence, snapshot.sequence == sequence { await startNewSession() }
+        case .failed:
+            // A4 (SPEC §4.4, `EdgeStackWindow.xaml.cs:279`): Windows reaches this text from the
+            // `catch` block wrapping the whole completion; `.failed` is this port's equivalent —
+            // completion actually failed, as opposed to just not applying/not finishing.
+            stackWindow?.setStatus(StatusStrings.pasteObservedButNoNewSession(result.message), isError: true)
         default:
             stackWindow?.setStatus(
                 StatusStrings.capturesSavedButPasteIncomplete(result.message, language: language), isError: true)
@@ -212,7 +233,14 @@ extension AppCoordinator {
     // MARK: - Diagnostics (SPEC-DELTA-2A §6)
 
     func logPasteIntent(_ message: String) {
-        StartupLog.write(options, message)
+        // HIGH-1: `StartupLog.write` does synchronous file I/O (create directory + FileHandle
+        // open/seek/write/close). `shouldInterceptPasteIntent` calls this synchronously from
+        // inside the CGEvent tap callback (via `MainActor.assumeIsolated`), where SPEC-DELTA-2A
+        // §1.2 requires the handler to "be non-throwing and as short as possible" — defer the
+        // actual write to the next main-queue turn so the callback never blocks on disk I/O.
+        // `CommandLineOptions` is a value type, so this doesn't retain `self`.
+        let capturedOptions = options
+        DispatchQueue.main.async { StartupLog.write(capturedOptions, message) }
     }
 
     /// Port of `LogClipboardDiagnosticsAsync`. `capture(_:)` never fails on macOS (see
@@ -246,5 +274,50 @@ extension AppCoordinator {
                 continuation.resume(returning: $0)
             }
         }
+    }
+
+    /// LOW-1 fix: `completeSequential`/`complete` (`CodexDesktopPasteCompletionService`) always
+    /// call their `completion` closure on every reachable path today, but nothing here enforces
+    /// that — a future change, or a hang inside the AX/injected-event calls they make, could leave
+    /// `withCheckedContinuation` (and therefore `clipboardPublicationGate`, held by the caller for
+    /// the whole `await`) stuck forever. `start` gets a completion handler and must eventually call
+    /// it; whichever of that call or the watchdog timeout happens first wins, and the other is a
+    /// no-op.
+    private func awaitCodexCompletion(
+        _ start: @escaping (@escaping (CodexPasteCompletionResult) -> Void) -> Void
+    ) async -> CodexPasteCompletionResult {
+        await withCheckedContinuation { continuation in
+            let watchdog = PasteCompletionWatchdog(continuation)
+            let timeoutTask = Task {
+                try? await Task.sleep(nanoseconds: Self.completionWatchdogTimeoutNanoseconds)
+                watchdog.resume(with: CodexPasteCompletionResult(
+                    status: .failed, message: "Paste completion did not finish in time."))
+            }
+            start { result in
+                timeoutTask.cancel()
+                watchdog.resume(with: result)
+            }
+        }
+    }
+}
+
+/// Guards `awaitCodexCompletion`'s continuation against being resumed twice (once by the real
+/// completion, once by the watchdog timeout). Deliberately not actor-isolated: the `completion`
+/// closures it guards (`CodexDesktopPasteCompletionService.complete`/`completeSequential`) carry no
+/// static actor annotation, so this must be callable from wherever they actually run — in practice
+/// always the main queue, per CONTRACTS.md's "операции на главной очереди" — same as the plain
+/// `CheckedContinuation.resume` it wraps.
+private final class PasteCompletionWatchdog {
+    private var resumed = false
+    private let continuation: CheckedContinuation<CodexPasteCompletionResult, Never>
+
+    init(_ continuation: CheckedContinuation<CodexPasteCompletionResult, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume(with result: CodexPasteCompletionResult) {
+        guard !resumed else { return }
+        resumed = true
+        continuation.resume(returning: result)
     }
 }

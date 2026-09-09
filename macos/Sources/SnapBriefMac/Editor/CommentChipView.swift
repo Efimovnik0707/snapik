@@ -104,6 +104,10 @@ final class CommentChipView: NSView {
         textView.delegate = self
         textView.onEscape = { [weak self] in self?.onEscape?() }
         textView.onCommit = { [weak self] in self?.onCommit?() }
+        // Fix MEDIUM-5: forward real first-responder transitions instead of relying on
+        // `NSTextViewDelegate.textDidBeginEditing`/`textDidEndEditing` (see `EditorTextView`).
+        textView.onFocusGained = { [weak self] in self?.onFocusGained?() }
+        textView.onFocusLost = { [weak self] in self?.onFocusLost?() }
 
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = false
@@ -218,13 +222,5 @@ extension CommentChipView: NSTextViewDelegate {
 
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         false
-    }
-
-    func textDidBeginEditing(_ notification: Notification) {
-        onFocusGained?()
-    }
-
-    func textDidEndEditing(_ notification: Notification) {
-        onFocusLost?()
     }
 }

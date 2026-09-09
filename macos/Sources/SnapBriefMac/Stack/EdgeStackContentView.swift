@@ -336,7 +336,11 @@ extension EdgeStackContentView: ThumbnailCardViewDelegate {
     }
 
     func thumbnailCard(_ card: ThumbnailCardView, hoverDidChange isHovered: Bool) {
-        delegate?.edgeStackContentDidRequestTickSound(self)
+        // Fix MEDIUM-7: only the entering edge plays the hover tick; `mouseExited` firing it too
+        // doubled the sound on every card the pointer passed over.
+        if isHovered {
+            delegate?.edgeStackContentDidRequestTickSound(self)
+        }
         layoutCards(
             width: bounds.width - ThemeMetrics.outerPadding * 2,
             animated: true,

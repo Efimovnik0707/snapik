@@ -24,6 +24,11 @@ enum StatusStrings {
     static func capturesSavedButPasteIncomplete(_ message: String, language: String) -> String {
         "\(UiLanguage.text("Снимки сохранены, но вставка не завершена", language: language)): \(message)"
     }
+    /// SPEC §4.4 (`EdgeStackWindow.xaml.cs:279`, the `catch` block around `CompletePasteIntentAsync`):
+    /// raw, untranslated like that catch's `{ex.Message}` interpolation — not a `UiLanguage` entry.
+    static func pasteObservedButNoNewSession(_ message: String) -> String {
+        "Вставка замечена, но новая сессия не создана: \(message)"
+    }
     /// SPEC-DELTA-2 §3/§4.8, SPEC-DELTA-2A §4: shown after `republishPackageForReuse` succeeds.
     /// `{0}`/`{1}` are the Windows-style placeholders `UiLanguage.cs` uses for this entry.
     static func pastedAndRepublished(imageCount: Int, noteCount: Int, language: String) -> String {

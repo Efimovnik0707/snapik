@@ -33,6 +33,11 @@ final class PreviewImageScrollView: NSScrollView {
     /// fit-to-window zoom (`PreviewGeometry.fitZoom`).
     var onViewportResized: (() -> Void)?
 
+    /// Fix MEDIUM-2: fired whenever `scrollWheel(with:)` changes `magnification` directly, so the
+    /// controller can mirror that value into its own `zoom`/`fitToWindow` state (otherwise the
+    /// header's percent readout goes stale and the next `windowDidResize` snaps back to fit).
+    var onMagnificationChanged: ((CGFloat) -> Void)?
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         allowsMagnification = true
@@ -72,6 +77,7 @@ final class PreviewImageScrollView: NSScrollView {
         let target = min(max(magnification * factor, minMagnification), maxMagnification)
         let centerPoint = contentImageView.convert(event.locationInWindow, from: nil)
         setMagnification(target, centeredAt: centerPoint)
+        onMagnificationChanged?(target)
     }
 
     @objc private func frameChanged() {
