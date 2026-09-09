@@ -244,8 +244,13 @@ enum SmokeTestRunner {
                 // Diagnostics for the flip-marker checks (printed in the report so CI logs show the
                 // actual colours when a check fails).
                 report.append("INFO source(0,0)=\(describeColor(colorAt(sourceA, x: 0, y: 0))) source(0,1079)=\(describeColor(colorAt(sourceA, x: 0, y: 1079))) export(0,48)=\(describeColor(colorAt(exportA, x: 0, y: 48))) export(1919,48)=\(describeColor(colorAt(exportA, x: 1919, y: 48))) export(0,1127)=\(describeColor(colorAt(exportA, x: 0, y: 1127))) sourceInfo=\(sourceA.bitsPerPixel)/\(sourceA.bitmapInfo.rawValue)")
-                check("export marker row matches marker color", pixelColorMatches(exportA, x: 0, y: 48, color: flipMarkerColor))
-                check("export bottom content row is not the marker color", !pixelColorMatches(exportA, x: 0, y: 1127, color: flipMarkerColor))
+                // Compare pixels between the two images instead of against an `NSColor` constant:
+                // `NSBitmapImageRep.colorAt` converts sRGB→deviceRGB and shifts #FF00FF to ≈#FF40FF,
+                // which is what broke the original constant-based comparison.
+                check("export top content row matches source top row (marker)", pixelsEqual(sourceA, ax: 1919, ay: 0, exportA, bx: 1919, by: 48))
+                check("export bottom content row matches source bottom row", pixelsEqual(sourceA, ax: 0, ay: 1079, exportA, bx: 0, by: 1127))
+                check("source top and bottom rows differ (marker present, flip detectable)", !pixelsEqual(sourceA, ax: 0, ay: 0, sourceA, bx: 0, by: 1079))
+                check("export top and bottom content rows differ (not mirrored)", !pixelsEqual(exportA, ax: 0, ay: 48, exportA, bx: 0, by: 1127))
                 // A point well inside the redaction rectangle, away from its number label.
                 check("export redaction pixel opaque black", pixelIsApproximatelyBlack(exportC, x: 1300, y: 648))
                 // A checkerboard corner inside the blur rectangle: blurring must mix it with its
