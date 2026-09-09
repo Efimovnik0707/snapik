@@ -39,6 +39,8 @@ if let captureTestPath = options.captureTestPath {
 
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
-let delegate = AppDelegate(options: options)
+// Top-level code in main.swift is not main-actor-isolated in Swift 5 language mode; the process
+// is on the main thread here, so assuming isolation is correct.
+let delegate: AppDelegate = MainActor.assumeIsolated { AppDelegate(options: options) }
 app.delegate = delegate
 app.run()
