@@ -84,7 +84,13 @@ extension AppCoordinator {
     }
 
     func savePackageAs() async {
-        guard let export = prepared ?? (await prepareExportForMenu()) else { return }
+        let resolvedExport: PreparedExport?
+        if let prepared {
+            resolvedExport = prepared
+        } else {
+            resolvedExport = await prepareExportForMenu()
+        }
+        guard let export = resolvedExport else { return }
 
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true

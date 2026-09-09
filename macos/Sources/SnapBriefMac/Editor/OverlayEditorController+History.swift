@@ -1,5 +1,6 @@
 // Port of `SnapshotState`/`RestoreState`/`PushHistory`/`OnUndoClick`/`OnRedoClick`
 // (`OverlayEditorWindow.xaml.cs:621-666`), SPEC §1.5.
+import AppKit
 import SnapBriefCore
 
 extension OverlayEditorController {

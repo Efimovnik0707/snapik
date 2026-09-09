@@ -14,7 +14,7 @@ final class ShotNoteChipView: NSView {
     private static let closeSize: CGFloat = 25
 
     private let titleLabel = NSTextField(labelWithString: "")
-    private let closeButton: ChipCloseButtonView
+    private let closeButton = ChipCloseButtonView(size: Self.closeSize, tooltip: EditorStrings.removeComment("ru"))
     private let scrollView = NSScrollView()
     let textView = EditorTextView(frame: .zero)
 
@@ -38,7 +38,6 @@ final class ShotNoteChipView: NSView {
     }
 
     init(title: String, note: String) {
-        closeButton = ChipCloseButtonView(size: Self.closeSize, tooltip: EditorStrings.removeComment("ru"))
         super.init(frame: CGRect(x: 0, y: 0, width: Self.width, height: 100))
 
         titleLabel.stringValue = title

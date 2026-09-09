@@ -57,18 +57,18 @@ enum DemoSessionFactory {
         context.scaleBy(x: 1, y: -1)
 
         context.setFillColor(NSColor(hex: "#F5F7FA").cgColor)
-        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.fill(CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
 
         context.setFillColor(NSColor.white.cgColor)
-        context.fill(CGRect(x: 52, y: 48, width: width - 104, height: height - 96))
+        context.fill(CGRect(x: 52, y: 48, width: CGFloat(width - 104), height: CGFloat(height - 96)))
 
         context.setFillColor(NSColor(hex: "#E8EDF6").cgColor)
-        context.fill(CGRect(x: 52, y: 48, width: width - 104, height: 56))
+        context.fill(CGRect(x: 52, y: 48, width: CGFloat(width - 104), height: 56))
 
         context.setFillColor(NSColor(hex: "#315CF5").cgColor)
         let blueX = 860 - index * 35
         let blueY = 540 - index * 28
-        context.fill(CGRect(x: blueX, y: blueY, width: 230, height: 62))
+        context.fill(CGRect(x: CGFloat(blueX), y: CGFloat(blueY), width: 230, height: 62))
 
         // CHECK-API: NSGraphicsContext(cgContext:flipped:) bridging for NSString drawing into an
         // offscreen bitmap context; not verified against a real compiler.

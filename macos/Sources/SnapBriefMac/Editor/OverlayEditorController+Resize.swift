@@ -67,7 +67,8 @@ extension OverlayEditorController {
     private func captureResizeDragChanged(corner: Int, pointInContentView: CGPoint) {
         guard captureResizeCorner == corner, let screenIndex = activeScreenIndex else { return }
         let limit = resizeSourceRectLocal
-        cropRectLocal = ResizeGeometry.resize(resizeOriginalCropRectLocal, corner, pointInContentView, limit, 12)
+        cropRectLocal = ResizeGeometry.resize(
+            original: resizeOriginalCropRectLocal, corner: corner, point: pointInContentView, limit: limit, minimum: 12)
         slots[screenIndex].contentView.holeRectLocal = cropRectLocal
         updateCaptureHandles()
     }

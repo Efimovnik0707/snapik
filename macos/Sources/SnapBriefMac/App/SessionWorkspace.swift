@@ -59,7 +59,7 @@ final class SessionWorkspace {
         guard let text = try? String(contentsOf: currentPointer, encoding: .utf8) else { return false }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let id = SBGuid(uuidString: trimmed) else { return false }
-        guard let loaded = try? await store.load(sessionId: id), let loadedSession = loaded else { return false }
+        guard let loadedSession = try? await store.load(sessionId: id) else { return false }
 
         // Port of ":63" — a capture whose source file is missing is silently dropped, protecting
         // the rest of the session from one bad file.

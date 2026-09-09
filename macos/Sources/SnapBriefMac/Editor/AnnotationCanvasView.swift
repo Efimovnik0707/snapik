@@ -172,23 +172,20 @@ final class AnnotationCanvasView: NSView {
         if manipulating, let selected = selectedAnnotation, let gestureStart {
             let current = clampToImage(toImage(point))
             if resizing {
-                // CHECK-API: `ResizeGeometry` (Sources/SnapBriefCore/Geometry/ResizeGeometry.swift)
-                // is owned by exec-imaging and did not exist yet at the time this file was
-                // written. Calls here assume a direct port of
-                // `src/SnapBrief.App/Controls/ResizeGeometry.cs`'s positional signature:
-                // `resize(_ original: CGRect, _ corner: Int, _ point: CGPoint, _ limit: CGRect, _ minimum: Double) -> CGRect`,
-                // `map(_ point: CGPoint, _ original: CGRect, _ resized: CGRect) -> CGPoint`,
-                // `hitCorner(_ bounds: CGRect, _ point: CGPoint, _ radius: Double) -> Int`.
+                // `ResizeGeometry` (Sources/SnapBriefCore/Geometry/ResizeGeometry.swift) is
+                // Foundation-only; CG-typed overloads with matching labels live in
+                // `Sources/SnapBriefMac/Imaging/GeometryBridging.swift`.
                 let resized = ResizeGeometry.resize(
-                    originalBounds, resizeCorner, current,
-                    CGRect(x: 0, y: 0, width: capture.image.width, height: capture.image.height), 2)
+                    original: originalBounds, corner: resizeCorner, point: current,
+                    limit: CGRect(x: 0, y: 0, width: CGFloat(capture.image.width), height: CGFloat(capture.image.height)),
+                    minimum: 2)
                 for index in selected.points.indices {
-                    selected.points[index] = ResizeGeometry.map(originalPoints[index], originalBounds, resized)
+                    selected.points[index] = ResizeGeometry.map(originalPoints[index], original: originalBounds, resized: resized)
                 }
                 for segmentIndex in selected.additionalPathSegments.indices {
                     for pointIndex in selected.additionalPathSegments[segmentIndex].indices {
                         selected.additionalPathSegments[segmentIndex][pointIndex] = ResizeGeometry.map(
-                            originalAdditionalSegments[segmentIndex][pointIndex], originalBounds, resized)
+                            originalAdditionalSegments[segmentIndex][pointIndex], original: originalBounds, resized: resized)
                     }
                 }
             } else {
@@ -293,11 +290,11 @@ final class AnnotationCanvasView: NSView {
     private func findResizeHandle(_ displayPoint: CGPoint) -> (annotation: EditorAnnotation?, corner: Int) {
         guard let capture else { return (nil, -1) }
         if let selected = selectedAnnotation {
-            let corner = ResizeGeometry.hitCorner(displayBounds(of: selected), displayPoint, 10)
+            let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: selected), point: displayPoint, radius: 10)
             if corner >= 0 { return (selected, corner) }
         }
         for annotation in capture.annotations.reversed() {
-            let corner = ResizeGeometry.hitCorner(displayBounds(of: annotation), displayPoint, 10)
+            let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: annotation), point: displayPoint, radius: 10)
             if corner >= 0 { return (annotation, corner) }
         }
         return (nil, -1)

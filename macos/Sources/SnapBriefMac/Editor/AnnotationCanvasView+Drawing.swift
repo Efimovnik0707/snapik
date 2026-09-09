@@ -264,7 +264,7 @@ extension AnnotationCanvasView {
                 space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
 
-        ctx.draw(capture.image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        ctx.draw(capture.image, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
 
         let coreAnnotations = capture.annotations.map { $0.toCore(imageWidth: width, imageHeight: height) }
         let labeled = CaptureLabels.forNotedAnnotations(captureLabel: capture.displayLabel, capture: capture.toCore())
@@ -273,7 +273,7 @@ extension AnnotationCanvasView {
             showLabels: true,
             labelFor: { annotation in labelById[annotation.id] },
             sourceImage: capture.image)
-        AnnotationPainter.draw(coreAnnotations, imageSize: CGSize(width: width, height: height), in: ctx, options: options)
+        AnnotationPainter.draw(coreAnnotations, imageSize: CGSize(width: CGFloat(width), height: CGFloat(height)), in: ctx, options: options)
 
         return ctx.makeImage()
     }
