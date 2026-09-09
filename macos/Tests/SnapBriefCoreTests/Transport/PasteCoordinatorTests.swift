@@ -20,6 +20,10 @@ import XCTest
 @testable import SnapBriefCore
 
 final class PasteCoordinatorTests: XCTestCase {
+    /// Mirrors the old private `FakeTarget`'s fixed target constant.
+    private static let target = ForegroundTarget(
+        processName: "Target", bundleIdentifier: nil, windowTitle: "Draft", windowId: 1, focusedElementId: "2")
+
     private var tempDirectory: URL!
 
     override func setUpWithError() throws {
@@ -36,10 +40,10 @@ final class PasteCoordinatorTests: XCTestCase {
     // 27. StagedPaste_PreservesOrder_NeverUsesEnter_AndCanBeVerified
     func testStagedPastePreservesOrderAndCanBeVerified() throws {
         let package = try makePackage(count: 3)
-        let clipboard = FakeClipboard()
-        let input = FakeInput()
+        let clipboard = FakeClipboard(sequence: 10)
+        let input = FakeGuardedInput()
         let observer = FakeObserver(images: [.accepted, .accepted, .accepted], text: .accepted)
-        let coordinator = PasteCoordinator(clipboard: clipboard, foreground: FakeTarget(), input: input, observer: observer)
+        let coordinator = PasteCoordinator(clipboard: clipboard, foreground: FakeTarget(Self.target), input: input, observer: observer)
 
         var result: PasteResult?
         coordinator.paste(package: package, profile: Self.profile()) { result = $0 }
@@ -55,10 +59,10 @@ final class PasteCoordinatorTests: XCTestCase {
     // 28. ExternalClipboardWrite_BeforeNextStage_IsNotOverwritten
     func testExternalClipboardWriteBeforeNextStageIsNotOverwritten() throws {
         let package = try makePackage(count: 2)
-        let clipboard = FakeClipboard()
+        let clipboard = FakeClipboard(sequence: 10)
         let observer = FakeObserver(images: [.accepted])
         observer.afterImage = { _ in clipboard.externalWrite() }
-        let coordinator = PasteCoordinator(clipboard: clipboard, foreground: FakeTarget(), input: FakeInput(), observer: observer)
+        let coordinator = PasteCoordinator(clipboard: clipboard, foreground: FakeTarget(Self.target), input: FakeGuardedInput(), observer: observer)
 
         var result: PasteResult?
         coordinator.paste(package: package, profile: Self.profile()) { result = $0 }
@@ -74,7 +78,7 @@ final class PasteCoordinatorTests: XCTestCase {
         let token = PasteCancellationToken()
         let observer = FakeObserver(images: [.accepted])
         observer.beforeImage = { _ in token.cancel() }
-        let coordinator = PasteCoordinator(clipboard: FakeClipboard(), foreground: FakeTarget(), input: FakeInput(), observer: observer)
+        let coordinator = PasteCoordinator(clipboard: FakeClipboard(sequence: 10), foreground: FakeTarget(Self.target), input: FakeGuardedInput(), observer: observer)
 
         var result: PasteResult?
         coordinator.paste(package: package, profile: Self.profile(), cancellationToken: token) { result = $0 }
@@ -89,7 +93,7 @@ final class PasteCoordinatorTests: XCTestCase {
     func testTimeoutAfterConfirmedPrefixProvidesSafeResumeBoundary() throws {
         let package = try makePackage(count: 3)
         let observer = FakeObserver(images: [.accepted, .timedOut])
-        let coordinator = PasteCoordinator(clipboard: FakeClipboard(), foreground: FakeTarget(), input: FakeInput(), observer: observer)
+        let coordinator = PasteCoordinator(clipboard: FakeClipboard(sequence: 10), foreground: FakeTarget(Self.target), input: FakeGuardedInput(), observer: observer)
 
         var result: PasteResult?
         coordinator.paste(package: package, profile: Self.profile()) { result = $0 }
@@ -105,7 +109,7 @@ final class PasteCoordinatorTests: XCTestCase {
     func testUnobservableStepRemovesSafeResumeBoundaryAndReportsUnverified() throws {
         let package = try makePackage(count: 2)
         let observer = FakeObserver(images: [.notObservable, .accepted], text: .notObservable)
-        let coordinator = PasteCoordinator(clipboard: FakeClipboard(), foreground: FakeTarget(), input: FakeInput(), observer: observer)
+        let coordinator = PasteCoordinator(clipboard: FakeClipboard(sequence: 10), foreground: FakeTarget(Self.target), input: FakeGuardedInput(), observer: observer)
 
         var result: PasteResult?
         coordinator.paste(package: package, profile: Self.profile()) { result = $0 }
@@ -119,10 +123,17 @@ final class PasteCoordinatorTests: XCTestCase {
     // 32. FocusedChildChange_StopsBeforeAnyClipboardWrite
     func testFocusedChildChangeStopsBeforeAnyClipboardWrite() throws {
         let package = try makePackage(count: 1)
-        let target = FakeTarget()
-        target.same = false
-        let clipboard = FakeClipboard()
-        let coordinator = PasteCoordinator(clipboard: clipboard, foreground: target, input: FakeInput(), observer: FakeObserver(images: []))
+        let target = FakeTarget(Self.target)
+        // Call 1 is the coordinator's initial, unconditional capture (must still succeed); call 2
+        // is the first `checkTarget` re-check inside `stageImage`, before any clipboard write
+        // (must observe the target as gone).
+        var checks = 0
+        target.beforeCurrentTarget = {
+            checks += 1
+            if checks >= 2 { target.current = nil }
+        }
+        let clipboard = FakeClipboard(sequence: 10)
+        let coordinator = PasteCoordinator(clipboard: clipboard, foreground: target, input: FakeGuardedInput(), observer: FakeObserver(images: []))
 
         var result: PasteResult?
         coordinator.paste(package: package, profile: Self.profile()) { result = $0 }
@@ -138,7 +149,7 @@ final class PasteCoordinatorTests: XCTestCase {
         let observer = FakeObserver(images: [])
         observer.package = PackageAcceptanceOutcome(images: .accepted, text: .notObservable)
         let profile = Self.profile(transport: .singleClipboardPackage, image: false, text: false)
-        let coordinator = PasteCoordinator(clipboard: FakeClipboard(), foreground: FakeTarget(), input: FakeInput(), observer: observer)
+        let coordinator = PasteCoordinator(clipboard: FakeClipboard(sequence: 10), foreground: FakeTarget(Self.target), input: FakeGuardedInput(), observer: observer)
 
         var result: PasteResult?
         coordinator.paste(package: package, profile: profile) { result = $0 }
@@ -164,7 +175,7 @@ final class PasteCoordinatorTests: XCTestCase {
             imagePasteIsAlternate: true, textPasteIsAlternate: false,
             allowedBundleIdentifiers: [], allowedLocalizedNames: ["Target"],
             acceptanceTimeout: 0.02, unobservableSettlementDelay: 0, verification: .unverified)
-        let coordinator = PasteCoordinator(clipboard: FakeClipboard(), foreground: FakeTarget(), input: FakeInput(), observer: NeverObserver())
+        let coordinator = PasteCoordinator(clipboard: FakeClipboard(sequence: 10), foreground: FakeTarget(Self.target), input: FakeGuardedInput(), observer: NeverObserver())
 
         let expectation = expectation(description: "timeout")
         var result: PasteResult?
@@ -183,8 +194,8 @@ final class PasteCoordinatorTests: XCTestCase {
     // entry point; there is no standalone `CreatePackageDataObject` equivalent to call directly).
     func testEmptyImagePathsAreRejectedBeforeAnyClipboardAccess() {
         let package = PreparedPastePackage(exportId: SBGuid(), imagePaths: [], promptText: "text")
-        let clipboard = FakeClipboard()
-        let coordinator = PasteCoordinator(clipboard: clipboard, foreground: FakeTarget(), input: FakeInput(), observer: FakeObserver(images: []))
+        let clipboard = FakeClipboard(sequence: 10)
+        let coordinator = PasteCoordinator(clipboard: clipboard, foreground: FakeTarget(Self.target), input: FakeGuardedInput(), observer: FakeObserver(images: []))
 
         var result: PasteResult?
         coordinator.paste(package: package, profile: Self.profile()) { result = $0 }
@@ -217,75 +228,6 @@ final class PasteCoordinatorTests: XCTestCase {
 }
 
 // MARK: - Fakes
-
-private final class FakeClipboard: ClipboardServicing {
-    private var sequence = 10
-    private(set) var writes: [String] = []
-
-    func capture(_ completion: @escaping (ClipboardSnapshot) -> Void) {
-        completion(ClipboardSnapshot(sequence: sequence, hasText: false, text: nil, filePaths: [], hasImage: false))
-    }
-
-    func setPackageGuarded(
-        paths: [String], text: String, expectedSequence: Int?,
-        completion: @escaping (Result<ClipboardSnapshot, Error>) -> Void
-    ) {
-        guard require(expectedSequence) else { completion(.failure(TransportError.clipboardChangedDefault)); return }
-        writes.append(contentsOf: paths)
-        writes.append("TEXT")
-        completion(.success(receipt()))
-    }
-
-    func setPNGGuarded(
-        path: String, expectedSequence: Int?, completion: @escaping (Result<ClipboardSnapshot, Error>) -> Void
-    ) {
-        guard require(expectedSequence) else { completion(.failure(TransportError.clipboardChangedDefault)); return }
-        writes.append(path)
-        completion(.success(receipt()))
-    }
-
-    func setTextGuarded(
-        text: String, expectedSequence: Int?, completion: @escaping (Result<ClipboardSnapshot, Error>) -> Void
-    ) {
-        guard require(expectedSequence) else { completion(.failure(TransportError.clipboardChangedDefault)); return }
-        writes.append("TEXT")
-        completion(.success(receipt()))
-    }
-
-    func externalWrite() { sequence += 1 }
-
-    private func require(_ expected: Int?) -> Bool { expected == nil || expected == sequence }
-
-    private func receipt() -> ClipboardSnapshot {
-        sequence += 1
-        return ClipboardSnapshot(sequence: sequence, hasText: false, text: nil, filePaths: [], hasImage: false)
-    }
-}
-
-/// Mirrors the C# `FakeTarget`: `currentTarget()` always returns the real target on the *first*
-/// call (the coordinator's initial, unconditional capture) and respects `same` from the second
-/// call onward (the later "is it still the same target" checks). See `PasteCoordinator.swift`'s
-/// header for why this split is needed given `ForegroundTargetServicing` has only one method.
-private final class FakeTarget: ForegroundTargetServicing {
-    private let target = ForegroundTarget(
-        processName: "Target", bundleIdentifier: nil, windowTitle: "Draft", windowId: 1, focusedElementId: "2")
-    var same = true
-    private var calls = 0
-
-    func currentTarget() -> ForegroundTarget? {
-        calls += 1
-        if calls == 1 { return target }
-        return same ? target : nil
-    }
-}
-
-private final class FakeInput: InputInjecting {
-    private(set) var gestures: [Bool] = []
-    func injectPaste(alternate: Bool, completion: @escaping (Bool) -> Void) {
-        gestures.append(alternate)
-        completion(true)
-    }
-}
 
 private final class NeverObserver: PasteAcceptanceObserving {
     func waitForPackage(

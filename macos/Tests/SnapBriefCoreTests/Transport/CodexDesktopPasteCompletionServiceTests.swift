@@ -17,8 +17,8 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 44. PhysicalCodexCtrlV_StagesAndDispatchesImmutableText_Unverified
     func testPhysicalCodexCtrlVStagesAndDispatchesImmutableTextUnverified() throws {
         let clipboard = FakeClipboard(sequence: 41)
-        let target = FakeTarget(initial: Self.codex)
-        let input = FakeInput()
+        let target = FakeTarget(Self.codex)
+        let input = FakeGuardedInput()
         let service = Self.makeService(clipboard: clipboard, target: target, input: input)
 
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "Снимок A.")
@@ -26,7 +26,7 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
         XCTAssertEqual(final.status, .completedUnverified)
         XCTAssertEqual(clipboard.writtenText, "Снимок A.")
         XCTAssertEqual(final.textClipboardReceipt, Self.textReceipt(42, text: "Снимок A."))
-        XCTAssertEqual(input.gestures, [false])
+        XCTAssertEqual(input.gestures, [.commandV])
         XCTAssertFalse(final.message.lowercased().contains("accepted"))
     }
 
@@ -39,8 +39,8 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
         ]
         for testCase in cases {
             let clipboard = FakeClipboard(sequence: 41)
-            let input = FakeInput()
-            let target = FakeTarget(initial: ForegroundTarget(
+            let input = FakeGuardedInput()
+            let target = FakeTarget(ForegroundTarget(
                 processName: testCase.process, bundleIdentifier: nil, windowTitle: testCase.process,
                 windowId: testCase.windowId, focusedElementId: testCase.focusedElementId))
             let service = Self.makeService(clipboard: clipboard, target: target, input: input)
@@ -56,8 +56,8 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 48. StaleIntentSequence_DoesNotWriteOrInject
     func testStaleIntentSequenceDoesNotWriteOrInject() throws {
         let clipboard = FakeClipboard(sequence: 42)
-        let input = FakeInput()
-        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(initial: Self.codex), input: input)
+        let input = FakeGuardedInput()
+        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(Self.codex), input: input)
 
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(42), text: "text")
 
@@ -69,9 +69,15 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 49. FocusChangeDuringSettlement_DoesNotWriteOrInject
     func testFocusChangeDuringSettlementDoesNotWriteOrInject() throws {
         let clipboard = FakeClipboard(sequence: 41)
-        let target = FakeTarget(initial: Self.codex)
-        target.same = false
-        let input = FakeInput()
+        let target = FakeTarget(Self.codex)
+        // Call 1 is the synchronous initial capture (must succeed); call 2 is the settlement
+        // re-check before the text write (must observe the target as lost).
+        var checks = 0
+        target.beforeCurrentTarget = {
+            checks += 1
+            if checks >= 2 { target.current = nil }
+        }
+        let input = FakeGuardedInput()
         let service = Self.makeService(clipboard: clipboard, target: target, input: input)
 
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
@@ -84,8 +90,8 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 50. ClipboardChangeDuringSettlement_DoesNotWriteOrInject
     func testClipboardChangeDuringSettlementDoesNotWriteOrInject() throws {
         let clipboard = FakeClipboard(sequence: 42)
-        let input = FakeInput()
-        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(initial: Self.codex), input: input)
+        let input = FakeGuardedInput()
+        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(Self.codex), input: input)
 
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
@@ -97,9 +103,15 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 51. FocusLossAfterTextWrite_ReturnsReceiptButDoesNotInject
     func testFocusLossAfterTextWriteReturnsReceiptButDoesNotInject() throws {
         let clipboard = FakeClipboard(sequence: 41)
-        let target = FakeTarget(initial: Self.codex)
-        target.loseFocusAfterFirstSameCheck = true
-        let input = FakeInput()
+        let target = FakeTarget(Self.codex)
+        // Call 1 = initial capture, call 2 = settlement re-check (both must still see the target),
+        // call 3 = the finalGuard re-check right before injection (must observe it lost).
+        var checks = 0
+        target.beforeCurrentTarget = {
+            checks += 1
+            if checks >= 3 { target.current = nil }
+        }
+        let input = FakeGuardedInput()
         let service = Self.makeService(clipboard: clipboard, target: target, input: input)
 
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
@@ -112,9 +124,9 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 52. GuardedClipboardWriteFailure_IsReportedAndDoesNotInject
     func testGuardedClipboardWriteFailureIsReportedAndDoesNotInject() throws {
         let clipboard = FakeClipboard(sequence: 41)
-        clipboard.failWrite = true
-        let input = FakeInput()
-        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(initial: Self.codex), input: input)
+        clipboard.failNextWrite = true
+        let input = FakeGuardedInput()
+        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(Self.codex), input: input)
 
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
@@ -126,8 +138,8 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     func testClipboardChangeAfterTextWriteReturnsReceiptButDoesNotInject() throws {
         let clipboard = FakeClipboard(sequence: 41)
         clipboard.changeAfterWrite = true
-        let input = FakeInput()
-        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(initial: Self.codex), input: input)
+        let input = FakeGuardedInput()
+        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(Self.codex), input: input)
 
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
@@ -139,8 +151,8 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 54. FocusChangeDuringPhysicalReleaseWait_PreventsDispatch
     func testFocusChangeDuringPhysicalReleaseWaitPreventsDispatch() throws {
         let clipboard = FakeClipboard(sequence: 41)
-        let target = FakeTarget(initial: Self.codex)
-        let input = FakeInput()
+        let target = FakeTarget(Self.codex)
+        let input = FakeGuardedInput()
         input.beforeFinalGuard = {
             target.current = ForegroundTarget(
                 processName: "Other", bundleIdentifier: nil, windowTitle: "Other", windowId: 900, focusedElementId: "901")
@@ -157,9 +169,9 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 55. ClipboardChangeDuringPhysicalReleaseWait_PreventsDispatch
     func testClipboardChangeDuringPhysicalReleaseWaitPreventsDispatch() throws {
         let clipboard = FakeClipboard(sequence: 41)
-        let input = FakeInput()
+        let input = FakeGuardedInput()
         input.beforeFinalGuard = { clipboard.externalWrite() }
-        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(initial: Self.codex), input: input)
+        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(Self.codex), input: input)
 
         let final = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "text")
 
@@ -171,8 +183,8 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     // 56. AltVAndEmptyPrompt_DoNotInject
     func testAltVAndEmptyPromptDoNotInject() throws {
         let clipboard = FakeClipboard(sequence: 41)
-        let input = FakeInput()
-        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(initial: Self.codex), input: input)
+        let input = FakeGuardedInput()
+        let service = Self.makeService(clipboard: clipboard, target: FakeTarget(Self.codex), input: input)
 
         let altResult = complete(service, intent: Self.intent(sequence: 41, alternate: true), receipt: Self.receipt(41), text: "text")
         let emptyResult = complete(service, intent: Self.intent(sequence: 41), receipt: Self.receipt(41), text: "")
@@ -197,7 +209,9 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
         return result ?? CodexPasteCompletionResult(status: .failed, message: "no result")
     }
 
-    private static func makeService(clipboard: FakeClipboard, target: FakeTarget, input: FakeInput) -> CodexDesktopPasteCompletionService {
+    private static func makeService(
+        clipboard: FakeClipboard, target: FakeTarget, input: FakeGuardedInput
+    ) -> CodexDesktopPasteCompletionService {
         CodexDesktopPasteCompletionService(clipboard: clipboard, foreground: target, input: input, settlementDelay: 0)
     }
 
@@ -215,86 +229,5 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     /// the clipboard now holds only the written text.
     private static func textReceipt(_ sequence: Int, text: String) -> ClipboardSnapshot {
         ClipboardSnapshot(sequence: sequence, hasText: true, text: text, filePaths: [], hasImage: false)
-    }
-}
-
-// MARK: - Fakes
-
-private final class FakeClipboard: ClipboardServicing {
-    private var currentSequence: Int
-    private(set) var writtenText: String?
-    var failWrite = false
-    var changeAfterWrite = false
-
-    init(sequence: Int) { currentSequence = sequence }
-
-    func capture(_ completion: @escaping (ClipboardSnapshot) -> Void) {
-        completion(ClipboardSnapshot(sequence: currentSequence, hasText: false, text: nil, filePaths: [], hasImage: false))
-    }
-
-    func setPackageGuarded(
-        paths: [String], text: String, expectedSequence: Int?,
-        completion: @escaping (Result<ClipboardSnapshot, Error>) -> Void
-    ) { completion(.failure(TransportError.other("not supported"))) }
-
-    func setPNGGuarded(
-        path: String, expectedSequence: Int?, completion: @escaping (Result<ClipboardSnapshot, Error>) -> Void
-    ) { completion(.failure(TransportError.other("not supported"))) }
-
-    func setTextGuarded(
-        text: String, expectedSequence: Int?, completion: @escaping (Result<ClipboardSnapshot, Error>) -> Void
-    ) {
-        guard !failWrite, expectedSequence == currentSequence else {
-            completion(.failure(TransportError.clipboardChangedDefault))
-            return
-        }
-        writtenText = text
-        currentSequence += 1
-        let receipt = ClipboardSnapshot(sequence: currentSequence, hasText: true, text: text, filePaths: [], hasImage: false)
-        if changeAfterWrite { currentSequence += 1 }
-        completion(.success(receipt))
-    }
-
-    func externalWrite() { currentSequence += 1 }
-}
-
-private final class FakeTarget: ForegroundTargetServicing {
-    var current: ForegroundTarget
-    var same = true
-    var loseFocusAfterFirstSameCheck = false
-    private var checks = 0
-
-    init(initial: ForegroundTarget) { current = initial }
-
-    func currentTarget() -> ForegroundTarget? {
-        checks += 1
-        if checks == 1 { return current }
-        guard same else { return nil }
-        if loseFocusAfterFirstSameCheck && checks > 2 { return nil }
-        return current
-    }
-}
-
-private final class FakeInput: GuardedInputInjecting {
-    /// `true` = the gesture was not `.commandV` (mirrors the old `alternate` bool the existing
-    /// assertions in this file check).
-    private(set) var gestures: [Bool] = []
-    var beforeFinalGuard: (() -> Void)?
-
-    func injectPaste(gesture: PasteIntentGesture, completion: @escaping (Bool) -> Void) {
-        gestures.append(gesture != .commandV)
-        completion(true)
-    }
-
-    func injectPasteGuarded(
-        gesture: PasteIntentGesture, finalGuard: @escaping (@escaping (Bool) -> Void) -> Void,
-        completion: @escaping (Bool) -> Void
-    ) {
-        beforeFinalGuard?()
-        finalGuard { allowed in
-            guard allowed else { completion(false); return }
-            self.gestures.append(gesture != .commandV)
-            completion(true)
-        }
     }
 }

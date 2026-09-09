@@ -15,6 +15,10 @@ final class FakeClipboard: ClipboardServicing {
     /// If set, the *next* guarded write fails with `TransportError.clipboardChangedDefault`
     /// regardless of `expectedSequence`, then resets itself.
     var failNextWrite = false
+    /// If set, every successful `setTextGuarded` bumps `sequence` a second time right after
+    /// building its success receipt, simulating another app changing the clipboard immediately
+    /// after SnapBrief's own write settles (the receipt itself still reflects the write).
+    var changeAfterWrite = false
     var beforeCapture: (() -> Void)?
 
     init(sequence: Int) {
@@ -62,7 +66,9 @@ final class FakeClipboard: ClipboardServicing {
         }
         writes.append("TEXT")
         writtenText = text
-        completion(.success(ClipboardSnapshot(sequence: sequence, hasText: true, text: text, filePaths: [], hasImage: false)))
+        let receiptSequence = sequence
+        if changeAfterWrite { sequence += 1 }
+        completion(.success(ClipboardSnapshot(sequence: receiptSequence, hasText: true, text: text, filePaths: [], hasImage: false)))
     }
 
     /// Port of `FakeClipboard.ExternalWrite`: simulates another app changing the clipboard.
