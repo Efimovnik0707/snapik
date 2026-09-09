@@ -111,16 +111,17 @@ final class AppCoordinator {
         // Constructed last among the stored properties (SPEC-DELTA-2A §4, CONTRACTS.md sync 2):
         // `shouldIntercept` captures `[weak self]`, so every other non-optional stored property
         // must already be assigned by the time this runs.
-        self.pasteIntentObserver = MacPasteIntentObserver(
-            foreground: foregroundTargetService, clipboardSequence: { NSPasteboard.general.changeCount },
-            shouldIntercept: { [weak self] intent in
-                // The tap callback that eventually calls this closure runs on the main run loop
-                // but is not `@MainActor`-isolated to the compiler — a C function pointer cannot
-                // carry actor isolation (SPEC-DELTA-2A §1.2, risk 6). This class is `@MainActor`,
-                // and `MacPasteIntentObserver`'s tap is attached to `CFRunLoopGetMain()`, so the
-                // closure only ever actually runs on the main thread; `assumeIsolated` is safe.
-                MainActor.assumeIsolated { self?.shouldInterceptPasteIntent(intent) ?? false }
-            })
+        let macPasteObserver = MacPasteIntentObserver(
+            foreground: foregroundTargetService, clipboardSequence: { NSPasteboard.general.changeCount })
+        self.pasteIntentObserver = macPasteObserver
+        // The predicate captures `self`, so it is attached only after every stored property is
+        // initialized (Swift forbids capturing `self` in an initializer before that point).
+        // The tap callback runs on the main run loop but is not `@MainActor`-isolated to the
+        // compiler; this class is `@MainActor` and the tap is attached to `CFRunLoopGetMain()`,
+        // so `assumeIsolated` is safe (SPEC-DELTA-2A §1.2, risk 6).
+        macPasteObserver.shouldIntercept = { [weak self] intent in
+            MainActor.assumeIsolated { self?.shouldInterceptPasteIntent(intent) ?? false }
+        }
 
         hotkeyService.onHotkeyPressed = { [weak self] name in self?.handleHotkey(name) }
         pasteIntentObserver.onPasteIntent = { [weak self] intent in self?.handlePasteIntent(intent) }

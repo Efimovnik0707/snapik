@@ -41,7 +41,8 @@ public final class MacPasteIntentObserver: PasteIntentObserving {
     /// Port of `WindowsPasteIntentObserver(Func<PasteIntentObserved, bool>? shouldIntercept)`
     /// (CONTRACTS.md sync 2). Evaluated synchronously inside the tap callback (SPEC-DELTA-2A
     /// §1.2): only ever invoked when a fresh gesture is recognized on a physical `keyDown`.
-    private let shouldIntercept: ((PasteIntent) -> Bool)?
+    /// Settable after init so `AppCoordinator` can assign it once all its stored properties exist.
+    public var shouldIntercept: ((PasteIntent) -> Bool)?
     private let keyState = PasteIntentKeyState()
     private let interceptionState = PasteIntentInterceptionState()
     private var eventTap: CFMachPort?
