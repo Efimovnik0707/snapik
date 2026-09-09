@@ -1,0 +1,81 @@
+import Foundation
+
+/// Port of the data half of `src/SnapBrief.App/UiLanguage.cs`: the RU/EN string table and
+/// `Text(value, language)` lookup, verbatim. The WPF-tree-walking `Apply(DependencyObject, ...)`
+/// method is UI plumbing (`TextBlock`/`ContentControl`/`HeaderedItemsControl` traversal) with no
+/// AppKit-free cross-platform equivalent and is intentionally not ported here; the Mac app target
+/// re-implements the equivalent view-tree localization pass using `UiLanguage.text(_:language:)`.
+public enum UiLanguage {
+    public static var current: String = "ru"
+
+    private static let english: [String: String] = [
+        "Настройки": "Settings",
+        "Настройки SnapBrief": "SnapBrief settings",
+        "Общие": "General",
+        "Клавиши": "Hotkeys",
+        "Сохранение": "Saving",
+        "Уведомления о копировании и сохранении": "Notify on copy and save",
+        "Запоминать последнюю область": "Remember the last region",
+        "Захватывать курсор": "Capture the cursor",
+        "Язык": "Language",
+        "Захват области": "Capture region",
+        "Быстро сохранить весь экран": "Instantly save the full screen",
+        "Формат": "Format",
+        "Качество JPEG": "JPEG quality",
+        "Папка сохранения": "Save folder",
+        "Выбрать папку": "Choose folder",
+        "Сохранить": "Save",
+        "Отмена": "Cancel",
+        "Нажмите клавишу…": "Press a key…",
+        "Нажмите своё сочетание клавиш": "Press your shortcut",
+        "Новый снимок": "New capture",
+        "+ Снимок": "+ Capture",
+        "Готово": "Done",
+        "Выбор": "Select",
+        "Область": "Region",
+        "Стрелка": "Arrow",
+        "Перо": "Pen",
+        "Маркер": "Highlight",
+        "Текст": "Text",
+        "Скрыть": "Conceal",
+        "Размыть": "Blur",
+        "Обрезать": "Crop",
+        "Цвет отметки": "Annotation color",
+        "Толщина": "Thickness",
+        "Ещё инструменты": "More tools",
+        "Добавить комментарий": "Add comment",
+        "Удалить комментарий": "Remove comment",
+        "Отменить": "Undo",
+        "Повторить": "Redo",
+        "Сохранить на компьютер (Ctrl+S)": "Save to computer (Ctrl+S)",
+        "Свернуть в трей": "Hide to tray",
+        "Ещё": "More",
+        "Удалить": "Delete",
+        "Открыть снимок": "Open capture",
+        "Вернуть": "Restore",
+        "Показать стопку": "Show stack",
+        "Запускать с Windows": "Start with Windows",
+        "Выйти": "Exit",
+        "Новая сессия": "New session",
+        "Копировать пакет": "Copy package",
+        "Сохранить пакет…": "Save package…",
+        "Импортировать файл…": "Import file…",
+        "Вставить изображение из буфера": "Paste image from clipboard",
+        "Вернуть удалённый снимок": "Restore deleted capture",
+        "Горячие клавиши…": "Settings…",
+        "Настройки клавиш": "Settings",
+        "Снимок сохранён": "Capture saved",
+        "Снимки скопированы": "Captures copied",
+        "Скопировано": "Copied",
+        "Изображения и комментарии готовы к вставке": "Images and comments are ready to paste",
+    ]
+
+    /// Port of `Text(string value, string? language = null)`.
+    public static func text(_ value: String, language: String? = nil) -> String {
+        let resolvedLanguage = language ?? current
+        if resolvedLanguage == "en" {
+            return english[value] ?? value
+        }
+        return english.first(where: { $0.value == value })?.key ?? value
+    }
+}
