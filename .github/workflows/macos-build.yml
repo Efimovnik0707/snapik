@@ -1,0 +1,57 @@
+name: macos-build
+on:
+  push:
+    paths:
+      - "macos/**"
+      - ".github/workflows/macos-build.yml"
+  workflow_dispatch:
+concurrency:
+  group: macos-build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: macos
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app || sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          swift --version
+      - name: SwiftPM build
+        run: swift build -c debug 2>&1 | tee build.log
+      - name: SwiftPM tests
+        run: swift test 2>&1 | tee test.log
+      - name: XcodeGen
+        run: |
+          brew install xcodegen >/dev/null 2>&1 || true
+          xcodegen generate
+      - name: Xcode build app
+        run: |
+          set -o pipefail
+          xcodebuild -project SnapBrief.xcodeproj -scheme SnapBrief -configuration Release \
+            -derivedDataPath DerivedData CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES \
+            build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: unre|BUILD|Compiling|\*\*" 
+      - name: Xcode tests
+        run: |
+          set -o pipefail
+          xcodebuild -project SnapBrief.xcodeproj -scheme SnapBrief -configuration Debug \
+            -derivedDataPath DerivedData CODE_SIGN_IDENTITY=- \
+            test 2>&1 | tee xcodetest.log | grep -E "error:|Test Case|Executed|\*\*|failed" 
+      - name: Package app
+        run: |
+          cd DerivedData/Build/Products/Release && ditto -c -k --keepParent SnapBrief.app ../../../../SnapBrief-macOS.zip
+          ls -la ../../../../SnapBrief-macOS.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SnapBrief-macOS
+          path: |
+            macos/SnapBrief-macOS.zip
+            macos/SnapBrief.xcodeproj
+            macos/*.log
+          if-no-files-found: warn
