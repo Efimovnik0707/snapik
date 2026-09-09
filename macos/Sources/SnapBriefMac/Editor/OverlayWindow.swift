@@ -32,7 +32,7 @@ final class OverlayWindow: NSWindow {
         isReleasedWhenClosed = false
         ignoresMouseEvents = false
         hasShadow = false
-        sharingType = .none
+        sharingType = WindowCaptureExclusion.sharingType
         acceptsMouseMovedEvents = true
         setFrame(screenFrame, display: false)
     }

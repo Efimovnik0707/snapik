@@ -34,7 +34,7 @@ final class EdgeStackWindowController: NSWindowController {
         panel.hidesOnDeactivate = false
         panel.isExcludedFromWindowsMenu = true
         // Port of `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` (SPEC §9.8).
-        panel.sharingType = .none
+        panel.sharingType = WindowCaptureExclusion.sharingType
         panel.title = "SnapBrief — Стопка снимков"
 
         contentContainer = EdgeStackContentView(

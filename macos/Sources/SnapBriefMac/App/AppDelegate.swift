@@ -17,6 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         StartupLog.write(options, "App.applicationDidFinishLaunching entered")
+        if options.demo, options.demoScreenshotDirectory != nil {
+            // CI-only: let the runner's `screencapture` and our own window dumps see the windows.
+            WindowCaptureExclusion.isEnabled = false
+        }
 
         coordinator = AppCoordinator(options: options)
         StartupLog.write(options, "Constructing EdgeStackWindow")
@@ -56,12 +60,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Port of `OnClosing` (`:764-772`): force-save before quitting; if the save fails, cancel
     /// the quit and reveal the stack so the user sees why (SPEC §9.7).
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Watchdog: never leave the process alive forever if the forced save hangs or the reply
+        // is lost; after 5 s terminate regardless (the session is autosaved on every mutation).
+        var replied = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            if !replied {
+                replied = true
+                if let options = self?.options {
+                    StartupLog.write(options, "Quit watchdog: forced save did not finish in 5 s, terminating")
+                }
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+        }
         Task { @MainActor [weak self] in
+            defer { replied = true }
+            if replied { return }
             guard let self else {
                 NSApp.reply(toApplicationShouldTerminate: true)
                 return
             }
             let saved = await self.coordinator.prepareForQuit()
+            if replied { return }
             if saved {
                 self.coordinator.shutdown()
                 if let activationObserver = self.activationObserver {

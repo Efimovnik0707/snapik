@@ -46,7 +46,7 @@ ps aux | grep -i "[S]napBrief" || true
 tail -40 "$OUT/demo.log"
 
 echo "== 4. --capture-test (real ScreenCaptureKit capture, needs TCC) =="
-timeout 40 "$BIN" --capture-test "$OUT/capture-test.png" --data-dir "$DATA" > "$OUT/capture-test.log" 2>&1
+perl -e 'alarm shift; exec @ARGV' 40 "$BIN" --capture-test "$OUT/capture-test.png" --data-dir "$DATA" > "$OUT/capture-test.log" 2>&1
 echo "capture-test exit code: $? (informational)"
 tail -20 "$OUT/capture-test.log" 2>/dev/null || true
 

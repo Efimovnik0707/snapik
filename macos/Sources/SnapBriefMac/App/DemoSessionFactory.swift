@@ -118,7 +118,9 @@ enum DemoSessionFactory {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 captureWindowScreenshots(to: directory)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    NSApplication.shared.terminate(nil)
+                    // CI-only flow: the demo session is disposable, so skip the forced-save
+                    // terminate path and end the process directly.
+                    exit(0)
                 }
             }
         }
