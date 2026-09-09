@@ -28,8 +28,12 @@ public enum CaptureCursorDrawing {
 
         let origin = CGPoint(x: topLeftFramePixels.x - hotSpotPixels.x, y: topLeftFramePixels.y - hotSpotPixels.y)
 
+        // `ctx` is the Y-flipped desktop context (top-left origin); unflip locally so the cursor
+        // bitmap is not mirrored (same rule as `ScreenCaptureService.draw(_:ofScreen:...)`).
         ctx.saveGState()
-        ctx.draw(cgImage, in: CGRect(origin: origin, size: sizePixels))
+        ctx.translateBy(x: origin.x, y: origin.y + sizePixels.height)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(cgImage, in: CGRect(origin: .zero, size: sizePixels))
         ctx.restoreGState()
     }
 }

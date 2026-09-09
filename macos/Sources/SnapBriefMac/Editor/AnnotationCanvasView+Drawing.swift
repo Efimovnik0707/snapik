@@ -265,7 +265,10 @@ extension AnnotationCanvasView {
                 space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
 
-        ctx.draw(capture.image, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
+        // `AnnotationPainter` expects a top-left-origin (Y-down) context and blits the source
+        // image itself (`options.sourceImage`), so flip once here and do not draw the image twice.
+        ctx.translateBy(x: 0, y: CGFloat(height))
+        ctx.scaleBy(x: 1, y: -1)
 
         let coreAnnotations = capture.annotations.map { $0.toCore(imageWidth: width, imageHeight: height) }
         let labeled = CaptureLabels.forNotedAnnotations(captureLabel: capture.displayLabel, capture: capture.toCore())

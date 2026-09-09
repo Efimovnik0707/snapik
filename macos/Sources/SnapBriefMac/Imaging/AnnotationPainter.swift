@@ -63,7 +63,11 @@ public enum AnnotationPainter {
     ) {
         if let source = options.sourceImage {
             let composed = applyBlurAnnotations(annotations, to: source)
+            // `ctx` is Y-flipped (top-left origin) per this painter's contract; `draw(_:in:)`
+            // honours the CTM and would mirror the bitmap vertically. Unflip locally for the blit.
             ctx.saveGState()
+            ctx.translateBy(x: 0, y: imageSize.height)
+            ctx.scaleBy(x: 1, y: -1)
             ctx.draw(composed, in: CGRect(origin: .zero, size: imageSize))
             ctx.restoreGState()
         }

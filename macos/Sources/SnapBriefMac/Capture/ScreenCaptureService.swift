@@ -68,8 +68,8 @@ public final class ScreenCaptureService: ScreenCaptureServicing {
             throw SnapBriefError.invalidOperation("ScreenCaptureService: failed to create the desktop bitmap.")
         }
         // (0,0) is the top-left of the composed desktop and Y grows downward, matching
-        // `ScreenGeometry`'s frame space; image drawing below is correctly oriented regardless
-        // of this flip (Core Graphics keeps `draw(_:in:)` visually right-side-up under it).
+        // `ScreenGeometry`'s frame space. NB: `draw(_:in:)` does NOT compensate for this flip;
+        // `draw(_:ofScreen:...)` below unflips locally before blitting each display image.
         composed.translateBy(x: 0, y: CGFloat(pixelHeight))
         composed.scaleBy(x: 1, y: -1)
 
@@ -143,6 +143,13 @@ public final class ScreenCaptureService: ScreenCaptureServicing {
         let topLeftPoints = CGPoint(x: screen.frame.minX - pointsRect.minX, y: pointsRect.maxY - screen.frame.maxY)
         let originPixels = CGPoint(x: topLeftPoints.x * scale, y: topLeftPoints.y * scale)
         let sizePixels = CGSize(width: screen.frame.width * scale, height: screen.frame.height * scale)
-        composed.draw(image, in: CGRect(origin: originPixels, size: sizePixels))
+        // `composed` carries a Y-flip CTM (top-left origin). `draw(_:in:)` honours the CTM, so the
+        // image would come out mirrored vertically (observed on CI: Dock at the top). Undo the flip
+        // locally around the blit so the display image lands upright at its top-left slot.
+        composed.saveGState()
+        composed.translateBy(x: originPixels.x, y: originPixels.y + sizePixels.height)
+        composed.scaleBy(x: 1, y: -1)
+        composed.draw(image, in: CGRect(origin: .zero, size: sizePixels))
+        composed.restoreGState()
     }
 }

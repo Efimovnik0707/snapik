@@ -68,6 +68,12 @@ final class EdgeStackContentView: NSView {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        // Legacy (always-visible) scrollers paint a light track next to the dark cards; use the
+        // overlay style so the list stays dark edge to edge.
+        scrollView.scrollerStyle = .overlay
+        scrollView.autohidesScrollers = true
+        scrollView.verticalScroller?.knobStyle = .light
         scrollView.documentView = listContainer
         addSubview(scrollView)
 
