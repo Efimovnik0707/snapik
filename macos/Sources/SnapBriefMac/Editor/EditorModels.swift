@@ -14,13 +14,18 @@ enum EditorTool: String {
     case conceal = "X"
     case blur = "B"
     case crop = "C"
+    /// Port of `EditorTool.Comment` (SPEC-DELTA-2.md §1.3, SPEC-DELTA-2B.md §C2). One-shot: a
+    /// single click places a pin and returns to `.select` (`OverlayEditorController+Chips.swift`).
+    case comment = "N"
 
-    /// True for the tools shown directly on the toolbar (SPEC §6.2 rows 1-3, 8-9); Pen/
-    /// Highlight/Text/Conceal live only in the "•••" menu.
+    /// True for the tools shown directly on the toolbar (SPEC §6.2 rows 1-3, 8-9; SPEC-DELTA-2B.md
+    /// §C5: Text moved onto the toolbar as of the 2026-09-09 sync). Pen/Highlight/Conceal live
+    /// only in the "•••" menu; Comment is its own dedicated action button, not a toggle in this
+    /// group (SPEC-DELTA-2B.md §C2: "`.comment` → false").
     var isOnToolbar: Bool {
         switch self {
-        case .select, .rectangle, .arrow, .blur, .crop: return true
-        case .pen, .highlight, .text, .conceal: return false
+        case .select, .rectangle, .arrow, .text, .blur, .crop: return true
+        case .pen, .highlight, .conceal, .comment: return false
         }
     }
 }
@@ -42,6 +47,12 @@ final class EditorAnnotation {
     var label: String = ""
     var note: String = ""
     var text: String
+    /// Port of `AnnotationItem.ParentAnnotationId` (SPEC-DELTA-2.md §2.1). `nil` = comment attached
+    /// to the whole capture ("к снимку"); non-nil = attached to that annotation ("к отметке").
+    var parentAnnotationId: SBGuid?
+    /// Port of `AnnotationItem.ArrowStyle` (SPEC-DELTA-2.md §2.1): `"straight"`/`"curved"`/
+    /// `"bold"`/`"wide"`. Meaningless for non-arrow kinds, always carried along regardless.
+    var arrowStyle: String
 
     init(
         id: SBGuid = SBGuid(),
@@ -51,7 +62,9 @@ final class EditorAnnotation {
         color: NSColor,
         thickness: Double,
         text: String? = nil,
-        note: String = ""
+        note: String = "",
+        parentAnnotationId: SBGuid? = nil,
+        arrowStyle: String = "straight"
     ) {
         self.id = id
         self.kind = kind
@@ -61,6 +74,8 @@ final class EditorAnnotation {
         self.thickness = thickness
         self.text = text ?? EditorStrings.defaultText("ru")
         self.note = note
+        self.parentAnnotationId = parentAnnotationId
+        self.arrowStyle = arrowStyle
     }
 
     /// Port of `AnnotationItem.Clone()` (`:62-74`). Identity (`id`) is preserved, matching the
@@ -74,7 +89,9 @@ final class EditorAnnotation {
             color: color,
             thickness: thickness,
             text: text,
-            note: note)
+            note: note,
+            parentAnnotationId: parentAnnotationId,
+            arrowStyle: arrowStyle)
     }
 
     /// Port of `EditorTool` -> `AnnotationKind` (SPEC §2.4 table; `EditorModels.cs:78-88`).
@@ -88,6 +105,7 @@ final class EditorAnnotation {
         case .text: return .text
         case .conceal: return .redaction
         case .blur: return .blur
+        case .comment: return .comment
         case .select, .crop: return .rectangle
         }
     }
@@ -119,7 +137,9 @@ final class EditorAnnotation {
             thickness: thickness,
             text: text,
             note: note,
-            pathSegments: pathSegments)
+            pathSegments: pathSegments,
+            parentAnnotationId: parentAnnotationId,
+            arrowStyle: arrowStyle)
     }
 
     /// Port of `AnnotationItem.FromCore` (`:102-127`).
@@ -141,6 +161,7 @@ final class EditorAnnotation {
         case .text: kind = .text
         case .redaction: kind = .conceal
         case .blur: kind = .blur
+        case .comment: kind = .comment
         }
 
         return EditorAnnotation(
@@ -151,7 +172,9 @@ final class EditorAnnotation {
             color: NSColor(argbHex: item.strokeColor),
             thickness: item.thickness,
             text: item.text,
-            note: item.note)
+            note: item.note,
+            parentAnnotationId: item.parentAnnotationId,
+            arrowStyle: item.arrowStyle)
     }
 }
 
@@ -250,7 +273,6 @@ struct OverlaySnapshot {
     /// see `EditorGeometry`).
     let cropRect: CGRect
     let visibleChipIds: Set<SBGuid>
-    let shotNoteVisible: Bool
 }
 
 // MARK: - Color <-> `#AARRGGBB` hex (SPEC §2.4)

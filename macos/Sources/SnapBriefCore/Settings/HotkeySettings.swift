@@ -50,6 +50,10 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
     public var jpegQuality: Int = 90
     public var saveDirectory: String = HotkeySettings.defaultSaveDirectory()
     public var language: String = "ru"
+    /// Port of `AutoSaveCaptures` (SPEC-DELTA-2B §B/§E4), default `false`.
+    public var autoSaveCaptures: Bool = false
+    /// Port of `PlaySounds` (SPEC-DELTA-2B §B/§E2), default `true`.
+    public var playSounds: Bool = true
 
     public init(captureId: String, pasteId: String) {
         self.captureId = captureId
@@ -68,7 +72,9 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         saveFormat: String,
         jpegQuality: Int,
         saveDirectory: String,
-        language: String
+        language: String,
+        autoSaveCaptures: Bool = false,
+        playSounds: Bool = true
     ) {
         self.captureId = captureId
         self.pasteId = pasteId
@@ -82,6 +88,8 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         self.jpegQuality = jpegQuality
         self.saveDirectory = saveDirectory
         self.language = language
+        self.autoSaveCaptures = autoSaveCaptures
+        self.playSounds = playSounds
     }
 
     /// Port of `Path.Combine(SpecialFolder.MyPictures, "SnapBrief")`, using the macOS Pictures
@@ -172,5 +180,47 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         case jpegQuality = "JpegQuality"
         case saveDirectory = "SaveDirectory"
         case language = "Language"
+        case autoSaveCaptures = "AutoSaveCaptures"
+        case playSounds = "PlaySounds"
+    }
+
+    /// Explicit `init(from:)` (SPEC-DELTA-2B §B, "Риски компиляции" #2): every field is decoded
+    /// with `decodeIfPresent`, falling back to its default, so a `settings.json` written before
+    /// sync 2 (missing `AutoSaveCaptures`/`PlaySounds`, or any other newer key) still loads instead
+    /// of silently failing the whole decode and falling back to `.default` in `load(path:)`.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        captureId = try container.decodeIfPresent(String.self, forKey: .captureId) ?? HotkeySettings.default.captureId
+        pasteId = try container.decodeIfPresent(String.self, forKey: .pasteId) ?? HotkeySettings.default.pasteId
+        captureEnabled = try container.decodeIfPresent(Bool.self, forKey: .captureEnabled) ?? true
+        fullscreenSaveEnabled = try container.decodeIfPresent(Bool.self, forKey: .fullscreenSaveEnabled) ?? false
+        fullscreenSaveId = try container.decodeIfPresent(String.self, forKey: .fullscreenSaveId) ?? "custom:4:44"
+        showNotifications = try container.decodeIfPresent(Bool.self, forKey: .showNotifications) ?? true
+        rememberRegion = try container.decodeIfPresent(Bool.self, forKey: .rememberRegion) ?? false
+        captureCursor = try container.decodeIfPresent(Bool.self, forKey: .captureCursor) ?? false
+        saveFormat = try container.decodeIfPresent(String.self, forKey: .saveFormat) ?? "png"
+        jpegQuality = try container.decodeIfPresent(Int.self, forKey: .jpegQuality) ?? 90
+        saveDirectory = try container.decodeIfPresent(String.self, forKey: .saveDirectory) ?? HotkeySettings.defaultSaveDirectory()
+        language = try container.decodeIfPresent(String.self, forKey: .language) ?? "ru"
+        autoSaveCaptures = try container.decodeIfPresent(Bool.self, forKey: .autoSaveCaptures) ?? false
+        playSounds = try container.decodeIfPresent(Bool.self, forKey: .playSounds) ?? true
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(captureId, forKey: .captureId)
+        try container.encode(pasteId, forKey: .pasteId)
+        try container.encode(captureEnabled, forKey: .captureEnabled)
+        try container.encode(fullscreenSaveEnabled, forKey: .fullscreenSaveEnabled)
+        try container.encode(fullscreenSaveId, forKey: .fullscreenSaveId)
+        try container.encode(showNotifications, forKey: .showNotifications)
+        try container.encode(rememberRegion, forKey: .rememberRegion)
+        try container.encode(captureCursor, forKey: .captureCursor)
+        try container.encode(saveFormat, forKey: .saveFormat)
+        try container.encode(jpegQuality, forKey: .jpegQuality)
+        try container.encode(saveDirectory, forKey: .saveDirectory)
+        try container.encode(language, forKey: .language)
+        try container.encode(autoSaveCaptures, forKey: .autoSaveCaptures)
+        try container.encode(playSounds, forKey: .playSounds)
     }
 }

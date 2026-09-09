@@ -127,37 +127,80 @@ extension OverlayEditorController {
         return changed
     }
 
-    /// SPEC §8.4 point 10: creates a Rectangle annotation via `smokeCreateRectangle`, confirms its
-    /// comment chip auto-opened (SPEC §1.4), types a probe note into it, and confirms the text
-    /// reached the annotation model. Also confirms a Text-tool annotation's chip writes into
-    /// `EditorAnnotation.text` (the rendered label) rather than `.note` (mirrors
-    /// `RunNoteAffordanceProbe`'s text-tool assertion, `OverlayEditorWindow.xaml.cs:145-152`).
+    /// Creates a Comment pin at `at` (capture pixel space), mirroring the real one-shot flow
+    /// (`AnnotationCanvasView.mouseDown`'s `.comment` branch + `annotationCreated`): the pin picks
+    /// up whatever `commentParentId` is currently armed (set by `commentButtonClicked()` or the
+    /// `N` hotkey beforehand), its second point is offset `(8,8)` and clamped, the tool returns to
+    /// `.select`, and its chip auto-opens focused. If `note` is supplied, types it in exactly like
+    /// a real edit. Returns the new pin's id, or `nil` on failure. Port of the placement half of
+    /// `RunNoteAffordanceProbe` (`OverlayEditorWindow.xaml.cs:107-202`, SPEC-DELTA-2B.md §C8).
+    @discardableResult
+    func smokeCreateComment(at point: CGPoint, note: String?) -> SBGuid? {
+        guard let capture, activeScreenIndex != nil, !busyCrop, captureResizeCorner < 0 else { return nil }
+        let imageBounds = CGRect(x: 0, y: 0, width: capture.image.width, height: capture.image.height)
+        guard imageBounds.contains(point) else { return nil }
+
+        let annotation = EditorAnnotation(kind: .comment, points: [point, point], color: activeColor, thickness: activeThickness)
+        capture.annotations.append(annotation)
+        annotationCreated(annotation)
+
+        if let note, let chip = chipViews[annotation.id] {
+            chip.textView.string = note
+            chip.onNoteChanged?(note)
+        }
+        return annotation.id
+    }
+
+    /// Port of `RunNoteAffordanceProbe` (`OverlayEditorWindow.xaml.cs:107-202`), updated for the
+    /// one-shot Comment tool (SPEC-DELTA-2B.md §C8): arming Comment on a selected arrow links the
+    /// pin to it; the tool returns to Select after one click; a second, unrelated comment collapses
+    /// the first to 43pt while it opens at 270pt and neither chip's frame overlaps the other's;
+    /// deleting a comment's note removes the pin entirely; finishing an empty Rectangle's chip
+    /// removes only the chip, not the shape; a Text annotation's chip writes into `.text`.
     @discardableResult
     func smokeRunNoteAffordanceProbe() -> Bool {
         guard let capture, activeScreenIndex != nil else { return false }
         let w = CGFloat(capture.image.width)
         let h = CGFloat(capture.image.height)
-        guard w >= 20, h >= 20 else { return false }
-        let rect = CGRect(x: w * 0.1, y: h * 0.1, width: max(w * 0.2, 10), height: max(h * 0.2, 10))
+        guard w >= 60, h >= 60 else { return false }
 
-        guard let idString = smokeCreateRectangle(rect, note: nil),
-            let id = SBGuid(uuidString: idString),
-            let annotation = capture.annotations.first(where: { $0.id == id })
-        else { return false }
-        guard visibleChipIds.contains(annotation.id), let chip = chipViews[annotation.id] else { return false }
+        let arrow = EditorAnnotation(kind: .arrow, points: [CGPoint(x: 10, y: 10), CGPoint(x: 60, y: 40)], color: activeColor, thickness: activeThickness)
+        capture.annotations.append(arrow)
+        canvasView?.selectAnnotation(id: arrow.id)
+        commentButtonClicked()
+        guard canvasView?.tool == .comment, commentParentId == arrow.id else { return false }
 
-        let probeText = "smoke-note-probe"
-        chip.textView.string = probeText
-        chip.onNoteChanged?(probeText)
-        guard annotation.note == probeText else { return false }
+        guard let firstId = smokeCreateComment(at: CGPoint(x: w * 0.5, y: h * 0.5), note: nil) else { return false }
+        guard canvasView?.tool == .select else { return false }
+        guard visibleChipIds.contains(firstId), let firstAnnotation = capture.annotations.first(where: { $0.id == firstId }) else { return false }
+        guard firstAnnotation.parentAnnotationId == arrow.id else { return false }
+
+        let commentProbeText = "smoke-comment-probe"
+        guard let firstChip = chipViews[firstId] else { return false }
+        firstChip.textView.string = commentProbeText
+        firstChip.onNoteChanged?(commentProbeText)
+        guard firstAnnotation.note == commentProbeText else { return false }
+
+        guard let secondId = smokeCreateComment(at: CGPoint(x: w * 0.2, y: h * 0.8), note: "second") else { return false }
+        guard let firstChipAfter = chipViews[firstId], let secondChip = chipViews[secondId] else { return false }
+        guard abs(firstChipAfter.frame.width - CommentChipView.collapsedWidth) < 0.5 else { return false }
+        guard abs(secondChip.frame.width - CommentChipView.expandedWidth) < 0.5 else { return false }
+        guard !firstChipAfter.frame.intersects(secondChip.frame) else { return false }
+
+        deleteAnnotationNote(firstAnnotation)
+        guard !capture.annotations.contains(where: { $0.id == firstId }), chipViews[firstId] == nil else { return false }
+
+        let rectRect = CGRect(x: w * 0.05, y: h * 0.05, width: max(w * 0.1, 10), height: max(h * 0.1, 10))
+        guard let rectIdString = smokeCreateRectangle(rectRect, note: nil), let rectId = SBGuid(uuidString: rectIdString) else { return false }
+        finishChip(rectId)
+        guard capture.annotations.contains(where: { $0.id == rectId }), chipViews[rectId] == nil else { return false }
 
         let textAnnotation = EditorAnnotation(
-            kind: .text, points: [CGPoint(x: 100, y: 100), CGPoint(x: 220, y: 160)],
+            kind: .text, points: [CGPoint(x: w * 0.3, y: h * 0.3), CGPoint(x: w * 0.3 + 80, y: h * 0.3 + 40)],
             color: activeColor, thickness: activeThickness)
         capture.annotations.append(textAnnotation)
         annotationCreated(textAnnotation)
         guard let textChip = chipViews[textAnnotation.id] else { return false }
-
         let textProbeText = "smoke-text-probe"
         textChip.textView.string = textProbeText
         textChip.onNoteChanged?(textProbeText)

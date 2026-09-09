@@ -248,13 +248,19 @@ final class AppearanceButtonView: NSView {
 /// (`EditorGeometry.positionToolbar`) and undo/redo enablement.
 final class EditorToolbarView: NSView {
     private var toolButtons: [ToolbarToggleButtonView] = []
+    /// Explicit visual placement order (SPEC-DELTA-2B.md §C5: "Select, Rectangle, Arrow,
+    /// ArrowOptions, Text, Blur, Crop, Appearance, •••, Comment, |, Undo, Redo, Save, Done").
+    /// Differs from `toolButtons`'s order only in that `arrowOptionsButton` (not a toggle, so not
+    /// in `toolButtons`) is interleaved between Arrow and Text.
+    private var placementOrder: [NSView] = []
+    /// Chevron button opening the arrow-style menu (SPEC-DELTA-2.md §1.2 "`ArrowOptionsButton`").
+    let arrowOptionsButton: ToolbarActionButtonView
     let appearanceButton: AppearanceButtonView
     let moreToolsButton: ToolbarActionButtonView
     let commentButton: ToolbarActionButtonView
     let undoButton: ToolbarActionButtonView
     let redoButton: ToolbarActionButtonView
     let saveButton: ToolbarActionButtonView
-    let addCaptureButton: ToolbarActionButtonView
     let doneButton: ToolbarActionButtonView
     private let divider = ToolbarDividerView(frame: .zero)
 
@@ -274,23 +280,28 @@ final class EditorToolbarView: NSView {
         let selectButton = toggle(.select, "\(EditorStrings.toolSelect(language)) (V)", "M2,1 L14,9 L9,10 L7,15 Z")
         let rectangleButton = toggle(.rectangle, "\(EditorStrings.toolRectangle(language)) (R)", "M2,3 L14,3 L14,13 L2,13 Z")
         let arrowButton = toggle(.arrow, "\(EditorStrings.toolArrow(language)) (A)", "M2,15 L15,2 M9,2 L15,2 L15,8", 1.8)
+        // SPEC-DELTA-2B.md §C5: Text moved back onto the toolbar as a plain toggle button.
+        let textButton = toggle(.text, "\(EditorStrings.toolText(language)) (T)", "M2,2 L14,2 M8,2 L8,14")
         let blurButton = toggle(.blur, "\(EditorStrings.toolBlur(language)) (B)", "M2,4 L5,2 L8,4 L11,2 L14,4 M2,8 L5,6 L8,8 L11,6 L14,8 M2,12 L5,10 L8,12 L11,10 L14,12", 1.4)
         let cropButton = toggle(.crop, "\(EditorStrings.toolCrop(language)) (C)", "M4,1 L4,12 L15,12 M1,4 L12,4 L12,15")
-        toolButtons = [selectButton, rectangleButton, arrowButton, blurButton, cropButton]
+        toolButtons = [selectButton, rectangleButton, arrowButton, textButton, blurButton, cropButton]
+
+        // SPEC-DELTA-2.md §1.2 "`ArrowOptionsButton` справа от `ArrowTool`": `Width=23 MinWidth=23
+        // Padding=6`, chevron `M1,1 L4.5,4 L8,1` (9x5, stroke 1.5).
+        arrowOptionsButton = ToolbarActionButtonView(iconData: "M1,1 L4.5,4 L8,1", tooltip: EditorStrings.arrowStyle(language), iconNativeSize: 9, iconStrokeWidth: 1.5)
 
         appearanceButton = AppearanceButtonView(tooltip: EditorStrings.appearanceButtonTooltip(language))
         appearanceButton.valueText = EditorStrings.thicknessLabel(4)
         appearanceButton.setAccessibilityLabel(EditorStrings.appearanceButtonTooltip(language))
 
         moreToolsButton = ToolbarActionButtonView(text: "\u{2022}\u{2022}\u{2022}", tooltip: EditorStrings.moreTools(language))
-        commentButton = ToolbarActionButtonView(iconData: "M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z", tooltip: EditorStrings.addComment(language), iconStrokeWidth: 1.6)
+        commentButton = ToolbarActionButtonView(iconData: "M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z", tooltip: EditorStrings.addCommentWithKey(language), iconStrokeWidth: 1.6)
         // Undo/Redo/Save show the mac keyboard mapping (§7.6: Cmd+Z / Shift+Cmd+Z, not the
         // Windows Ctrl+Z/Ctrl+Y); Save's "(Cmd+S)" already comes from `MacUiText`'s override of
         // `saveToComputer`.
         undoButton = ToolbarActionButtonView(iconData: "M7,3 L2,7 L7,11 M3,7 L10,7 C14,7 15,10 15,13", tooltip: "\(EditorStrings.undo(language)) (Cmd+Z)")
         redoButton = ToolbarActionButtonView(iconData: "M9,3 L14,7 L9,11 M13,7 L6,7 C2,7 1,10 1,13", tooltip: "\(EditorStrings.redo(language)) (Shift+Cmd+Z)")
         saveButton = ToolbarActionButtonView(iconData: "M2,1 L12,1 L16,5 L16,16 L2,16 Z M5,1 L5,6 L12,6 L12,1 M5,16 L5,10 L13,10 L13,16", tooltip: EditorStrings.saveToComputer(language), iconNativeSize: 17, iconStrokeWidth: 1.6)
-        addCaptureButton = ToolbarActionButtonView(text: EditorStrings.addCapture(language))
         doneButton = ToolbarActionButtonView(text: EditorStrings.done(language), filledBackground: EditorTheme.accent, bold: true)
 
         super.init(frame: .zero)
@@ -299,6 +310,7 @@ final class EditorToolbarView: NSView {
             button.onClick = { [weak self] in self?.onToolSelected?(button.tool) }
             addSubview(button)
         }
+        addSubview(arrowOptionsButton)
         addSubview(appearanceButton)
         addSubview(moreToolsButton)
         addSubview(commentButton)
@@ -306,8 +318,12 @@ final class EditorToolbarView: NSView {
         addSubview(undoButton)
         addSubview(redoButton)
         addSubview(saveButton)
-        addSubview(addCaptureButton)
         addSubview(doneButton)
+
+        placementOrder = [
+            selectButton, rectangleButton, arrowButton, arrowOptionsButton, textButton, blurButton, cropButton,
+            appearanceButton, moreToolsButton, commentButton,
+        ]
 
         setActiveTool(.rectangle)
     }
@@ -352,16 +368,17 @@ final class EditorToolbarView: NSView {
             x += width + itemMargin * 2
         }
 
-        for button in toolButtons { place(button, width: 36) }
-        place(appearanceButton, width: appearanceButton.frame.width)
-        place(moreToolsButton, width: moreToolsButton.frame.width)
-        place(commentButton, width: 36)
+        // SPEC-DELTA-2B.md §C5: Select, Rectangle, Arrow, ArrowOptions (23pt), Text, Blur, Crop,
+        // Appearance, "•••", Comment — in that exact visual order.
+        for view in placementOrder {
+            let width: CGFloat = view === arrowOptionsButton ? 23 : (view.frame.width > 0 ? view.frame.width : 36)
+            place(view, width: width)
+        }
         divider.frame = CGRect(x: x + 7, y: padding + 7, width: 1, height: 22)
         x += 7 * 2 + 1 + itemMargin * 2
         place(undoButton, width: 36)
         place(redoButton, width: 36)
         place(saveButton, width: 36)
-        place(addCaptureButton, width: addCaptureButton.frame.width)
         place(doneButton, width: doneButton.frame.width)
 
         let width = x - itemMargin * 2 + padding

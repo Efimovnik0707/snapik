@@ -35,6 +35,15 @@ enum SmokeTestRunner {
             overallSuccess = overallSuccess && condition
         }
 
+        // 0a. Bundled capture-feedback WAV headers (SPEC-DELTA-2.md §1.6, checked first per the
+        // Windows `SmokeTestRunner.cs`'s "VerifyWaveHeaders() first").
+        do {
+            try CaptureFeedbackSound.verifyWaveHeaders()
+            check("wav headers", true)
+        } catch {
+            check("wav headers", false)
+        }
+
         let usedExplicitRoot = options.dataDirectory != nil
         let root =
             options.dataDirectory
@@ -72,6 +81,9 @@ enum SmokeTestRunner {
         custom.jpegQuality = 73
         custom.saveDirectory = root.path
         custom.language = "en"
+        // SPEC-DELTA-2B.md §F: round-trip the two new flags with non-default values.
+        custom.autoSaveCaptures = true
+        custom.playSounds = false
         let customPath = root.appendingPathComponent("custom-hotkey-smoke.json")
         do {
             try custom.save(path: customPath)
@@ -102,7 +114,8 @@ enum SmokeTestRunner {
 
             let probeCoordinator = AppCoordinator(options: editorProbeOptions)
             let settingsController = HotkeySettingsWindowController(coordinator: probeCoordinator)
-            result.settingsSizeOk = settingsController.window?.frame.size == NSSize(width: 530, height: 480)
+            // SPEC-DELTA-2B.md §E4: the "Общие"/"Сохранение" tabs grew by one checkbox each, height 480 -> 520.
+            result.settingsSizeOk = settingsController.window?.frame.size == NSSize(width: 530, height: 520)
             result.translationOk =
                 MacUiText.text("Настройки", language: "en") == "Settings"
                 && MacUiText.text("Settings", language: "ru") == "Настройки"
@@ -150,7 +163,7 @@ enum SmokeTestRunner {
             controller.close()
             return result
         }
-        check("settings window 530x480", editorProbe.settingsSizeOk)
+        check("settings window 530x520", editorProbe.settingsSizeOk)
         check("settings translation round-trip", editorProbe.translationOk)
         check("editor region selection probe", editorProbe.regionSelectionOk)
         check("editor blur preview differs (point 6)", editorProbe.blurPreviewOk)
@@ -321,6 +334,22 @@ enum SmokeTestRunner {
                     && FileManager.default.fileExists(atPath: previousDirectory.appendingPathComponent("session.json").path))
         } catch {
             check("session rotation", false)
+        }
+
+        // 7b. Editor hover-manipulation + preview probes (SPEC-DELTA-2B.md §F).
+        do {
+            let probeImage = try makeCheckerboardImage(width: 480, height: 300)
+            check("hover manipulation", AnnotationCanvasView.smokeVerifyHoverManipulation(image: probeImage))
+        } catch {
+            check("hover manipulation", false)
+        }
+        do {
+            let previewImage = try makeCheckerboardImage(width: 800, height: 600)
+            var probeSucceeded = true
+            do { try CapturePreviewProbe.run(image: previewImage) } catch { probeSucceeded = false }
+            check("preview probe", probeSucceeded)
+        } catch {
+            check("preview probe", false)
         }
 
         // 8. Result file (SPEC §8.4 point 14).

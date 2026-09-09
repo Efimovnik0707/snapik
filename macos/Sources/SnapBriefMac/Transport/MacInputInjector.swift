@@ -1,7 +1,7 @@
-// Port of Windows/WindowsInputInjector.cs, SPEC §5.6.
+// Port of Windows/WindowsInputInjector.cs, SPEC §5.6; SPEC-DELTA-2A (поправка, Ctrl+V support).
 //
-// Enter is structurally impossible to send: `InputInjecting.injectPaste(alternate:)` only knows
-// Cmd+V (`alternate == false`) and Option+V (`alternate == true`), so the native-boundary rejection
+// Enter is structurally impossible to send: `InputInjecting.injectPaste(gesture:)` only knows
+// `PasteIntentGesture`'s three cases (Cmd+V, Option+V, Ctrl+V), so the native-boundary rejection
 // Windows needs (`SnapBrief never injects Enter.`) has no macOS equivalent to port — there is no
 // code path that could construct an Enter gesture.
 //
@@ -50,21 +50,21 @@ public final class MacInputInjector: GuardedInputInjecting {
         self.scheduler = scheduler
     }
 
-    public func injectPaste(alternate: Bool, completion: @escaping (Bool) -> Void) {
-        sendCore(alternate: alternate, finalGuard: nil, completion: completion)
+    public func injectPaste(gesture: PasteIntentGesture, completion: @escaping (Bool) -> Void) {
+        sendCore(gesture: gesture, finalGuard: nil, completion: completion)
     }
 
     public func injectPasteGuarded(
-        alternate: Bool,
+        gesture: PasteIntentGesture,
         finalGuard: @escaping (@escaping (Bool) -> Void) -> Void,
         completion: @escaping (Bool) -> Void
     ) {
-        sendCore(alternate: alternate, finalGuard: finalGuard, completion: completion)
+        sendCore(gesture: gesture, finalGuard: finalGuard, completion: completion)
     }
 
     /// Port of `SendCoreAsync` (`Windows/WindowsInputInjector.cs:38-59`).
     private func sendCore(
-        alternate: Bool,
+        gesture: PasteIntentGesture,
         finalGuard: ((@escaping (Bool) -> Void) -> Void)?,
         completion: @escaping (Bool) -> Void
     ) {
@@ -78,7 +78,7 @@ public final class MacInputInjector: GuardedInputInjecting {
             }
             let proceed: (Bool) -> Void = { allowed in
                 guard allowed else { completion(false); return }
-                completion(Self.postPasteEvents(alternate: alternate))
+                completion(Self.postPasteEvents(gesture: gesture))
             }
             if let finalGuard {
                 finalGuard(proceed)
@@ -108,11 +108,11 @@ public final class MacInputInjector: GuardedInputInjecting {
     }
 
     /// Port of the key event sequence in `SendCoreAsync` (`:48-53`): modifier down, V down, V up,
-    /// modifier up.
-    private static func postPasteEvents(alternate: Bool) -> Bool {
+    /// modifier up. SPEC-DELTA-2A (поправка): the modifier key/flag now depends on the full
+    /// three-case `PasteIntentGesture` instead of a two-case `alternate: Bool`.
+    private static func postPasteEvents(gesture: PasteIntentGesture) -> Bool {
         guard let source = CGEventSource(stateID: .hidSystemState) else { return false }
-        let modifierKey = alternate ? VirtualKey.option : VirtualKey.command
-        let modifierFlag: CGEventFlags = alternate ? .maskAlternate : .maskCommand
+        let (modifierKey, modifierFlag) = Self.modifier(for: gesture)
 
         guard
             let modifierDown = CGEvent(keyboardEventSource: source, virtualKey: modifierKey, keyDown: true),
@@ -131,6 +131,15 @@ public final class MacInputInjector: GuardedInputInjecting {
             event.post(tap: .cghidEventTap)
         }
         return true
+    }
+
+    /// SPEC-DELTA-2A (поправка): `kVK_Control = 0x3B`/`.maskControl` for `.controlV`.
+    private static func modifier(for gesture: PasteIntentGesture) -> (key: CGKeyCode, flag: CGEventFlags) {
+        switch gesture {
+        case .commandV: return (VirtualKey.command, .maskCommand)
+        case .optionV: return (VirtualKey.option, .maskAlternate)
+        case .controlV: return (VirtualKey.control, .maskControl)
+        }
     }
 
     private enum VirtualKey {

@@ -63,8 +63,13 @@ public final class MacForegroundTargetService: ForegroundTargetServicing {
     }
 
     /// SPEC §5.5: "Сфокусированный элемент — `kAXFocusedUIElementAttribute`, требует TCC Accessibility".
+    /// SPEC-DELTA-2A §9 risk 2: `currentTarget()` can now be called synchronously from inside
+    /// `MacPasteIntentObserver`'s tap callback (SPEC-DELTA-2A §1.2: "обработчик обязан быть...
+    /// максимально коротким"), so this bounds the worst case a hung/unresponsive target app's
+    /// Accessibility server can block that callback for.
     private static func focusedElementId(forPid pid: pid_t) -> String? {
         let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, 0.1)
         var focused: AnyObject?
         let status = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focused)
         guard status == .success, let focused else { return nil }

@@ -21,12 +21,15 @@ final class GeneralTabView: NSView {
     let notificationsBox = checkbox("")
     let rememberRegionBox = checkbox("")
     let captureCursorBox = checkbox("")
+    /// SPEC-DELTA-2.md §1.8, SPEC-DELTA-2B.md §E4: "Звуки захвата и стопки", placed after
+    /// `captureCursorBox` (matches `HotkeySettingsWindow.xaml:19`'s "Общие" tab order).
+    let soundsBox = checkbox("")
     let languageLabel = sectionLabel("")
     let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        for view in [notificationsBox, rememberRegionBox, captureCursorBox, languageLabel, languagePopup] {
+        for view in [notificationsBox, rememberRegionBox, captureCursorBox, soundsBox, languageLabel, languagePopup] {
             addSubview(view)
         }
         languagePopup.addItems(withTitles: ["Русский", "English"])
@@ -38,6 +41,7 @@ final class GeneralTabView: NSView {
         notificationsBox.title = MacUiText.text("Уведомления о копировании и сохранении", language: language)
         rememberRegionBox.title = MacUiText.text("Запоминать последнюю область", language: language)
         captureCursorBox.title = MacUiText.text("Захватывать курсор", language: language)
+        soundsBox.title = MacUiText.text("Звуки захвата и стопки", language: language)
         languageLabel.stringValue = MacUiText.text("Язык", language: language)
     }
 
@@ -49,6 +53,8 @@ final class GeneralTabView: NSView {
         rememberRegionBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
         y -= 36
         captureCursorBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
+        y -= 36
+        soundsBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
         y -= 32
         languageLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: 16)
         y -= 27
@@ -105,6 +111,9 @@ final class HotkeysTabView: NSView {
 
 /// "Сохранение": format popup, JPEG-quality slider, save-directory field + browse button.
 final class SavingTabView: NSView {
+    /// SPEC-DELTA-2.md §1.8, SPEC-DELTA-2B.md §E4: "Автоматически сохранять готовые снимки", first
+    /// control on "Сохранение" (matches `HotkeySettingsWindow.xaml:30`'s tab order).
+    let autoSaveBox = checkbox("")
     let formatLabel = sectionLabel("")
     let formatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let qualityLabel = sectionLabel("")
@@ -124,7 +133,7 @@ final class SavingTabView: NSView {
         browseButton.toolTip = "Выбрать папку"
 
         for view in [
-            formatLabel, formatPopup, qualityLabel, qualityValueLabel, qualitySlider,
+            autoSaveBox, formatLabel, formatPopup, qualityLabel, qualityValueLabel, qualitySlider,
             directoryLabel, directoryField, browseButton,
         ] {
             addSubview(view)
@@ -134,6 +143,7 @@ final class SavingTabView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func applyLocalization(_ language: String) {
+        autoSaveBox.title = MacUiText.text("Автоматически сохранять готовые снимки", language: language)
         formatLabel.stringValue = MacUiText.text("Формат", language: language)
         qualityLabel.stringValue = MacUiText.text("Качество JPEG", language: language)
         directoryLabel.stringValue = MacUiText.text("Папка сохранения", language: language)
@@ -142,7 +152,9 @@ final class SavingTabView: NSView {
 
     override func layout() {
         super.layout()
-        var y = bounds.height - 10 - 16
+        var y = bounds.height - 10 - 20
+        autoSaveBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
+        y -= 36
         formatLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: 16)
         y -= 27
         formatPopup.frame = NSRect(x: 0, y: y, width: 140, height: 26)

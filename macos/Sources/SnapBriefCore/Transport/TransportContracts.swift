@@ -106,6 +106,12 @@ public struct ClipboardSnapshot: Equatable {
     }
 }
 
+/// Port of SPEC-DELTA-2A CONTRACTS.md sync 2 addendum: `ClipboardEchoDetector.isReceiverEcho`
+/// needs "no `FileDrop`" as a fast, named check.
+extension ClipboardSnapshot {
+    public var hasFiles: Bool { !filePaths.isEmpty }
+}
+
 /// Port of `IClipboardService` (`Windows/WindowsClipboardService.cs`), reduced to the four
 /// operations CONTRACTS.md documents. There is no separate `IsCurrentAsync`/`RestoreIfCurrentAsync`
 /// pair: callers verify "still ours" by calling `capture` again and comparing `sequence` to the
@@ -176,11 +182,21 @@ public protocol ForegroundTargetServicing: AnyObject {
 
 // MARK: - Input injection (SPEC §5.6)
 
-/// Port of `IInputInjector.SendAsync`. macOS only ever sends Cmd+V (`alternate == false`) or
-/// Option+V (`alternate == true`); Enter is structurally impossible to express, satisfying
-/// "Enter не отправляется никогда" (SPEC §5.2) by construction.
+/// Port of `IInputInjector.SendAsync`. macOS sends Cmd+V, Option+V, or (SPEC-DELTA-2A poправка,
+/// "так Claude Code вставляет картинки на Mac") Ctrl+V; Enter is structurally impossible to
+/// express, satisfying "Enter не отправляется никогда" (SPEC §5.2) by construction. `gesture` is
+/// the primary entry point (CONTRACTS.md sync 2); `alternate` is kept as a two-case (Cmd/Option)
+/// convenience wrapper for call sites that predate `PasteIntentGesture` (`PasteCoordinator`,
+/// `CodexDesktopPasteCompletionService.complete`), via the default implementation below.
 public protocol InputInjecting: AnyObject {
+    func injectPaste(gesture: PasteIntentGesture, completion: @escaping (Bool) -> Void)
     func injectPaste(alternate: Bool, completion: @escaping (Bool) -> Void)
+}
+
+extension InputInjecting {
+    public func injectPaste(alternate: Bool, completion: @escaping (Bool) -> Void) {
+        injectPaste(gesture: alternate ? .optionV : .commandV, completion: completion)
+    }
 }
 
 /// Port of `IGuardedInputInjector.SendGuardedAsync` (`Windows/TransportContracts.cs:192-198`).
@@ -188,9 +204,23 @@ public protocol InputInjecting: AnyObject {
 /// synthetic paste is sent (SPEC §5.6); returning `false` cancels the injection without sending it.
 public protocol GuardedInputInjecting: InputInjecting {
     func injectPasteGuarded(
+        gesture: PasteIntentGesture,
+        finalGuard: @escaping (@escaping (Bool) -> Void) -> Void,
+        completion: @escaping (Bool) -> Void)
+    func injectPasteGuarded(
         alternate: Bool,
         finalGuard: @escaping (@escaping (Bool) -> Void) -> Void,
         completion: @escaping (Bool) -> Void)
+}
+
+extension GuardedInputInjecting {
+    public func injectPasteGuarded(
+        alternate: Bool,
+        finalGuard: @escaping (@escaping (Bool) -> Void) -> Void,
+        completion: @escaping (Bool) -> Void
+    ) {
+        injectPasteGuarded(gesture: alternate ? .optionV : .commandV, finalGuard: finalGuard, completion: completion)
+    }
 }
 
 // MARK: - Paste intent observation (SPEC §5.8)
@@ -201,25 +231,38 @@ public protocol GuardedInputInjecting: InputInjecting {
 /// `ForegroundProcessId`, and `ClipboardSequenceNumber`): the target captured by the observer at
 /// the moment of the physical key event, and the clipboard sequence number at that moment.
 public struct PasteIntent {
-    public let alternate: Bool
+    public let gesture: PasteIntentGesture
     public let timestamp: Date
     public let synthetic: Bool
     public let target: ForegroundTarget?
     public let clipboardSequence: Int
+    /// Port of `PasteIntentObserved.IsIntercepted` (CONTRACTS.md sync 2): `true` only when
+    /// `MacPasteIntentObserver`'s `.defaultTap` actually suppressed the physical keystroke (SPEC-
+    /// DELTA-2A §1). `false` for every intent observed in `.listenOnly` mode (no Accessibility) or
+    /// where the predicate declined to intercept (e.g. Codex Desktop, SPEC-DELTA-2A §1.2).
+    public let intercepted: Bool
 
     public init(
-        alternate: Bool,
+        gesture: PasteIntentGesture,
         timestamp: Date,
         synthetic: Bool,
         target: ForegroundTarget?,
-        clipboardSequence: Int
+        clipboardSequence: Int,
+        intercepted: Bool = false
     ) {
-        self.alternate = alternate
+        self.gesture = gesture
         self.timestamp = timestamp
         self.synthetic = synthetic
         self.target = target
         self.clipboardSequence = clipboardSequence
+        self.intercepted = intercepted
     }
+
+    /// Port of the Windows `HotkeyGesture.AltV` distinction, reduced to "is this the non-primary
+    /// gesture" (`gesture != .commandV`) so pre-sync-2 call sites (`TargetProfile`,
+    /// `PasteCoordinator`) keep working unmodified (CONTRACTS.md sync 2: "public var alternate:
+    /// Bool { gesture != .commandV }").
+    public var alternate: Bool { gesture != .commandV }
 }
 
 /// Port of `IPasteIntentObserver`.
@@ -425,4 +468,12 @@ public struct CodexPasteCompletionResult {
 
     /// Port of `CodexPasteCompletionResult.TextWasDispatched`.
     public var textWasDispatched: Bool { status == .completedUnverified }
+}
+
+/// Port of CONTRACTS.md sync 2's `CodexPasteCompletionResult.currentClipboardReceipt`: the caller
+/// (`AppCoordinator+PasteIntent.swift`) reads the post-completion receipt uniformly whether it came
+/// from `complete` (Codex text catch-up) or `completeSequential` (SPEC-DELTA-2A §2) — both only
+/// ever populate `textClipboardReceipt` (the last successful write), so this is a plain alias.
+extension CodexPasteCompletionResult {
+    public var currentClipboardReceipt: ClipboardSnapshot? { textClipboardReceipt }
 }

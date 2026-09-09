@@ -50,9 +50,23 @@ final class AppCoordinator {
     /// used from `AppCoordinator+Package.swift`.
     var ownedClipboardReceipt: ClipboardSnapshot?
     var ownedClipboardPromptText: String?
-    /// Port of `_pasteIntentTransition`: `true` while `completePasteIntent` is running, so a
-    /// second paste intent observed mid-flight is ignored (SPEC §1.11 point 3).
-    var isCompletingPasteIntent = false
+    /// SPEC-DELTA-2A §4 (CONTRACTS.md sync 2): `true` once the package on the clipboard has been
+    /// pasted and republished for reuse (`republishPackageForReuse`) — the *next* capture session
+    /// must start fresh instead of appending to the pasted stack (`ensureCurrentCaptureSession`).
+    var pasteObservedForCurrentPackage = false
+    /// Port of `_pasteIntentTransition`: non-`nil` while `completePasteIntent` is running, so a
+    /// second paste intent observed mid-flight is ignored (SPEC §1.11 point 3), and every other
+    /// mutating operation (`newCapture`, `saveFullscreen`, `openCapture`) awaits it first.
+    var pasteIntentTransition: Task<Void, Never>?
+    /// Port of `_clipboardPublicationGate` (`SemaphoreSlim(1, 1)`, SPEC-DELTA-2A §4): serializes
+    /// every clipboard-publishing operation (`saveAndCopyCommittedPackage`, `refreshOwnedClipboard`,
+    /// `completePasteIntent`, the receiver-echo re-arm) against each other.
+    let clipboardPublicationGate = AsyncGate()
+    /// Port of the receiver-echo watch task (`AppCoordinator+PasteIntent.swift`), SPEC-DELTA-2A §5.
+    var receiverEchoWatchTask: Task<Void, Never>?
+    /// Identity token for `receiverEchoWatchTask`, so its own completion only clears the property
+    /// if a newer watch hasn't already replaced it (`AppCoordinator+PasteIntent.swift`).
+    var receiverEchoWatchToken: UUID?
 
     /// R8 fix: the app that was frontmost before the *first* capture of a "+ Снимок" chain
     /// activated this app, remembered for every controller in that chain instead of each one
@@ -88,13 +102,25 @@ final class AppCoordinator {
         self.foregroundTargetService = foregroundTargetService
         let inputInjector = MacInputInjector()
         self.inputInjector = inputInjector
-        self.pasteIntentObserver = MacPasteIntentObserver(
-            foreground: foregroundTargetService, clipboardSequence: { NSPasteboard.general.changeCount })
         self.codexPasteCompletion = CodexDesktopPasteCompletionService(
             clipboard: clipboard, foreground: foregroundTargetService, input: inputInjector)
         self.pasteCoordinator = PasteCoordinator(
             clipboard: clipboard, foreground: foregroundTargetService, input: inputInjector,
             observer: UnobservableAcceptanceObserver(foreground: foregroundTargetService))
+
+        // Constructed last among the stored properties (SPEC-DELTA-2A §4, CONTRACTS.md sync 2):
+        // `shouldIntercept` captures `[weak self]`, so every other non-optional stored property
+        // must already be assigned by the time this runs.
+        self.pasteIntentObserver = MacPasteIntentObserver(
+            foreground: foregroundTargetService, clipboardSequence: { NSPasteboard.general.changeCount },
+            shouldIntercept: { [weak self] intent in
+                // The tap callback that eventually calls this closure runs on the main run loop
+                // but is not `@MainActor`-isolated to the compiler — a C function pointer cannot
+                // carry actor isolation (SPEC-DELTA-2A §1.2, risk 6). This class is `@MainActor`,
+                // and `MacPasteIntentObserver`'s tap is attached to `CFRunLoopGetMain()`, so the
+                // closure only ever actually runs on the main thread; `assumeIsolated` is safe.
+                MainActor.assumeIsolated { self?.shouldInterceptPasteIntent(intent) ?? false }
+            })
 
         hotkeyService.onHotkeyPressed = { [weak self] name in self?.handleHotkey(name) }
         pasteIntentObserver.onPasteIntent = { [weak self] intent in self?.handlePasteIntent(intent) }
@@ -106,6 +132,8 @@ final class AppCoordinator {
             macObserver.onStopped = { [weak self] error in
                 self?.stackWindow?.setStatus(StatusStrings.pasteStopped("\(error)"), isError: true)
             }
+            // SPEC-DELTA-2A §6: forward tap-mode/re-enable diagnostics to `startup.log`.
+            macObserver.onDiagnostic = { [weak self] message in self?.logPasteIntent(message) }
         }
     }
 
@@ -121,6 +149,13 @@ final class AppCoordinator {
             try pasteIntentObserver.start()
         } catch {
             stackWindow?.setStatus(StatusStrings.pasteIntentUnavailable("\(error)"), isError: true)
+        }
+
+        // SPEC-DELTA-2A §1.1: request Accessibility once so interception (`.defaultTap`) can be
+        // used instead of the `.listenOnly` degradation, but never during `--demo`/`--smoke-test`
+        // (CONTRACTS.md "Shell": those must never trigger a TCC prompt).
+        if !options.demo && !options.smokeTest {
+            TransportPermissions.requestAccessibilityAccess()
         }
 
         registerHotkeys()
@@ -186,8 +221,10 @@ final class AppCoordinator {
     // MARK: - Capture loop (SPEC §1.2 point 3, §1.9)
 
     func newCapture() async {
-        // Finding 11: don't race a paste-intent-driven session rotation that's still in flight.
-        guard !isCompletingPasteIntent else { return }
+        // Finding 11 / SPEC-DELTA-2A §4: don't race a paste-intent-driven session rotation
+        // that's still in flight — wait for it (not guard-return: the rotation itself may be
+        // exactly what makes this capture valid to start).
+        await pasteIntentTransition?.value
         guard !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
@@ -211,6 +248,18 @@ final class AppCoordinator {
     /// protocol is currently shaped; wiring it for real needs a `Result`-returning `capture(_:)`
     /// in Core, which is a plan deviation flagged here rather than silently worked around.
     private func ensureCurrentCaptureSession() async -> Bool {
+        // Port of `EnsureCurrentCaptureSessionAsync`'s first block (SPEC-DELTA-2A §4, Part 1
+        // §4.6): a package that was already pasted-and-republished always starts a fresh session
+        // — the clipboard is not even re-read (a re-armed package after this point belongs to the
+        // *next* session, not this stale one).
+        if pasteObservedForCurrentPackage {
+            pasteObservedForCurrentPackage = false
+            cancelReceiverEchoWatch()
+            ownedClipboardReceipt = nil
+            ownedClipboardPromptText = nil
+            return await startNewSession()
+        }
+
         guard !workspace.session.captures.isEmpty else { return true }
 
         if let receipt = ownedClipboardReceipt {
@@ -300,18 +349,51 @@ final class AppCoordinator {
 
     // MARK: - Stack actions (SPEC §1.9)
 
-    /// Port of `OnOpenCaptureClick` (SPEC §1.9 "Клик по миниатюре"). Finding 1: the previous
-    /// implementation always opened a *fresh* selection over the new frame, discarding the saved
-    /// capture entirely; this now loads the capture's own saved pixels and reopens it in place via
-    /// `OverlayEditorController.presentExisting` (a fresh frame is still snapped first — the
-    /// background shade behind the reopened capture must match the current desktop, SPEC §1.9).
+    /// Port of `OnOpenCaptureClick` (SPEC §1.9 "Клик по миниатюре"), updated by SPEC-DELTA-2B.md
+    /// §D: a click now opens the read-only preview window first (`CapturePreviewWindowController`)
+    /// instead of jumping straight into markup; markup only starts if the preview's "Разметка"
+    /// button was used (`openCaptureForMarkup`, the old body of this method).
     func openCapture(_ captureId: SBGuid) async {
+        await pasteIntentTransition?.value
+        guard !isBusy, let capture = workspace.session.captures.first(where: { $0.id == captureId }) else { return }
+
+        let sourceURL = workspace.sessionDirectory.appendingPathComponent(capture.sourceImagePath)
+        guard let sourceImage = ImageCodec.loadImage(at: sourceURL) else {
+            stackWindow?.setStatus(StatusStrings.couldNotOpenCapture("missing source image"), isError: true)
+            return
+        }
+
+        let index = workspace.session.captures.firstIndex(where: { $0.id == captureId }) ?? 0
+        let displayLabel = (try? CaptureLabels.forIndex(index)) ?? "A"
+
+        isBusy = true
+        stackWindow?.setSelectedCapture(captureId)
+
+        let previewController = CapturePreviewWindowController(
+            capture: capture, image: sourceImage, displayLabel: displayLabel, language: language,
+            playSounds: settings.playSounds,
+            persist: { [weak self] updated in await self?.persistPreviewChanges(updated) })
+        previewController.present(on: stackWindow?.window?.screen) { [weak self] markupRequested in
+            guard let self else { return }
+            self.stackWindow?.setSelectedCapture(nil)
+            self.isBusy = false
+            if markupRequested {
+                Task { @MainActor in await self.openCaptureForMarkup(captureId) }
+            }
+        }
+    }
+
+    /// Port of the previous `openCapture` body: reopens a saved capture in the full annotation
+    /// editor over a freshly captured desktop frame (SPEC §1.9) — now only reached from the
+    /// preview window's "Разметка" button (SPEC-DELTA-2B.md §D).
+    func openCaptureForMarkup(_ captureId: SBGuid) async {
         // R5 fix: don't reopen a capture into a session that a paste-intent rotation
         // (`completePasteIntent`/`startNewSession`) is in the middle of retiring — that race is
-        // exactly what left `overlayEditor(_:didCommit:)`'s session-id check needs to guard against.
-        guard !isCompletingPasteIntent, !isBusy,
-            let capture = workspace.session.captures.first(where: { $0.id == captureId })
-        else { return }
+        // exactly what left `overlayEditor(_:didCommit:)`'s session-id check needs to guard
+        // against. `pasteIntentTransition` replaces the old `isCompletingPasteIntent` flag
+        // (SPEC-DELTA-2A §4): awaited, not guard-returned, same as `newCapture`/`openCapture`.
+        await pasteIntentTransition?.value
+        guard !isBusy, let capture = workspace.session.captures.first(where: { $0.id == captureId }) else { return }
         isBusy = true
         defer { isBusy = false }
 
@@ -338,6 +420,23 @@ final class AppCoordinator {
         controller.delegate = self
         overlay = controller
         controller.presentExisting(capture: capture, image: sourceImage)
+    }
+
+    /// Port of `EdgeStackWindow.PersistPreviewChangesAsync` (SPEC-DELTA-2.md §1.5,
+    /// SPEC-DELTA-2B.md §D): folds a comment edit made in the preview window back into the
+    /// session, refreshes the stack thumbnail/prepared export, and republishes the clipboard
+    /// package if it's still ours — no auto-paste, unlike a committed editor capture.
+    func persistPreviewChanges(_ capture: CaptureItem) async {
+        guard workspace.session.captures.contains(where: { $0.id == capture.id }) else { return }
+        do {
+            try workspace.replaceCapture(capture)
+            stackWindow?.invalidateThumbnail(for: capture.id)
+            stackWindow?.refresh()
+            invalidatePrepared()
+            if await save() { await refreshOwnedClipboard() }
+        } catch {
+            stackWindow?.setStatus(StatusStrings.couldNotSave("\(error)"), isError: true)
+        }
     }
 
     func removeCapture(_ captureId: SBGuid) async {
@@ -395,6 +494,11 @@ final class AppCoordinator {
         guard !isSessionResetting else { return false }
         isSessionResetting = true
         defer { isSessionResetting = false }
+
+        // SPEC-DELTA-2A §4: every session rotation, however triggered, ends any in-flight
+        // receiver-echo watch and forgets that the outgoing package was ever pasted.
+        cancelReceiverEchoWatch()
+        pasteObservedForCurrentPackage = false
 
         do {
             try await workspace.startNewSession()

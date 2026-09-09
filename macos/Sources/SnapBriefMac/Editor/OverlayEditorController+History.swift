@@ -8,7 +8,7 @@ extension OverlayEditorController {
     /// Port of `SnapshotState()` (`:643`).
     func snapshotState() -> OverlaySnapshot? {
         guard let capture else { return nil }
-        return OverlaySnapshot(capture: capture.snapshot(), cropRect: cropRectLocal, visibleChipIds: visibleChipIds, shotNoteVisible: shotNoteChipView?.superview != nil)
+        return OverlaySnapshot(capture: capture.snapshot(), cropRect: cropRectLocal, visibleChipIds: visibleChipIds)
     }
 
     /// Port of `PushHistory()` (`:621-627`): pushes the snapshot taken **before** the mutation
@@ -42,9 +42,6 @@ extension OverlayEditorController {
         visibleChipIds = state.visibleChipIds
 
         canvasView?.capture = capture
-        settingUp = true
-        if let shotNoteChipView { shotNoteChipView.note = capture.note }
-        settingUp = false
 
         let slot = slots[screenIndex]
         canvasContainerView?.frame = cropRectLocal
@@ -52,15 +49,8 @@ extension OverlayEditorController {
         slot.contentView.holeRectLocal = cropRectLocal
         updateCaptureHandles()
 
-        if state.shotNoteVisible {
-            showShotNoteChip(focus: false)
-        } else {
-            hideShotNoteChip()
-        }
-
         lastSnapshot = snapshotState()
         rebuildChips(on: slot)
-        updateContextNoteAffordance(annotation: canvasView?.selectedAnnotation)
         syncAppearance()
         positionToolbar()
         canvasView?.needsDisplay = true

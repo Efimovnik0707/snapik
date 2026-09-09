@@ -175,17 +175,9 @@ public enum AnnotationPainter {
                 drawText(item.text, fontSize: fontSize, weight: .semibold, color: color, in: ctx, topLeft: start)
 
             case .arrow:
-                ctx.saveGState()
-                ctx.setStrokeColor(color)
-                ctx.setLineWidth(thickness)
-                ctx.setLineCap(.round)
-                ctx.setLineJoin(.round)
-                ctx.beginPath()
-                ctx.move(to: start)
-                ctx.addLine(to: end)
-                ctx.strokePath()
-                ctx.restoreGState()
-                drawArrowHead(from: start, to: end, thickness: thickness, color: color, in: ctx)
+                // Port of `WpfExportImageRenderer.cs:110-112` (SPEC-DELTA-2.md §1.2, §1.9): the
+                // shared `ArrowDrawing` renderer, keyed by `item.arrowStyle`.
+                ArrowDrawing.draw(in: ctx, from: start, to: end, color: color, thickness: thickness, style: item.arrowStyle)
 
             default:
                 break
@@ -194,33 +186,6 @@ public enum AnnotationPainter {
         default:
             break
         }
-    }
-
-    /// SPEC §4.5/§4.6 arrowhead geometry: a filled triangle at the line's end point.
-    private static func drawArrowHead(from start: CGPoint, to end: CGPoint, thickness: CGFloat, color: CGColor, in ctx: CGContext) {
-        var direction = CGPoint(x: start.x - end.x, y: start.y - end.y)
-        let length = (direction.x * direction.x + direction.y * direction.y).squareRoot()
-        guard length > 0 else { return }
-        direction = CGPoint(x: direction.x / length, y: direction.y / length)
-        let side = CGPoint(x: -direction.y, y: direction.x)
-        let size = max(12, thickness * 3.2)
-
-        let tip1 = CGPoint(
-            x: end.x + direction.x * size + side.x * size * 0.45,
-            y: end.y + direction.y * size + side.y * size * 0.45)
-        let tip2 = CGPoint(
-            x: end.x + direction.x * size - side.x * size * 0.45,
-            y: end.y + direction.y * size - side.y * size * 0.45)
-
-        ctx.saveGState()
-        ctx.setFillColor(color)
-        ctx.beginPath()
-        ctx.move(to: end)
-        ctx.addLine(to: tip1)
-        ctx.addLine(to: tip2)
-        ctx.closePath()
-        ctx.fillPath()
-        ctx.restoreGState()
     }
 
     // MARK: - Labels (circular number badges)

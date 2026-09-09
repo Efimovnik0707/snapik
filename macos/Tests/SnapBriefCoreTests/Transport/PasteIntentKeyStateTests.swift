@@ -67,4 +67,50 @@ final class PasteIntentKeyStateTests: XCTestCase {
         state.reset()
         XCTAssertNil(state.observeV(isKeyDown: true, isInjected: false))
     }
+
+    // SPEC-DELTA-2A поправка: Control+V (no Cmd/Option/Shift) is recognized as `.controlV`.
+    func testControlVIsRecognizedAsControlVGesture() {
+        let state = PasteIntentKeyState()
+        state.observeModifier(.control, isKeyDown: true, isInjected: false)
+        XCTAssertEqual(state.observeV(isKeyDown: true, isInjected: false), .controlV)
+        XCTAssertNil(state.observeV(isKeyDown: true, isInjected: false))
+        XCTAssertNil(state.observeV(isKeyDown: false, isInjected: false))
+        XCTAssertEqual(state.observeV(isKeyDown: true, isInjected: false), .controlV)
+    }
+}
+
+// MARK: - PasteIntentInterceptionState (SPEC-DELTA-2A §1.4/§7)
+
+final class PasteIntentInterceptionStateTests: XCTestCase {
+    // testInterceptedPhysicalVSuppressesInitialAndRepeatKeyDownsUntilRelease
+    func testInterceptedPhysicalVSuppressesInitialAndRepeatKeyDownsUntilRelease() {
+        let state = PasteIntentInterceptionState()
+        XCTAssertTrue(state.shouldSuppress(isVKey: true, isKeyDown: true, isInjected: false, interceptThisGesture: true))
+        // Auto-repeat: the caller stops passing `interceptThisGesture: true` (the gesture was
+        // already reported once), but suppression must keep latching until keyUp.
+        XCTAssertTrue(state.shouldSuppress(isVKey: true, isKeyDown: true, isInjected: false, interceptThisGesture: false))
+        XCTAssertTrue(state.shouldSuppress(isVKey: true, isKeyDown: true, isInjected: false, interceptThisGesture: false))
+        XCTAssertFalse(state.shouldSuppress(isVKey: true, isKeyDown: false, isInjected: false, interceptThisGesture: false))
+        // After release, a fresh non-intercepted keyDown is not suppressed.
+        XCTAssertFalse(state.shouldSuppress(isVKey: true, isKeyDown: true, isInjected: false, interceptThisGesture: false))
+    }
+
+    // testInterceptionNeverSuppressesInjectedOrUnrelatedKeys
+    func testInterceptionNeverSuppressesInjectedOrUnrelatedKeys() {
+        let state = PasteIntentInterceptionState()
+        XCTAssertFalse(state.shouldSuppress(isVKey: true, isKeyDown: true, isInjected: true, interceptThisGesture: true))
+        XCTAssertFalse(state.shouldSuppress(isVKey: false, isKeyDown: true, isInjected: false, interceptThisGesture: true))
+    }
+
+    // testInterceptedPhysicalControlVSuppressesGestureAndOwnInjectedReleaseIsNotSuppressed
+    func testInterceptedPhysicalControlVSuppressesGestureAndOwnInjectedReleaseIsNotSuppressed() {
+        let state = PasteIntentInterceptionState()
+        XCTAssertTrue(state.shouldSuppress(isVKey: true, isKeyDown: true, isInjected: false, interceptThisGesture: true))
+        // SnapBrief's own synthetic Control+V (posted while completing the intercepted gesture)
+        // must never be suppressed, even while the latch from the physical keyDown is still set.
+        XCTAssertFalse(state.shouldSuppress(isVKey: true, isKeyDown: true, isInjected: true, interceptThisGesture: false))
+        XCTAssertFalse(state.shouldSuppress(isVKey: true, isKeyDown: false, isInjected: true, interceptThisGesture: false))
+        // The physical release still clears the latch.
+        XCTAssertFalse(state.shouldSuppress(isVKey: true, isKeyDown: false, isInjected: false, interceptThisGesture: false))
+    }
 }

@@ -17,9 +17,6 @@ extension OverlayEditorController {
         guard let capture, !busyCrop, !isModalOpen, captureResizeCorner < 0, canvasView?.manipulating != true else { return }
 
         rememberCurrentRegionIfNeeded()
-        if let shotNoteChipView, shotNoteChipView.superview != nil {
-            capture.note = shotNoteChipView.note
-        }
 
         // R1 fix: this edit is being kept, so the pre-edit backup (if any) written by
         // `backUpOriginalSourceIfNeeded` is no longer needed.

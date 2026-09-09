@@ -23,7 +23,7 @@ final class EdgeStackWindowController: NSWindowController {
     init(coordinator: AppCoordinator) {
         self.coordinator = coordinator
         let panel = EdgeStackPanel(
-            contentRect: NSRect(x: 0, y: 0, width: ThemeMetrics.stackWidth, height: ThemeMetrics.stackMinHeight),
+            contentRect: NSRect(x: 0, y: 0, width: StackMetrics.width, height: ThemeMetrics.stackMinHeight),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false)
         panel.isOpaque = false
@@ -38,7 +38,7 @@ final class EdgeStackWindowController: NSWindowController {
         panel.title = "SnapBrief — Стопка снимков"
 
         contentContainer = EdgeStackContentView(
-            frame: NSRect(x: 0, y: 0, width: ThemeMetrics.stackWidth, height: ThemeMetrics.stackMinHeight))
+            frame: NSRect(x: 0, y: 0, width: StackMetrics.width, height: ThemeMetrics.stackMinHeight))
         panel.contentView = contentContainer
 
         super.init(window: panel)
@@ -96,10 +96,22 @@ final class EdgeStackWindowController: NSWindowController {
         thumbnailCache = thumbnailCache.filter { liveIds.contains($0.key) }
         let rows: [StackCaptureRow] = captures.enumerated().map { index, capture in
             let label = (try? CaptureLabels.forIndex(index)) ?? "?"
-            return StackCaptureRow(id: capture.id, label: label, thumbnail: thumbnail(for: capture))
+            // Port of the SPEC-DELTA-2B §E1 `refresh()` formula: annotations with a non-empty
+            // note plus (if present) the whole-capture note itself. A `.comment` pin with no text
+            // does not count (matches `CaptureLabels.forNotedAnnotations` not numbering it).
+            let annotationNoteCount = capture.annotations.filter { ExportText.hasContent($0.note) }.count
+            let noteCount = annotationNoteCount + (ExportText.hasContent(capture.note) ? 1 : 0)
+            return StackCaptureRow(id: capture.id, label: label, thumbnail: thumbnail(for: capture), noteCount: noteCount)
         }
         contentContainer.reload(rows: rows)
         resizeToFitContent()
+    }
+
+    /// Port of `EdgeStackWindow.Preview.cs:17,43` (`capture.IsSelected`), called by
+    /// `AppCoordinator.openCapture`/its `present(on:completion:)` closure while the preview
+    /// window is open (SPEC-DELTA-2B §D "Интеграция в shell").
+    func setSelectedCapture(_ id: SBGuid?) {
+        contentContainer.setSelectedCapture(id)
     }
 
     /// R2 fix: `refresh()`'s cache lookup keys only on `capture.id`, which never changes across a
@@ -127,9 +139,9 @@ final class EdgeStackWindowController: NSWindowController {
         let deltaHeight = height - frame.height
         frame.origin.y -= deltaHeight
         frame.size.height = height
-        frame.size.width = ThemeMetrics.stackWidth
+        frame.size.width = StackMetrics.width
         window.setFrame(frame, display: true)
-        contentContainer.frame = NSRect(x: 0, y: 0, width: ThemeMetrics.stackWidth, height: height)
+        contentContainer.frame = NSRect(x: 0, y: 0, width: StackMetrics.width, height: height)
     }
 
     /// Port of `PositionAtEdge` (`EdgeStackWindow.xaml.cs:364-369`): right edge, vertically
@@ -141,11 +153,11 @@ final class EdgeStackWindowController: NSWindowController {
         guard let window, let screen = NSScreen.screens.first else { return }
         let workArea = screen.visibleFrame
         let height = max(window.frame.height, ThemeMetrics.stackMinHeight)
-        let x = workArea.maxX - ThemeMetrics.stackWidth - ThemeMetrics.stackEdgeInset
+        let x = workArea.maxX - StackMetrics.width - ThemeMetrics.stackEdgeInset
         let y = max(
             workArea.minY + (workArea.height - height) / 2,
             workArea.maxY - 24 - height)
-        window.setFrame(NSRect(x: x, y: y, width: ThemeMetrics.stackWidth, height: height), display: false)
+        window.setFrame(NSRect(x: x, y: y, width: StackMetrics.width, height: height), display: false)
     }
 }
 
@@ -180,6 +192,13 @@ extension EdgeStackWindowController: EdgeStackContentViewDelegate {
 
     func edgeStackContentHeaderMouseDown(with event: NSEvent) {
         window?.performDrag(with: event)
+    }
+
+    /// Port of `OnCaptureThumbMouseEnter`/`OnCaptureListMouseWheel` (SPEC-DELTA-2 §1.6): the
+    /// hover/scroll tick, throttled and suppressed after the capture shutter by
+    /// `CaptureFeedbackSound.tick` itself.
+    func edgeStackContentDidRequestTickSound(_ view: EdgeStackContentView) {
+        CaptureFeedbackSound.tick(enabled: coordinator?.settings.playSounds ?? true)
     }
 
     /// Port of `OnMoreClick` (`:437-453`), items in order (SPEC §1.9).

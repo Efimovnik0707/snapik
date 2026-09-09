@@ -66,7 +66,7 @@ public enum CaptureCropper {
             switch annotation.kind {
             case .arrow:
                 croppedPoints = cropLine(annotation.points, cropBounds)
-            case .rectangle, .text, .redaction, .blur:
+            case .rectangle, .text, .redaction, .blur, .comment:
                 croppedPoints = cropBox(annotation.points, cropBounds)
             case .highlight, .freehand:
                 croppedPoints = []
@@ -79,6 +79,13 @@ public enum CaptureCropper {
                 updated.points = croppedPoints
                 retained.append(updated)
             }
+        }
+
+        // Port of `:70-74` (SPEC-DELTA-2B §B): a linked comment whose parent annotation was
+        // removed by the crop loses the link but keeps its own note/geometry.
+        let retainedIds = Set(retained.map(\.id))
+        for index in retained.indices where retained[index].parentAnnotationId.map({ !retainedIds.contains($0) }) == true {
+            retained[index].parentAnnotationId = nil
         }
 
         var cropped = source

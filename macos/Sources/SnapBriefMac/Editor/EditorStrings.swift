@@ -41,25 +41,35 @@ enum EditorStrings {
     static func colorHexAccessibilityName(_ language: String) -> String { text("Цвет HEX", language: language) }
     static func strokeThicknessAccessibilityName(_ language: String) -> String { text("Толщина линии", language: language) }
     static func addComment(_ language: String) -> String { text("Добавить комментарий", language: language) }
+    /// Port of the toolbar Comment button's tooltip (SPEC-DELTA-2.md §3: "Добавить комментарий
+    /// (N)"), distinct from `addComment` (used by SPEC-DELTA-2B.md §D's preview panel, out of this
+    /// zone, and by the plain "Добавить комментарий" reused string).
+    static func addCommentWithKey(_ language: String) -> String { text("Добавить комментарий (N)", language: language) }
     static func removeComment(_ language: String) -> String { text("Удалить комментарий", language: language) }
     static func closeTextInput(_ language: String) -> String { text("Закрыть ввод текста", language: language) }
     static func undo(_ language: String) -> String { text("Отменить", language: language) }
     static func redo(_ language: String) -> String { text("Повторить", language: language) }
     static func saveToComputer(_ language: String) -> String { text("Сохранить на компьютер (Ctrl+S)", language: language) }
-    static func addCapture(_ language: String) -> String { text("+ Снимок", language: language) }
     static func done(_ language: String) -> String { text("Готово", language: language) }
 
+    // Arrow style menu (SPEC-DELTA-2.md §1.2, §3; SPEC-DELTA-2B.md §C6).
+    static func arrowStyle(_ language: String) -> String { text("Стиль стрелки", language: language) }
+    static func arrowStraight(_ language: String) -> String { text("Прямая стрелка", language: language) }
+    static func arrowCurved(_ language: String) -> String { text("Изогнутая стрелка", language: language) }
+    static func arrowBold(_ language: String) -> String { text("Толстая стрелка", language: language) }
+    static func arrowWide(_ language: String) -> String { text("Широкая стрелка", language: language) }
+
     static func defaultText(_ language: String) -> String { text("Текст", language: language) }
+
+    /// Port of `RefreshLabels`'s empty-badge placeholders (SPEC-DELTA-2.md §1.3): not translated
+    /// (single glyphs, not sentences), matching the Windows source's own hardcoded `"T"`/`"+"`.
+    static let textPlaceholderBadge = "T"
+    static let commentPlaceholderBadge = "+"
 
     // Capture corner handles
     static func resizeCaptureBounds(_ language: String) -> String { text("Изменить границы снимка", language: language) }
     static func captureCorner(_ language: String, _ oneBasedIndex: Int) -> String {
         "\(text("Угол снимка", language: language)) \(oneBasedIndex)"
-    }
-
-    // Comment chip / note titles
-    static func captureLabelTitle(_ language: String, _ label: String) -> String {
-        "\(text("СНИМОК", language: language)) \(label)"
     }
 
     // Thickness button content, e.g. "4 px"

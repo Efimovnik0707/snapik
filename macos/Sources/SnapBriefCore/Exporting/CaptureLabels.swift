@@ -7,13 +7,22 @@ public struct LabeledAnnotation: Equatable, Sendable {
 }
 
 public enum CaptureLabels {
-    /// Port of `ForIndex`: 0 -> "A", 1 -> "B", ..., 25 -> "Z".
+    /// Port of `ForIndex` (SPEC-DELTA-2B §B): 0 -> "A", 1 -> "B", ..., 25 -> "Z", 26 -> "AA", ...
+    /// (bijective base-26). Errors only when `zeroBasedIndex < 0`; unlike the pre-sync-2 version,
+    /// there is no upper bound.
     public static func forIndex(_ zeroBasedIndex: Int) throws -> String {
-        guard zeroBasedIndex >= 0 && zeroBasedIndex < 26 else {
+        guard zeroBasedIndex >= 0 else {
             throw SnapBriefError.argumentOutOfRange("zeroBasedIndex")
         }
-        let scalar = Unicode.Scalar(UInt8(65 + zeroBasedIndex))
-        return String(Character(scalar))
+        var value = zeroBasedIndex + 1
+        var label = ""
+        while value > 0 {
+            value -= 1
+            let scalar = Unicode.Scalar(UInt8(65 + value % 26))
+            label = String(Character(scalar)) + label
+            value /= 26
+        }
+        return label
     }
 
     /// Port of `ForAnnotation`, e.g. ("A", 1) -> "A1".

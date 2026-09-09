@@ -9,7 +9,7 @@ extension OverlayEditorController {
     static func hasColor(_ tool: EditorTool) -> Bool {
         switch tool {
         case .rectangle, .arrow, .pen, .highlight, .text: return true
-        case .select, .conceal, .blur, .crop: return false
+        case .select, .conceal, .blur, .crop, .comment: return false
         }
     }
 
@@ -74,7 +74,9 @@ extension OverlayEditorController {
             valueText: Self.hasStroke(tool) ? EditorStrings.thicknessLabel(thickness) : "",
             enabled: Self.hasColor(tool))
 
-        let extraTools: Set<EditorTool> = [.pen, .highlight, .text, .conceal]
+        // SPEC-DELTA-2B.md §C6: Text moved onto the main toolbar as of the 2026-09-09 sync, so
+        // it no longer drives the "•••" button's active-extra-tool highlight.
+        let extraTools: Set<EditorTool> = [.pen, .highlight, .conceal]
         let extraActive = extraTools.contains(canvasView.tool)
         toolbarView.setMoreToolsActive(extraActive, tooltip: extraActive ? extraToolsTooltip(for: canvasView.tool) : EditorStrings.moreTools(language))
 
@@ -89,7 +91,6 @@ extension OverlayEditorController {
         switch tool {
         case .pen: label = "\(EditorStrings.toolPen(language)) (P)"
         case .highlight: label = "\(EditorStrings.toolHighlight(language)) (H)"
-        case .text: label = "\(EditorStrings.toolText(language)) (T)"
         default: label = "\(EditorStrings.toolConcealSolid(language)) (X)"
         }
         return "\(EditorStrings.moreTools(language)) \u{00B7} \(label)"

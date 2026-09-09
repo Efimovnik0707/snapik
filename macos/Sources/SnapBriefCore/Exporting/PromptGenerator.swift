@@ -26,8 +26,17 @@ public struct PromptGenerator {
                 section += "\nКомментарий к снимку:\n\(capture.note)"
             }
 
-            for labeled in CaptureLabels.forNotedAnnotations(captureLabel: captureLabel, capture: capture) {
-                section += "\n\(labeled.displayLabel): \(labeled.annotation.note)"
+            let labeled = CaptureLabels.forNotedAnnotations(captureLabel: captureLabel, capture: capture)
+            let labelsById = Dictionary(
+                uniqueKeysWithValues: labeled.map { ($0.annotation.id, $0.displayLabel) })
+
+            for entry in labeled {
+                section += "\n\(entry.displayLabel): \(entry.annotation.note)"
+                // Port of SPEC-DELTA-2B §B: a comment with a linked parent that itself has a
+                // number (i.e. is present in `labelsById`) gets a " (к области <МЕТКА>)" suffix.
+                if let parentId = entry.annotation.parentAnnotationId, let parentLabel = labelsById[parentId] {
+                    section += " (к области \(parentLabel))"
+                }
             }
 
             sections.append(section)

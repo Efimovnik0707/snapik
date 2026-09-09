@@ -23,6 +23,10 @@ final class AnnotationCanvasView: NSView {
     var tool: EditorTool = .rectangle
     var activeColor: NSColor = EditorTheme.accent
     var activeThickness: Double = 4
+    /// Port of `AnnotationCanvas.cs:43` `ActiveArrowStyle = "straight"` (SPEC-DELTA-2.md §1.2):
+    /// the style a brand-new Arrow annotation is created with; updated by the arrow-style menu
+    /// (`OverlayEditorController+Editing.showArrowStyleMenu`/`applyArrowStyle`).
+    var activeArrowStyle: String = "straight"
     /// Set by the controller on every `setupEditor()` (finding 22): the real UI language, used
     /// only for a new Text-tool draft's placeholder ("Текст"/"Text") — everywhere else on this
     /// view text is either annotation-authored or drawn by `AnnotationPainter`/the controller.
@@ -40,6 +44,8 @@ final class AnnotationCanvasView: NSView {
     var onSelectionChanged: ((EditorAnnotation?) -> Void)?
     var onAnnotationChanged: (() -> Void)?
     var onCropRequested: ((CGRect) -> Void)?
+    /// SPEC-DELTA-2.md §1.3 "Text двойным кликом": show/focus that Text annotation's chip.
+    var onTextDoubleClicked: ((EditorAnnotation) -> Void)?
 
     // Draft gesture state (SPEC §6.3 "Взаимодействие")
     var draft: EditorAnnotation?
@@ -142,10 +148,25 @@ final class AnnotationCanvasView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         guard imageRect.contains(point) else { return }
 
-        let handleHit = findResizeHandle(point)
-        if tool == .select || handleHit.annotation != nil {
+        // (1) Double-click on a Text annotation selects it and asks the controller to show/focus
+        // its chip (SPEC-DELTA-2.md §1.3 "Text двойным кликом"), regardless of the active tool.
+        if event.clickCount == 2 {
             let imagePoint = toImage(point)
-            let hit = handleHit.annotation ?? hitTestAnnotation(imagePoint)
+            if let hit = hitTestAnnotation(imagePoint), hit.kind == .text {
+                select(hit)
+                onTextDoubleClicked?(hit)
+                return
+            }
+        }
+
+        // (2) Select/manipulate an existing annotation: the Select tool, a resize handle, or a
+        // rectangle/blur/conceal edge hover (SPEC-DELTA-2B.md §C4) — never for the Comment tool,
+        // which always places a new pin regardless of what is underneath the click.
+        let handleHit = findResizeHandle(point)
+        let moveEdgeHit = tool == .comment ? nil : findMoveEdge(point)
+        if tool != .comment, tool == .select || handleHit.annotation != nil || moveEdgeHit != nil {
+            let imagePoint = toImage(point)
+            let hit = handleHit.annotation ?? moveEdgeHit ?? hitTestAnnotation(imagePoint)
             select(hit)
             if let hit {
                 gestureStart = imagePoint
@@ -160,14 +181,22 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
+        // (3) New draft gesture — for `.comment`, always `[start, start]` (SPEC-DELTA-2.md §1.3
+        // "при Tool == Comment любой клик = новый пин"); `annotationCreated` fills in the fixed
+        // (8,8) offset second point and the `parentAnnotationId` once the gesture commits.
         let start = toImage(point)
         gestureStart = start
-        draft = EditorAnnotation(
-            kind: tool,
-            points: [start, start],
-            color: tool == .conceal ? .black : activeColor,
-            thickness: activeThickness,
-            text: EditorStrings.defaultText(language))
+        if tool == .comment {
+            draft = EditorAnnotation(kind: .comment, points: [start, start], color: activeColor, thickness: activeThickness)
+        } else {
+            draft = EditorAnnotation(
+                kind: tool,
+                points: [start, start],
+                color: tool == .conceal ? .black : activeColor,
+                thickness: activeThickness,
+                text: EditorStrings.defaultText(language),
+                arrowStyle: activeArrowStyle)
+        }
         needsDisplay = true
     }
 
@@ -255,13 +284,24 @@ final class AnnotationCanvasView: NSView {
         guard draft == nil else { return }
         let point = convert(event.locationInWindow, from: nil)
         let handle = findResizeHandle(point)
-        if handle.corner < 0 {
-            (tool == .select ? NSCursor.arrow : NSCursor.crosshair).set()
-        } else {
+        if handle.corner >= 0 {
             // CHECK-API: AppKit has no public diagonal (NWSE/NESW) resize cursor, unlike WPF's
             // `Cursors.SizeNWSE`/`SizeNESW` (SPEC §1.6). `.crosshair` is used for both corner
             // families as the closest stock cursor; revisit with a custom `NSCursor` image if
             // exact diagonal cursors are required later.
+            NSCursor.crosshair.set()
+            return
+        }
+        // SPEC-DELTA-2B.md §C4: an edge hover (rectangle/blur/conceal) or hovering a comment pin
+        // in Select mode shows `.openHand` (SizeAll has no AppKit equivalent); the active tool is
+        // never changed by hovering (`:537-538`).
+        let moveEdgeHit = tool == .comment ? nil : findMoveEdge(point)
+        let hoveringCommentPin = tool == .select && hitTestAnnotation(toImage(point))?.kind == .comment
+        if moveEdgeHit != nil || hoveringCommentPin {
+            NSCursor.openHand.set()
+        } else if tool == .select {
+            NSCursor.arrow.set()
+        } else {
             NSCursor.crosshair.set()
         }
     }
@@ -293,13 +333,27 @@ final class AnnotationCanvasView: NSView {
 
     // MARK: - Hit testing (SPEC §6.3)
 
+    /// Port of `AnnotationCanvas.cs:417-428` `FindMoveEdge` via `EditorGeometry.findMoveEdge`:
+    /// only Rectangle/Blur/Conceal annotations participate (SPEC-DELTA-2B.md §C3/§C4).
+    private func findMoveEdge(_ displayPoint: CGPoint) -> EditorAnnotation? {
+        guard let capture else { return nil }
+        for annotation in capture.annotations.reversed() where annotation.kind == .rectangle || annotation.kind == .blur || annotation.kind == .conceal {
+            if EditorGeometry.findMoveEdge(displayBounds: displayBounds(of: annotation), point: displayPoint) {
+                return annotation
+            }
+        }
+        return nil
+    }
+
+    /// Port of `AnnotationCanvas.cs`'s corner-handle hit test. Skips Comment pins (SPEC-DELTA-2B.md
+    /// §C4: "пропускать `.comment`" — a pin never has resize handles).
     private func findResizeHandle(_ displayPoint: CGPoint) -> (annotation: EditorAnnotation?, corner: Int) {
         guard let capture else { return (nil, -1) }
-        if let selected = selectedAnnotation {
+        if let selected = selectedAnnotation, selected.kind != .comment {
             let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: selected), point: displayPoint, radius: 10)
             if corner >= 0 { return (selected, corner) }
         }
-        for annotation in capture.annotations.reversed() {
+        for annotation in capture.annotations.reversed() where annotation.kind != .comment {
             let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: annotation), point: displayPoint, radius: 10)
             if corner >= 0 { return (annotation, corner) }
         }
@@ -315,6 +369,50 @@ final class AnnotationCanvasView: NSView {
         }
         return nil
     }
+
+    // MARK: - Smoke probe (CONTRACTS.md "Editor → Shell (smoke)", SPEC-DELTA-2B.md §C8/§F)
+
+    /// Port of the hover-manipulation half of `RunNoteAffordanceProbe`/`VerifyHoverManipulation`
+    /// (SPEC §8.4 point 9, SPEC-DELTA-2.md §5 "WPF smoke"): a rectangle's edge is movable and its
+    /// corner is resizable **even while a different tool is active**, its interior is not a
+    /// handle, hovering never mutates `tool`, and a comment pin has neither. Builds its own
+    /// off-screen `AnnotationCanvasView`/`EditorCapture` rather than requiring a real window —
+    /// every check below only calls this file's own hit-testing helpers, never a live mouse event.
+    @discardableResult
+    static func smokeVerifyHoverManipulation(image: CGImage) -> Bool {
+        let view = AnnotationCanvasView(frame: NSRect(x: 0, y: 0, width: 480, height: 300))
+        let capture = EditorCapture(image: image, sourceImagePath: "")
+        let rectangle = EditorAnnotation(
+            kind: .rectangle, points: [CGPoint(x: 40, y: 40), CGPoint(x: 200, y: 160)],
+            color: EditorTheme.accent, thickness: 4)
+        let pin = EditorAnnotation(
+            kind: .comment, points: [CGPoint(x: 300, y: 60), CGPoint(x: 308, y: 68)],
+            color: EditorTheme.accent, thickness: 4)
+        capture.annotations = [rectangle, pin]
+        view.capture = capture
+        // A tool other than Select/Rectangle: hover manipulation must still work (SPEC §1.4
+        // "hover-манипуляция краями при любом инструменте").
+        view.tool = .blur
+        view.recomputeImageRect()
+
+        let rectangleBounds = view.displayBounds(of: rectangle)
+        let edgePoint = CGPoint(x: rectangleBounds.midX, y: rectangleBounds.minY)
+        let interiorPoint = CGPoint(x: rectangleBounds.midX, y: rectangleBounds.midY)
+        let cornerPoint = CGPoint(x: rectangleBounds.maxX, y: rectangleBounds.maxY)
+
+        guard view.findMoveEdge(edgePoint) === rectangle else { return false }
+        guard view.findMoveEdge(interiorPoint) == nil else { return false }
+
+        let cornerHit = view.findResizeHandle(cornerPoint)
+        guard cornerHit.annotation === rectangle, cornerHit.corner == 2 else { return false }
+
+        let pinBounds = view.displayBounds(of: pin)
+        guard view.findResizeHandle(CGPoint(x: pinBounds.maxX, y: pinBounds.maxY)).annotation == nil else { return false }
+        guard view.findMoveEdge(CGPoint(x: pinBounds.midX, y: pinBounds.midY)) == nil else { return false }
+
+        // Hovering never mutates the active tool (only the cursor).
+        return view.tool == .blur
+    }
 }
 
 /// Minimal virtual key-code constants for the codes this view checks directly (`NSEvent.keyCode`
@@ -325,4 +423,7 @@ enum Keycode {
     static let delete: UInt16 = 51
     static let forwardDelete: UInt16 = 117
     static let escape: UInt16 = 53
+    /// Return (main keyboard) / Enter (numeric keypad) — SPEC-DELTA-2.md §1.3's `keyCode 36/76`.
+    static let enter: UInt16 = 36
+    static let enterAlternate: UInt16 = 76
 }

@@ -8,10 +8,22 @@ import AppKit
 /// machinery untouched.
 final class EditorTextView: NSTextView {
     var onEscape: (() -> Void)?
+    /// SPEC-DELTA-2.md §1.3 "`PreviewKeyDown` Enter без модификаторов = `Finish()`": plain Return
+    /// (no Shift) commits/collapses the chip instead of inserting a newline; Shift+Return falls
+    /// through to the normal `NSTextView` newline-insertion behavior.
+    var onCommit: (() -> Void)?
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == Keycode.escape, event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty {
             onEscape?()
+            return
+        }
+        if event.keyCode == Keycode.enter || event.keyCode == Keycode.enterAlternate {
+            if event.modifierFlags.contains(.shift) {
+                insertNewline(nil)
+            } else {
+                onCommit?()
+            }
             return
         }
         super.keyDown(with: event)
@@ -74,6 +86,13 @@ extension OverlayEditorController {
         }
 
         guard let key = event.charactersIgnoringModifiers?.uppercased(), let tool = EditorTool(rawValue: key) else { return }
-        selectTool(tool)
+        // SPEC-DELTA-2B.md §C7: the `N` hotkey routes through `commentButtonClicked()` (which
+        // captures `commentParentId` from whatever is currently selected) instead of the plain
+        // `selectTool(_:)` every other letter uses.
+        if tool == .comment {
+            commentButtonClicked()
+        } else {
+            selectTool(tool)
+        }
     }
 }

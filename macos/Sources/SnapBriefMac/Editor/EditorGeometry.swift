@@ -48,8 +48,12 @@ enum EditorGeometry {
     }
 
     /// Port of `AnnotationCanvas.GestureHasSize` (`:417-422`, SPEC §1.3 "Порог создания отметки").
+    /// SPEC-DELTA-2B.md §C3: `.comment`/`.text` always count as having size — a Comment is a
+    /// one-shot single click (no drag threshold at all) and Text already committed with a single
+    /// click before this sync.
     static func gestureHasSize(kind: EditorTool, points: [CGPoint]) -> Bool {
         guard points.count >= 2 else { return false }
+        if kind == .comment || kind == .text { return true }
         if kind == .pen || kind == .highlight { return points.count > 2 }
         let dx = points[1].x - points[0].x
         let dy = points[1].y - points[0].y
@@ -64,44 +68,71 @@ enum EditorGeometry {
         return bounds.insetBy(dx: inset, dy: inset)
     }
 
-    // MARK: - Comment chip / shot note / context button positioning (SPEC §1.4)
+    // MARK: - Comment chip placement / hover-edge hit testing (SPEC-DELTA-2B.md §C3, §C7)
 
-    /// Port of `PositionChip` (`OverlayEditorWindow.xaml.cs:459-470`). Returns the chip's
-    /// top-left in the same coordinate space as `cropRect`/`work` (the editing window's local,
-    /// top-left-origin, Y-down point space — see `ScreenGeometry.flipToTopLeft`).
-    static func positionChip(displayBounds bounds: CGRect, cropRect: CGRect, work: CGRect, chipWidth: CGFloat = 226) -> CGPoint {
-        var x = cropRect.minX + bounds.minX
-        var y = cropRect.minY + bounds.maxY + 8
-        if y + 86 > work.maxY { y = cropRect.minY + bounds.minY - 50 }
-        x = clamp(x, work.minX + 8, max(work.minX + 8, work.maxX - chipWidth - 4))
-        y = clamp(y, work.minY + 8, max(work.minY + 8, work.maxY - 88))
-        return CGPoint(x: x, y: y)
-    }
+    /// Port of `FindChipPlacement` (SPEC-DELTA-2.md §1.3 "Автораскладка `FindChipPlacement`"):
+    /// tries `preferred` first, then spirals outward in rings of 8 offsets (down, right, left, up,
+    /// then the 4 diagonals), each ring `ring` chip-widths/heights further out, clamped into `work`
+    /// with an 8pt margin. Occupancy is tested against `occupied` inflated by `gap` on every side,
+    /// matching the Windows "занятость по инфлейту на 6" rule. Falls back to the (still-clamped)
+    /// preferred rect if all 14 rings are occupied.
+    static func findChipPlacement(preferred: CGPoint, size: CGSize, work: CGRect, occupied: [CGRect]) -> CGRect {
+        let gap: CGFloat = 6
+        let margin: CGFloat = 8
 
-    /// Port of `PositionShotNote` (`:472-479`).
-    static func positionShotNote(cropRect: CGRect, work: CGRect, width: CGFloat = 250) -> CGPoint {
-        let left = clamp(cropRect.maxX - width, work.minX + 8, max(work.minX + 8, work.maxX - width - 8))
-        let top = clamp(cropRect.minY, work.minY + 8, max(work.minY + 8, work.maxY - 132))
-        return CGPoint(x: left, y: top)
-    }
-
-    /// Port of `UpdateContextNoteAffordance` positioning (`:533-563`). `annotationBounds` is the
-    /// selected annotation's display bounds, or `nil` when there is no selection (whole-capture
-    /// comment button).
-    static func positionContextNoteButton(annotationBounds: CGRect?, cropRect: CGRect, work: CGRect) -> CGPoint {
-        var x: CGFloat
-        var y: CGFloat
-        if let bounds = annotationBounds {
-            x = cropRect.minX + bounds.maxX + 8
-            y = cropRect.minY + bounds.minY - 4
-            if x + 36 > work.maxX { x = cropRect.minX + bounds.minX - 40 }
-        } else {
-            x = cropRect.maxX - 40
-            y = cropRect.minY + 8
+        func clampedRect(at origin: CGPoint) -> CGRect {
+            let x = clamp(origin.x, work.minX + margin, max(work.minX + margin, work.maxX - size.width - margin))
+            let y = clamp(origin.y, work.minY + margin, max(work.minY + margin, work.maxY - size.height - margin))
+            return CGRect(x: x, y: y, width: size.width, height: size.height)
         }
-        x = clamp(x, work.minX + 8, max(work.minX + 8, work.maxX - 40))
-        y = clamp(y, work.minY + 8, max(work.minY + 8, work.maxY - 40))
-        return CGPoint(x: x, y: y)
+
+        func isFree(_ candidate: CGRect) -> Bool {
+            !occupied.contains(where: { $0.insetBy(dx: -gap, dy: -gap).intersects(candidate) })
+        }
+
+        let preferredRect = clampedRect(at: preferred)
+        if isFree(preferredRect) { return preferredRect }
+
+        for ring in 1...14 {
+            let stepX = (size.width + gap) * CGFloat(ring)
+            let stepY = (max(40, size.height) + gap) * CGFloat(ring)
+            let offsets: [CGPoint] = [
+                CGPoint(x: 0, y: stepY), CGPoint(x: stepX, y: 0), CGPoint(x: -stepX, y: 0), CGPoint(x: 0, y: -stepY),
+                CGPoint(x: stepX, y: stepY), CGPoint(x: -stepX, y: stepY), CGPoint(x: stepX, y: -stepY), CGPoint(x: -stepX, y: -stepY),
+            ]
+            for offset in offsets {
+                let candidate = clampedRect(at: CGPoint(x: preferred.x + offset.x, y: preferred.y + offset.y))
+                if isFree(candidate) { return candidate }
+            }
+        }
+        return preferredRect
+    }
+
+    /// Port of `AnnotationCanvas.FindMoveEdge`'s per-annotation hit ring (`:417-428`): the outer
+    /// ring is `displayBounds` inflated by 6pt, the inner ring is inset by `min(6, w/2)`/
+    /// `min(6, h/2)`; a hit is inside the outer ring but outside the inner one (the border band).
+    /// Only meaningful for Rectangle/Blur/Conceal — the caller filters by kind and active tool.
+    static func findMoveEdge(displayBounds: CGRect, point: CGPoint) -> Bool {
+        let outer = displayBounds.insetBy(dx: -6, dy: -6)
+        guard outer.contains(point) else { return false }
+        let insetX = min(6, displayBounds.width / 2)
+        let insetY = min(6, displayBounds.height / 2)
+        let inner = displayBounds.insetBy(dx: insetX, dy: insetY)
+        return !inner.contains(point)
+    }
+
+    /// Port of `MoveLinkedComments`'s point remap (SPEC-DELTA-2.md §1.3): when the parent's bounds
+    /// actually changed, each point is carried through `ResizeGeometry.map` from `oldParent` to
+    /// `newParent`; when the parent had zero size before (never resized, only moved), a plain
+    /// `parentDelta` shift is used instead. Result is clamped into `[0, imageSize]`.
+    static func linkedCommentPoints(_ points: [CGPoint], oldParent: CGRect, newParent: CGRect, parentDelta: CGPoint, imageSize: CGSize) -> [CGPoint] {
+        func clampToImage(_ p: CGPoint) -> CGPoint {
+            CGPoint(x: clamp(p.x, 0, imageSize.width), y: clamp(p.y, 0, imageSize.height))
+        }
+        guard oldParent.width > 0, oldParent.height > 0 else {
+            return points.map { clampToImage(CGPoint(x: $0.x + parentDelta.x, y: $0.y + parentDelta.y)) }
+        }
+        return points.map { clampToImage(ResizeGeometry.map($0, original: oldParent, resized: newParent)) }
     }
 
     // MARK: - Toolbar positioning (SPEC §6.2 `PositionToolbar`, "Дополнение 2026-09-09")

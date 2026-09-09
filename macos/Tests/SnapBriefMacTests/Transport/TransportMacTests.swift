@@ -147,6 +147,99 @@ final class TransportMacTests: XCTestCase {
         XCTAssertEqual(bitmap.pixelsHigh, 1)
     }
 
+    // SPEC-DELTA-2A §7: `setPNGGuarded` now writes one `NSPasteboardItem` combining `.png`,
+    // `.tiff`, and `.fileURL` (in that order), instead of the previous two-item shape.
+    func testSetPNGGuardedWritesPngTiffAndFileURLInSingleItem() throws {
+        let pasteboard = try XCTUnwrap(NSPasteboard(name: .init("snapbrief-test-transport-pngguarded")))
+        let service = MacClipboardService(pasteboard: pasteboard, queue: .main)
+        let pngData = try Self.makeSinglePixelPNG()
+        let path = try Self.writeTempFile(data: pngData, name: "guarded.png")
+
+        let expectation = expectation(description: "setPNGGuarded")
+        service.setPNGGuarded(path: path, expectedSequence: nil) { result in
+            defer { expectation.fulfill() }
+            guard case .success = result else { XCTFail("expected success"); return }
+            let items = pasteboard.pasteboardItems ?? []
+            XCTAssertEqual(items.count, 1, "PNG/TIFF/fileURL must live in a single item")
+            let item = items[0]
+            let types = Set(item.types.map(\.rawValue))
+            XCTAssertTrue(types.contains(NSPasteboard.PasteboardType.png.rawValue))
+            XCTAssertTrue(types.contains(NSPasteboard.PasteboardType.tiff.rawValue))
+            XCTAssertTrue(types.contains(NSPasteboard.PasteboardType.fileURL.rawValue))
+            XCTAssertEqual(item.string(forType: .fileURL), URL(fileURLWithPath: path).absoluteString)
+        }
+        wait(for: [expectation], timeout: 5)
+        pasteboard.clearContents()
+    }
+
+    // SPEC-DELTA-2A §7: `capture`'s `ClipboardSnapshot` exposes exactly what `ClipboardEchoDetector`
+    // needs (`hasFiles`, `text`, `hasImage`) from a real pasteboard round trip.
+    func testCaptureReportsFilesTextAndImageForEchoDetector() throws {
+        let pasteboard = try XCTUnwrap(NSPasteboard(name: .init("snapbrief-test-transport-echo")))
+        let service = MacClipboardService(pasteboard: pasteboard, queue: .main)
+        let pngData = try Self.makeSinglePixelPNG()
+        let path = try Self.writeTempFile(data: pngData, name: "echo.png")
+
+        let packageExpectation = expectation(description: "setPackageGuarded")
+        service.setPackageGuarded(paths: [path], text: "Снимок A.", expectedSequence: nil) { _ in
+            packageExpectation.fulfill()
+        }
+        wait(for: [packageExpectation], timeout: 5)
+
+        let captureExpectation = expectation(description: "capture")
+        service.capture { snapshot in
+            XCTAssertTrue(snapshot.hasFiles)
+            XCTAssertTrue(snapshot.hasImage)
+            XCTAssertEqual(snapshot.text, "Снимок A.")
+            XCTAssertFalse(ClipboardEchoDetector.isReceiverEcho(snapshot, promptText: "Снимок A."))
+            captureExpectation.fulfill()
+        }
+        wait(for: [captureExpectation], timeout: 5)
+
+        let textOnlyExpectation = expectation(description: "setTextGuarded")
+        service.setTextGuarded(text: "Снимок A.", expectedSequence: nil) { _ in textOnlyExpectation.fulfill() }
+        wait(for: [textOnlyExpectation], timeout: 5)
+
+        let echoCaptureExpectation = expectation(description: "capture after text-only echo")
+        service.capture { snapshot in
+            XCTAssertFalse(snapshot.hasFiles)
+            XCTAssertFalse(snapshot.hasImage)
+            XCTAssertTrue(ClipboardEchoDetector.isReceiverEcho(snapshot, promptText: "Снимок A."))
+            echoCaptureExpectation.fulfill()
+        }
+        wait(for: [echoCaptureExpectation], timeout: 5)
+
+        pasteboard.clearContents()
+    }
+
+    // SPEC-DELTA-2A §7/§1.1: the pure tap-mode selection function.
+    func testPreferredTapModeDegradesFromInterceptingToListenOnlyToNil() {
+        XCTAssertEqual(
+            MacPasteIntentObserver.preferredTapMode(accessibility: true, inputMonitoring: true), .intercepting)
+        XCTAssertEqual(
+            MacPasteIntentObserver.preferredTapMode(accessibility: true, inputMonitoring: false), .intercepting)
+        XCTAssertEqual(
+            MacPasteIntentObserver.preferredTapMode(accessibility: false, inputMonitoring: true), .listenOnly)
+        XCTAssertNil(MacPasteIntentObserver.preferredTapMode(accessibility: false, inputMonitoring: false))
+    }
+
+    // SPEC-DELTA-2A §7/§1.3: `isOwnEvent` recognizes both the synthetic-event tag
+    // `MacInputInjector` sets and the source-pid fallback.
+    func testOwnSyntheticEventIsRecognizedByTagAndSourcePid() throws {
+        let source = try XCTUnwrap(CGEventSource(stateID: .hidSystemState))
+        let tagged = try XCTUnwrap(CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true))
+        tagged.setIntegerValueField(.eventSourceUserData, value: MacInputInjector.syntheticEventTag)
+        XCTAssertTrue(MacPasteIntentObserver.isOwnEvent(tagged))
+
+        let ownProcess = try XCTUnwrap(CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true))
+        ownProcess.setIntegerValueField(
+            .eventSourceUnixProcessID, value: Int64(ProcessInfo.processInfo.processIdentifier))
+        XCTAssertTrue(MacPasteIntentObserver.isOwnEvent(ownProcess))
+
+        let foreign = try XCTUnwrap(CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true))
+        XCTAssertFalse(MacPasteIntentObserver.isOwnEvent(foreign))
+    }
+
     // MARK: - Helpers
 
     private static func makeSinglePixelPNG() throws -> Data {

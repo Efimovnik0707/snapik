@@ -39,19 +39,14 @@ enum EditorTheme {
     static let toolbarBackground = NSColor(hex: "#F2171A20")
     static let annotationChipBackground = NSColor(hex: "#F4171A20")
     static let hintBackground = NSColor(hex: "#E8171A20")
-    static let shotNoteChipBackground = NSColor(hex: "#F2171A20")
-    static let shotNoteFieldBackground = NSColor(hex: "#262B34")
-    static let contextNoteButtonBackground = NSColor(hex: "#F2171A20")
     static let toolHoverBackground = NSColor(hex: "#29303A")
     static let toolActiveBackground = NSColor(hex: "#253B58")
     static let moreToolsMenuBackground = NSColor(hex: "#F8171A20")
 
     // Borders / dividers
-    static let contextNoteButtonBorder = NSColor(hex: "#46515F")
     static let toolbarBorder = NSColor(hex: "#3A424E")
     static let toolbarDivider = NSColor(hex: "#3A424E")
     static let moreToolsMenuBorder = NSColor(hex: "#3A424E")
-    static let shotNoteFieldBorder = NSColor(hex: "#3A424E")
     static let focusRing = NSColor(hex: "#7AB8FF")
     static let cropBorder = NSColor(hex: "#2F8CFF")
 
@@ -104,7 +99,6 @@ enum EditorTheme {
     static let toolCornerRadius: CGFloat = 9
     static let buttonCornerRadius: CGFloat = 9
     static let annotationChipCornerRadius: CGFloat = 13
-    static let shotNoteChipCornerRadius: CGFloat = 12
     static let hintCornerRadius: CGFloat = 10
     static let menuCornerRadius: CGFloat = 6
     static let appearancePreviewCornerRadius: CGFloat = 7

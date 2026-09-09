@@ -31,7 +31,10 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         self.tabButtons = [general, hotkeys, saving]
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 530, height: 480),
+            // SPEC-DELTA-2B.md §E4: height grows from 480 to 520 to fit the two new checkboxes
+            // ("Звуки захвата и стопки" on "Общие", "Автоматически сохранять готовые снимки" on
+            // "Сохранение") without cramping either tab.
+            contentRect: NSRect(x: 0, y: 0, width: 530, height: 520),
             styleMask: [.borderless], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
@@ -131,6 +134,7 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         generalTab.notificationsBox.state = settings.showNotifications ? .on : .off
         generalTab.rememberRegionBox.state = settings.rememberRegion ? .on : .off
         generalTab.captureCursorBox.state = settings.captureCursor ? .on : .off
+        generalTab.soundsBox.state = settings.playSounds ? .on : .off
         generalTab.languagePopup.selectItem(at: settings.language == "en" ? 1 : 0)
 
         hotkeysTab.captureEnabledBox.state = settings.captureEnabled ? .on : .off
@@ -138,6 +142,7 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         hotkeysTab.fullscreenEnabledBox.state = settings.fullscreenSaveEnabled ? .on : .off
         hotkeysTab.fullscreenField.currentId = settings.fullscreenSaveId
 
+        savingTab.autoSaveBox.state = settings.autoSaveCaptures ? .on : .off
         savingTab.formatPopup.selectItem(at: settings.saveFormat == "jpeg" ? 1 : 0)
         let quality = max(1, min(100, settings.jpegQuality))
         savingTab.qualitySlider.integerValue = quality
@@ -201,6 +206,14 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
     /// file; on any failure show the matching error text and keep the dialog open (SPEC §1.17).
     @objc private func saveClicked() {
         guard let coordinator else { return }
+
+        // Port of `:160-161` (SPEC-DELTA-2.md §1.8, SPEC-DELTA-2B.md §E4): an empty save folder is
+        // rejected before anything else — hotkeys are never touched and the dialog stays open.
+        guard !savingTab.directoryField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            showError(MacUiText.text("Укажите папку сохранения.", language: language))
+            return
+        }
+
         let candidate = buildCandidateSettings()
 
         coordinator.hotkeyService.unregisterAll()
@@ -253,9 +266,14 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         candidate.showNotifications = generalTab.notificationsBox.state == .on
         candidate.rememberRegion = generalTab.rememberRegionBox.state == .on
         candidate.captureCursor = generalTab.captureCursorBox.state == .on
+        candidate.playSounds = generalTab.soundsBox.state == .on
+        candidate.autoSaveCaptures = savingTab.autoSaveBox.state == .on
         candidate.saveFormat = savingTab.formatPopup.indexOfSelectedItem == 1 ? "jpeg" : "png"
         candidate.jpegQuality = savingTab.qualitySlider.integerValue
-        candidate.saveDirectory = savingTab.directoryField.stringValue
+        // Port of SPEC-DELTA-2B §E4: expand `~` and standardize before persisting, so a manually
+        // typed `~/Pictures/SnapBrief` resolves the same as the folder picker's absolute path.
+        candidate.saveDirectory =
+            URL(fileURLWithPath: savingTab.directoryField.stringValue.expandingTildeInPath).standardizedFileURL.path
         candidate.language = generalTab.languagePopup.indexOfSelectedItem == 1 ? "en" : "ru"
         return candidate
     }

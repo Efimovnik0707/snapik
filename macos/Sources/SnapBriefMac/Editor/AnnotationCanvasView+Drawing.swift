@@ -108,15 +108,13 @@ extension AnnotationCanvasView {
                 let attributes: [NSAttributedString.Key: Any] = [.font: EditorTheme.systemFont(fontSize), .foregroundColor: color]
                 NSAttributedString(string: item.text, attributes: attributes).draw(at: start)
             case .arrow:
-                ctx.setStrokeColor(color.cgColor)
-                ctx.setLineWidth(thickness)
-                ctx.setLineCap(.round)
-                ctx.setLineJoin(.round)
-                ctx.beginPath()
-                ctx.move(to: start)
-                ctx.addLine(to: end)
-                ctx.strokePath()
-                drawArrowHead(ctx, from: start, to: end, thickness: thickness, color: color)
+                // Port of `AnnotationCanvas.cs:377-379` (SPEC-DELTA-2.md §1.2, §1.9): the shared
+                // `ArrowDrawing` renderer, keyed by `item.arrowStyle`.
+                ArrowDrawing.draw(in: ctx, from: start, to: end, color: color.cgColor, thickness: thickness, style: item.arrowStyle)
+            case .comment:
+                // SPEC-DELTA-2B.md §C1: "`.comment` → ничего (бейдж рисует фаза 3)" — the pin has
+                // no drawn shape of its own, only the label badge below.
+                break
             case .select, .pen, .highlight:
                 break
             }
@@ -126,27 +124,11 @@ extension AnnotationCanvasView {
             drawLabelBadge(ctx, label: item.label, at: map(item.points[0]))
         }
 
-        if includeSelection, item === selectedAnnotation {
+        // SPEC-DELTA-2B.md §C4/§C7: a comment pin never shows a resize/selection outline
+        // ("пин без ручек и рамки").
+        if includeSelection, item === selectedAnnotation, item.kind != .comment {
             drawSelectionOutline(ctx, item: item, map: map)
         }
-    }
-
-    private func drawArrowHead(_ ctx: CGContext, from start: CGPoint, to end: CGPoint, thickness: CGFloat, color: NSColor) {
-        var vector = CGPoint(x: start.x - end.x, y: start.y - end.y)
-        let length = (vector.x * vector.x + vector.y * vector.y).squareRoot()
-        guard length > 0 else { return }
-        vector = CGPoint(x: vector.x / length, y: vector.y / length)
-        let side = CGPoint(x: -vector.y, y: vector.x)
-        let size = max(10, thickness * 3.2)
-        let p1 = CGPoint(x: end.x + vector.x * size + side.x * size * 0.45, y: end.y + vector.y * size + side.y * size * 0.45)
-        let p2 = CGPoint(x: end.x + vector.x * size - side.x * size * 0.45, y: end.y + vector.y * size - side.y * size * 0.45)
-        ctx.setFillColor(color.cgColor)
-        ctx.beginPath()
-        ctx.move(to: end)
-        ctx.addLine(to: p1)
-        ctx.addLine(to: p2)
-        ctx.closePath()
-        ctx.fillPath()
     }
 
     /// Port of the label-badge drawing at the end of `DrawAnnotation` (`:393-402`).

@@ -1,5 +1,5 @@
-// Port of `EdgeStackWindow.xaml` content (header, thumbnail list, "+ Снимок" button, status row),
-// SPEC §1.9, §6.0, §6.4.
+// Port of `EdgeStackWindow.xaml` content (header, accordion thumbnail list, "+ Снимок" button,
+// status row), SPEC-DELTA-2 §1.7, SPEC-DELTA-2B §E1.
 import AppKit
 import SnapBriefCore
 
@@ -12,20 +12,38 @@ protocol EdgeStackContentViewDelegate: AnyObject {
     func edgeStackContent(_ view: EdgeStackContentView, didReorderCaptureId id: SBGuid, toIndex index: Int)
     func edgeStackContentDidRequestRestore()
     func edgeStackContentHeaderMouseDown(with event: NSEvent)
+    /// Port of `OnCaptureThumbMouseEnter`/`OnCaptureListMouseWheel`: both play the capture-list
+    /// hover/scroll tick (SPEC-DELTA-2 §1.6), which needs `AppSettings.playSounds` — something
+    /// only the coordinator (via `EdgeStackWindowController`) knows about.
+    func edgeStackContentDidRequestTickSound(_ view: EdgeStackContentView)
 }
 
 /// Row model handed to the content view on every `reload(...)` — a thin projection of
-/// `CaptureItem` plus the pre-rendered thumbnail (loading `CGImage`s from disk is the caller's
-/// job, not this view's).
+/// `CaptureItem` plus the pre-rendered thumbnail and note count (loading `CGImage`s from disk and
+/// counting non-empty notes is the caller's job, not this view's).
 struct StackCaptureRow {
     let id: SBGuid
     let label: String
     let thumbnail: NSImage?
+    let noteCount: Int
+}
+
+/// Port of `EdgeStackWindow.xaml:100-105`'s `ListBox` + `PreviewMouseWheel="OnCaptureListMouseWheel"`:
+/// forwards every wheel event to `onScroll` (for the hover/scroll tick sound) before scrolling
+/// normally.
+final class TickingScrollView: NSScrollView {
+    var onScroll: (() -> Void)?
+
+    override func scrollWheel(with event: NSEvent) {
+        onScroll?()
+        super.scrollWheel(with: event)
+    }
 }
 
 /// The floating panel's content: outer rounded shell (`#F2171A20`, corner radius 16), header,
-/// scrollable card list (max height 346), primary "+ Снимок" button, and a status row with an
-/// optional "Вернуть" link.
+/// scrollable accordion card list (visible height capped at `StackMetrics.listMaxHeight`,
+/// document bottom-padded by `StackMetrics.listBottomPadding`), primary "+ Снимок" button, and a
+/// status row with an optional "Вернуть" link.
 final class EdgeStackContentView: NSView {
     weak var delegate: EdgeStackContentViewDelegate?
 
@@ -37,10 +55,11 @@ final class EdgeStackContentView: NSView {
     private let closeButton = NSButton()
     private let headerView = NSView()
 
-    private let scrollView = NSScrollView()
+    private let scrollView = TickingScrollView()
     private let listContainer = FlippedView()
     private var cardViews: [ThumbnailCardView] = []
     private var rows: [StackCaptureRow] = []
+    private var selectedCaptureId: SBGuid?
 
     private let newCaptureButton = NSButton()
     private let statusLabel = NSTextField(wrappingLabelWithString: "")
@@ -75,6 +94,10 @@ final class EdgeStackContentView: NSView {
         scrollView.autohidesScrollers = true
         scrollView.verticalScroller?.knobStyle = .light
         scrollView.documentView = listContainer
+        scrollView.onScroll = { [weak self] in
+            guard let self else { return }
+            self.delegate?.edgeStackContentDidRequestTickSound(self)
+        }
         addSubview(scrollView)
 
         newCaptureButton.title = ""
@@ -150,13 +173,25 @@ final class EdgeStackContentView: NSView {
         cardViews = rows.map { row in
             let card = ThumbnailCardView(frame: .zero)
             card.delegate = self
-            card.configure(id: row.id, label: row.label, image: row.thumbnail)
+            card.configure(id: row.id, label: row.label, image: row.thumbnail, noteCount: row.noteCount)
+            card.isSelected = row.id == selectedCaptureId
             card.applyLocalization(language: currentLanguage)
             listContainer.addSubview(card)
             return card
         }
 
         needsLayout = true
+    }
+
+    /// Port of `EdgeStackWindow.Preview.cs:17,43` (`capture.IsSelected = true`/`false` while the
+    /// preview window is open): highlights the open capture's card with the accent border and
+    /// keeps it in its expanded accordion state.
+    func setSelectedCapture(_ id: SBGuid?) {
+        selectedCaptureId = id
+        for (index, card) in cardViews.enumerated() {
+            card.isSelected = index < rows.count && rows[index].id == id
+        }
+        layoutCards(width: bounds.width - ThemeMetrics.outerPadding * 2, animated: false)
     }
 
     func setStatus(_ text: String, isError: Bool) {
@@ -181,15 +216,21 @@ final class EdgeStackContentView: NSView {
 
     // MARK: - Layout
 
-    /// Fixed width **196**; height driven by content, clamped to `[128, 620]` with the card list
-    /// capped at 346 (SPEC §1.9).
+    /// Fixed width `StackMetrics.width` (208); height driven by content, clamped to
+    /// `[ThemeMetrics.stackMinHeight, ThemeMetrics.stackMaxHeight]` with the (collapsed) card
+    /// list capped at `StackMetrics.listMaxHeight` (SPEC-DELTA-2 §1.7).
     func preferredHeight() -> CGFloat {
         let headerHeight: CGFloat = 28
-        let listHeight = min(ThemeMetrics.cardListMaxHeight, CGFloat(rows.count) * (ThemeMetrics.cardHeight + 7))
+        let listHeight = min(StackMetrics.listMaxHeight, collapsedListHeight())
         let buttonHeight = ThemeMetrics.buttonHeight
         let statusHeight: CGFloat = (statusLabel.isHidden && restoreButton.isHidden) ? 0 : 24
         let total = ThemeMetrics.outerPadding * 2 + headerHeight + 7 + listHeight + 8 + buttonHeight + statusHeight
         return max(ThemeMetrics.stackMinHeight, min(ThemeMetrics.stackMaxHeight, total))
+    }
+
+    private func collapsedListHeight() -> CGFloat {
+        guard !cardViews.isEmpty else { return 0 }
+        return CGFloat(cardViews.count - 1) * StackMetrics.cardStep + StackMetrics.cardHeight
     }
 
     override func layout() {
@@ -206,12 +247,12 @@ final class EdgeStackContentView: NSView {
         closeButton.frame = NSRect(x: contentWidth - 12, y: 4, width: 10, height: 10)
 
         let listTop = headerView.frame.minY - 7
-        let listHeight = min(ThemeMetrics.cardListMaxHeight, CGFloat(rows.count) * (ThemeMetrics.cardHeight + 7))
+        let listHeight = min(StackMetrics.listMaxHeight, collapsedListHeight())
         let buttonHeight = ThemeMetrics.buttonHeight
         let statusHeight: CGFloat = (statusLabel.isHidden && restoreButton.isHidden) ? 0 : 24
 
         scrollView.frame = NSRect(x: padding, y: listTop - listHeight, width: contentWidth, height: listHeight)
-        layoutCards(width: contentWidth)
+        layoutCards(width: contentWidth, animated: false)
 
         let buttonTop = scrollView.frame.minY - 8
         newCaptureButton.frame = NSRect(x: padding, y: buttonTop - buttonHeight, width: contentWidth, height: buttonHeight)
@@ -223,13 +264,48 @@ final class EdgeStackContentView: NSView {
         }
     }
 
-    private func layoutCards(width: CGFloat) {
+    /// Port of `EdgeStackWindow.xaml:144-158`'s accordion `DataTrigger`s: a hovered or selected
+    /// card opens to its full height with `StackMetrics.expandedMargin` breathing room above and
+    /// below; every other card stays collapsed, overlapping the next by `StackMetrics.cardOverlap`.
+    /// `animated` wraps the frame changes in `NSAnimationContext` (open **0.18s**, close **0.16s**,
+    /// ease-out — SPEC-DELTA-2B §E1); resorts z-order afterwards (hover 20, selected 30).
+    private func layoutCards(width: CGFloat, animated: Bool, duration: TimeInterval = StackMetrics.expandInSeconds) {
         var y: CGFloat = 0
+        var frames: [NSRect] = []
         for card in cardViews {
-            card.frame = NSRect(x: 0, y: y, width: width, height: ThemeMetrics.cardHeight)
-            y += ThemeMetrics.cardHeight + 7
+            let expanded = card.isHovered || card.isSelected
+            let top = expanded ? y + StackMetrics.expandedMargin : y
+            frames.append(NSRect(x: 0, y: top, width: width, height: StackMetrics.cardHeight))
+            y = expanded ? top + StackMetrics.cardHeight + StackMetrics.expandedMargin : top + StackMetrics.cardStep
         }
-        listContainer.frame = NSRect(x: 0, y: 0, width: width, height: max(y, scrollView.bounds.height))
+        let documentHeight = max(y + StackMetrics.listBottomPadding, scrollView.bounds.height)
+
+        let applyFrames = { [weak self] in
+            guard let self else { return }
+            for (card, frame) in zip(self.cardViews, frames) { card.frame = frame }
+            self.listContainer.frame = NSRect(x: 0, y: 0, width: width, height: documentHeight)
+        }
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = duration
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                for (card, frame) in zip(cardViews, frames) {
+                    card.animator().frame = frame
+                }
+                listContainer.animator().frame = NSRect(x: 0, y: 0, width: width, height: documentHeight)
+            }
+        } else {
+            applyFrames()
+        }
+
+        listContainer.sortSubviews(
+            { a, b, _ in
+                guard let cardA = a as? ThumbnailCardView, let cardB = b as? ThumbnailCardView else { return .orderedSame }
+                let zA = cardA.isSelected ? 30 : (cardA.isHovered ? 20 : 0)
+                let zB = cardB.isSelected ? 30 : (cardB.isHovered ? 20 : 0)
+                if zA == zB { return .orderedSame }
+                return zA < zB ? .orderedAscending : .orderedDescending
+            }, context: nil)
     }
 
     // MARK: - Actions
@@ -259,6 +335,14 @@ extension EdgeStackContentView: ThumbnailCardViewDelegate {
         delegate?.edgeStackContent(self, didRequestRemoveCaptureId: rows[index].id)
     }
 
+    func thumbnailCard(_ card: ThumbnailCardView, hoverDidChange isHovered: Bool) {
+        delegate?.edgeStackContentDidRequestTickSound(self)
+        layoutCards(
+            width: bounds.width - ThemeMetrics.outerPadding * 2,
+            animated: true,
+            duration: isHovered ? StackMetrics.expandInSeconds : StackMetrics.expandOutSeconds)
+    }
+
     /// Manual drag-reorder loop (SPEC §1.9: "порог начала — системная минимальная вертикальная
     /// дистанция драга"). Runs a local event-tracking loop for the duration of the drag instead
     /// of a full `NSDraggingSession`, which is unnecessary for same-view vertical reordering.
@@ -284,8 +368,7 @@ extension EdgeStackContentView: ThumbnailCardViewDelegate {
             }
 
             let localPoint = listContainer.convert(next.locationInWindow, from: nil)
-            let targetIndex = min(
-                max(Int(localPoint.y / (ThemeMetrics.cardHeight + 7)), 0), max(cardViews.count - 1, 0))
+            let targetIndex = min(max(Int(localPoint.y / StackMetrics.cardStep), 0), max(cardViews.count - 1, 0))
             draggingCardIndex = targetIndex
         }
 

@@ -202,7 +202,9 @@ final class CodexDesktopPasteCompletionServiceTests: XCTestCase {
     }
 
     private static func intent(sequence: Int, alternate: Bool = false) -> PasteIntent {
-        PasteIntent(alternate: alternate, timestamp: Date(), synthetic: false, target: codex, clipboardSequence: sequence)
+        PasteIntent(
+            gesture: alternate ? .optionV : .commandV, timestamp: Date(), synthetic: false, target: codex,
+            clipboardSequence: sequence)
     }
 
     private static func receipt(_ sequence: Int) -> ClipboardSnapshot {
@@ -274,21 +276,24 @@ private final class FakeTarget: ForegroundTargetServicing {
 }
 
 private final class FakeInput: GuardedInputInjecting {
+    /// `true` = the gesture was not `.commandV` (mirrors the old `alternate` bool the existing
+    /// assertions in this file check).
     private(set) var gestures: [Bool] = []
     var beforeFinalGuard: (() -> Void)?
 
-    func injectPaste(alternate: Bool, completion: @escaping (Bool) -> Void) {
-        gestures.append(alternate)
+    func injectPaste(gesture: PasteIntentGesture, completion: @escaping (Bool) -> Void) {
+        gestures.append(gesture != .commandV)
         completion(true)
     }
 
     func injectPasteGuarded(
-        alternate: Bool, finalGuard: @escaping (@escaping (Bool) -> Void) -> Void, completion: @escaping (Bool) -> Void
+        gesture: PasteIntentGesture, finalGuard: @escaping (@escaping (Bool) -> Void) -> Void,
+        completion: @escaping (Bool) -> Void
     ) {
         beforeFinalGuard?()
         finalGuard { allowed in
             guard allowed else { completion(false); return }
-            self.gestures.append(alternate)
+            self.gestures.append(gesture != .commandV)
             completion(true)
         }
     }

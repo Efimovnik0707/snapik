@@ -49,17 +49,25 @@ extension AppCoordinator: OverlayEditorDelegate {
 
         pendingCommitTask = Task { @MainActor in
             do {
-                if self.workspace.session.captures.contains(where: { $0.id == committed.id }) {
+                let isNewCapture = !self.workspace.session.captures.contains(where: { $0.id == committed.id })
+                if isNewCapture {
+                    try self.workspace.appendCapture(committed)
+                } else {
                     try self.workspace.replaceCapture(committed)
                     // R2 fix: `replaceCapture` reuses the same `captureId`, so the stack's
                     // thumbnail cache (keyed only on that id) must be dropped or `refresh()` right
                     // below would keep showing the pre-edit bitmap.
                     self.stackWindow?.invalidateThumbnail(for: committed.id)
-                } else {
-                    try self.workspace.appendCapture(committed)
                 }
                 self.stackWindow?.refresh()
                 let succeeded = await self.saveAndCopyCommittedPackage()
+                // SPEC-DELTA-2B §E2/§E3: capture-shutter feedback + optional auto-save, only for a
+                // brand-new capture (not a re-edit of an existing one), right after the package is
+                // copied to the clipboard.
+                if isNewCapture {
+                    CaptureFeedbackSound.capture(enabled: self.settings.playSounds)
+                    await self.autoSave(committed)
+                }
                 self.stackWindow?.reveal()
                 // R3 fix: only non-nil while this fold-in is actually in flight, so
                 // `AppCoordinator.handleHotkey`'s reentrancy guard reliably reflects that.
@@ -108,5 +116,23 @@ extension AppCoordinator: OverlayEditorDelegate {
         // settings UI, never actually gating a notification.
         guard settings.showNotifications else { return }
         notificationService.notify("Снимок сохранён", language: language)
+    }
+
+    /// Port of `AutoSaveCaptureAsync` (SPEC-DELTA-2.md §1.8, SPEC-DELTA-2B.md §E3): renders and
+    /// writes the just-committed capture to the user's save folder when "Автоматически сохранять
+    /// готовые снимки" is on. Never interrupts the capture flow — a failure only sets status text.
+    private func autoSave(_ capture: CaptureItem) async {
+        guard settings.autoSaveCaptures else { return }
+        let index = workspace.session.captures.firstIndex(where: { $0.id == capture.id }) ?? 0
+        let displayLabel = (try? CaptureLabels.forIndex(index)) ?? "A"
+        do {
+            _ = try AutoSaveService.save(
+                capture: capture, displayLabel: displayLabel, sessionDirectory: workspace.sessionDirectory,
+                settings: settings)
+            if settings.showNotifications { notificationService.notify("Снимок сохранён", language: language) }
+        } catch {
+            stackWindow?.setStatus(
+                "\(MacUiText.text("Автосохранение не выполнено", language: language)): \(error)", isError: true)
+        }
     }
 }

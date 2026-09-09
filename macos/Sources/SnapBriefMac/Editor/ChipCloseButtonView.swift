@@ -1,5 +1,5 @@
 // Port of the close-path buttons in `AddChip`/`ShotNoteChip` (`OverlayEditorWindow.xaml.cs:404-415`,
-// `OverlayEditorWindow.xaml:75-77`), SPEC §1.4. Shared by `CommentChipView` and `ShotNoteChipView`.
+// `OverlayEditorWindow.xaml:75-77`), SPEC §1.4. Used by `CommentChipView`.
 import AppKit
 
 /// The small `M1,1 L9,9 M9,1 L1,9` close ("×") glyph button used by both comment chip kinds.

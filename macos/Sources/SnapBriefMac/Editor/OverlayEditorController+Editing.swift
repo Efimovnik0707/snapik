@@ -61,6 +61,13 @@ extension OverlayEditorController {
         canvasView?.activeThickness = activeThickness
         canvasView?.capture = capture
 
+        if chipLayerView == nil {
+            let layer = ChipLayerView(frame: NSRect(origin: .zero, size: slot.contentView.bounds.size))
+            layer.autoresizingMask = [.width, .height]
+            slot.contentView.addSubview(layer)
+            chipLayerView = layer
+        }
+
         if toolbarView == nil {
             let toolbar = EditorToolbarView(language: language)
             toolbar.onToolSelected = { [weak self] tool in self?.selectTool(tool) }
@@ -74,11 +81,9 @@ extension OverlayEditorController {
 
         setupCaptureHandles(on: slot)
 
-        // ShotNoteChip text/title is applied lazily when it is (re)opened (SPEC §1.4).
         lastSnapshot = snapshotState()
         refreshLabels()
         rebuildChips(on: slot)
-        updateContextNoteAffordance(annotation: nil)
         positionToolbar()
         window(for: screenIndex)?.makeFirstResponder(canvasView)
         settingUp = false
@@ -93,19 +98,16 @@ extension OverlayEditorController {
     func teardownEditingViews() {
         canvasContainerView?.removeFromSuperview()
         toolbarView?.removeFromSuperview()
-        shotNoteChipView?.removeFromSuperview()
-        contextNoteButtonView?.removeFromSuperview()
+        chipLayerView?.removeFromSuperview()
         for handle in captureHandleViews { handle.removeFromSuperview() }
         resizeOutlineView?.removeFromSuperview()
-        for chip in chipViews.values { chip.removeFromSuperview() }
+        chipViews.removeAll()
         canvasContainerView = nil
         canvasView = nil
         toolbarView = nil
-        shotNoteChipView = nil
-        contextNoteButtonView = nil
+        chipLayerView = nil
         captureHandleViews = []
         resizeOutlineView = nil
-        chipViews.removeAll()
     }
 
     private func wireCanvasCallbacks(_ canvas: AnnotationCanvasView) {
@@ -113,16 +115,27 @@ extension OverlayEditorController {
         canvas.onSelectionChanged = { [weak self] annotation in self?.selectionChanged(annotation) }
         canvas.onAnnotationChanged = { [weak self] in self?.annotationChanged() }
         canvas.onCropRequested = { [weak self] bounds in self?.cropRequested(bounds) }
+        // SPEC-DELTA-2.md §1.3 "Text двойным кликом": show/focus that Text annotation's chip.
+        canvas.onTextDoubleClicked = { [weak self] annotation in
+            guard let self else { return }
+            self.visibleChipIds.insert(annotation.id)
+            if let chip = self.chipViews[annotation.id] {
+                self.expandChip(annotation.id, expanded: true)
+                chip.focusAndSelectAll()
+            } else {
+                self.addChip(for: annotation, focus: true)
+            }
+        }
     }
 
     private func wireToolbarActions(_ toolbar: EditorToolbarView) {
         toolbar.appearanceButton.onClick = { [weak self] in self?.toggleAppearancePopover() }
         toolbar.moreToolsButton.onClick = { [weak self] in self?.showMoreToolsMenu() }
         toolbar.commentButton.onClick = { [weak self] in self?.commentButtonClicked() }
+        toolbar.arrowOptionsButton.onClick = { [weak self] in self?.showArrowStyleMenu() }
         toolbar.undoButton.onClick = { [weak self] in self?.performUndo() }
         toolbar.redoButton.onClick = { [weak self] in self?.performRedo() }
         toolbar.saveButton.onClick = { [weak self] in self?.saveToFile() }
-        toolbar.addCaptureButton.onClick = { [weak self] in self?.commit(addNext: true) }
         toolbar.doneButton.onClick = { [weak self] in self?.commit(addNext: false) }
     }
 
@@ -146,6 +159,8 @@ extension OverlayEditorController {
     /// outlive this call: `NSMenu.popUp(positioning:at:in:)` runs its own modal event-tracking
     /// loop and does not return until the menu closes, so a local `let` is enough to keep it alive
     /// for every click.
+    /// SPEC-DELTA-2B.md §C6: "только Pen/Highlight/Conceal" — Text moved onto the main toolbar as
+    /// a regular toggle button, so it no longer appears here.
     func showMoreToolsMenu() {
         guard let toolbar = toolbarView else { return }
         let target = MoreToolsMenuTarget(controller: self)
@@ -162,11 +177,63 @@ extension OverlayEditorController {
 
         addTool("\(EditorStrings.toolPen(language))    P", .pen, #selector(MoreToolsMenuTarget.selectPen))
         addTool("\(EditorStrings.toolHighlight(language))    H", .highlight, #selector(MoreToolsMenuTarget.selectHighlight))
-        addTool("\(EditorStrings.toolText(language))    T", .text, #selector(MoreToolsMenuTarget.selectText))
         addTool("\(EditorStrings.toolConcealSolid(language))    X", .conceal, #selector(MoreToolsMenuTarget.selectConceal))
 
         let anchor = CGPoint(x: 0, y: toolbar.moreToolsButton.frame.maxY)
         menu.popUp(positioning: nil, at: toolbar.convert(anchor, from: toolbar.moreToolsButton), in: toolbar)
+    }
+
+    // MARK: - Arrow style menu (SPEC-DELTA-2.md §1.2, SPEC-DELTA-2B.md §C6)
+
+    /// Port of the `ArrowOptionsButton` menu (`OverlayEditorWindow.Arrows.cs`): 4 items, each with
+    /// a rendered sample image and a checkmark on the currently-active style (the selected arrow's
+    /// own style if one is selected, else the tool-level default). Clicking an item either mutates
+    /// the selected arrow's style (pushing one undo step) or just arms the Arrow tool with that
+    /// style, and always updates `canvasView.activeArrowStyle` for the *next* new arrow.
+    func showArrowStyleMenu() {
+        guard let toolbar = toolbarView, let canvasView else { return }
+        let target = ArrowStyleMenuTarget(controller: self)
+        let menu = NSMenu()
+        let selectedArrow = canvasView.selectedAnnotation?.kind == .arrow ? canvasView.selectedAnnotation : nil
+        let currentStyle = selectedArrow?.arrowStyle ?? canvasView.activeArrowStyle
+
+        func addStyle(_ title: String, _ style: String) {
+            let item = NSMenuItem(title: title, action: #selector(ArrowStyleMenuTarget.selectStyle(_:)), keyEquivalent: "")
+            item.target = target
+            item.representedObject = style
+            item.image = ArrowDrawing.sampleImage(style: style)
+            item.state = currentStyle == style ? .on : .off
+            item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: NSColor.white])
+            menu.addItem(item)
+        }
+
+        addStyle(EditorStrings.arrowStraight(language), "straight")
+        addStyle(EditorStrings.arrowCurved(language), "curved")
+        addStyle(EditorStrings.arrowBold(language), "bold")
+        addStyle(EditorStrings.arrowWide(language), "wide")
+
+        let anchor = CGPoint(x: 0, y: toolbar.arrowOptionsButton.frame.maxY)
+        menu.popUp(positioning: nil, at: toolbar.convert(anchor, from: toolbar.arrowOptionsButton), in: toolbar)
+    }
+
+    /// Port of the arrow-style menu item click (`Arrows.cs:25-31`): mutating an already-selected
+    /// arrow pushes one undo step; otherwise this just arms the Arrow tool. `canvasView
+    /// .activeArrowStyle` (and `syncAppearance()`) is always refreshed either way, so the *next*
+    /// new arrow picks up the chosen style.
+    func applyArrowStyle(_ style: String) {
+        guard let canvasView else { return }
+        if let selected = canvasView.selectedAnnotation, selected.kind == .arrow {
+            if let before = lastSnapshot { history.pushWithoutClearingRedo(before) }
+            history.clearRedo()
+            selected.arrowStyle = style
+            lastSnapshot = snapshotState()
+            canvasView.needsDisplay = true
+        } else {
+            selectTool(.arrow)
+        }
+        canvasView.activeArrowStyle = style
+        syncAppearance()
+        refreshUndoRedoButtons()
     }
 
     // MARK: - In-canvas crop (SPEC §1.3 "Crop как отдельный случай")
@@ -226,6 +293,21 @@ final class MoreToolsMenuTarget: NSObject {
 
     @objc func selectPen() { controller?.selectTool(.pen) }
     @objc func selectHighlight() { controller?.selectTool(.highlight) }
-    @objc func selectText() { controller?.selectTool(.text) }
     @objc func selectConceal() { controller?.selectTool(.conceal) }
+}
+
+/// `NSMenu` target for the arrow-style menu (`showArrowStyleMenu()`), same reasoning as
+/// `MoreToolsMenuTarget` above.
+@MainActor
+final class ArrowStyleMenuTarget: NSObject {
+    weak var controller: OverlayEditorController?
+
+    init(controller: OverlayEditorController) {
+        self.controller = controller
+    }
+
+    @objc func selectStyle(_ sender: NSMenuItem) {
+        guard let style = sender.representedObject as? String else { return }
+        controller?.applyArrowStyle(style)
+    }
 }

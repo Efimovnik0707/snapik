@@ -107,9 +107,16 @@ final class OverlayEditorController {
     var toolbarView: EditorToolbarView?
     var captureHandleViews: [CaptureHandleView] = []
     var resizeOutlineView: ResizeOutlineView?
+    /// Host view for every comment chip (SPEC-DELTA-2B.md §C7 "Новый `ChipLayerView`"), sized to
+    /// the full screen; created lazily in `setupEditor()`.
+    var chipLayerView: ChipLayerView?
     var chipViews: [SBGuid: CommentChipView] = [:]
-    var shotNoteChipView: ShotNoteChipView?
-    var contextNoteButtonView: ContextNoteButtonView?
+    /// Port of `_commentParentId` (SPEC-DELTA-2.md §1.3 "One-shot"): captured by
+    /// `commentButtonClicked()`/the `N` hotkey right before arming `.comment`, consumed by
+    /// `annotationCreated` the moment the pin is placed. `nil` means "attach to the whole capture".
+    var commentParentId: SBGuid?
+    /// The single chip currently shown expanded (270pt wide), if any (SPEC-DELTA-2B.md §C7).
+    var expandedChipId: SBGuid?
 
     /// SPEC §1.2 step 5 / §9.8: the frontmost app before this overlay activates itself, restored
     /// by `close()` (finding 3 — an `.accessory` app's window never becomes key without an
@@ -173,6 +180,15 @@ final class OverlayEditorController {
 
         let editorCapture = EditorCapture.fromCore(capture, image: image)
         editorCapture.displayLabel = (try? CaptureLabels.forIndex(captureIndex)) ?? "A"
+        // SPEC-DELTA-2.md §1.3 "Legacy": a pre-sync whole-capture note becomes a Comment pin
+        // attached to nothing (`parentAnnotationId == nil`, "к снимку"), and the legacy field is
+        // cleared so it round-trips as empty from here on.
+        if !editorCapture.note.isEmpty {
+            editorCapture.annotations.append(EditorAnnotation(
+                kind: .comment, points: [CGPoint(x: 24, y: 24), CGPoint(x: 32, y: 32)],
+                color: EditorTheme.accent, thickness: 4, note: editorCapture.note))
+            editorCapture.note = ""
+        }
         self.capture = editorCapture
         currentSourcePath = capture.sourceImagePath
 
@@ -210,6 +226,7 @@ final class OverlayEditorController {
 
             wireSelectionCallbacks(contentView, screenIndex: slots.count - 1)
             wireKeyEquivalents(window)
+            wireChipDismissal(window)
         }
     }
 

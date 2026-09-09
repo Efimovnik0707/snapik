@@ -8,9 +8,15 @@ import SnapBriefCore
 extension AppCoordinator {
     // MARK: - Clipboard package (SPEC §1.10, §1.12)
 
-    /// Port of `SaveAndCopyCommittedPackageAsync` (`:386-404`).
+    /// Port of `SaveAndCopyCommittedPackageAsync` (`:386-404`). SPEC-DELTA-2A §4: runs under
+    /// `clipboardPublicationGate` and cancels any in-flight receiver-echo watch first — this
+    /// publishes a brand-new package, so any watch still chasing the *previous* one is obsolete.
     @discardableResult
     func saveAndCopyCommittedPackage() async -> Bool {
+        await clipboardPublicationGate.wait()
+        defer { clipboardPublicationGate.release() }
+        cancelReceiverEchoWatch()
+
         do {
             let renderer = ExportImageRenderer()
             let export = try await workspace.prepareExport(renderer: renderer)
@@ -48,9 +54,14 @@ extension AppCoordinator {
         }
     }
 
-    /// Port of `RefreshOwnedClipboardAsync` (`:656-688`).
+    /// Port of `RefreshOwnedClipboardAsync` (`:656-688`). SPEC-DELTA-2A §4: runs under
+    /// `clipboardPublicationGate`, same reasoning as `saveAndCopyCommittedPackage`.
     // `internal` (not `private`): called from stack actions in `AppCoordinator.swift`.
     func refreshOwnedClipboard() async {
+        await clipboardPublicationGate.wait()
+        defer { clipboardPublicationGate.release() }
+        cancelReceiverEchoWatch()
+
         guard let receipt = ownedClipboardReceipt else { return }
         let stillOurs = await withCheckedContinuation { continuation in
             clipboard.capture { continuation.resume(returning: $0.sequence == receipt.sequence) }
@@ -207,8 +218,9 @@ extension AppCoordinator {
     // MARK: - Fast save (SPEC §1.14)
 
     func saveFullscreen() async {
-        // Finding 11: don't race a paste-intent-driven session rotation that's still in flight.
-        guard !isCompletingPasteIntent else { return }
+        // Finding 11 / SPEC-DELTA-2A §4: don't race a paste-intent-driven session rotation
+        // that's still in flight.
+        await pasteIntentTransition?.value
         guard !isBusy else { return }
         isBusy = true
         let wasVisible = stackWindow?.isVisible ?? false
@@ -233,62 +245,11 @@ extension AppCoordinator {
         if wasVisible { stackWindow?.reveal() }
     }
 
-    // MARK: - Paste-intent-driven rotation (SPEC §1.11, §5.4)
-
-    /// Port of `OnPasteIntentObserved` (`:179-192`).
-    func handlePasteIntent(_ intent: PasteIntent) {
-        guard let receiptAtIntent = ownedClipboardReceipt, intent.clipboardSequence == receiptAtIntent.sequence else {
-            return  // Pasted something that wasn't our current package.
-        }
-        guard let promptAtIntent = ownedClipboardPromptText else {
-            stackWindow?.setStatus(StatusStrings.couldNotConfirmPackageContents, isError: true)
-            return
-        }
-        guard !isSessionResetting, !isCompletingPasteIntent else { return }
-
-        Task { @MainActor in await completePasteIntent(intent, receiptAtIntent: receiptAtIntent, promptAtIntent: promptAtIntent) }
-    }
-
-    /// Port of `CompletePasteIntentAsync` (`:194-230`): runs the Codex Desktop text catch-up
-    /// (SPEC §5.4), then rotates the session if the package really was consumed.
-    private func completePasteIntent(_ intent: PasteIntent, receiptAtIntent: ClipboardSnapshot, promptAtIntent: String) async {
-        isCompletingPasteIntent = true
-        defer { isCompletingPasteIntent = false }
-
-        let result = await withCheckedContinuation { (continuation: CheckedContinuation<CodexPasteCompletionResult, Never>) in
-            codexPasteCompletion.complete(
-                intent: intent, ownedPackageReceipt: receiptAtIntent, immutablePromptText: promptAtIntent
-            ) { completion in continuation.resume(returning: completion) }
-        }
-
-        // A newer capture may have replaced the package while completion was waiting: never
-        // rotate that newer session in response to this older paste intent (`:204-205`).
-        guard ownedClipboardReceipt?.sequence == receiptAtIntent.sequence else { return }
-
-        if let textReceipt = result.textClipboardReceipt {
-            ownedClipboardReceipt = textReceipt
-        }
-
-        switch result.status {
-        case .completedUnverified:
-            await startNewSession()
-        case .notApplicable:
-            // Pasted our package somewhere other than Codex Desktop — still rotate, as long as
-            // our package is (still) what's actually on the clipboard.
-            let sequence = ownedClipboardReceipt?.sequence
-            let stillOurs = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-                clipboard.capture { continuation.resume(returning: sequence != nil && $0.sequence == sequence) }
-            }
-            if stillOurs { await startNewSession() }
-        case .failed:
-            let message = result.error.map { "\($0)" } ?? result.message
-            stackWindow?.setStatus(StatusStrings.pasteObservedButSessionNotStarted(message), isError: true)
-        default:
-            stackWindow?.setStatus(StatusStrings.capturesSavedButPasteIncomplete(result.message), isError: true)
-        }
-    }
-
     // MARK: - Settings (SPEC §1.17)
+    //
+    // `handlePasteIntent`/`completePasteIntent` (formerly here, SPEC §1.11/§5.4) moved to
+    // `AppCoordinator+PasteIntent.swift` per SPEC-DELTA-2A §4: the rewrite adds the intercepted
+    // per-image sequence, the reusable-package republish, and the receiver-echo watch.
 
     /// Port of `OpenSettings` step 1: unregister both hotkeys before showing the dialog, so a
     /// combination we already own doesn't look "taken" while it is being re-recorded.
@@ -323,5 +284,6 @@ extension AppCoordinator {
     func shutdown() {
         hotkeyService.unregisterAll()
         pasteIntentObserver.stop()
+        cancelReceiverEchoWatch()
     }
 }

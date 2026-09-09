@@ -18,6 +18,11 @@ public enum UiLanguage {
         ("Уведомления о копировании и сохранении", "Notify on copy and save"),
         ("Запоминать последнюю область", "Remember the last region"),
         ("Захватывать курсор", "Capture the cursor"),
+        // Sync 2 additions (SPEC-DELTA-2.md §3, order matches `src/SnapBrief.App/UiLanguage.cs`).
+        ("Звуки захвата и стопки", "Capture and stack sounds"),
+        ("Автоматически сохранять готовые снимки", "Automatically save completed captures"),
+        ("Укажите папку сохранения.", "Choose a save folder."),
+        ("Автосохранение не выполнено", "Auto-save failed"),
         ("Язык", "Language"),
         ("Захват области", "Capture region"),
         ("Быстро сохранить весь экран", "Instantly save the full screen"),
@@ -56,6 +61,27 @@ public enum UiLanguage {
         ("Удалить комментарий", "Remove comment"),
         ("Отменить", "Undo"),
         ("Повторить", "Redo"),
+        // Sync 2 additions (SPEC-DELTA-2.md §3): preview window, comments, arrow styles.
+        ("Просмотр снимка", "Capture preview"),
+        ("По размеру окна", "Fit to window"),
+        ("Увеличить", "Zoom in"),
+        ("Уменьшить", "Zoom out"),
+        ("На весь экран", "Full screen"),
+        ("Вернуть размер", "Restore size"),
+        ("Разметка", "Mark up"),
+        ("Закрыть просмотр", "Close preview"),
+        ("Комментарии", "Comments"),
+        ("Нет комментариев", "No comments yet"),
+        ("Комментарий к снимку", "Capture comment"),
+        ("К снимку", "To capture"),
+        ("К отметке", "To annotation"),
+        ("Прямая стрелка", "Straight arrow"),
+        ("Изогнутая стрелка", "Curved arrow"),
+        ("Толстая стрелка", "Bold arrow"),
+        ("Широкая стрелка", "Wide arrow"),
+        ("Стиль стрелки", "Arrow style"),
+        ("Добавить комментарий (N)", "Add comment (N)"),
+        ("Закрыть ввод текста", "Close text editor"),
         ("Сохранить на компьютер (Ctrl+S)", "Save to computer (Ctrl+S)"),
         ("Свернуть в трей", "Hide to tray"),
         ("Ещё", "More"),
@@ -77,6 +103,13 @@ public enum UiLanguage {
         ("Снимки скопированы", "Captures copied"),
         ("Скопировано", "Copied"),
         ("Изображения и комментарии готовы к вставке", "Images and comments are ready to paste"),
+        // Sync 2 additions (SPEC-DELTA-2.md §3, appended at the end of the Windows dictionary).
+        ("Снимки сохранены, но вставка не завершена", "Captures were saved, but pasting did not finish"),
+        (
+            "Вставлено: {0} изображений · {1} заметок. Пакет остаётся в буфере, следующий снимок начнёт новую стопку",
+            "Pasted: {0} images · {1} notes. The package stays on the clipboard, the next capture will start a new stack"
+        ),
+        ("Пакет вытеснен другим приложением. Сессия сохранена.", "Another app replaced the package. The session was saved."),
     ]
 
     private static let english: [String: String] = Dictionary(englishPairs, uniquingKeysWith: { first, _ in first })

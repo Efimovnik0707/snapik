@@ -29,14 +29,22 @@ forced). Every file has a `// port of <C# path>` doc comment citing its source.
 ## Models (`Models/`)
 
 - **`AnnotationKind`**: `String, Codable` enum — `.arrow .rectangle .highlight .freehand .text
-  .redaction .blur`. Raw values equal case names (already camelCase for JSON).
+  .redaction .blur .comment` (`.comment` added in sync 2, SPEC-DELTA-2B §B — a pin-shaped note
+  linked to another annotation or the capture itself, no geometry drawn on screen/export). Raw
+  values equal case names (already camelCase for JSON).
 - **`NormalizedPoint(x: Double, y: Double)`** — `Codable`, JSON keys `x`, `y`.
 - **`AnnotationItem`**: `id: SBGuid, kind: AnnotationKind, points: [NormalizedPoint],
   strokeColor: String, thickness: Double, text: String, note: String, pathSegments:
-  [[NormalizedPoint]]`. `.create(kind:points:strokeColor:thickness:text:note:) -> AnnotationItem`
-  (defaults: `strokeColor: "#FF3B30"`, `thickness: 3`). `.getPathSegments() -> [[NormalizedPoint]]`
-  — returns `pathSegments` if non-empty, else `[points]` (or `[]` if `points` empty too). JSON
-  decode tolerates a missing `pathSegments` key (schema-1 legacy sessions), defaulting to `[]`.
+  [[NormalizedPoint]], parentAnnotationId: SBGuid?, arrowStyle: String`.
+  `.create(kind:points:strokeColor:thickness:text:note:parentAnnotationId:arrowStyle:) ->
+  AnnotationItem` (defaults: `strokeColor: "#FF3B30"`, `thickness: 3`, `parentAnnotationId: nil`,
+  `arrowStyle: "straight"`). `.getPathSegments() -> [[NormalizedPoint]]` — returns `pathSegments`
+  if non-empty, else `[points]` (or `[]` if `points` empty too). JSON decode tolerates missing
+  `pathSegments`/`parentAnnotationId`/`arrowStyle` keys (pre-sync-2 sessions), defaulting to `[]`/
+  `nil`/`"straight"` respectively. `parentAnnotationId` (sync 2, SPEC-DELTA-2B §B): GUID of the
+  annotation a `.comment` is visually linked to; `nil` means linked to the capture itself.
+  `arrowStyle` (sync 2): `"straight"` (default) / `"curved"` / `"bold"` / `"wide"`, consumed by
+  `Imaging/ArrowDrawing.swift` (Mac app target, out of Core's scope) for `.arrow` rendering.
 - **`CaptureItem`**: `id: SBGuid, sourceImagePath: String, pixelWidth/pixelHeight: Int,
   dpiX/dpiY: Double, title: String, note: String, annotations: [AnnotationItem]`.
   `.create(sourceImagePath:pixelWidth:pixelHeight:dpiX:dpiY:title:note:) -> CaptureItem` (dpi
@@ -60,9 +68,11 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
 - **`CaptureCropper.crop(source:cropBounds:croppedSourceImagePath:croppedPixelWidth:
   croppedPixelHeight:) throws -> CropResult`** (`{ previousCapture, croppedCapture,
   removedAnnotationIds: [SBGuid] }`). Liang-Barsky-style line/box/polyline clipping identical to
-  the C# port: arrows clip as lines, rectangle/text/redaction/blur clip as boxes, freehand/
-  highlight clip as multi-run polylines (disjoint visible runs preserved separately, never
-  rejoined). Throws `.argumentOutOfRange`/`.argument` for invalid crop bounds or paths.
+  the C# port: arrows clip as lines, rectangle/text/redaction/blur/**comment** (sync 2) clip as
+  boxes, freehand/highlight clip as multi-run polylines (disjoint visible runs preserved
+  separately, never rejoined). Throws `.argumentOutOfRange`/`.argument` for invalid crop bounds or
+  paths. Sync 2 (SPEC-DELTA-2B §B): a retained annotation whose `parentAnnotationId` pointed at an
+  annotation the crop removed has its link cleared (`nil`) instead of being removed itself.
 - **`SessionHistory`** (class): `init(initial:timeProvider:)`, `.current` (get-only),
   `.canUndo/.canRedo`, `.apply(_ op: (SnapBriefSession) throws -> SnapBriefSession) rethrows`
   (pushes onto undo stack + clears redo unless `op` returns an equal session), `.undo()/.redo()
@@ -77,13 +87,16 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
 ## Exporting (`Exporting/`)
 
 - **`ExportText.hasContent(_ value: String?) -> Bool`** — non-nil and not all-whitespace.
-- **`CaptureLabels.forIndex(_ i: Int) throws -> String`** (0→"A" … 25→"Z", else
-  `.argumentOutOfRange`), `.forAnnotation(captureLabel:oneBasedIndex:) -> String` ("A" + 1 →
-  "A1"), `.forNotedAnnotations(captureLabel:capture:) -> [LabeledAnnotation]` (only annotations
-  with non-blank notes, numbered in order).
+- **`CaptureLabels.forIndex(_ i: Int) throws -> String`** — bijective base-26 (sync 2,
+  SPEC-DELTA-2B §B): 0→"A" … 25→"Z", 26→"AA", 299→"KN", unbounded above; throws
+  `.argumentOutOfRange` only for `i < 0`. `.forAnnotation(captureLabel:oneBasedIndex:) -> String`
+  ("A" + 1 → "A1"), `.forNotedAnnotations(captureLabel:capture:) -> [LabeledAnnotation]` (only
+  annotations with non-blank notes, numbered in order).
 - **`PromptGenerator().generate(_ session: SnapBriefSession) throws -> String`** — Russian prompt
   text verbatim from the C# port ("Общее пожелание:", "Снимок {label}", "Комментарий к снимку:",
-  `"{label}: {note}"` per noted annotation), sections joined by `"\n\n"`.
+  `"{label}: {note}"` per noted annotation), sections joined by `"\n\n"`. Sync 2 (SPEC-DELTA-2B
+  §B): a noted annotation whose `parentAnnotationId` points at another *numbered* (non-blank-note)
+  annotation gets a `" (к области <МЕТКА_РОДИТЕЛЯ>)"` suffix appended to its line.
 - **`ExportImageEntry`/`ExportManifest`/`PreparedExport`/`ExportImageContext`**: `Codable` data
   contracts, camelCase JSON fields matching the C# port 1:1 (`captureId`, `displayLabel`,
   `fileName`, `sha256`, `byteLength`, `exportId`, `sessionId`, `promptFileName`, `promptSha256`,
@@ -138,10 +151,11 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
 ## Settings / i18n (`Settings/`)
 
 - **`UiLanguage`**: `.current: String` ("ru"/"en"), `.text(_:language:) -> String` — the RU/EN
-  string table ported verbatim from `src/SnapBrief.App/UiLanguage.cs` (~65 pairs: menu items,
-  tool names, dialog labels, notification text). The WPF view-tree walker (`UiLanguage.Apply`)
-  was **not** ported (AppKit-specific UI plumbing, out of Core's scope) — the Mac app target
-  should localize its own view tree using `UiLanguage.text(_:language:)`.
+  string table ported verbatim from `src/SnapBrief.App/UiLanguage.cs` (~92 pairs after sync 2:
+  menu items, tool names, dialog labels, notification text, plus the preview window/comments/
+  arrow-style/auto-save strings added by SPEC-DELTA-2.md §3). The WPF view-tree walker
+  (`UiLanguage.Apply`) was **not** ported (AppKit-specific UI plumbing, out of Core's scope) — the
+  Mac app target should localize its own view tree using `UiLanguage.text(_:language:)`.
 - **`HotkeyModifiers`**: `OptionSet<UInt32>` — `.alt = 0x1, .control = 0x2, .shift = 0x4,
   .windows = 0x8, .noRepeat = 0x4000` (bit-identical to `SnapBrief.Windows.HotkeyModifiers`, kept
   only so persisted `"custom:{modifiers}:{key}"` id strings stay numerically comparable across
@@ -150,11 +164,17 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
 - **`HotkeySettings`**: `captureId, pasteId: String` (required) plus defaulted fields
   `captureEnabled(true), fullscreenSaveEnabled(false), fullscreenSaveId("custom:4:44"),
   showNotifications(true), rememberRegion(false), captureCursor(false), saveFormat("png"),
-  jpegQuality(90), saveDirectory(~/Pictures/SnapBrief), language("ru")`.
+  jpegQuality(90), saveDirectory(~/Pictures/SnapBrief), language("ru"), autoSaveCaptures(false),
+  playSounds(true)`. The last two are sync 2 additions (SPEC-DELTA-2B §B/§E4).
   `.default`, `.choices`/`.pasteChoices: [HotkeyChoice]` (same ids/labels as the C# `Choices`),
   `.find(_ id: String) -> HotkeyChoice`. **JSON is PascalCase** (`CaptureId`, `SaveDirectory`,
-  ...) — the C# `Save`/`Load` use a *default* `JsonSerializerOptions` (no camelCase policy),
-  unlike session/manifest JSON, so use plain `JSONEncoder()/JSONDecoder()`, not `SnapBriefJson`.
+  `AutoSaveCaptures`, `PlaySounds`, ...) — the C# `Save`/`Load` use a *default*
+  `JsonSerializerOptions` (no camelCase policy), unlike session/manifest JSON, so use plain
+  `JSONEncoder()/JSONDecoder()`, not `SnapBriefJson`. `Codable` conformance uses an explicit
+  `init(from:)`/`encode(to:)` (not the synthesized one): every field is `decodeIfPresent` with its
+  own default, so a settings file missing any key — including the sync-2 `AutoSaveCaptures`/
+  `PlaySounds` keys a pre-sync-2 file won't have — still decodes per-field instead of the whole
+  `Decodable` conformance failing.
   `.load(path: URL) -> HotkeySettings` / `.save(path: URL) throws` — any decode failure (missing
   file, corrupt JSON) returns `.default`, matching the C# catch-all fallback.
   **Not ported**: `HotkeyGesture`/virtual-key → `Key` name mapping (`KeyInterop`,

@@ -23,19 +23,30 @@ import SnapBriefCore
 public final class MacClipboardService: ClipboardServicing {
     private let pasteboard: NSPasteboard
     private let queue: DispatchQueue
+    /// SPEC-DELTA-2A §3.1: `pngItem(for:)` includes a `.fileURL` type in the same item as
+    /// `.png`/`.tiff` by default. Risk 5 ("Terminal.app по Cmd+V с `.fileURL` может вставить путь
+    /// текстом"): set `false` to fall back to PNG/TIFF-only image items.
+    private let pngItemIncludesFileURL: Bool
 
     /// `pasteboard` defaults to `.general`; tests inject a private named pasteboard
     /// (`NSPasteboard(name: .init("snapbrief-test"))`) so they never touch the real system
     /// clipboard. `queue` defaults to `.main` per CONTRACTS.md ("операции на главной очереди").
-    public init(pasteboard: NSPasteboard = .general, queue: DispatchQueue = .main) {
+    public init(pasteboard: NSPasteboard = .general, queue: DispatchQueue = .main, pngItemIncludesFileURL: Bool = true) {
         self.pasteboard = pasteboard
         self.queue = queue
+        self.pngItemIncludesFileURL = pngItemIncludesFileURL
     }
 
     public func capture(_ completion: @escaping (ClipboardSnapshot) -> Void) {
         queue.async { completion(self.captureCore()) }
     }
 
+    /// Port of `SetPngGuardedAsync`'s package-writing counterpart. SPEC-DELTA-2A §3.1: a
+    /// single-image package writes one combined `.png`/`.tiff`/`.fileURL` item (via `pngItem`)
+    /// exactly like `setPNGGuarded`; a multi-image package (the "as-is" fallback, sent as-is to
+    /// whatever the user pastes into rather than staged one at a time) keeps one plain
+    /// `.fileURL` item per path — there is no single clipboard item that can hold more than one
+    /// image's raw bytes.
     public func setPackageGuarded(
         paths: [String],
         text: String,
@@ -46,11 +57,13 @@ public final class MacClipboardService: ClipboardServicing {
             do {
                 try self.requireCurrent(expectedSequence)
                 self.pasteboard.clearContents()
-                var items = paths.map { Self.fileURLItem(for: $0) }
-                items.append(Self.textItem(text))
-                if paths.count == 1, let imageItem = Self.imageItem(for: paths[0]) {
-                    items.append(imageItem)
+                var items: [NSPasteboardItem] = []
+                if paths.count == 1, let single = self.pngItem(for: paths[0]) {
+                    items.append(single)
+                } else {
+                    items.append(contentsOf: paths.map { Self.fileURLItem(for: $0) })
                 }
+                items.append(Self.textItem(text))
                 self.pasteboard.writeObjects(items)
                 completion(.success(self.captureCore()))
             } catch {
@@ -59,6 +72,10 @@ public final class MacClipboardService: ClipboardServicing {
         }
     }
 
+    /// SPEC-DELTA-2A §3.1: one `NSPasteboardItem` with `.png`, `.tiff`, `.fileURL` (in this order)
+    /// so a receiver picks the best type from within a single item, instead of the previous
+    /// two-item shape (a bare `.fileURL` item plus a separate `.png`/`.tiff` item) that Chromium/
+    /// Electron receivers (Claude Desktop) and `pngpaste`/Claude Code could not see an image in.
     public func setPNGGuarded(
         path: String,
         expectedSequence: Int?,
@@ -67,12 +84,11 @@ public final class MacClipboardService: ClipboardServicing {
         queue.async {
             do {
                 try self.requireCurrent(expectedSequence)
-                self.pasteboard.clearContents()
-                var items = [Self.fileURLItem(for: path)]
-                if let imageItem = Self.imageItem(for: path) {
-                    items.append(imageItem)
+                guard let item = self.pngItem(for: path) else {
+                    throw TransportError.other("Could not read image data at \(path).")
                 }
-                self.pasteboard.writeObjects(items)
+                self.pasteboard.clearContents()
+                self.pasteboard.writeObjects([item])
                 completion(.success(self.captureCore()))
             } catch {
                 completion(.failure(error))
@@ -137,14 +153,27 @@ public final class MacClipboardService: ClipboardServicing {
 
     /// Port of the PNG/DIB/Bitmap trio `CreatePngDataObject` writes for a single image
     /// (`Windows/WindowsClipboardService.cs:187-196`): raw PNG bytes plus a bitmap representation
-    /// (TIFF here, the macOS "universal raster format", SPEC §5.1).
-    private static func imageItem(for path: String) -> NSPasteboardItem? {
+    /// (TIFF here, the macOS "universal raster format", SPEC §5.1), plus the `.fileURL` (SPEC-
+    /// DELTA-2A §3.1) so receivers that only accept attachments still get the file, all inside one
+    /// `NSPasteboardItem`.
+    private func pngItem(for path: String) -> NSPasteboardItem? {
         guard let data = FileManager.default.contents(atPath: path) else { return nil }
         let item = NSPasteboardItem()
         item.setData(data, forType: .png)
         if let image = NSImage(data: data), let tiff = image.tiffRepresentation {
             item.setData(tiff, forType: .tiff)
         }
+        if pngItemIncludesFileURL {
+            let url = URL(fileURLWithPath: path)
+            item.setString(url.absoluteString, forType: .fileURL)
+        }
         return item
+    }
+
+    /// SPEC-DELTA-2A CONTRACTS.md sync 2 addendum: the raw list of pasteboard types currently
+    /// present, for the "Clipboard diagnostics: … formats=[…]" log line (SPEC-DELTA-2A §6).
+    /// `internal` (not `public`): only used from `AppCoordinator+PasteIntent.swift`, same module.
+    func diagnosticTypes() -> [String] {
+        pasteboard.pasteboardItems?.flatMap { $0.types.map(\.rawValue) } ?? []
     }
 }

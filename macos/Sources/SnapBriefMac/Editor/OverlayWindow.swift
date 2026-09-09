@@ -22,6 +22,11 @@ final class OverlayWindow: NSWindow {
     /// Set by `OverlayEditorController+Keys.wireKeyEquivalents`. Returning `true` consumes the
     /// event; `false` falls through to normal `performKeyEquivalent`/`keyDown` delivery.
     var onKeyEquivalent: ((NSEvent) -> Bool)?
+    /// Set by `OverlayEditorController+Chips.wireChipDismissal` (SPEC-DELTA-2B.md §C7: "Клик вне
+    /// чипов: `OverlayWindow.sendEvent` для `.leftMouseDown` → `onMouseDown?(event)`"). Observes
+    /// every left-mouse-down before normal dispatch, purely to collapse an expanded chip when the
+    /// click lands outside it; never consumes the event itself.
+    var onLeftMouseDown: ((NSEvent) -> Void)?
 
     init(screenFrame: NSRect) {
         super.init(contentRect: screenFrame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -43,5 +48,12 @@ final class OverlayWindow: NSWindow {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if let onKeyEquivalent, onKeyEquivalent(event) { return true }
         return super.performKeyEquivalent(with: event)
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown {
+            onLeftMouseDown?(event)
+        }
+        super.sendEvent(event)
     }
 }

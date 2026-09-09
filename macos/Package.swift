@@ -23,6 +23,10 @@ targets += [
         name: "SnapBriefMac",
         dependencies: ["SnapBriefCore"],
         path: "Sources/SnapBriefMac",
+        resources: [
+            .copy("Resources/Audio/camera-shutter.wav"),
+            .copy("Resources/Audio/camera-dial-click.wav"),
+        ],
         linkerSettings: [
             .linkedFramework("AppKit"),
             .linkedFramework("Carbon"),

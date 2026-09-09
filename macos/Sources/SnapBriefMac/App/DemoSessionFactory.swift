@@ -30,8 +30,23 @@ enum DemoSessionFactory {
                     ],
                     strokeColor: "#2F8CFF",
                     thickness: 4,
-                    note: index == 0 ? "Увеличить кнопку" : "Перенести пункт выше")
+                    note: index == 0 ? "Увеличить кнопку" : "Перенести пункт выше",
+                    arrowStyle: index == 1 ? "curved" : "straight")
                 capture.annotations.append(annotation)
+                if index == 0 {
+                    // SPEC-DELTA-2B.md §F: seed one linked comment (SPEC-DELTA-2.md §1.3) tied to
+                    // capture A's rectangle annotation, so the demo session exercises the new
+                    // comment/arrow-style fields end to end.
+                    let comment = AnnotationItem.create(
+                        kind: .comment,
+                        points: [
+                            NormalizedPoint(650.0 / 1280.0 + 0.02, 360.0 / 720.0 + 0.02),
+                            NormalizedPoint(650.0 / 1280.0 + 0.03, 360.0 / 720.0 + 0.03),
+                        ],
+                        note: "Уточнить размер",
+                        parentAnnotationId: annotation.id)
+                    capture.annotations.append(comment)
+                }
                 try workspace.replaceCapture(capture)
             }
         }
