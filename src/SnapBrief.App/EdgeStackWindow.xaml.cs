@@ -73,10 +73,13 @@ public partial class EdgeStackWindow : Window
                 _ownedClipboardReceipt is not { } receipt ||
                 intent.ClipboardSequenceNumber != receipt.SequenceNumber ||
                 string.IsNullOrEmpty(_ownedClipboardPromptText) || _prepared is null) return false;
+            if (intent.Gesture != HotkeyGesture.CtrlV && intent.Gesture != HotkeyGesture.AltV) return false;
             var target = foreground.Capture();
-            return target.IsUsable && target.WindowHandle == intent.ForegroundWindowHandle &&
-                target.ProcessId == intent.ForegroundProcessId &&
-                foreground.Matches(target, SnapBrief.Windows.TargetProfiles.ClaudeDesktopCode);
+            if (!target.IsUsable || target.WindowHandle != intent.ForegroundWindowHandle ||
+                target.ProcessId != intent.ForegroundProcessId) return false;
+            // Codex Desktop keeps the untouched CompleteAsync path: its physical Ctrl+V paste
+            // already works against the composite package, so it must not be intercepted here.
+            return !foreground.Matches(target, SnapBrief.Windows.TargetProfiles.CodexDesktop);
         });
 
         InitializeComponent();
@@ -211,7 +214,7 @@ public partial class EdgeStackWindow : Window
         try
         {
             var completion = e.IsIntercepted
-                ? await _codexPasteCompletion.CompleteClaudeAsync(e, receiptAtIntent, pathsAtIntent, promptAtIntent, CancellationToken.None)
+                ? await _codexPasteCompletion.CompleteSequentialAsync(e, receiptAtIntent, pathsAtIntent, promptAtIntent, CancellationToken.None)
                 : await _codexPasteCompletion.CompleteAsync(
                 e,
                 receiptAtIntent,

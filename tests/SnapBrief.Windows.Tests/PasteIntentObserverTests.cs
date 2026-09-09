@@ -99,4 +99,25 @@ public sealed class PasteIntentObserverTests
         Assert.False(state.ShouldSuppress(PasteIntentKeyState.V, true, true, interceptThisGesture: true));
         Assert.False(state.ShouldSuppress(PasteIntentKeyState.LeftControl, true, false, interceptThisGesture: true));
     }
+
+    [Fact]
+    public void InterceptedPhysicalAltV_SuppressesTheGestureAndOwnPhysicalReleaseIsNotInjected()
+    {
+        // Alt+V is classified the same way as Ctrl+V is: the interceptor only cares about the
+        // physical V key, so an Alt+V paste must be suppressible exactly like a Ctrl+V paste.
+        var keyState = new PasteIntentKeyState();
+        var interceptionState = new PasteIntentInterceptionState();
+
+        keyState.Observe(PasteIntentKeyState.LeftAlt, true, false);
+        var gesture = keyState.Observe(PasteIntentKeyState.V, true, false);
+        Assert.Equal(HotkeyGesture.AltV, gesture);
+
+        Assert.True(interceptionState.ShouldSuppress(PasteIntentKeyState.V, true, false, interceptThisGesture: true));
+        Assert.True(interceptionState.ShouldSuppress(PasteIntentKeyState.V, true, false, interceptThisGesture: false));
+
+        // SnapBrief's own synthetic Alt+V keystrokes are injected and must never be suppressed.
+        Assert.False(interceptionState.ShouldSuppress(PasteIntentKeyState.V, true, isInjected: true, interceptThisGesture: false));
+
+        Assert.False(interceptionState.ShouldSuppress(PasteIntentKeyState.V, false, false, interceptThisGesture: false));
+    }
 }

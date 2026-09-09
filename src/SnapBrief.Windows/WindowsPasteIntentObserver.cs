@@ -80,7 +80,7 @@ public sealed partial class WindowsPasteIntentObserver : IPasteIntentObserver
                             GetClipboardSequenceNumber(),
                             DateTimeOffset.UtcNow);
                         var handler = PasteIntentObserved;
-                        interceptThisGesture = observed == HotkeyGesture.CtrlV &&
+                        interceptThisGesture = (observed == HotkeyGesture.CtrlV || observed == HotkeyGesture.AltV) &&
                             handler is not null &&
                             shouldIntercept?.Invoke(intent) == true;
                         if (interceptThisGesture) intent = intent with { IsIntercepted = true };

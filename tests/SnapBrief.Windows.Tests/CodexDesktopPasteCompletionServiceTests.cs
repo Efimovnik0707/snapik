@@ -24,23 +24,25 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
-    public async Task InterceptedClaudeCtrlV_DispatchesOrderedPngImagesThenImmutableText_Unverified(int imageCount)
+    public async Task InterceptedCtrlVInArbitraryApp_DispatchesOrderedPngImagesThenImmutableTextViaCtrlV(int imageCount)
     {
-        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        // Any foreground application (not just a built-in profile) can receive the
+        // sequential paste path once its physical Ctrl+V was intercepted.
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
         var clipboard = new FakeClipboard(41);
-        var target = new FakeTarget(claude);
+        var target = new FakeTarget(grokBot);
         var input = new FakeInput();
         var service = Create(clipboard, target, input);
         var paths = Enumerable.Range(0, imageCount).Select(index => $@"C:\shots\{index}.png").ToArray();
         var intent = new PasteIntentObserved(
             HotkeyGesture.CtrlV,
-            claude.WindowHandle,
-            claude.ProcessId,
+            grokBot.WindowHandle,
+            grokBot.ProcessId,
             41,
             DateTimeOffset.UtcNow,
             IsIntercepted: true);
 
-        var result = await service.CompleteClaudeAsync(
+        var result = await service.CompleteSequentialAsync(
             intent,
             new ClipboardWriteReceipt(41),
             paths,
@@ -55,16 +57,50 @@ public sealed class CodexDesktopPasteCompletionServiceTests
         Assert.False(result.Message.Contains("accepted", StringComparison.OrdinalIgnoreCase));
     }
 
-    [Fact]
-    public async Task UninterceptedClaudeIntent_DoesNotWriteOrInject()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task InterceptedAltVInTerminal_DispatchesOrderedPngImagesViaAltVThenTextViaCtrlV(int imageCount)
     {
-        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        // A terminal hosting Claude Code pastes images with Alt+V but text always with Ctrl+V.
+        var terminal = new TargetSnapshot(101, 202, 303, "WindowsTerminal", "WindowsTerminal");
+        var clipboard = new FakeClipboard(41);
+        var target = new FakeTarget(terminal);
+        var input = new FakeInput();
+        var service = Create(clipboard, target, input);
+        var paths = Enumerable.Range(0, imageCount).Select(index => $@"C:\shots\{index}.png").ToArray();
+        var intent = new PasteIntentObserved(
+            HotkeyGesture.AltV,
+            terminal.WindowHandle,
+            terminal.ProcessId,
+            41,
+            DateTimeOffset.UtcNow,
+            IsIntercepted: true);
+
+        var result = await service.CompleteSequentialAsync(
+            intent,
+            new ClipboardWriteReceipt(41),
+            paths,
+            "Снимок A.");
+
+        Assert.Equal(CodexPasteCompletionStatus.CompletedUnverified, result.Status);
+        Assert.Equal(paths.Concat(["TEXT"]), clipboard.Writes);
+        Assert.Equal("Снимок A.", clipboard.WrittenText);
+        Assert.Equal(imageCount + 1, input.Gestures.Count);
+        Assert.All(input.Gestures.Take(imageCount), gesture => Assert.Equal(HotkeyGesture.AltV, gesture));
+        Assert.Equal(HotkeyGesture.CtrlV, input.Gestures[^1]);
+    }
+
+    [Fact]
+    public async Task UninterceptedIntent_DoesNotWriteOrInject()
+    {
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
         var clipboard = new FakeClipboard(41);
         var input = new FakeInput();
         var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow);
 
-        var result = await Create(clipboard, new FakeTarget(claude), input)
-            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
+        var result = await Create(clipboard, new FakeTarget(grokBot), input)
+            .CompleteSequentialAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
 
         Assert.Equal(CodexPasteCompletionStatus.NotApplicable, result.Status);
         Assert.Empty(clipboard.Writes);
@@ -73,15 +109,16 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     [Fact]
-    public async Task InterceptedTerminalIntent_DoesNotWriteOrInject()
+    public async Task InterceptedCodexDesktopIntent_StaysOnUnobservedCompleteAsyncPath_DoesNotWriteOrInject()
     {
-        var terminal = new TargetSnapshot(101, 202, 303, "WindowsTerminal", "Claude Code");
+        // Codex Desktop keeps its original CompleteAsync path even if something upstream
+        // marks the intent as intercepted; CompleteSequentialAsync must refuse it.
+        var intent = Intent(41) with { IsIntercepted = true };
         var clipboard = new FakeClipboard(41);
         var input = new FakeInput();
-        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
 
-        var result = await Create(clipboard, new FakeTarget(terminal), input)
-            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
+        var result = await Create(clipboard, new FakeTarget(Codex), input)
+            .CompleteSequentialAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
 
         Assert.Equal(CodexPasteCompletionStatus.NotApplicable, result.Status);
         Assert.Empty(clipboard.Writes);
@@ -90,11 +127,11 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     [Fact]
-    public async Task ClaudeFocusChangeDuringPhysicalRelease_StopsBeforeAnyPasteShortcut()
+    public async Task FocusChangeDuringPhysicalRelease_StopsBeforeAnyPasteShortcut()
     {
-        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
         var clipboard = new FakeClipboard(41);
-        var target = new FakeTarget(claude);
+        var target = new FakeTarget(grokBot);
         var input = new FakeInput
         {
             BeforeFinalGuard = () => target.Current = new TargetSnapshot(900, 901, 902, "Other", "Other")
@@ -102,7 +139,7 @@ public sealed class CodexDesktopPasteCompletionServiceTests
         var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
 
         var result = await Create(clipboard, target, input)
-            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
+            .CompleteSequentialAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
 
         Assert.Equal(CodexPasteCompletionStatus.TargetLost, result.Status);
         Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
@@ -112,16 +149,16 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     [Fact]
-    public async Task ClaudeFocusLossAfterFirstImagePaste_ReturnsCurrentReceiptAndStopsSequence()
+    public async Task FocusLossAfterFirstImagePaste_ReturnsCurrentReceiptAndStopsSequence()
     {
-        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
         var clipboard = new FakeClipboard(41);
-        var target = new FakeTarget(claude) { LoseFocusAfterFirstSameCheck = true };
+        var target = new FakeTarget(grokBot) { LoseFocusAfterFirstSameCheck = true };
         var input = new FakeInput();
         var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
 
         var result = await Create(clipboard, target, input)
-            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
+            .CompleteSequentialAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png"], "text");
 
         Assert.Equal(CodexPasteCompletionStatus.TargetLost, result.Status);
         Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
@@ -131,15 +168,15 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     [Fact]
-    public async Task ClaudeClipboardChangeAfterFirstImagePaste_StopsBeforeSecondImageAndText()
+    public async Task ClipboardChangeAfterFirstImagePaste_StopsBeforeSecondImageAndText()
     {
-        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
         var clipboard = new FakeClipboard(41);
         var input = new FakeInput { AfterDispatch = clipboard.ExternalWrite };
         var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
 
-        var result = await Create(clipboard, new FakeTarget(claude), input)
-            .CompleteClaudeAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png", @"C:\shots\1.png"], "text");
+        var result = await Create(clipboard, new FakeTarget(grokBot), input)
+            .CompleteSequentialAsync(intent, new ClipboardWriteReceipt(41), [@"C:\shots\0.png", @"C:\shots\1.png"], "text");
 
         Assert.Equal(CodexPasteCompletionStatus.ClipboardChanged, result.Status);
         Assert.Equal(new ClipboardWriteReceipt(42), result.CurrentClipboardReceipt);
@@ -149,20 +186,22 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     [Fact]
-    public async Task ClaudeCancellationAfterFirstImagePaste_ReturnsCurrentReceiptWithoutContinuing()
+    public async Task CancellationAfterFirstImagePaste_ReturnsCurrentReceiptWithoutContinuing()
     {
-        var claude = new TargetSnapshot(101, 202, 303, "Claude", "Claude");
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
         var clipboard = new FakeClipboard(41);
         using var cancellation = new CancellationTokenSource();
         var input = new FakeInput { AfterDispatch = cancellation.Cancel };
         var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
         var service = new CodexDesktopPasteCompletionService(
             clipboard,
-            new FakeTarget(claude),
+            new FakeTarget(grokBot),
             input,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(1),
             TimeSpan.FromSeconds(1));
 
-        var result = await service.CompleteClaudeAsync(
+        var result = await service.CompleteSequentialAsync(
             intent,
             new ClipboardWriteReceipt(41),
             [@"C:\shots\0.png", @"C:\shots\1.png"],
@@ -332,7 +371,7 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     private static CodexDesktopPasteCompletionService Create(FakeClipboard clipboard, FakeTarget target, FakeInput input) =>
-        new(clipboard, target, input, TimeSpan.Zero);
+        new(clipboard, target, input, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero);
 
     private static PasteIntentObserved Intent(uint sequence) =>
         new(HotkeyGesture.CtrlV, Codex.WindowHandle, Codex.ProcessId, sequence, DateTimeOffset.UtcNow);

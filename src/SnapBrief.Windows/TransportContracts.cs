@@ -352,6 +352,12 @@ public interface ICodexDesktopPasteCompletionService
         ClipboardWriteReceipt ownedPackageReceipt,
         string immutablePromptText,
         CancellationToken cancellationToken = default);
+    Task<CodexPasteCompletionResult> CompleteSequentialAsync(
+        PasteIntentObserved intent,
+        ClipboardWriteReceipt ownedPackageReceipt,
+        IReadOnlyList<string> immutableImagePaths,
+        string immutablePromptText,
+        CancellationToken cancellationToken = default);
     Task<CodexPasteCompletionResult> CompleteClaudeAsync(
         PasteIntentObserved intent,
         ClipboardWriteReceipt ownedPackageReceipt,
