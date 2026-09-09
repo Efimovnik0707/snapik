@@ -27,8 +27,8 @@ jobs:
       - name: SwiftPM build
         run: |
           set -o pipefail
-          swift build -c debug 2>&1 | tee build.log | grep -E "error:|warning:|Compiling|Build complete|Build of" | grep -vE "warning: .*(unused|never mutated|never used)" || true
-          grep -q "error:" build.log && exit 1 || true
+          swift build -c debug 2>&1 | tee build.log | grep -E ": error: |^error:|Build complete|Build of|Compiling" || true
+          grep -qE ": error: |^error:" build.log && exit 1 || true
       - name: SwiftPM tests
         run: |
           set -o pipefail
