@@ -31,6 +31,9 @@ public partial class OverlayEditorWindow : Window
     private readonly Stack<OverlaySnapshot> _undo = [];
     private readonly Stack<OverlaySnapshot> _redo = [];
     private readonly Dictionary<Guid, TextBlock> _chipLabels = [];
+    private readonly Dictionary<Guid, Border> _chipBorders = [];
+    private readonly Dictionary<Guid, Action<bool>> _chipExpanders = [];
+    private readonly Dictionary<Guid, Action> _chipFinishers = [];
     private readonly HashSet<Guid> _visibleChipIds = [];
     private readonly HashSet<string> _createdSourcePaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly RectangleGeometry _shadeOuter = new();
@@ -43,6 +46,7 @@ public partial class OverlayEditorWindow : Window
     private Color _activeColor = Color.FromRgb(47, 140, 255);
     private double _activeThickness = 4;
     private Guid? _commentParentId;
+    private Guid? _expandedChipId;
     private bool _settingUp;
     private bool _busyCrop;
 
@@ -121,22 +125,39 @@ public partial class OverlayEditorWindow : Window
         window.SetupEditor();
         var workingAnnotation = window._capture!.Annotations[0];
         window.Surface.SelectAnnotation(workingAnnotation.Id);
-        window.UpdateContextNoteAffordance(workingAnnotation);
-        window.Root.UpdateLayout();
-        if (window.ContextNoteButton.Visibility != Visibility.Visible || !window.ContextNoteButton.IsHitTestVisible ||
-            !double.IsFinite(Canvas.GetLeft(window.ContextNoteButton)) || !double.IsFinite(Canvas.GetTop(window.ContextNoteButton)))
-            throw new InvalidOperationException("The contextual note affordance is not laid out as a visible hit target.");
-
-        window.ContextNoteButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        window.OnCommentClick(window.CommentToolButton, new RoutedEventArgs());
+        if (window.Surface.Tool != EditorTool.Comment)
+            throw new InvalidOperationException("The comment command did not arm placement.");
         var comment = new AnnotationItem { Kind = EditorTool.Comment, Points = [new Point(200, 150), new Point(208, 158)] };
         window._capture.Annotations.Add(comment);
         window.OnAnnotationCreated(window, comment);
+        if (window.Surface.Tool != EditorTool.Select || window.SelectTool.IsChecked != true)
+            throw new InvalidOperationException("Comment placement remained armed after creating one pin.");
         var note = window.ChipLayer.Children.OfType<Border>()
             .Select(border => border.Child).OfType<Grid>()
             .SelectMany(grid => grid.Children.OfType<TextBox>()).Single();
         note.Text = "Контекстная заметка";
         if (comment.Note != note.Text || comment.ParentAnnotationId != workingAnnotation.Id || window.ChipLayer.Children.Count != 1)
-            throw new InvalidOperationException("The contextual note command did not bind the editor to its annotation.");
+            throw new InvalidOperationException("The one-shot comment did not bind its editor to the selected annotation.");
+
+        window.Surface.SelectAnnotation(workingAnnotation.Id);
+        window.OnCommentClick(window.CommentToolButton, new RoutedEventArgs());
+        var secondComment = new AnnotationItem { Kind = EditorTool.Comment, Points = [new Point(200, 150), new Point(208, 158)] };
+        window._capture.Annotations.Add(secondComment);
+        window.OnAnnotationCreated(window, secondComment);
+        var secondChip = window.ChipLayer.Children.OfType<Border>().Single(border => border.Tag is Guid id && id == secondComment.Id);
+        ((Grid)secondChip.Child).Children.OfType<TextBox>().Single().Text = "Второй комментарий";
+        window.Root.UpdateLayout();
+        window.RepositionChips();
+        var firstChip = window.ChipLayer.Children.OfType<Border>().Single(border => border.Tag is Guid id && id == comment.Id);
+        if (firstChip.Width != 43 || secondChip.Width != 270 || Panel.GetZIndex(secondChip) <= Panel.GetZIndex(firstChip))
+            throw new InvalidOperationException("Opening a comment did not collapse and lower the other chips.");
+        var firstRect = new Rect(Canvas.GetLeft(firstChip), Canvas.GetTop(firstChip), firstChip.Width, Math.Max(40, firstChip.ActualHeight));
+        var secondRect = new Rect(Canvas.GetLeft(secondChip), Canvas.GetTop(secondChip), secondChip.Width, Math.Max(40, secondChip.ActualHeight));
+        if (firstRect.IntersectsWith(secondRect))
+            throw new InvalidOperationException("Overlapping comment anchors produced overlapping chip controls.");
+        window.DeleteAnnotationNote(secondComment);
+
         _ = window.Surface.RenderAnnotated();
         window.Surface.SelectAnnotation(workingAnnotation.Id);
         var oldColor = workingAnnotation.Color;
@@ -151,11 +172,21 @@ public partial class OverlayEditorWindow : Window
         var restoredAnnotation = window._capture.Annotations.Single(a => a.Id == workingAnnotation.Id);
         if (restoredAnnotation.Color != oldColor || restoredAnnotation.Thickness != oldThickness)
             throw new InvalidOperationException("One undo must restore the appearance from before the property edit.");
-        var result = window._capture.DeepClone();
         var reopenedNoteChip = window.ChipLayer.Children.OfType<Border>().Single(b => b.Tag is Guid id && id == comment.Id);
         var reopenedNoteInput = ((Grid)reopenedNoteChip.Child).Children.OfType<TextBox>().Single();
         if (reopenedNoteInput.Text != "Контекстная заметка" || reopenedNoteInput.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("Restored comments must retain their text in a collapsed chip.");
+
+        window.SelectToolMode(EditorTool.Rectangle);
+        var blankRectangle = new AnnotationItem { Kind = EditorTool.Rectangle, Points = [new Point(320, 200), new Point(460, 300)] };
+        window._capture.Annotations.Add(blankRectangle);
+        window.OnAnnotationCreated(window, blankRectangle);
+        if (!window._chipFinishers.TryGetValue(blankRectangle.Id, out var finishBlank))
+            throw new InvalidOperationException("A new rectangle did not open its optional note editor.");
+        finishBlank();
+        if (!window._capture.Annotations.Contains(blankRectangle) || window.ChipLayer.Children.OfType<Border>().Any(border => border.Tag is Guid id && id == blankRectangle.Id))
+            throw new InvalidOperationException("Leaving an optional rectangle note blank did not remove only its extra chip.");
+
         var textAnnotation = new AnnotationItem { Kind = EditorTool.Text, Points = [new Point(100, 100), new Point(220, 160)] };
         window._capture.Annotations.Add(textAnnotation);
         window.OnAnnotationCreated(window, textAnnotation);
@@ -164,6 +195,9 @@ public partial class OverlayEditorWindow : Window
         textInput.Text = "Проверка текста";
         if (textAnnotation.Text != textInput.Text || !string.IsNullOrEmpty(textAnnotation.Note))
             throw new InvalidOperationException("Text tool input must update rendered text, not an annotation note.");
+        var result = window._capture.DeepClone();
+        if (result.Annotations.Count(item => item.Kind == EditorTool.Comment && !string.IsNullOrWhiteSpace(item.Note)) != 1)
+            throw new InvalidOperationException("The comment probe left an unintended extra comment.");
         return result;
     }
 
@@ -194,6 +228,7 @@ public partial class OverlayEditorWindow : Window
 
     private void OnWindowMouseDown(object sender, MouseButtonEventArgs e)
     {
+        FinishExpandedChipIfOutside(e.OriginalSource as DependencyObject);
         if (e.ClickCount == 2 && Surface.SelectedAnnotation is { Kind: EditorTool.Text } text)
         {
             if (ChipLayer.Children.OfType<Border>().FirstOrDefault(b => b.Tag is Guid id && id == text.Id) is { Child: Grid grid } chip)
@@ -287,7 +322,6 @@ public partial class OverlayEditorWindow : Window
         _lastSnapshot = SnapshotState();
         RefreshLabels();
         RebuildChips();
-        UpdateContextNoteAffordance();
         UpdateShade();
         _settingUp = false;
         Dispatcher.BeginInvoke(() => { PositionToolbar(); PositionShotNote(); RepositionChips(); }, DispatcherPriority.Loaded);
@@ -366,7 +400,13 @@ public partial class OverlayEditorWindow : Window
     private void OnAnnotationCreated(object sender, AnnotationItem annotation)
     {
         if (_capture is null) return;
-        if (annotation.Kind == EditorTool.Comment) { annotation.ParentAnnotationId = _commentParentId; annotation.Points[1] = new Point(Math.Min(_capture.Image.PixelWidth, annotation.Points[0].X + 8), Math.Min(_capture.Image.PixelHeight, annotation.Points[0].Y + 8)); }
+        if (annotation.Kind == EditorTool.Comment)
+        {
+            annotation.ParentAnnotationId = _commentParentId;
+            _commentParentId = null;
+            annotation.Points[1] = new Point(Math.Min(_capture.Image.PixelWidth, annotation.Points[0].X + 8), Math.Min(_capture.Image.PixelHeight, annotation.Points[0].Y + 8));
+            SelectToolMode(EditorTool.Select);
+        }
         PushHistory();
         annotation.PropertyChanged += OnAnnotationPropertyChanged;
         RefreshLabels();
@@ -374,9 +414,7 @@ public partial class OverlayEditorWindow : Window
         {
             _visibleChipIds.Add(annotation.Id);
             AddChip(annotation, focus: true);
-            ContextNoteButton.Visibility = Visibility.Collapsed;
         }
-        else UpdateContextNoteAffordance(annotation);
     }
 
     private void OnSelectionChanged(object sender, AnnotationItem? annotation)
@@ -384,7 +422,6 @@ public partial class OverlayEditorWindow : Window
         SyncAppearance();
         if (Mouse.LeftButton == MouseButtonState.Pressed) return;
         RepositionChips();
-        UpdateContextNoteAffordance(annotation);
     }
 
     private void OnAnnotationChanged(object sender, EventArgs e)
@@ -394,7 +431,6 @@ public partial class OverlayEditorWindow : Window
         RefreshLabels();
         if (_capture is not null && ChipLayer.Children.Count != _capture.Annotations.Count) RebuildChips();
         else RepositionChips();
-        UpdateContextNoteAffordance(Surface.SelectedAnnotation);
         SyncAppearance();
     }
 
@@ -414,6 +450,10 @@ public partial class OverlayEditorWindow : Window
     {
         ChipLayer.Children.Clear();
         _chipLabels.Clear();
+        _chipBorders.Clear();
+        _chipExpanders.Clear();
+        _chipFinishers.Clear();
+        _expandedChipId = null;
         if (_capture is null) return;
         foreach (var item in _capture.Annotations.Where(a => !string.IsNullOrWhiteSpace(a.Note))) _visibleChipIds.Add(item.Id);
         _visibleChipIds.RemoveWhere(id => _capture.Annotations.All(annotation => annotation.Id != id));
@@ -431,7 +471,13 @@ public partial class OverlayEditorWindow : Window
             Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), CaretBrush = Brushes.White,
             SelectionBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Padding = new Thickness(7, 5, 7, 5), Tag = annotation
         };
-        note.TextChanged += (_, _) => { if (!_settingUp) { if (annotation.Kind == EditorTool.Text) annotation.Text = note.Text; else annotation.Note = note.Text; RefreshLabels(); } };
+        note.TextChanged += (_, _) =>
+        {
+            if (_settingUp) return;
+            if (annotation.Kind == EditorTool.Text) annotation.Text = note.Text;
+            else annotation.Note = note.Text;
+            RefreshLabels();
+        };
         note.GotKeyboardFocus += (_, _) => Surface.SelectAnnotation(annotation.Id);
         var closePath = new System.Windows.Shapes.Path
         {
@@ -460,23 +506,65 @@ public partial class OverlayEditorWindow : Window
         };
         void Expand(bool expanded)
         {
+            if (expanded)
+            {
+                CollapseOtherChips(annotation.Id);
+                _expandedChipId = annotation.Id;
+            }
+            else if (_expandedChipId == annotation.Id) _expandedChipId = null;
             border.Visibility = !expanded && annotation.Kind == EditorTool.Text ? Visibility.Collapsed : Visibility.Visible;
             border.Width = expanded ? 270 : 43;
             note.Visibility = close.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
             grid.ColumnDefinitions[2].Width = new GridLength(expanded ? 29 : 0);
-            PositionChip(border, annotation);
+            Panel.SetZIndex(border, expanded ? (border.IsKeyboardFocusWithin ? 1200 : 1000) : 0);
+            RepositionChips();
+            PositionToolbar();
         }
+        void Finish()
+        {
+            if (annotation.Kind != EditorTool.Text && string.IsNullOrWhiteSpace(annotation.Note))
+            {
+                _visibleChipIds.Remove(annotation.Id);
+                _chipLabels.Remove(annotation.Id);
+                _chipBorders.Remove(annotation.Id);
+                _chipExpanders.Remove(annotation.Id);
+                _chipFinishers.Remove(annotation.Id);
+                if (_expandedChipId == annotation.Id) _expandedChipId = null;
+                ChipLayer.Children.Remove(border);
+                if (annotation.Kind == EditorTool.Comment)
+                {
+                    if (ReferenceEquals(Surface.SelectedAnnotation, annotation)) Surface.SelectAnnotation(null);
+                    _capture?.Annotations.Remove(annotation);
+                }
+                if (_capture is not null) _lastSnapshot = SnapshotState();
+                RefreshLabels();
+                RepositionChips();
+                PositionToolbar();
+                return;
+            }
+            Expand(false);
+        }
+        _chipBorders[annotation.Id] = border;
+        _chipExpanders[annotation.Id] = Expand;
+        _chipFinishers[annotation.Id] = Finish;
         note.GotKeyboardFocus += (_, _) => Expand(true);
-        border.MouseEnter += (_, _) => Expand(true);
-        border.MouseLeave += (_, _) => { if (!note.IsKeyboardFocusWithin) Expand(false); };
-        badgeHost.MouseLeftButtonDown += (_, e) => { Expand(true); note.Focus(); e.Handled = true; };
-        note.LostKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(() => { if (!note.IsKeyboardFocusWithin) Expand(false); }, DispatcherPriority.Input);
-        note.PreviewKeyDown += (_, e) => { if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None) { Surface.Focus(); Expand(false); e.Handled = true; } };
-        Expand(focus);
+        border.MouseEnter += (_, _) =>
+        {
+            if (!HasFocusedChipOtherThan(annotation.Id)) Expand(true);
+        };
+        border.MouseLeave += (_, _) => { if (!border.IsKeyboardFocusWithin) Finish(); };
+        badgeHost.MouseLeftButtonDown += (_, e) => { note.Focus(); Expand(true); e.Handled = true; };
         ChipLayer.Children.Add(border);
-        PositionChip(border, annotation);
+        note.LostKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(() => { if (!border.IsKeyboardFocusWithin && !border.IsMouseOver) Finish(); }, DispatcherPriority.Input);
+        note.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Enter || Keyboard.Modifiers != ModifierKeys.None) return;
+            Finish();
+            Surface.Focus();
+            e.Handled = true;
+        };
+        Expand(focus);
         RefreshLabels();
-        PositionToolbar();
         if (focus) Dispatcher.BeginInvoke(() => { note.Focus(); note.SelectAll(); }, DispatcherPriority.Input);
     }
 
@@ -498,21 +586,38 @@ public partial class OverlayEditorWindow : Window
     private void RepositionChips()
     {
         if (_capture is null) return;
-        foreach (Border border in ChipLayer.Children)
-            if (border.Tag is Guid id && _capture.Annotations.FirstOrDefault(a => a.Id == id) is { } annotation) PositionChip(border, annotation);
-    }
-
-    private void PositionChip(Border chip, AnnotationItem annotation)
-    {
-        var bounds = Surface.GetDisplayBounds(annotation);
         var work = GetCropMonitorWorkArea();
-        var x = _cropRect.Left + bounds.Left;
-        var y = _cropRect.Top + bounds.Bottom + 8;
-        if (y + 86 > work.Bottom) y = _cropRect.Top + bounds.Top - 50;
-        x = Math.Clamp(x, work.Left + 8, Math.Max(work.Left + 8, work.Right - chip.Width - 8));
-        y = Math.Clamp(y, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - 88));
-        Canvas.SetLeft(chip, x);
-        Canvas.SetTop(chip, y);
+        var occupied = new List<Rect>();
+        var chips = ChipLayer.Children.OfType<Border>()
+            .Where(chip => chip.Visibility == Visibility.Visible && chip.Tag is Guid)
+            .OrderByDescending(chip => chip.Tag is Guid id && id == _expandedChipId)
+            .ThenBy(chip =>
+            {
+                var annotation = _capture.Annotations.FirstOrDefault(item => item.Id == (Guid)chip.Tag);
+                return annotation is null ? int.MaxValue : _capture.Annotations.IndexOf(annotation);
+            })
+            .ToArray();
+        foreach (var chip in chips)
+        {
+            var id = (Guid)chip.Tag;
+            if (_capture.Annotations.FirstOrDefault(item => item.Id == id) is not { } annotation) continue;
+            var annotationBounds = Surface.GetDisplayBounds(annotation);
+            var isExpanded = id == _expandedChipId;
+            var width = chip.Width;
+            var height = isExpanded ? Math.Max(90, chip.ActualHeight) : 40;
+            var currentLeft = Canvas.GetLeft(chip);
+            var currentTop = Canvas.GetTop(chip);
+            var keepExpandedPosition = isExpanded
+                && !double.IsNaN(currentLeft) && !double.IsInfinity(currentLeft)
+                && !double.IsNaN(currentTop) && !double.IsInfinity(currentTop);
+            var preferred = keepExpandedPosition
+                ? new Point(currentLeft, currentTop)
+                : new Point(_cropRect.Left + annotationBounds.Left, _cropRect.Top + annotationBounds.Bottom + 8);
+            var placement = FindChipPlacement(preferred, new Size(width, height), work, occupied);
+            Canvas.SetLeft(chip, placement.Left);
+            Canvas.SetTop(chip, placement.Top);
+            occupied.Add(placement);
+        }
     }
 
     private void PositionShotNote()
@@ -551,53 +656,31 @@ public partial class OverlayEditorWindow : Window
         _commentParentId = Surface.SelectedAnnotation is { } selected ? (selected.Kind == EditorTool.Comment ? selected.ParentAnnotationId : selected.Id) : null;
         SelectToolMode(EditorTool.Comment);
     }
-    private void UpdateContextNoteAffordance(AnnotationItem? annotation = null)
-    {
-        if (_capture is null) { ContextNoteButton.Visibility = Visibility.Collapsed; return; }
-        annotation ??= Surface.SelectedAnnotation;
-        if (annotation is not null && _visibleChipIds.Contains(annotation.Id))
-        {
-            ContextNoteButton.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        var work = GetCropMonitorWorkArea();
-        double x;
-        double y;
-        if (annotation is not null)
-        {
-            var bounds = Surface.GetDisplayBounds(annotation);
-            x = _cropRect.Left + bounds.Right + 8;
-            y = _cropRect.Top + bounds.Top - 4;
-            if (x + 36 > work.Right) x = _cropRect.Left + bounds.Left - 40;
-        }
-        else
-        {
-            x = _cropRect.Right - 40;
-            y = _cropRect.Top + 8;
-        }
-        x = Math.Clamp(x, work.Left + 8, Math.Max(work.Left + 8, work.Right - 40));
-        y = Math.Clamp(y, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - 40));
-        Canvas.SetLeft(ContextNoteButton, x);
-        Canvas.SetTop(ContextNoteButton, y);
-        ContextNoteButton.Visibility = Visibility.Visible;
-    }
-
     private void OnDeleteAnnotationNoteClick(object sender, RoutedEventArgs e)
     {
         if (_capture is null || sender is not Button { Tag: AnnotationItem annotation }) return;
+        DeleteAnnotationNote(annotation);
+        e.Handled = true;
+    }
+
+    private void DeleteAnnotationNote(AnnotationItem annotation)
+    {
+        if (_capture is null) return;
         if (!string.IsNullOrEmpty(annotation.Note)) _undo.Push(SnapshotState());
         _redo.Clear();
         if (annotation.Kind == EditorTool.Comment) _capture.Annotations.Remove(annotation);
         else if (annotation.Kind != EditorTool.Text) annotation.Note = string.Empty;
         _lastSnapshot = SnapshotState();
         _visibleChipIds.Remove(annotation.Id);
+        _chipBorders.Remove(annotation.Id);
+        _chipExpanders.Remove(annotation.Id);
+        _chipFinishers.Remove(annotation.Id);
+        if (_expandedChipId == annotation.Id) _expandedChipId = null;
         if (ChipLayer.Children.OfType<Border>().FirstOrDefault(border => border.Tag is Guid id && id == annotation.Id) is { } chip)
             ChipLayer.Children.Remove(chip);
         RefreshLabels();
+        RepositionChips();
         PositionToolbar();
-        UpdateContextNoteAffordance(annotation);
-        e.Handled = true;
     }
 
     private void OnCloseShotNoteClick(object sender, RoutedEventArgs e)
@@ -612,15 +695,16 @@ public partial class OverlayEditorWindow : Window
         _lastSnapshot = SnapshotState();
         ShotNoteChip.Visibility = Visibility.Collapsed;
         PositionToolbar();
-        UpdateContextNoteAffordance();
         Surface.Focus();
         e.Handled = true;
     }
 
     private Rect GetCropMonitorWorkArea()
     {
-        var scaleToPixelX = _frame.PixelWidth / Math.Max(1, ActualWidth);
-        var scaleToPixelY = _frame.PixelHeight / Math.Max(1, ActualHeight);
+        var layoutWidth = ActualWidth > 0 ? ActualWidth : !double.IsNaN(Width) && Width > 0 ? Width : _frame.PixelWidth;
+        var layoutHeight = ActualHeight > 0 ? ActualHeight : !double.IsNaN(Height) && Height > 0 ? Height : _frame.PixelHeight;
+        var scaleToPixelX = _frame.PixelWidth / Math.Max(1, layoutWidth);
+        var scaleToPixelY = _frame.PixelHeight / Math.Max(1, layoutHeight);
         var centerPixel = new System.Drawing.Point(
             _frame.Left + (int)Math.Round((_cropRect.Left + _cropRect.Width / 2) * scaleToPixelX),
             _frame.Top + (int)Math.Round((_cropRect.Top + _cropRect.Height / 2) * scaleToPixelY));
@@ -683,7 +767,6 @@ public partial class OverlayEditorWindow : Window
         _lastSnapshot = SnapshotState();
         UpdateCropVisual();
         RebuildChips();
-        UpdateContextNoteAffordance(Surface.SelectedAnnotation);
         SyncAppearance();
         PositionToolbar();
         PositionShotNote();

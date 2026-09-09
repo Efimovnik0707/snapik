@@ -63,17 +63,6 @@
         </Canvas>
         <Canvas x:Name="CaptureHandleLayer" />
         <Canvas x:Name="ChipLayer" IsHitTestVisible="True" />
-        <Canvas x:Name="NoteActionLayer" IsHitTestVisible="True">
-            <Button x:Name="ContextNoteButton" Visibility="Collapsed" Width="32" Height="32" Padding="8"
-                    Style="{StaticResource OverlayButton}" Background="#F2171A20" BorderBrush="#46515F"
-                    Click="OnCommentClick" ToolTip="Добавить комментарий">
-                <Grid>
-                    <Path Width="15" Height="15" Stroke="#EEF2F8" StrokeThickness="1.6" StrokeLineJoin="Round"
-                          Data="M2,2 L13,2 L13,10 L7,10 L4,13 L4,10 L2,10 Z" />
-                    <Ellipse Width="6" Height="6" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-4,0" Fill="#2F8CFF" />
-                </Grid>
-            </Button>
-        </Canvas>
 
         <Border x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" Padding="13,8"
                 Background="#E8171A20" CornerRadius="10">

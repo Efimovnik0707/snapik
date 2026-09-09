@@ -188,8 +188,10 @@ public sealed class AnnotationCanvas : FrameworkElement
         }
         if (_draft is null || _gestureStart is null || e.LeftButton != MouseButtonState.Pressed)
         {
-            var handle = FindResizeHandle(e.GetPosition(this));
-            Cursor = handle.Corner < 0 ? (FindMoveEdge(e.GetPosition(this)) is not null ? Cursors.SizeAll : Tool == EditorTool.Select ? Cursors.Arrow : Cursors.Cross)
+            var displayPoint = e.GetPosition(this);
+            var handle = FindResizeHandle(displayPoint);
+            var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
+            Cursor = handle.Corner < 0 ? (FindMoveEdge(displayPoint) is not null || movablePin ? Cursors.SizeAll : Tool == EditorTool.Select ? Cursors.Arrow : Cursors.Cross)
                 : handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW;
             return;
         }
@@ -303,15 +305,17 @@ public sealed class AnnotationCanvas : FrameworkElement
     {
         if (Image is null || Annotations is null) return (null, -1);
         // The selected mark owns overlapping handles; corners remain draggable with any tool active.
-        if (SelectedAnnotation is { } selected)
+        if (SelectedAnnotation is { } selected && HasResizeHandles(selected))
         {
             var corner = ResizeGeometry.HitCorner(GetDisplayBounds(selected), displayPoint, 10);
             if (corner >= 0) return (selected, corner);
         }
         for (var i = Annotations.Count - 1; i >= 0; i--)
         {
-            var corner = ResizeGeometry.HitCorner(GetDisplayBounds(Annotations[i]), displayPoint, 10);
-            if (corner >= 0) return (Annotations[i], corner);
+            var annotation = Annotations[i];
+            if (!HasResizeHandles(annotation)) continue;
+            var corner = ResizeGeometry.HitCorner(GetDisplayBounds(annotation), displayPoint, 10);
+            if (corner >= 0) return (annotation, corner);
         }
         return (null, -1);
     }
@@ -387,7 +391,7 @@ public sealed class AnnotationCanvas : FrameworkElement
             dc.DrawText(label, new Point(center.X - label.Width / 2, center.Y - label.Height / 2));
         }
 
-        if (includeSelection && item.IsSelected)
+        if (includeSelection && item.IsSelected && HasResizeHandles(item))
         {
             var bounds = BoundsOf(item);
             var topLeft = Map(bounds.TopLeft);
@@ -399,6 +403,8 @@ public sealed class AnnotationCanvas : FrameworkElement
                 dc.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), new Rect(corner.X - 4, corner.Y - 4, 8, 8));
         }
     }
+
+    private static bool HasResizeHandles(AnnotationItem item) => item.Kind != EditorTool.Comment;
 
     private bool GestureHasSize(AnnotationItem item)
     {
@@ -499,6 +505,19 @@ public sealed class AnnotationCanvas : FrameworkElement
 
         Verify(rectangle, EditorTool.Blur);
         Verify(blur, EditorTool.Rectangle);
+
+        var comment = new AnnotationItem
+        {
+            Kind = EditorTool.Comment,
+            Points = [new Point(source.PixelWidth * .48, source.PixelHeight * .18), new Point(source.PixelWidth * .48 + 8, source.PixelHeight * .18 + 8)]
+        };
+        annotations.Add(comment);
+        canvas.SelectAnnotation(comment.Id);
+        var commentBounds = canvas.GetDisplayBounds(comment);
+        foreach (var corner in ResizeGeometry.Corners(commentBounds))
+            if (canvas.FindResizeHandle(corner).Annotation is not null)
+                throw new InvalidOperationException("A comment pin exposed geometry resize handles.");
+        if (HasResizeHandles(comment)) throw new InvalidOperationException("Comment pins must not render a selection box.");
 
         void Verify(AnnotationItem target, EditorTool activeTool)
         {
