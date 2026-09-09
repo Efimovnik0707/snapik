@@ -77,9 +77,23 @@ final class OverlayEditorController {
     /// brand-new capture, which has its own delete-on-cancel path instead.
     var hasBackedUpOriginalSource = false
 
-    var colorIndex = 0
-    let thicknesses: [Double] = [3, 4, 6, 9]
-    var thicknessIndex = 1
+    // MARK: - Appearance (SPEC §1.3, §6.2 "Дополнение 2026-09-09")
+    var activeColor: NSColor = EditorTheme.annotationPalette[0]
+    var activeThickness: Double = 4
+    /// True while `syncAppearance()` is writing into the popover's own controls, so their change
+    /// callbacks (`onThicknessChanged`) don't re-enter `applyAppearance` (port of
+    /// `_syncingAppearance`, `OverlayEditorWindow.Appearance.cs:13`).
+    var syncingAppearance = false
+    /// Non-nil exactly while a color/thickness edit session is open (the popover is showing, or a
+    /// `smokeSetAppearance` probe is mid-session) — the snapshot to restore on undo if anything
+    /// actually changes (port of `_appearanceBefore`).
+    var appearanceBefore: OverlaySnapshot?
+    /// True once at least one color/thickness edit in the current session actually changed the
+    /// selected annotation (port of `_appearanceChanged`).
+    var appearanceChanged = false
+    var appearancePopover: NSPopover?
+    var appearancePopoverController: EditorAppearancePopoverViewController?
+    var appearancePopoverDelegate: AppearancePopoverDelegateProxy?
 
     // Corner-resize state (SPEC §1.6)
     var captureResizeCorner = -1

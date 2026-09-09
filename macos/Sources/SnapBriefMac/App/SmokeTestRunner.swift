@@ -45,6 +45,21 @@ enum SmokeTestRunner {
 
         let workspace = SessionWorkspace(dataDirectory: root)
 
+        // 0. Toolbar placement avoids obscuring a narrow crop when exterior space exists (SPEC
+        // §6.2 "Дополнение 2026-09-09", port of `SmokeTestRunner.cs`'s `PlaceToolbar` loop).
+        let toolbarScreen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let narrowCrops: [CGRect] = [
+            CGRect(x: 500, y: 400, width: 540, height: 120),
+            CGRect(x: 500, y: 940, width: 540, height: 130),
+            CGRect(x: 500, y: 0, width: 540, height: 120),
+            CGRect(x: 0, y: 0, width: 540, height: 1080),
+        ]
+        let toolbarPlacementOk = narrowCrops.allSatisfy { crop in
+            let toolbar = EditorGeometry.placeToolbar(crop: crop, work: toolbarScreen, size: CGSize(width: 460, height: 50), notes: [])
+            return !toolbar.intersects(crop) && toolbarScreen.contains(toolbar)
+        }
+        check("toolbar placement avoids narrow-selection obscuring", toolbarPlacementOk)
+
         // 1. Settings round-trip with every non-default value (SPEC §8.4 point 2).
         var custom = HotkeySettings(captureId: "custom:6:75", pasteId: HotkeySettings.default.pasteId)
         custom.captureEnabled = false
@@ -106,8 +121,31 @@ enum SmokeTestRunner {
                 result.blurPreviewOk = controller.smokeVerifyBlurPreview()
                 result.resizeHandleOk = controller.smokeRunCaptureResizeProbe()
                 result.noteAffordanceOk = controller.smokeRunNoteAffordanceProbe()
-                result.rectangleCreationOk =
-                    controller.smokeCreateRectangle(CGRect(x: 20, y: 20, width: 200, height: 150), note: "Проверка ручки") != nil
+                let appearanceProbeAnnotationId = controller.smokeCreateRectangle(CGRect(x: 20, y: 20, width: 200, height: 150), note: "Проверка ручки")
+                result.rectangleCreationOk = appearanceProbeAnnotationId != nil
+
+                // Appearance popover (SPEC §1.3, §6.2 "Дополнение 2026-09-09"): color+thickness
+                // change on the selected annotation, thickness moving in both directions, and one
+                // Undo restoring the pre-edit state in a single step (mirrors
+                // `RunNoteAffordanceProbe`'s appearance assertions,
+                // `OverlayEditorWindow.xaml.cs:132-143`). The post-undo check reads the annotation
+                // back by id via `smokeCurrentState()` rather than `smokeSelectedAnnotationAppearance()`
+                // — `restoreState`'s `canvasView.capture = capture` reassignment clears selection
+                // on every undo/redo (SPEC §6.3, `AnnotationCanvasView.capture`'s `didSet`), exactly
+                // like the Windows source's own `Surface.Annotations = _capture.Annotations`
+                // (`OverlayEditorController+History.swift`'s doc comment), so the Windows probe
+                // looks the annotation up by id after undo too instead of relying on selection.
+                if let idString = appearanceProbeAnnotationId, let before = controller.smokeSelectedAnnotationAppearance() {
+                    let probeColor = NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1)
+                    controller.smokeSetAppearance(color: probeColor, thickness: 14)
+                    controller.smokeSetAppearance(color: nil, thickness: 2)
+                    let afterEdit = controller.smokeSelectedAnnotationAppearance()
+                    result.appearanceEditOk = afterEdit?.color == probeColor.hexARGB && afterEdit?.thickness == 2
+
+                    controller.smokeUndo()
+                    let restoredAnnotation = controller.smokeCurrentState()?.annotations.first(where: { $0.id.description == idString })
+                    result.appearanceUndoOk = restoredAnnotation?.strokeColor == before.color && restoredAnnotation?.thickness == before.thickness
+                }
             }
             controller.close()
             return result
@@ -119,6 +157,8 @@ enum SmokeTestRunner {
         check("editor resize handle probe (point 9)", editorProbe.resizeHandleOk)
         check("editor note affordance probe (point 10)", editorProbe.noteAffordanceOk)
         check("editor rectangle creation", editorProbe.rectangleCreationOk)
+        check("editor appearance edit updates selected annotation (color+thickness)", editorProbe.appearanceEditOk)
+        check("editor appearance undo restores pre-edit state in one step", editorProbe.appearanceUndoOk)
         // `editorProbeRoot` lives under `root` and is swept up by the final cleanup below.
 
         // 4. Three captures 1920x1080 (SPEC §8.4 point 5): A — demo image at 144 DPI with an arrow,
@@ -318,6 +358,8 @@ enum SmokeTestRunner {
         var resizeHandleOk = false
         var noteAffordanceOk = false
         var rectangleCreationOk = false
+        var appearanceEditOk = false
+        var appearanceUndoOk = false
     }
 
     // MARK: - Pixel helpers (SPEC §8.4 point 12)

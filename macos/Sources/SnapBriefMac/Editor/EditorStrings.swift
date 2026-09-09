@@ -31,9 +31,15 @@ enum EditorStrings {
     static func toolConcealSolid(_ language: String) -> String { text("Скрыть сплошным", language: language) }
     static func toolBlur(_ language: String) -> String { text("Размыть", language: language) }
     static func toolCrop(_ language: String) -> String { text("Обрезать", language: language) }
-    static func annotationColor(_ language: String) -> String { text("Цвет отметки", language: language) }
     static func thickness(_ language: String) -> String { text("Толщина", language: language) }
     static func moreTools(_ language: String) -> String { text("Ещё инструменты", language: language) }
+    // Appearance popover (SPEC §1.3, §6.2 "Дополнение 2026-09-09"). "Цвет отметки" (the old
+    // cycling menu item) is gone with the cycle it labeled; these four are new.
+    static func appearanceButtonTooltip(_ language: String) -> String { text("Цвет и толщина", language: language) }
+    static func colorHeading(_ language: String) -> String { text("Цвет", language: language) }
+    static func closeTooltip(_ language: String) -> String { text("Закрыть", language: language) }
+    static func colorHexAccessibilityName(_ language: String) -> String { text("Цвет HEX", language: language) }
+    static func strokeThicknessAccessibilityName(_ language: String) -> String { text("Толщина линии", language: language) }
     static func addComment(_ language: String) -> String { text("Добавить комментарий", language: language) }
     static func removeComment(_ language: String) -> String { text("Удалить комментарий", language: language) }
     static func undo(_ language: String) -> String { text("Отменить", language: language) }

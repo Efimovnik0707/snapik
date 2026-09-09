@@ -104,31 +104,49 @@ enum EditorGeometry {
         return CGPoint(x: x, y: y)
     }
 
-    // MARK: - Toolbar positioning (SPEC §6.2 `PositionToolbar`)
+    // MARK: - Toolbar positioning (SPEC §6.2 `PositionToolbar`, "Дополнение 2026-09-09")
 
-    /// Port of `PositionToolbar` (`:481-511`). `obstacles` are the currently-visible comment
-    /// chip / shot-note-chip rects (same coordinate space). Returns the toolbar's top-left.
+    /// Port of `OverlayEditorWindow.Toolbar.cs::PlaceToolbar` (new in the 2026-09-09 Windows
+    /// sync, replacing the old single-side-then-one-alternate `PositionToolbar` body below).
+    /// Tries the 4 exterior candidate rects around `crop` (below/above/right/left), preferring
+    /// the first that lands fully inside `work` and avoids both `crop` and every rect in `notes`;
+    /// falls back to the first crop-avoiding candidate, then — only when `crop` has no exterior
+    /// room at all (a full-screen selection) — to a rect that may still overlap a note.
+    static func placeToolbar(crop: CGRect, work: CGRect, size: CGSize, notes: [CGRect]) -> CGRect {
+        let gap: CGFloat = 10
+        let left = clamp(crop.minX + (crop.width - size.width) / 2, work.minX + 8, max(work.minX + 8, work.maxX - size.width - 8))
+        let sideTop = clamp(crop.minY + (crop.height - size.height) / 2, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8))
+        let candidates = [
+            CGRect(x: left, y: crop.maxY + gap, width: size.width, height: size.height),
+            CGRect(x: left, y: crop.minY - size.height - gap, width: size.width, height: size.height),
+            CGRect(x: crop.maxX + gap, y: sideTop, width: size.width, height: size.height),
+            CGRect(x: crop.minX - size.width - gap, y: sideTop, width: size.width, height: size.height),
+        ].filter { work.contains($0) && !$0.intersects(crop) }
+
+        // Preserve the image even when every outside position is near a note.
+        if let clear = candidates.first(where: { candidate in !notes.contains(where: { $0.intersects(candidate) }) }) {
+            return clear
+        }
+        if let first = candidates.first { return first }
+
+        // A full-screen selection has no exterior space on its monitor.
+        let bottom = clamp(crop.maxY - size.height - gap, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8))
+        let top = clamp(crop.minY + gap, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8))
+        let fallback = CGRect(x: left, y: bottom, width: size.width, height: size.height)
+        let alternate = CGRect(x: left, y: top, width: size.width, height: size.height)
+        if notes.contains(where: { $0.intersects(fallback) }), !notes.contains(where: { $0.intersects(alternate) }) {
+            return alternate
+        }
+        return fallback
+    }
+
+    /// Port of `PositionToolbar` (`:481-511`), now a thin wrapper around `placeToolbar` (SPEC
+    /// §6.2 "Дополнение 2026-09-09"). `obstacles` are the currently-visible comment chip /
+    /// shot-note-chip rects (same coordinate space). Returns the toolbar's top-left.
     static func positionToolbar(cropRect: CGRect, work: CGRect, toolbarSize rawSize: CGSize, obstacles: [CGRect]) -> CGPoint {
         let width = max(rawSize.width, 380)
         let height = max(rawSize.height, 50)
-        let left = clamp(
-            cropRect.minX + (cropRect.width - width) / 2,
-            work.minX + 8, max(work.minX + 8, work.maxX - width - 8))
-
-        var top = cropRect.maxY - height - 10
-        if cropRect.height < height + 20 { top = cropRect.maxY + 10 }
-        if top + height > work.maxY - 8 { top = cropRect.minY - height - 10 }
-        top = clamp(top, work.minY + 8, max(work.minY + 8, work.maxY - height - 8))
-
-        let toolbarRect = CGRect(x: left, y: top, width: width, height: height)
-        if obstacles.contains(where: { $0.intersects(toolbarRect) }) {
-            let alternateTop = clamp(cropRect.minY + 10, work.minY + 8, max(work.minY + 8, work.maxY - height - 8))
-            let alternate = CGRect(x: left, y: alternateTop, width: width, height: height)
-            if !obstacles.contains(where: { $0.intersects(alternate) }) {
-                top = alternateTop
-            }
-        }
-        return CGPoint(x: left, y: top)
+        return placeToolbar(crop: cropRect, work: work, size: CGSize(width: width, height: height), notes: obstacles).origin
     }
 
     // MARK: - Capture corner handles (SPEC §1.6)

@@ -266,6 +266,17 @@ extension NSColor {
         return String(format: "#%02X%02X%02X%02X", a, r, g, b)
     }
 
+    /// Port of `$"#{Color.R:X2}{Color.G:X2}{Color.B:X2}"` (`OverlayEditorWindow.Appearance.cs:55`)
+    /// — the appearance popover's hex field display format: RGB only, no alpha, unlike
+    /// `hexARGB` (the annotation-storage format).
+    var hexRGB: String {
+        guard let rgb = usingColorSpace(.deviceRGB) else { return "#000000" }
+        let r = UInt8((rgb.redComponent * 255).rounded())
+        let g = UInt8((rgb.greenComponent * 255).rounded())
+        let b = UInt8((rgb.blueComponent * 255).rounded())
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+
     /// Port of `(Color)ColorConverter.ConvertFromString(item.StrokeColor)` for the `#AARRGGBB`
     /// format this app always writes. Falls back to opaque black on malformed input.
     convenience init(argbHex: String) {

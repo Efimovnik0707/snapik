@@ -3,8 +3,9 @@
 import AppKit
 
 /// 36x36 tool toggle button (SPEC §6.2 rows 1-9, minus the always-hidden Pen/Highlight/Text/
-/// Conceal/color/thickness buttons — those live only in the "•••" menu, matching the Windows
-/// XAML's hardcoded `Visibility="Collapsed"` on those five controls).
+/// Conceal buttons — those live only in the "•••" menu, matching the Windows XAML's hardcoded
+/// `Visibility="Collapsed"` on those four controls; the color/thickness button is no longer
+/// hidden as of SPEC §1.3, §6.2 "Дополнение 2026-09-09" — see `AppearanceButtonView` below).
 final class ToolbarToggleButtonView: NSView {
     let tool: EditorTool
     private let iconData: String
@@ -78,6 +79,11 @@ final class ToolbarActionButtonView: NSView {
     private let iconStrokeColor: NSColor
     private let textLabel: NSTextField?
     private let filledBackground: NSColor?
+    /// The "•••" button's active-extra-tool highlight (SPEC §1.3, §6.2 "Дополнение 2026-09-09",
+    /// port of `MoreToolsButton.Background`, `OverlayEditorWindow.Appearance.cs:66`). Distinct
+    /// from `filledBackground` (fixed at init, used by `doneButton`): this one is mutable and
+    /// takes priority over the hover background, but not over `filledBackground`.
+    var activeBackground: NSColor? { didSet { needsDisplay = true } }
 
     private var isHovering = false { didSet { needsDisplay = true } }
     var onClick: (() -> Void)?
@@ -145,7 +151,7 @@ final class ToolbarActionButtonView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let path = NSBezierPath(roundedRect: bounds, xRadius: EditorTheme.buttonCornerRadius, yRadius: EditorTheme.buttonCornerRadius)
-        let background = filledBackground ?? (isHovering ? EditorTheme.toolHoverBackground : .clear)
+        let background = filledBackground ?? activeBackground ?? (isHovering ? EditorTheme.toolHoverBackground : .clear)
         background.setFill()
         path.fill()
         if let iconData {
@@ -155,11 +161,94 @@ final class ToolbarActionButtonView: NSView {
     }
 }
 
+/// The combined color+thickness button (`AppearanceButton`, `OverlayEditorWindow.xaml:129-131`,
+/// SPEC §1.3, §6.2 "Дополнение 2026-09-09"): a 16x16 filled circle (current color) + `"{N} px"`
+/// text, height 36 / horizontal padding 11 like `ToolbarActionButtonView`'s text buttons.
+/// Disabled (dimmed to 0.4 alpha, clicks ignored) when the active tool / selected annotation has
+/// no color at all (`HasColor`), matching the XAML diff's new `IsEnabled -> Opacity 0.4` trigger.
+final class AppearanceButtonView: NSView {
+    private static let swatchSize: CGFloat = 16
+    private static let horizontalPadding: CGFloat = 11
+    private static let gap: CGFloat = 8
+
+    private let textLabel = NSTextField(labelWithString: "")
+    var color: NSColor = EditorTheme.accent { didSet { needsDisplay = true } }
+    var isEnabled = true {
+        didSet { alphaValue = isEnabled ? 1 : 0.4 }
+    }
+    var valueText: String = "" {
+        didSet {
+            textLabel.stringValue = valueText
+            sizeToFitContent()
+        }
+    }
+    private var isHovering = false { didSet { needsDisplay = true } }
+    var onClick: (() -> Void)?
+
+    override var isFlipped: Bool { true }
+
+    init(tooltip: String) {
+        textLabel.font = EditorTheme.systemFont(13)
+        textLabel.textColor = EditorTheme.textPrimary
+        textLabel.backgroundColor = .clear
+        textLabel.isBezeled = false
+        textLabel.isEditable = false
+        textLabel.isSelectable = false
+        super.init(frame: .zero)
+        toolTip = tooltip
+        addSubview(textLabel)
+        sizeToFitContent()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    private func sizeToFitContent() {
+        let textSize = textLabel.attributedStringValue.size()
+        let width = Self.horizontalPadding + Self.swatchSize + Self.gap + textSize.width + Self.horizontalPadding
+        frame.size = NSSize(width: max(36, width), height: 36)
+    }
+
+    override func layout() {
+        super.layout()
+        let textSize = textLabel.attributedStringValue.size()
+        textLabel.frame = CGRect(
+            x: Self.horizontalPadding + Self.swatchSize + Self.gap, y: (bounds.height - textSize.height) / 2,
+            width: textSize.width, height: textSize.height)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.activeInKeyWindow, .mouseEnteredAndExited, .inVisibleRect], owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovering = true }
+    override func mouseExited(with event: NSEvent) { isHovering = false }
+    override func mouseDown(with event: NSEvent) { if isEnabled { onClick?() } }
+    override func resetCursorRects() { if isEnabled { addCursorRect(bounds, cursor: .pointingHand) } }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let path = NSBezierPath(roundedRect: bounds, xRadius: EditorTheme.buttonCornerRadius, yRadius: EditorTheme.buttonCornerRadius)
+        let background = isHovering && isEnabled ? EditorTheme.toolHoverBackground : .clear
+        background.setFill()
+        path.fill()
+
+        let swatchRect = CGRect(x: Self.horizontalPadding, y: (bounds.height - Self.swatchSize) / 2, width: Self.swatchSize, height: Self.swatchSize)
+        let swatch = NSBezierPath(ovalIn: swatchRect)
+        color.setFill()
+        swatch.fill()
+        swatch.lineWidth = 1
+        EditorTheme.textSecondaryD9.setStroke()
+        swatch.stroke()
+    }
+}
+
 /// The floating toolbar container (SPEC §6.2). Owns the exact button set/order and forwards
 /// clicks via closures; `OverlayEditorController+Editing` owns positioning
 /// (`EditorGeometry.positionToolbar`) and undo/redo enablement.
 final class EditorToolbarView: NSView {
     private var toolButtons: [ToolbarToggleButtonView] = []
+    let appearanceButton: AppearanceButtonView
     let moreToolsButton: ToolbarActionButtonView
     let commentButton: ToolbarActionButtonView
     let undoButton: ToolbarActionButtonView
@@ -178,17 +267,28 @@ final class EditorToolbarView: NSView {
             ToolbarToggleButtonView(tool: tool, tooltip: tooltip, iconData: icon, iconStrokeWidth: strokeWidth)
         }
 
-        let selectButton = toggle(.select, EditorStrings.toolSelect(language), "M2,1 L14,9 L9,10 L7,15 Z")
-        let rectangleButton = toggle(.rectangle, EditorStrings.toolRectangle(language), "M2,3 L14,3 L14,13 L2,13 Z")
-        let arrowButton = toggle(.arrow, EditorStrings.toolArrow(language), "M2,15 L15,2 M9,2 L15,2 L15,8", 1.8)
-        let blurButton = toggle(.blur, EditorStrings.toolBlur(language), "M2,4 L5,2 L8,4 L11,2 L14,4 M2,8 L5,6 L8,8 L11,6 L14,8 M2,12 L5,10 L8,12 L11,10 L14,12", 1.4)
-        let cropButton = toggle(.crop, EditorStrings.toolCrop(language), "M4,1 L4,12 L15,12 M1,4 L12,4 L12,15")
+        // Tooltips get a trailing hotkey hint (SPEC §7.5/§7.6, §1.3, §6.2 "Дополнение 2026-09-09":
+        // main-panel tools show their single-letter shortcut; the letters themselves (V R A B C)
+        // are the same in both languages, so no new dictionary entries are needed here — only the
+        // base word is translated.
+        let selectButton = toggle(.select, "\(EditorStrings.toolSelect(language)) (V)", "M2,1 L14,9 L9,10 L7,15 Z")
+        let rectangleButton = toggle(.rectangle, "\(EditorStrings.toolRectangle(language)) (R)", "M2,3 L14,3 L14,13 L2,13 Z")
+        let arrowButton = toggle(.arrow, "\(EditorStrings.toolArrow(language)) (A)", "M2,15 L15,2 M9,2 L15,2 L15,8", 1.8)
+        let blurButton = toggle(.blur, "\(EditorStrings.toolBlur(language)) (B)", "M2,4 L5,2 L8,4 L11,2 L14,4 M2,8 L5,6 L8,8 L11,6 L14,8 M2,12 L5,10 L8,12 L11,10 L14,12", 1.4)
+        let cropButton = toggle(.crop, "\(EditorStrings.toolCrop(language)) (C)", "M4,1 L4,12 L15,12 M1,4 L12,4 L12,15")
         toolButtons = [selectButton, rectangleButton, arrowButton, blurButton, cropButton]
+
+        appearanceButton = AppearanceButtonView(tooltip: EditorStrings.appearanceButtonTooltip(language))
+        appearanceButton.valueText = EditorStrings.thicknessLabel(4)
+        appearanceButton.setAccessibilityLabel(EditorStrings.appearanceButtonTooltip(language))
 
         moreToolsButton = ToolbarActionButtonView(text: "\u{2022}\u{2022}\u{2022}", tooltip: EditorStrings.moreTools(language))
         commentButton = ToolbarActionButtonView(iconData: "M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z", tooltip: EditorStrings.addComment(language), iconStrokeWidth: 1.6)
-        undoButton = ToolbarActionButtonView(iconData: "M7,3 L2,7 L7,11 M3,7 L10,7 C14,7 15,10 15,13", tooltip: EditorStrings.undo(language))
-        redoButton = ToolbarActionButtonView(iconData: "M9,3 L14,7 L9,11 M13,7 L6,7 C2,7 1,10 1,13", tooltip: EditorStrings.redo(language))
+        // Undo/Redo/Save show the mac keyboard mapping (§7.6: Cmd+Z / Shift+Cmd+Z, not the
+        // Windows Ctrl+Z/Ctrl+Y); Save's "(Cmd+S)" already comes from `MacUiText`'s override of
+        // `saveToComputer`.
+        undoButton = ToolbarActionButtonView(iconData: "M7,3 L2,7 L7,11 M3,7 L10,7 C14,7 15,10 15,13", tooltip: "\(EditorStrings.undo(language)) (Cmd+Z)")
+        redoButton = ToolbarActionButtonView(iconData: "M9,3 L14,7 L9,11 M13,7 L6,7 C2,7 1,10 1,13", tooltip: "\(EditorStrings.redo(language)) (Shift+Cmd+Z)")
         saveButton = ToolbarActionButtonView(iconData: "M2,1 L12,1 L16,5 L16,16 L2,16 Z M5,1 L5,6 L12,6 L12,1 M5,16 L5,10 L13,10 L13,16", tooltip: EditorStrings.saveToComputer(language), iconNativeSize: 17, iconStrokeWidth: 1.6)
         addCaptureButton = ToolbarActionButtonView(text: EditorStrings.addCapture(language))
         doneButton = ToolbarActionButtonView(text: EditorStrings.done(language), filledBackground: EditorTheme.accent, bold: true)
@@ -199,6 +299,7 @@ final class EditorToolbarView: NSView {
             button.onClick = { [weak self] in self?.onToolSelected?(button.tool) }
             addSubview(button)
         }
+        addSubview(appearanceButton)
         addSubview(moreToolsButton)
         addSubview(commentButton)
         addSubview(divider)
@@ -222,6 +323,20 @@ final class EditorToolbarView: NSView {
         redoButton.alphaValue = canRedo ? 1 : 0.42
     }
 
+    /// Port of `SyncAppearance`'s `AppearanceButton`/`ColorSwatch`/`AppearanceValue` half
+    /// (`OverlayEditorWindow.Appearance.cs:52-54`), SPEC §1.3, §6.2 "Дополнение 2026-09-09".
+    func setAppearance(color: NSColor, valueText: String, enabled: Bool) {
+        appearanceButton.color = color
+        appearanceButton.valueText = valueText
+        appearanceButton.isEnabled = enabled
+    }
+
+    /// Port of `SyncAppearance`'s `MoreToolsButton.Background`/`ToolTip` half (`:65-67`).
+    func setMoreToolsActive(_ active: Bool, tooltip: String) {
+        moreToolsButton.activeBackground = active ? EditorTheme.moreToolsActiveBackground : nil
+        moreToolsButton.toolTip = tooltip
+    }
+
     /// Lays out the horizontal stack, sizes `self` to fit (SPEC §6.2: `padding 7`, item margin
     /// `2,0`), and returns the fitting size for the caller to position via
     /// `EditorGeometry.positionToolbar`.
@@ -238,6 +353,7 @@ final class EditorToolbarView: NSView {
         }
 
         for button in toolButtons { place(button, width: 36) }
+        place(appearanceButton, width: appearanceButton.frame.width)
         place(moreToolsButton, width: moreToolsButton.frame.width)
         place(commentButton, width: 36)
         divider.frame = CGRect(x: x + 7, y: padding + 7, width: 1, height: 22)

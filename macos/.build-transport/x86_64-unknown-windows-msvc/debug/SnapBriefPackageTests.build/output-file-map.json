@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\primary.swiftdeps"
+  },
+  "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.derived\\runner.swift": {
+    "dependencies": "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\runner.d",
+    "object": "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\runner.swift.o",
+    "swiftmodule": "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\runner~partial.swiftmodule",
+    "swift-dependencies": "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\runner.swiftdeps",
+    "diagnostics": "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\runner.dia"
+  }
+}

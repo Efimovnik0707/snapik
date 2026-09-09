@@ -1,0 +1,1560 @@
+{
+  "builtTestProducts" : [
+    {
+      "binaryPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.xctest",
+      "packagePath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos",
+      "productName" : "SnapBriefPackageTests"
+    }
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+    "SnapBriefPackageDiscoveredTests"
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.SnapBriefCore-x86_64-unknown-windows-msvc-debug.module" : {
+      "executable" : "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe",
+      "fileList" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\sources",
+      "importPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\CaptureCropper.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\SessionHistory.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\SessionOperations.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\CaptureLabels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\ExportContracts.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\ExportText.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\FileExportService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\PromptGenerator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Geometry\\ResizeGeometry.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\AnnotationItem.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\CaptureItem.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\SessionValidation.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\SnapBriefSession.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Paths\\SnapBriefPaths.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\DefaultSessionAssetStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\JsonSessionStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\SessionStoreProtocols.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Serialization\\SnapBriefJson.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Settings\\HotkeySettings.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Settings\\UiLanguage.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\ISO8601Precise.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\PathValidation.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SBGuid.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SHA256.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SnapBriefError.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\TimeProvider.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\CodexDesktopPasteCompletionService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\PasteCoordinator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\PasteIntentKeyState.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\TargetProfile.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\TransportContracts.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\UnobservableAcceptanceObserver.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\swift-version--7D51B1CD8A690774.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "SnapBriefCore",
+      "moduleOutputPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefCore.swiftmodule",
+      "objects" : [
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureCropper.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionHistory.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionOperations.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureLabels.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ExportContracts.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ExportText.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\FileExportService.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PromptGenerator.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ResizeGeometry.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\AnnotationItem.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureItem.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionValidation.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefSession.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefPaths.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\DefaultSessionAssetStore.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\JsonSessionStore.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionStoreProtocols.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefJson.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\HotkeySettings.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\UiLanguage.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ISO8601Precise.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PathValidation.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SBGuid.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SHA256.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefError.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TimeProvider.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CodexDesktopPasteCompletionService.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PasteCoordinator.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PasteIntentKeyState.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TargetProfile.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TransportContracts.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\UnobservableAcceptanceObserver.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "x86_64-unknown-windows-msvc",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\index\\store",
+        "-Onone",
+        "-enable-testing",
+        "-j16",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-static",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\include\\SnapBriefCore-Swift.h",
+        "-swift-version",
+        "5",
+        "-sdk",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\SDKs\\Windows.sdk\\",
+        "-libc",
+        "MD",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-L",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows",
+        "-L",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-use-ld=lld",
+        "-g",
+        "-use-ld=lld",
+        "-Xcc",
+        "-D_MT",
+        "-Xcc",
+        "-D_DLL",
+        "-Xcc",
+        "-Xclang",
+        "-Xcc",
+        "--dependent-lib=msvcrt",
+        "-Xcc",
+        "-gdwarf",
+        "-package-name",
+        "macos"
+      ],
+      "outputFileMapPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureCropper.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionHistory.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionOperations.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureLabels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ExportContracts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ExportText.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\FileExportService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PromptGenerator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ResizeGeometry.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\AnnotationItem.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureItem.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionValidation.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefSession.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefPaths.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\DefaultSessionAssetStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\JsonSessionStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionStoreProtocols.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefJson.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\HotkeySettings.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\UiLanguage.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ISO8601Precise.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PathValidation.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SBGuid.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SHA256.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefError.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TimeProvider.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CodexDesktopPasteCompletionService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PasteCoordinator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PasteIntentKeyState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TargetProfile.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TransportContracts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\UnobservableAcceptanceObserver.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefCore.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\CaptureCropper.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\SessionHistory.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\SessionOperations.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\CaptureLabels.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\ExportContracts.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\ExportText.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\FileExportService.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\PromptGenerator.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Geometry\\ResizeGeometry.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\AnnotationItem.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\CaptureItem.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\SessionValidation.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\SnapBriefSession.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Paths\\SnapBriefPaths.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\DefaultSessionAssetStore.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\JsonSessionStore.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\SessionStoreProtocols.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Serialization\\SnapBriefJson.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Settings\\HotkeySettings.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Settings\\UiLanguage.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\ISO8601Precise.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\PathValidation.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SBGuid.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SHA256.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SnapBriefError.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\TimeProvider.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\CodexDesktopPasteCompletionService.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\PasteCoordinator.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\PasteIntentKeyState.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\TargetProfile.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\TransportContracts.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\UnobservableAcceptanceObserver.swift"
+      ],
+      "tempsPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.SnapBriefCoreTests-x86_64-unknown-windows-msvc-debug.module" : {
+      "executable" : "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe",
+      "fileList" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\sources",
+      "importPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\CaptureCropperTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\Geometry\\ResizeGeometryTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\PersistenceAndExportTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\SerializationCyrillicTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\SessionModelTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\swift-version--7D51B1CD8A690774.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefCore.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "SnapBriefCoreTests",
+      "moduleOutputPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefCoreTests.swiftmodule",
+      "objects" : [
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\CaptureCropperTests.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\ResizeGeometryTests.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\PersistenceAndExportTests.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SerializationCyrillicTests.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SessionModelTests.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "x86_64-unknown-windows-msvc",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\index\\store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j16",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-static",
+        "-swift-version",
+        "5",
+        "-sdk",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\SDKs\\Windows.sdk\\",
+        "-libc",
+        "MD",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-L",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows",
+        "-L",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-use-ld=lld",
+        "-g",
+        "-use-ld=lld",
+        "-Xcc",
+        "-D_MT",
+        "-Xcc",
+        "-D_DLL",
+        "-Xcc",
+        "-Xclang",
+        "-Xcc",
+        "--dependent-lib=msvcrt",
+        "-Xcc",
+        "-gdwarf",
+        "-package-name",
+        "macos"
+      ],
+      "outputFileMapPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\CaptureCropperTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\ResizeGeometryTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\PersistenceAndExportTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SerializationCyrillicTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SessionModelTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefCoreTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\CaptureCropperTests.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\Geometry\\ResizeGeometryTests.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\PersistenceAndExportTests.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\SerializationCyrillicTests.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\SessionModelTests.swift"
+      ],
+      "tempsPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.SnapBriefPackageDiscoveredTests-x86_64-unknown-windows-msvc-debug.module" : {
+      "executable" : "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe",
+      "fileList" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\sources",
+      "importPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\SnapBriefCoreTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\all-discovered-tests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\swift-version--7D51B1CD8A690774.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefCoreTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "SnapBriefPackageDiscoveredTests",
+      "moduleOutputPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefPackageDiscoveredTests.swiftmodule",
+      "objects" : [
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\SnapBriefCoreTests.swift.o",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\all-discovered-tests.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "x86_64-unknown-windows-msvc",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\index\\store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j16",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-static",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\include\\SnapBriefPackageDiscoveredTests-Swift.h",
+        "-sdk",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\SDKs\\Windows.sdk\\",
+        "-libc",
+        "MD",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-L",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows",
+        "-L",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-use-ld=lld",
+        "-g",
+        "-use-ld=lld",
+        "-Xcc",
+        "-D_MT",
+        "-Xcc",
+        "-D_DLL",
+        "-Xcc",
+        "-Xclang",
+        "-Xcc",
+        "--dependent-lib=msvcrt",
+        "-Xcc",
+        "-gdwarf",
+        "-package-name",
+        "macos"
+      ],
+      "outputFileMapPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\SnapBriefCoreTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\all-discovered-tests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefPackageDiscoveredTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\SnapBriefCoreTests.swift",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\all-discovered-tests.swift"
+      ],
+      "tempsPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.SnapBriefPackageTests-x86_64-unknown-windows-msvc-debug.module" : {
+      "executable" : "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe",
+      "fileList" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\sources",
+      "importPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.derived\\runner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\swift-version--7D51B1CD8A690774.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefCoreTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefPackageDiscoveredTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "SnapBriefPackageTests",
+      "moduleOutputPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefPackageTests.swiftmodule",
+      "objects" : [
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\runner.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "x86_64-unknown-windows-msvc",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\index\\store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j16",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-static",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\include\\SnapBriefPackageTests-Swift.h",
+        "-sdk",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\SDKs\\Windows.sdk\\",
+        "-libc",
+        "MD",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-L",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-I",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows",
+        "-L",
+        "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+        "-use-ld=lld",
+        "-g",
+        "-use-ld=lld",
+        "-Xcc",
+        "-D_MT",
+        "-Xcc",
+        "-D_DLL",
+        "-Xcc",
+        "-Xclang",
+        "-Xcc",
+        "--dependent-lib=msvcrt",
+        "-Xcc",
+        "-gdwarf",
+        "-package-name",
+        "macos"
+      ],
+      "outputFileMapPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefPackageTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.derived\\runner.swift"
+      ],
+      "tempsPath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "SnapBriefCore" : [
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe",
+      "-module-name",
+      "SnapBriefCore",
+      "-package-name",
+      "macos",
+      "-c",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\CaptureCropper.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\SessionHistory.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\SessionOperations.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\CaptureLabels.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\ExportContracts.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\ExportText.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\FileExportService.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\PromptGenerator.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Geometry\\ResizeGeometry.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\AnnotationItem.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\CaptureItem.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\SessionValidation.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\SnapBriefSession.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Paths\\SnapBriefPaths.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\DefaultSessionAssetStore.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\JsonSessionStore.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\SessionStoreProtocols.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Serialization\\SnapBriefJson.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Settings\\HotkeySettings.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Settings\\UiLanguage.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\ISO8601Precise.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\PathValidation.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SBGuid.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SHA256.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SnapBriefError.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\TimeProvider.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\CodexDesktopPasteCompletionService.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\PasteCoordinator.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\PasteIntentKeyState.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\TargetProfile.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\TransportContracts.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\UnobservableAcceptanceObserver.swift",
+      "-I",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules",
+      "-target",
+      "x86_64-unknown-windows-msvc",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\index\\store",
+      "-Onone",
+      "-enable-testing",
+      "-j16",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-static",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\include\\SnapBriefCore-Swift.h",
+      "-swift-version",
+      "5",
+      "-sdk",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\SDKs\\Windows.sdk\\",
+      "-libc",
+      "MD",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-L",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows",
+      "-L",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-use-ld=lld",
+      "-g",
+      "-use-ld=lld",
+      "-Xcc",
+      "-D_MT",
+      "-Xcc",
+      "-D_DLL",
+      "-Xcc",
+      "-Xclang",
+      "-Xcc",
+      "--dependent-lib=msvcrt",
+      "-Xcc",
+      "-gdwarf",
+      "-package-name",
+      "macos",
+      "-driver-use-frontend-path",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe"
+    ],
+    "SnapBriefCoreTests" : [
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe",
+      "-module-name",
+      "SnapBriefCoreTests",
+      "-package-name",
+      "macos",
+      "-c",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\CaptureCropperTests.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\Geometry\\ResizeGeometryTests.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\PersistenceAndExportTests.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\SerializationCyrillicTests.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\SessionModelTests.swift",
+      "-I",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules",
+      "-target",
+      "x86_64-unknown-windows-msvc",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\index\\store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j16",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-static",
+      "-swift-version",
+      "5",
+      "-sdk",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\SDKs\\Windows.sdk\\",
+      "-libc",
+      "MD",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-L",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows",
+      "-L",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-use-ld=lld",
+      "-g",
+      "-use-ld=lld",
+      "-Xcc",
+      "-D_MT",
+      "-Xcc",
+      "-D_DLL",
+      "-Xcc",
+      "-Xclang",
+      "-Xcc",
+      "--dependent-lib=msvcrt",
+      "-Xcc",
+      "-gdwarf",
+      "-package-name",
+      "macos",
+      "-driver-use-frontend-path",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe"
+    ],
+    "SnapBriefPackageDiscoveredTests" : [
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe",
+      "-module-name",
+      "SnapBriefPackageDiscoveredTests",
+      "-package-name",
+      "macos",
+      "-c",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\SnapBriefCoreTests.swift",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\all-discovered-tests.swift",
+      "-I",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules",
+      "-target",
+      "x86_64-unknown-windows-msvc",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\index\\store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j16",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-static",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\include\\SnapBriefPackageDiscoveredTests-Swift.h",
+      "-sdk",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\SDKs\\Windows.sdk\\",
+      "-libc",
+      "MD",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-L",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows",
+      "-L",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-use-ld=lld",
+      "-g",
+      "-use-ld=lld",
+      "-Xcc",
+      "-D_MT",
+      "-Xcc",
+      "-D_DLL",
+      "-Xcc",
+      "-Xclang",
+      "-Xcc",
+      "--dependent-lib=msvcrt",
+      "-Xcc",
+      "-gdwarf",
+      "-package-name",
+      "macos",
+      "-driver-use-frontend-path",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe"
+    ],
+    "SnapBriefPackageTests" : [
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe",
+      "-module-name",
+      "SnapBriefPackageTests",
+      "-package-name",
+      "macos",
+      "-c",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.derived\\runner.swift",
+      "-I",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules",
+      "-target",
+      "x86_64-unknown-windows-msvc",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\index\\store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j16",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-static",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\include\\SnapBriefPackageTests-Swift.h",
+      "-sdk",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\SDKs\\Windows.sdk\\",
+      "-libc",
+      "MD",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-L",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\XCTest-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-I",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows",
+      "-L",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Platforms\\6.3.3\\Windows.platform\\Developer\\Library\\Testing-6.3.3\\usr\\lib\\swift\\windows\\x86_64",
+      "-use-ld=lld",
+      "-g",
+      "-use-ld=lld",
+      "-Xcc",
+      "-D_MT",
+      "-Xcc",
+      "-D_DLL",
+      "-Xcc",
+      "-Xclang",
+      "-Xcc",
+      "--dependent-lib=msvcrt",
+      "-Xcc",
+      "-gdwarf",
+      "-package-name",
+      "macos",
+      "-driver-use-frontend-path",
+      "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe"
+    ]
+  },
+  "targetDependencyMap" : {
+    "SnapBriefCore" : [
+
+    ],
+    "SnapBriefCoreTests" : [
+      "SnapBriefCore"
+    ],
+    "SnapBriefPackageDiscoveredTests" : [
+      "SnapBriefCoreTests",
+      "SnapBriefCore"
+    ],
+    "SnapBriefPackageTests" : [
+      "SnapBriefPackageDiscoveredTests",
+      "SnapBriefCoreTests",
+      "SnapBriefCore"
+    ]
+  },
+  "testDiscoveryCommands" : {
+    "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\all-discovered-tests.swift" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\CaptureCropperTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\PersistenceAndExportTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\ResizeGeometryTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SerializationCyrillicTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SessionModelTests.swift.o"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\SnapBriefCoreTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\all-discovered-tests.swift"
+        }
+      ]
+    }
+  },
+  "testEntryPointCommands" : {
+    "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.derived\\runner.swift" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\Modules\\SnapBriefPackageDiscoveredTests.swiftmodule"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.derived\\runner.swift"
+        }
+      ]
+    }
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\CaptureCropper.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\SessionHistory.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Editing\\SessionOperations.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\CaptureLabels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\ExportContracts.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\ExportText.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\FileExportService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Exporting\\PromptGenerator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Geometry\\ResizeGeometry.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\AnnotationItem.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\CaptureItem.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\SessionValidation.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Models\\SnapBriefSession.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Paths\\SnapBriefPaths.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\DefaultSessionAssetStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\JsonSessionStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Persistence\\SessionStoreProtocols.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Serialization\\SnapBriefJson.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Settings\\HotkeySettings.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Settings\\UiLanguage.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\ISO8601Precise.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\PathValidation.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SBGuid.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SHA256.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\SnapBriefError.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Support\\TimeProvider.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\CodexDesktopPasteCompletionService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\PasteCoordinator.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\PasteIntentKeyState.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\TargetProfile.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\TransportContracts.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Sources\\SnapBriefCore\\Transport\\UnobservableAcceptanceObserver.swift"
+        }
+      ],
+      "outputFilePath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\sources"
+    },
+    "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\CaptureCropperTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\Geometry\\ResizeGeometryTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\PersistenceAndExportTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\SerializationCyrillicTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\Tests\\SnapBriefCoreTests\\SessionModelTests.swift"
+        }
+      ],
+      "outputFilePath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\sources"
+    },
+    "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\SnapBriefCoreTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.derived\\all-discovered-tests.swift"
+        }
+      ],
+      "outputFilePath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\sources"
+    },
+    "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.derived\\runner.swift"
+        }
+      ],
+      "outputFilePath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\sources"
+    },
+    "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.product\\Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\AnnotationItem.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureCropper.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureItem.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CaptureLabels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\CodexDesktopPasteCompletionService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\DefaultSessionAssetStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ExportContracts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ExportText.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\FileExportService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\HotkeySettings.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ISO8601Precise.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\JsonSessionStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PasteCoordinator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PasteIntentKeyState.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PathValidation.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\PromptGenerator.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\ResizeGeometry.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SBGuid.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SHA256.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionHistory.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionOperations.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionStoreProtocols.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SessionValidation.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefCore.swiftmodule.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefError.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefJson.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefPaths.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\SnapBriefSession.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TargetProfile.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TimeProvider.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\TransportContracts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\UiLanguage.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCore.build\\UnobservableAcceptanceObserver.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\CaptureCropperTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\PersistenceAndExportTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\ResizeGeometryTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SerializationCyrillicTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SessionModelTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefCoreTests.build\\SnapBriefCoreTests.swiftmodule.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\SnapBriefCoreTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\SnapBriefPackageDiscoveredTests.swiftmodule.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageDiscoveredTests.build\\all-discovered-tests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\SnapBriefPackageTests.swiftmodule.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.build\\runner.swift.o"
+        }
+      ],
+      "outputFilePath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\SnapBriefPackageTests.product\\Objects.LinkFileList"
+    },
+    "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\swift-version--7D51B1CD8A690774.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "C:\\Users\\tomat\\AppData\\Local\\Programs\\Swift\\Toolchains\\6.3.3+Asserts\\usr\\bin\\swiftc.exe"
+        }
+      ],
+      "outputFilePath" : "C:\\Users\\tomat\\Desktop\\Commercial\\My projects\\Other Projects\\SnapBrief Project\\macos\\.build-transport\\x86_64-unknown-windows-msvc\\debug\\swift-version--7D51B1CD8A690774.txt"
+    }
+  }
+}

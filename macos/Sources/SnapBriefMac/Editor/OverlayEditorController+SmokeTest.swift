@@ -56,8 +56,8 @@ extension OverlayEditorController {
         let annotation = EditorAnnotation(
             kind: .rectangle,
             points: [CGPoint(x: clamped.minX, y: clamped.minY), CGPoint(x: clamped.maxX, y: clamped.maxY)],
-            color: EditorTheme.annotationPalette[colorIndex],
-            thickness: thicknesses[thicknessIndex])
+            color: activeColor,
+            thickness: activeThickness)
         capture.annotations.append(annotation)
         canvasView?.selectAnnotation(id: annotation.id)
         annotationCreated(annotation)
@@ -86,8 +86,8 @@ extension OverlayEditorController {
         canvasView.draft = EditorAnnotation(
             kind: .blur,
             points: [CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY)],
-            color: EditorTheme.annotationPalette[colorIndex],
-            thickness: thicknesses[thicknessIndex])
+            color: activeColor,
+            thickness: activeThickness)
 
         let during = renderCanvasSnapshotForSmokeTest(canvasView)
 
@@ -163,6 +163,36 @@ extension OverlayEditorController {
     /// (SPEC §1.8's background-click completion path).
     func smokeCommit() {
         commit(addNext: false)
+    }
+
+    // MARK: - Appearance popover probes (SPEC §1.3, §6.2 "Дополнение 2026-09-09")
+
+    /// Drives the same immediate-apply path a real color swatch click / hex commit / slider drag
+    /// would (`applyAppearance`), without needing the popover UI on screen. The first call in an
+    /// uncommitted session captures the pre-edit baseline exactly as `toggleAppearancePopover()`
+    /// does when it opens the real popover; call `smokeUndo()` to commit that session and undo it
+    /// in one step (mirrors `RunNoteAffordanceProbe`'s direct `ApplyAppearance` calls,
+    /// `OverlayEditorWindow.xaml.cs:134-138`).
+    func smokeSetAppearance(color: NSColor?, thickness: Double?) {
+        if appearanceBefore == nil { appearanceBefore = snapshotState() }
+        applyAppearance(color: color, thickness: thickness)
+    }
+
+    /// The selected annotation's current color (`#AARRGGBB`) and thickness, or `nil` if nothing is
+    /// selected.
+    func smokeSelectedAnnotationAppearance() -> (color: String, thickness: Double)? {
+        guard let selected = canvasView?.selectedAnnotation else { return nil }
+        return (selected.color.hexARGB, selected.thickness)
+    }
+
+    /// Port of `OnUndoClick` for probes with no toolbar button to click. If a `smokeSetAppearance`
+    /// session is still open, first commits it exactly as closing the real popover would (SPEC
+    /// §1.3 point 3's "одна запись истории"), so the resulting single undo restores the pre-edit
+    /// state in one step (mirrors `RunNoteAffordanceProbe`'s `OnAppearanceClosed` + `OnUndoClick`
+    /// pair, `OverlayEditorWindow.xaml.cs:139-140`).
+    func smokeUndo() {
+        commitAppearanceSession()
+        performUndo()
     }
 
     /// Forces `AnnotationCanvasView.draw(_:)` to run against an off-screen bitmap and returns its

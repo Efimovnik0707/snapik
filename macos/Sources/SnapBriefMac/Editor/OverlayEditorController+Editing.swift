@@ -1,5 +1,7 @@
-// Port of `SetupEditor`, `OnToolClick`, `OnColorClick`, `OnThicknessClick`, `OnMoreToolsClick`,
-// `OnCropRequested` (`OverlayEditorWindow.xaml.cs:228-337,668-714`), SPEC §1.3, §6.2, §6.3.
+// Port of `SetupEditor`, `OnToolClick`, `OnMoreToolsClick`, `OnCropRequested`
+// (`OverlayEditorWindow.xaml.cs:228-337,668-714`), SPEC §1.3, §6.2, §6.3. Color/thickness
+// (`OnColorClick`/`OnThicknessClick`) moved to `OverlayEditorController+Appearance.swift` (SPEC
+// §1.3, §6.2 "Дополнение 2026-09-09").
 import AppKit
 import SnapBriefCore
 
@@ -55,8 +57,8 @@ extension OverlayEditorController {
             canvasView?.tool = .rectangle
         }
         canvasView?.language = language
-        canvasView?.activeColor = EditorTheme.annotationPalette[colorIndex]
-        canvasView?.activeThickness = thicknesses[thicknessIndex]
+        canvasView?.activeColor = activeColor
+        canvasView?.activeThickness = activeThickness
         canvasView?.capture = capture
 
         if toolbarView == nil {
@@ -67,6 +69,8 @@ extension OverlayEditorController {
             toolbarView = toolbar
         }
         toolbarView?.setActiveTool(canvasView?.tool ?? .rectangle)
+        // Port of `SyncAppearance()` at the end of `SetupEditor` (`OverlayEditorWindow.xaml.cs:252`).
+        syncAppearance()
 
         setupCaptureHandles(on: slot)
 
@@ -112,6 +116,7 @@ extension OverlayEditorController {
     }
 
     private func wireToolbarActions(_ toolbar: EditorToolbarView) {
+        toolbar.appearanceButton.onClick = { [weak self] in self?.toggleAppearancePopover() }
         toolbar.moreToolsButton.onClick = { [weak self] in self?.showMoreToolsMenu() }
         toolbar.commentButton.onClick = { [weak self] in self?.commentButtonClicked() }
         toolbar.undoButton.onClick = { [weak self] in self?.performUndo() }
@@ -121,44 +126,45 @@ extension OverlayEditorController {
         toolbar.doneButton.onClick = { [weak self] in self?.commit(addNext: false) }
     }
 
-    // MARK: - Tool / color / thickness (SPEC §1.3)
+    // MARK: - Tool selection (SPEC §1.3)
 
+    /// Port of `OnToolClick`/`SelectToolMode` (`OverlayEditorWindow.xaml.cs:293-301,332-340`),
+    /// unified into one function on macOS. Both now deselect first (SPEC §1.3, §6.2 "Дополнение
+    /// 2026-09-09": switching tools no longer leaves a stale selection driving the appearance
+    /// popover) and resync the toolbar's appearance button / "•••" highlight afterward.
     func selectTool(_ tool: EditorTool) {
+        canvasView?.selectAnnotation(id: nil)
         canvasView?.tool = tool
         toolbarView?.setActiveTool(tool)
+        syncAppearance()
         window(for: activeScreenIndex ?? 0)?.makeFirstResponder(canvasView)
     }
 
-    /// Port of `OnColorClick` (`:288-293`).
-    func cycleColor() {
-        colorIndex = (colorIndex + 1) % EditorTheme.annotationPalette.count
-        canvasView?.activeColor = EditorTheme.annotationPalette[colorIndex]
-    }
-
-    /// Port of `OnThicknessClick` (`:295-300`).
-    func cycleThickness() {
-        thicknessIndex = (thicknessIndex + 1) % thicknesses.count
-        canvasView?.activeThickness = thicknesses[thicknessIndex]
-    }
-
-    /// Port of `OnMoreToolsClick` (`:302-329`). `target` only needs to outlive this call:
-    /// `NSMenu.popUp(positioning:at:in:)` runs its own modal event-tracking loop and does not
-    /// return until the menu closes, so a local `let` is enough to keep it alive for every click.
+    /// Port of `OnMoreToolsClick` (`:302-329`, updated in the 2026-09-09 sync to drop the
+    /// separator and the "Цвет отметки"/"Толщина" cycling items — those moved to the appearance
+    /// popover — and to mark the active extra tool with a checkmark). `target` only needs to
+    /// outlive this call: `NSMenu.popUp(positioning:at:in:)` runs its own modal event-tracking
+    /// loop and does not return until the menu closes, so a local `let` is enough to keep it alive
+    /// for every click.
     func showMoreToolsMenu() {
         guard let toolbar = toolbarView else { return }
         let target = MoreToolsMenuTarget(controller: self)
         let menu = NSMenu()
-        menu.addItem(withTitle: "\(EditorStrings.toolPen(language))    P", action: #selector(MoreToolsMenuTarget.selectPen), keyEquivalent: "")
-        menu.addItem(withTitle: "\(EditorStrings.toolHighlight(language))    H", action: #selector(MoreToolsMenuTarget.selectHighlight), keyEquivalent: "")
-        menu.addItem(withTitle: "\(EditorStrings.toolText(language))    T", action: #selector(MoreToolsMenuTarget.selectText), keyEquivalent: "")
-        menu.addItem(withTitle: "\(EditorStrings.toolConcealSolid(language))    X", action: #selector(MoreToolsMenuTarget.selectConceal), keyEquivalent: "")
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: EditorStrings.annotationColor(language), action: #selector(MoreToolsMenuTarget.cycleColor), keyEquivalent: "")
-        menu.addItem(withTitle: "\(EditorStrings.thickness(language)) \u{00B7} \(EditorStrings.thicknessLabel(thicknesses[thicknessIndex]))", action: #selector(MoreToolsMenuTarget.cycleThickness), keyEquivalent: "")
-        for item in menu.items {
+        let currentTool = canvasView?.tool
+
+        func addTool(_ title: String, _ tool: EditorTool, _ action: Selector) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = target
-            item.attributedTitle = NSAttributedString(string: item.title, attributes: [.foregroundColor: NSColor.white])
+            item.state = currentTool == tool ? .on : .off
+            item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: NSColor.white])
+            menu.addItem(item)
         }
+
+        addTool("\(EditorStrings.toolPen(language))    P", .pen, #selector(MoreToolsMenuTarget.selectPen))
+        addTool("\(EditorStrings.toolHighlight(language))    H", .highlight, #selector(MoreToolsMenuTarget.selectHighlight))
+        addTool("\(EditorStrings.toolText(language))    T", .text, #selector(MoreToolsMenuTarget.selectText))
+        addTool("\(EditorStrings.toolConcealSolid(language))    X", .conceal, #selector(MoreToolsMenuTarget.selectConceal))
+
         let anchor = CGPoint(x: 0, y: toolbar.moreToolsButton.frame.maxY)
         menu.popUp(positioning: nil, at: toolbar.convert(anchor, from: toolbar.moreToolsButton), in: toolbar)
     }
@@ -222,6 +228,4 @@ final class MoreToolsMenuTarget: NSObject {
     @objc func selectHighlight() { controller?.selectTool(.highlight) }
     @objc func selectText() { controller?.selectTool(.text) }
     @objc func selectConceal() { controller?.selectTool(.conceal) }
-    @objc func cycleColor() { controller?.cycleColor() }
-    @objc func cycleThickness() { controller?.cycleThickness() }
 }

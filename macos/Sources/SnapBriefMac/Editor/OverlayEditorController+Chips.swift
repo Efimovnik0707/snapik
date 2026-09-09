@@ -25,6 +25,7 @@ extension OverlayEditorController {
     /// Port of `OnSelectionChanged` (`:354-359`); the C# guard on a pressed mouse button doesn't
     /// apply here (selection changes on mouse-down happen synchronously before any drag begins).
     func selectionChanged(_ annotation: EditorAnnotation?) {
+        syncAppearance()
         repositionChips()
         updateContextNoteAffordance(annotation: annotation)
     }
@@ -40,6 +41,7 @@ extension OverlayEditorController {
             repositionChips()
         }
         updateContextNoteAffordance(annotation: canvasView?.selectedAnnotation)
+        syncAppearance()
     }
 
     /// Port of `RefreshLabels` (`:436-450`).
@@ -213,7 +215,7 @@ extension OverlayEditorController {
                 self.capture?.note = text
                 self.history.clearRedo()
                 self.lastSnapshot = self.snapshotState()
-                self.refreshUndoRedoButtons()
+                self.syncAppearance()
             }
             chip.onCloseClicked = { [weak self] in self?.closeShotNoteChip() }
             chip.onEscape = { [weak self] in

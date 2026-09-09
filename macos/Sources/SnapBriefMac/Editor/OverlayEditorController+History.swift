@@ -17,7 +17,7 @@ extension OverlayEditorController {
         guard let before = lastSnapshot else { return }
         history.push(before)
         lastSnapshot = snapshotState()
-        refreshUndoRedoButtons()
+        syncAppearance()
     }
 
     /// Port of `OnUndoClick` (`:629-634`).
@@ -61,9 +61,9 @@ extension OverlayEditorController {
         lastSnapshot = snapshotState()
         rebuildChips(on: slot)
         updateContextNoteAffordance(annotation: canvasView?.selectedAnnotation)
+        syncAppearance()
         positionToolbar()
         canvasView?.needsDisplay = true
-        refreshUndoRedoButtons()
     }
 
     func refreshUndoRedoButtons() {

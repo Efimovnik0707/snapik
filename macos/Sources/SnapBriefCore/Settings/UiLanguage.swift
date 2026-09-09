@@ -44,6 +44,14 @@ public enum UiLanguage {
         ("Цвет отметки", "Annotation color"),
         ("Толщина", "Thickness"),
         ("Ещё инструменты", "More tools"),
+        // macOS-only additions (SPEC §1.3, §6.2 "Дополнение 2026-09-09": appearance popover).
+        // Not present in `src/SnapBrief.App/UiLanguage.cs` as of this sync — the Windows XAML
+        // hardcodes these Russian strings directly and has no English translation for them yet.
+        ("Цвет и толщина", "Color and thickness"),
+        ("Цвет", "Color"),
+        ("Закрыть", "Close"),
+        ("Цвет HEX", "Color HEX"),
+        ("Толщина линии", "Line thickness"),
         ("Добавить комментарий", "Add comment"),
         ("Удалить комментарий", "Remove comment"),
         ("Отменить", "Undo"),

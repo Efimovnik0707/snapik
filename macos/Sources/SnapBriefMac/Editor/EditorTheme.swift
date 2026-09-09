@@ -63,14 +63,32 @@ enum EditorTheme {
     static let textSecondaryAE = NSColor(hex: "#AEB8C7")
     static let errorText = NSColor(hex: "#FF9B95")
 
-    // Accent / annotation palette (SPEC §1.3, cycled by the color button)
+    // Accent / annotation palette (SPEC §1.3, §6.2 "Дополнение 2026-09-09": 12 fixed swatches in
+    // the appearance popover, replacing the old 4-color cycle).
     static let accent = NSColor(hex: "#2F8CFF")
-    static let annotationPalette: [NSColor] = [
-        NSColor(hex: "#2F8CFF"),
-        NSColor(hex: "#FF4D4F"),
-        NSColor(hex: "#FFBE2E"),
-        NSColor(hex: "#28BE80"),
+    static let annotationPaletteHex: [String] = [
+        "#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7",
+        "#FFFFFF", "#000000", "#00C8DC", "#FF8C42", "#9BA7B8", "#7754D9",
     ]
+    static let annotationPalette: [NSColor] = annotationPaletteHex.map { NSColor(hex: $0) }
+
+    // Appearance popover (SPEC §1.3, §6.2 "Дополнение 2026-09-09", port of the new
+    // `AppearancePopup`/`StrokeSliderStyle` chrome in `Themes/SnapBriefTheme.xaml`/
+    // `OverlayEditorWindow.xaml:40-52,147-158`). No separate border/corner-radius token: unlike
+    // WPF's borderless `Popup`, `NSPopover` draws and clips its own rounded bezel, so this content
+    // view only fills a flat background (`EditorAppearancePopoverContentView.draw(_:)`).
+    static let appearancePopoverBackground = NSColor(hex: "#171A20")
+    static let appearanceHexFieldBackground = NSColor(hex: "#252C36")
+    static let appearanceHexFieldBorder = NSColor(hex: "#465366")
+    static let appearanceHexFieldErrorBorder = NSColor(hex: "#FF6E6E")
+    static let appearancePreviewBackground = NSColor(hex: "#222933")
+    static let appearanceSliderFilledTrack = NSColor(hex: "#5EAAFF")
+    static let appearanceSliderEmptyTrack = NSColor(hex: "#465366")
+    static let appearanceSliderThumbFill = NSColor(hex: "#EEF2F8")
+    static let appearanceSliderThumbBorder = NSColor(hex: "#8193AB")
+    /// The "•••" button's active-extra-tool highlight (`Color.FromRgb(40, 75, 120)`,
+    /// `OverlayEditorWindow.Appearance.cs:66`).
+    static let moreToolsActiveBackground = NSColor(hex: "#284B78")
 
     // Selection / handles (SPEC §6.3)
     static let selectionOutline = NSColor(hex: "#315CF5")
@@ -89,6 +107,7 @@ enum EditorTheme {
     static let shotNoteChipCornerRadius: CGFloat = 12
     static let hintCornerRadius: CGFloat = 10
     static let menuCornerRadius: CGFloat = 6
+    static let appearancePreviewCornerRadius: CGFloat = 7
 
     // Fonts (SPEC §6.0: SF Pro Text at the same point sizes as the Windows Segoe UI Variable Text)
     static func systemFont(_ size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
