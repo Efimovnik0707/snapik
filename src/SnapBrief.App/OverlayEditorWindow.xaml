@@ -1,0 +1,135 @@
+<Window x:Class="SnapBrief.App.OverlayEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:SnapBrief.App.Controls"
+        Title="SnapBrief — Захват и разметка" AutomationProperties.Name="SnapBrief — Захват и разметка"
+        WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="False" Background="#0A0D12"
+        ShowInTaskbar="False" Topmost="True" Cursor="Cross"
+        KeyDown="OnWindowKeyDown" MouseLeftButtonDown="OnWindowMouseDown"
+        MouseMove="OnWindowMouseMove" MouseLeftButtonUp="OnWindowMouseUp">
+    <Window.Resources>
+        <Style x:Key="OverlayTool" TargetType="ToggleButton">
+            <Setter Property="Width" Value="36" /><Setter Property="Height" Value="36" /><Setter Property="Margin" Value="2,0" />
+            <Setter Property="Foreground" Value="#D9DEE8" /><Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+                <Border x:Name="B" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#29303A" /></Trigger>
+                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="Background" Value="#253B58" /><Setter TargetName="B" Property="BorderBrush" Value="#2F8CFF" /><Setter Property="Foreground" Value="White" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#7AB8FF" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style x:Key="OverlayButton" TargetType="Button">
+            <Setter Property="Height" Value="36" /><Setter Property="MinWidth" Value="36" /><Setter Property="Padding" Value="11,0" />
+            <Setter Property="Margin" Value="2,0" /><Setter Property="Foreground" Value="#EEF2F8" /><Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="B" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="{TemplateBinding Padding}">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#29303A" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#7AB8FF" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+    </Window.Resources>
+    <Grid x:Name="Root">
+        <Image x:Name="DesktopImage" Stretch="Fill" />
+        <Path x:Name="Shade" Fill="#A20A0D12" IsHitTestVisible="False" />
+        <Canvas x:Name="EditorLayer">
+            <Border x:Name="CropBorder" Visibility="Collapsed" BorderBrush="#2F8CFF" BorderThickness="2" Background="Transparent">
+                <controls:AnnotationCanvas x:Name="Surface" ImagePadding="0" Tool="Rectangle"
+                                           AnnotationCreated="OnAnnotationCreated" SelectionChanged="OnSelectionChanged"
+                                           AnnotationChanged="OnAnnotationChanged" CropRequested="OnCropRequested" />
+            </Border>
+        </Canvas>
+        <Canvas x:Name="CaptureHandleLayer" />
+        <Canvas x:Name="ChipLayer" IsHitTestVisible="True" />
+        <Canvas x:Name="NoteActionLayer" IsHitTestVisible="True">
+            <Button x:Name="ContextNoteButton" Visibility="Collapsed" Width="32" Height="32" Padding="8"
+                    Style="{StaticResource OverlayButton}" Background="#F2171A20" BorderBrush="#46515F"
+                    Click="OnCommentClick" ToolTip="Добавить комментарий">
+                <Grid>
+                    <Path Width="15" Height="15" Stroke="#EEF2F8" StrokeThickness="1.6" StrokeLineJoin="Round"
+                          Data="M2,2 L13,2 L13,10 L7,10 L4,13 L4,10 L2,10 Z" />
+                    <Ellipse Width="6" Height="6" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-4,0" Fill="#2F8CFF" />
+                </Grid>
+            </Button>
+        </Canvas>
+
+        <Border x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" Padding="13,8"
+                Background="#E8171A20" CornerRadius="10">
+            <TextBlock Foreground="White" FontSize="13" Text="Выделите область · Esc отменяет" />
+        </Border>
+
+        <Border x:Name="ShotNoteChip" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top" Width="250"
+                Padding="8" CornerRadius="12" Background="#F2171A20">
+            <StackPanel>
+                <Grid>
+                    <TextBlock x:Name="ShotLabel" VerticalAlignment="Center" Foreground="#9AA7B8" FontSize="11" FontWeight="SemiBold" Text="КОММЕНТАРИЙ К СНИМКУ" />
+                    <Button HorizontalAlignment="Right" Width="25" Height="25" Padding="7" Background="Transparent" BorderThickness="0" Click="OnCloseShotNoteClick" ToolTip="Удалить комментарий">
+                        <Path Stroke="#D9DEE8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,1 L9,9 M9,1 L1,9" />
+                    </Button>
+                </Grid>
+                <TextBox x:Name="ShotNoteBox" Margin="0,5,0,0" MinHeight="34" MaxHeight="92" AcceptsReturn="True" TextWrapping="Wrap"
+                         Background="#262B34" Foreground="White" BorderBrush="#3A424E" CaretBrush="White" SelectionBrush="#2F8CFF"
+                         TextChanged="OnShotNoteChanged" />
+            </StackPanel>
+        </Border>
+
+        <Border x:Name="Toolbar" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top"
+                Padding="7" CornerRadius="16" Background="#F2171A20">
+            <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="22" ShadowDepth="5" Opacity="0.45" /></Border.Effect>
+            <StackPanel Orientation="Horizontal">
+                <ToggleButton x:Name="SelectTool" Style="{StaticResource OverlayTool}" Tag="Select" Click="OnToolClick" ToolTip="Выбор">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M2,1 L14,9 L9,10 L7,15 Z" />
+                </ToggleButton>
+                <ToggleButton x:Name="RectangleTool" IsChecked="True" Style="{StaticResource OverlayTool}" Tag="Rectangle" Click="OnToolClick" ToolTip="Область">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" Data="M2,3 L14,3 L14,13 L2,13 Z" />
+                </ToggleButton>
+                <ToggleButton x:Name="ArrowTool" Style="{StaticResource OverlayTool}" Tag="Arrow" Click="OnToolClick" ToolTip="Стрелка">
+                    <Path Width="17" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M2,15 L15,2 M9,2 L15,2 L15,8" />
+                </ToggleButton>
+                <ToggleButton x:Name="PenTool" Visibility="Collapsed" Style="{StaticResource OverlayTool}" Tag="Pen" Click="OnToolClick" ToolTip="Перо">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M2,14 C5,12 5,8 8,7 M8,7 L13,2 L15,4 L10,9 Z" />
+                </ToggleButton>
+                <ToggleButton x:Name="HighlightTool" Visibility="Collapsed" Style="{StaticResource OverlayTool}" Tag="Highlight" Click="OnToolClick" ToolTip="Маркер">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M2,11 L10,3 L14,7 L6,15 L2,15 Z" />
+                </ToggleButton>
+                <ToggleButton x:Name="TextTool" Visibility="Collapsed" Style="{StaticResource OverlayTool}" Tag="Text" Click="OnToolClick" ToolTip="Текст">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" Data="M2,2 L14,2 M8,2 L8,14 M5,14 L11,14" />
+                </ToggleButton>
+                <ToggleButton x:Name="ConcealTool" Visibility="Collapsed" Style="{StaticResource OverlayTool}" Tag="Conceal" Click="OnToolClick" ToolTip="Скрыть">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" Data="M1,8 C4,3 12,3 15,8 C12,13 4,13 1,8 Z M3,15 L14,1" />
+                </ToggleButton>
+                <ToggleButton x:Name="BlurTool" Style="{StaticResource OverlayTool}" Tag="Blur" Click="OnToolClick" ToolTip="Размыть">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.4" Data="M2,4 L5,2 L8,4 L11,2 L14,4 M2,8 L5,6 L8,8 L11,6 L14,8 M2,12 L5,10 L8,12 L11,10 L14,12" />
+                </ToggleButton>
+                <ToggleButton x:Name="CropTool" Style="{StaticResource OverlayTool}" Tag="Crop" Click="OnToolClick" ToolTip="Обрезать">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeStartLineCap="Round" Data="M4,1 L4,12 L15,12 M1,4 L12,4 L12,15" />
+                </ToggleButton>
+                <Button Visibility="Collapsed" Style="{StaticResource OverlayButton}" Click="OnColorClick" ToolTip="Цвет отметки">
+                    <Ellipse x:Name="ColorSwatch" Width="14" Height="14" Fill="#2F8CFF" Stroke="White" StrokeThickness="1" />
+                </Button>
+                <Button x:Name="ThicknessButton" Visibility="Collapsed" Style="{StaticResource OverlayButton}" Click="OnThicknessClick" ToolTip="Толщина" Content="4 px" />
+                <Button Style="{StaticResource OverlayButton}" Click="OnMoreToolsClick" ToolTip="Ещё инструменты" Content="•••" />
+                <Button Style="{StaticResource OverlayButton}" Click="OnCommentClick" ToolTip="Добавить комментарий">
+                    <Path Width="16" Height="16" Stroke="#D9DEE8" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z" />
+                </Button>
+                <Border Width="1" Height="22" Margin="7,7" Background="#3A424E" />
+                <Button Style="{StaticResource OverlayButton}" Click="OnUndoClick" ToolTip="Отменить"><Path Width="16" Height="16" Stroke="#D9DEE8" StrokeThickness="1.7" Data="M7,3 L2,7 L7,11 M3,7 L10,7 C14,7 15,10 15,13" /></Button>
+                <Button Style="{StaticResource OverlayButton}" Click="OnRedoClick" ToolTip="Повторить"><Path Width="16" Height="16" Stroke="#D9DEE8" StrokeThickness="1.7" Data="M9,3 L14,7 L9,11 M13,7 L6,7 C2,7 1,10 1,13" /></Button>
+                <Button Style="{StaticResource OverlayButton}" Click="OnSaveImageClick" ToolTip="Сохранить на компьютер (Ctrl+S)" AutomationProperties.Name="Сохранить на компьютер">
+                    <Path Width="17" Height="17" Stroke="#D9DEE8" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,1 L12,1 L16,5 L16,16 L2,16 Z M5,1 L5,6 L12,6 L12,1 M5,16 L5,10 L13,10 L13,16" />
+                </Button>
+                <Button Style="{StaticResource OverlayButton}" Click="OnAddNextClick" Content="+ Снимок" />
+                <Button Style="{StaticResource OverlayButton}" Click="OnDoneClick" Background="#2F8CFF" FontWeight="SemiBold" Content="Готово" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

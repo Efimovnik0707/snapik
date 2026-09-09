@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\SnapBrief.ico</ApplicationIcon>
+    <AssemblyName>SnapBrief</AssemblyName>
+    <RootNamespace>SnapBrief.App</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SnapBrief.Core\SnapBrief.Core.csproj" />
+    <ProjectReference Include="..\SnapBrief.Infrastructure\SnapBrief.Infrastructure.csproj" />
+    <ProjectReference Include="..\SnapBrief.Windows\SnapBrief.Windows.csproj" />
+  </ItemGroup>
+  <ItemGroup><Compile Remove="MainWindow.xaml.cs" /><Page Remove="MainWindow.xaml" /></ItemGroup>
+</Project>

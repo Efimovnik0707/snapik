@@ -1,0 +1,24 @@
+# SESSION_LOG — 2026-09-09
+
+- [02:48] agent (researcher): Analyze usecasso.app landing
+- [02:48] web fetch: usecasso.app
+- [02:48] web fetch: usecasso.app
+- [02:49] agent (researcher): Research app landing references
+- [02:49] web fetch: usecasso.app
+- [02:49] web fetch: xnapper.com
+- [02:49] web fetch: linear.app
+- [02:49] web fetch: cleanshot.com
+- [02:49] web fetch: www.raycast.com
+- [02:49] web fetch: screen.studio
+- [02:50] web fetch: shottr.cc
+- [02:50] web fetch: dexlyy.com
+- [02:50] web fetch: cursor.com
+- [02:50] web fetch: cleanshot.com
+- [02:51] web fetch: www.warp.dev
+- [02:51] web fetch: xnapper.com
+- [02:59] `site/copy.json` written
+- [03:02] `site/spec/executor-brief.md` written
+- [03:02] agent (executor): Build light landing variant
+- [03:02] agent (executor): Build dark landing variant
+- [03:03] agent (executor): Build editorial landing variant
+- [03:03] agent (architect-spec): Write macOS port spec from Windows code

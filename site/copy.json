@@ -1,0 +1,629 @@
+{
+  "_readme": "Общий словарь трёх вариантов лендинга. Структура ru и en идентична. Поля с пометкой SAMPLE — коммерческие условия для примера, заменить перед публикацией. Альтернативы заголовков в alt.",
+  "ru": {
+    "meta": {
+      "title": "Скриншоты с заметками для Claude Code и Codex | SnapBrief",
+      "description": "Windows-приложение для работы с Claude Code и Codex. Разметьте несколько снимков экрана, напишите заметки рядом с отметками и вставьте всё одним Ctrl+V. Файлы остаются на компьютере."
+    },
+    "nav": {
+      "how": "Как работает",
+      "features": "Возможности",
+      "pricing": "Цена",
+      "faq": "Вопросы",
+      "download": "Скачать для Windows",
+      "lang": "EN"
+    },
+    "hero": {
+      "h1": "Несколько скриншотов, все заметки, один Ctrl+V.",
+      "alt": [
+        "Покажите агенту экран. Весь и по порядку.",
+        "Хватит пересказывать агенту то, что он может увидеть."
+      ],
+      "sub": "SnapBrief собирает размеченные снимки экрана и комментарии к ним в один пакет для Claude Code и Codex. Выделили область, написали рядом, вставили в агента.",
+      "ctaPrimary": "Скачать для Windows",
+      "ctaSecondary": "Как это работает",
+      "risk": [
+        "Windows 11 x64",
+        "Снимки не покидают компьютер",
+        "Разовая покупка, без подписки"
+      ]
+    },
+    "worksWith": {
+      "label": "Вставляется в",
+      "items": [
+        "Claude Code",
+        "Codex CLI",
+        "Codex Desktop"
+      ],
+      "tail": "и в любой композер, который принимает вставку изображений"
+    },
+    "flagship": {
+      "h2": "Один Ctrl+V. Три PNG и текст, где каждая заметка привязана к своей отметке.",
+      "p": "Обычно вы вставляете скриншоты по одному и объясняете словами, какой к чему относится. SnapBrief держит связь сам: снимок A, отметка A1, комментарий к A1. Агент получает картинки и структурированный текст за одну вставку.",
+      "points": [
+        "Отдельный PNG на каждый снимок",
+        "Текст с метками A1, B2 вместо «на втором скриншоте слева»",
+        "Enter не нажимается: вы сами отправляете запрос"
+      ]
+    },
+    "how": {
+      "h2": "Три шага, без окна редактора.",
+      "sub": "Всё происходит поверх вашего экрана и в маленькой стопке у края. Никаких больших окон, в которые надо переключаться.",
+      "steps": [
+        {
+          "n": "1",
+          "title": "Захватите область",
+          "text": "Нажмите горячую клавишу. Экран замирает, вы тянете рамку вокруг того, что нужно показать."
+        },
+        {
+          "n": "2",
+          "title": "Отметьте и напишите рядом",
+          "text": "Нарисуйте рамку или стрелку. Поле комментария открывается прямо у отметки, печатать можно сразу."
+        },
+        {
+          "n": "3",
+          "title": "Вставьте в агента",
+          "text": "Кликните мимо снимка и он свернётся в стопку. Ещё снимок, ещё один. Потом Ctrl+V в Claude Code или Codex."
+        }
+      ]
+    },
+    "features": {
+      "h2": "Сделано под одну задачу: объяснить агенту, что не так на экране.",
+      "sub": "Не универсальный скриншотер с сотней функций. Инструменты ровно для того, чтобы показать и пояснить.",
+      "items": [
+        {
+          "key": "linked",
+          "title": "Заметки держатся за отметки",
+          "text": "Комментарий принадлежит конкретной рамке. Переставили снимки в стопке, связи остались."
+        },
+        {
+          "key": "stack",
+          "title": "Стопка снимков вместо десяти файлов",
+          "text": "Один, два, пять захватов складываются в одну сессию у края экрана. Открыть и поправить любой можно одним кликом."
+        },
+        {
+          "key": "privacy",
+          "title": "Размытие, скрытие, обрезка",
+          "text": "Токен в терминале, почта клиента, лишняя часть окна. Размытие меняет пиксели по-настоящему, в экспорте тоже."
+        },
+        {
+          "key": "undo",
+          "title": "Отмена возвращает всё",
+          "text": "Геометрию отметок, заметки, обрезку, размытие. Одна история правок на весь снимок."
+        },
+        {
+          "key": "local",
+          "title": "Ничего не уходит в облако",
+          "text": "Нет сервера, нет аккаунта, нет телеметрии, нет ключей API. Снимки лежат в папке на вашем диске."
+        },
+        {
+          "key": "safe",
+          "title": "Сбой не теряет сессию",
+          "text": "Не сработал буфер, не открылось окно агента, пропал диск. Снимки и заметки остаются, можно повторить вставку."
+        }
+      ]
+    },
+    "receives": {
+      "h2": "Что именно получает агент",
+      "sub": "Никакой магии и никаких моделей посередине. Файлы плюс текст в предсказуемом формате.",
+      "files": [
+        "snapbrief-A.png",
+        "snapbrief-B.png",
+        "snapbrief-C.png",
+        "brief.md"
+      ],
+      "prompt": "Снимок A — Настройки профиля.\nКомментарий к снимку:\nЭкран сразу после нажатия «Сохранить».\nA1: Кнопка не меняет состояние после клика, нет индикации.\nA2: Тост об успехе перекрывает поле email.\n\nСнимок B — Список заказов.\nB1: Сортировка по дате сбрасывается после обновления страницы.\n\nСнимок C — Терминал.\nC1: Ошибка при том же запросе, токен размыт.",
+      "caption": "Текст генерируется детерминированно из ваших заметок. Enter не нажимается."
+    },
+    "compare": {
+      "h2": "До и после",
+      "before": {
+        "title": "Скриншоты вручную",
+        "items": [
+          "Три файла по очереди, каждый Ctrl+V отдельно",
+          "Абзац текста вроде «на первом скрине справа вверху…»",
+          "Агент путает, какая заметка к какому снимку",
+          "Токен в терминале ушёл в чат целиком"
+        ]
+      },
+      "after": {
+        "title": "Пакет SnapBrief",
+        "items": [
+          "Один Ctrl+V, все снимки и текст",
+          "Метки A1, B1 указывают на конкретные рамки",
+          "Порядок и связи заданы структурой, не словами",
+          "Размытие применено до экспорта"
+        ]
+      }
+    },
+    "windows": {
+      "h2": "Родное приложение для Windows 11.",
+      "sub": "Нативное приложение на .NET и WPF. Живёт в трее, не держит окно открытым и не крадёт фокус у вашего терминала.",
+      "points": [
+        {
+          "title": "Глобальная горячая клавиша",
+          "text": "Своё сочетание, конфликты проверяет Windows."
+        },
+        {
+          "title": "Трей и автозапуск",
+          "text": "Стартует с системой, показывается только когда нужен."
+        },
+        {
+          "title": "Несколько мониторов и DPI",
+          "text": "Смешанное масштабирование, снимок остаётся резким."
+        },
+        {
+          "title": "Русский и английский",
+          "text": "Интерфейс и заметки на любом языке, включая эмодзи."
+        }
+      ]
+    },
+    "pricing": {
+      "h2": "Одна покупка. Никаких подписок и счётчиков.",
+      "sub": "Платите один раз за личную лицензию для Windows. Обновления в рамках первой версии бесплатно.",
+      "plan": {
+        "name": "Личная лицензия",
+        "price": "€29",
+        "period": "разово, включая НДС",
+        "sampleTag": "пример цены",
+        "bullets": [
+          "Все инструменты разметки и стопка снимков",
+          "Пакет для Claude Code и Codex",
+          "Размытие, скрытие, обрезка, отмена",
+          "Бесплатные обновления 1.x",
+          "Файлы остаются на вашем компьютере"
+        ],
+        "cta": "Скачать для Windows",
+        "note": "Windows 11 x64 · без аккаунта · без телеметрии"
+      }
+    },
+    "faq": {
+      "h2": "Прямые ответы",
+      "items": [
+        {
+          "q": "SnapBrief отправляет снимки какой-нибудь модели?",
+          "a": "Нет. Приложение готовит PNG и текст и кладёт их в буфер обмена. Дальше вы сами вставляете пакет в тот агент, которым пользуетесь."
+        },
+        {
+          "q": "С какими агентами это работает?",
+          "a": "Пакет рассчитан на Claude Code и Codex, в терминале и в настольных приложениях. Технически это обычная вставка из буфера, поэтому подойдёт любой композер, принимающий изображения. Как каждый из них показывает несколько вложений, зависит от самого приложения."
+        },
+        {
+          "q": "SnapBrief нажимает Enter?",
+          "a": "Никогда. Запрос отправляете вы. Приложение только подготавливает и вставляет."
+        },
+        {
+          "q": "Где хранятся снимки?",
+          "a": "В папке сессий на вашем диске, по умолчанию в LocalAppData. Каталог можно переопределить. Ничего не загружается в интернет."
+        },
+        {
+          "q": "Что будет, если вставка не сработала?",
+          "a": "Сессия сохранится, снимки и заметки останутся в стопке. Можно повторить копирование или сохранить пакет в папку."
+        },
+        {
+          "q": "Это только для Windows?",
+          "a": "Да, первая версия для Windows 11 x64. Других платформ пока нет."
+        }
+      ]
+    },
+    "final": {
+      "h2": "Хватит описывать экран словами.",
+      "sub": "Покажите его агенту вместе с заметками и одним Ctrl+V.",
+      "cta": "Скачать для Windows",
+      "hint": "Горячая клавиша задаётся в настройках, любое сочетание"
+    },
+    "footer": {
+      "tagline": "Скриншоты с заметками для Claude Code и Codex. Локально, без подписки.",
+      "cols": [
+        {
+          "title": "Продукт",
+          "links": [
+            "Как работает",
+            "Возможности",
+            "Цена",
+            "Скачать"
+          ]
+        },
+        {
+          "title": "Помощь",
+          "links": [
+            "Вопросы",
+            "Совместимость",
+            "Изменения"
+          ]
+        },
+        {
+          "title": "Правовое",
+          "links": [
+            "Конфиденциальность",
+            "Условия"
+          ]
+        }
+      ],
+      "copyright": "© 2026 SnapBrief"
+    },
+    "demo": {
+      "hint": "Выделите область · Esc отменяет",
+      "tools": [
+        "Выбор",
+        "Область",
+        "Стрелка",
+        "Перо",
+        "Маркер",
+        "Текст",
+        "Скрыть",
+        "Размыть",
+        "Обрезать",
+        "Комментарий",
+        "Отменить",
+        "Повторить"
+      ],
+      "stackTitle": "SnapBrief",
+      "stackButton": "+ Снимок",
+      "restore": "Вернуть",
+      "captures": [
+        {
+          "label": "A",
+          "title": "Настройки профиля",
+          "notes": [
+            "Кнопка не меняет состояние после клика",
+            "Тост перекрывает поле email"
+          ]
+        },
+        {
+          "label": "B",
+          "title": "Список заказов",
+          "notes": [
+            "Сортировка сбрасывается после обновления"
+          ]
+        },
+        {
+          "label": "C",
+          "title": "Терминал",
+          "notes": [
+            "Та же ошибка, токен размыт"
+          ]
+        }
+      ],
+      "fakeApp": {
+        "title": "Настройки профиля",
+        "fields": [
+          "Имя",
+          "Email",
+          "Часовой пояс"
+        ],
+        "button": "Сохранить",
+        "toast": "Профиль сохранён",
+        "orders": [
+          "Заказ 1042 · 8 сент.",
+          "Заказ 1041 · 8 сент.",
+          "Заказ 1039 · 7 сент."
+        ]
+      },
+      "composer": {
+        "title": "Claude Code",
+        "placeholder": "Напишите задачу…",
+        "attached": "3 изображения",
+        "pasted": "Вставлено из SnapBrief"
+      },
+      "kbd": {
+        "capture": "Горячая клавиша",
+        "fold": "Ctrl+C",
+        "paste": "Ctrl+V"
+      }
+    }
+  },
+  "en": {
+    "meta": {
+      "title": "Annotated screenshots for Claude Code and Codex | SnapBrief",
+      "description": "A Windows app for working with Claude Code and Codex. Mark up several screen captures, write notes beside the marks, and paste everything with one Ctrl+V. Files never leave your machine."
+    },
+    "nav": {
+      "how": "How it works",
+      "features": "Features",
+      "pricing": "Pricing",
+      "faq": "FAQ",
+      "download": "Download for Windows",
+      "lang": "RU"
+    },
+    "hero": {
+      "h1": "Several screenshots, every note attached, one Ctrl+V.",
+      "alt": [
+        "Show your agent the screen. All of it, in order.",
+        "Stop retyping what your agent could just see."
+      ],
+      "sub": "SnapBrief turns annotated screen captures and the notes beside them into one package for Claude Code and Codex. Select a region, write next to the mark, paste into your agent.",
+      "ctaPrimary": "Download for Windows",
+      "ctaSecondary": "See how it works",
+      "risk": [
+        "Windows 11 x64",
+        "Screenshots never leave your machine",
+        "One-time purchase, no subscription"
+      ]
+    },
+    "worksWith": {
+      "label": "Pastes into",
+      "items": [
+        "Claude Code",
+        "Codex CLI",
+        "Codex Desktop"
+      ],
+      "tail": "and any composer that accepts pasted images"
+    },
+    "flagship": {
+      "h2": "One Ctrl+V. Three PNGs and a text where every note points at its own mark.",
+      "p": "Normally you paste screenshots one by one and explain in words which note belongs where. SnapBrief keeps the link itself: capture A, mark A1, note on A1. The agent gets the images and structured text in a single paste.",
+      "points": [
+        "A separate PNG per capture",
+        "Text with labels A1, B2 instead of “top left on the second screenshot”",
+        "Enter is never pressed: you send the request yourself"
+      ]
+    },
+    "how": {
+      "h2": "Three steps, no editor window.",
+      "sub": "Everything happens on top of your screen and in a small stack at the edge. No big window to switch into.",
+      "steps": [
+        {
+          "n": "1",
+          "title": "Capture a region",
+          "text": "Press the hotkey. The screen freezes and you drag a frame around what you want to show."
+        },
+        {
+          "n": "2",
+          "title": "Mark it and write beside it",
+          "text": "Draw a box or an arrow. The note field opens right next to the mark and you can type straight away."
+        },
+        {
+          "n": "3",
+          "title": "Paste into your agent",
+          "text": "Click outside the capture and it folds into the stack. Another capture, one more. Then Ctrl+V in Claude Code or Codex."
+        }
+      ]
+    },
+    "features": {
+      "h2": "Built for one job: explaining to an agent what is wrong on screen.",
+      "sub": "Not a general screenshot tool with a hundred features. Exactly the tools for showing and explaining.",
+      "items": [
+        {
+          "key": "linked",
+          "title": "Notes stay attached to marks",
+          "text": "A comment belongs to its own box. Reorder captures in the stack and the links hold."
+        },
+        {
+          "key": "stack",
+          "title": "A stack of captures instead of ten files",
+          "text": "One, two, five captures fold into a single session at the screen edge. Open and fix any of them with one click."
+        },
+        {
+          "key": "privacy",
+          "title": "Blur, conceal, crop",
+          "text": "A token in the terminal, a client's email, an extra part of the window. Blur really changes the pixels, in the export too."
+        },
+        {
+          "key": "undo",
+          "title": "Undo brings everything back",
+          "text": "Mark geometry, notes, crop, blur. One edit history for the whole capture."
+        },
+        {
+          "key": "local",
+          "title": "Nothing goes to the cloud",
+          "text": "No server, no account, no telemetry, no API keys. Captures live in a folder on your disk."
+        },
+        {
+          "key": "safe",
+          "title": "A failure never loses the session",
+          "text": "Clipboard didn't take, the agent window didn't open, the disk went away. Captures and notes stay put and you can paste again."
+        }
+      ]
+    },
+    "receives": {
+      "h2": "What the agent actually receives",
+      "sub": "No magic and no model in the middle. Files plus text in a predictable format.",
+      "files": [
+        "snapbrief-A.png",
+        "snapbrief-B.png",
+        "snapbrief-C.png",
+        "brief.md"
+      ],
+      "prompt": "Capture A — Profile settings.\nCapture note:\nScreen right after pressing Save.\nA1: The button doesn't change state after the click, no feedback.\nA2: The success toast covers the email field.\n\nCapture B — Orders list.\nB1: Date sorting resets after the page refreshes.\n\nCapture C — Terminal.\nC1: Same error on the same request, token blurred.",
+      "caption": "The text is generated deterministically from your notes. Enter is never pressed."
+    },
+    "compare": {
+      "h2": "Before and after",
+      "before": {
+        "title": "Screenshots by hand",
+        "items": [
+          "Three files in turn, a separate Ctrl+V each",
+          "A paragraph like “on the first screenshot, top right…”",
+          "The agent mixes up which note goes with which capture",
+          "The token in the terminal went into the chat as is"
+        ]
+      },
+      "after": {
+        "title": "A SnapBrief package",
+        "items": [
+          "One Ctrl+V, all captures and the text",
+          "Labels A1, B1 point at specific boxes",
+          "Order and links come from structure, not from prose",
+          "Blur applied before export"
+        ]
+      }
+    },
+    "windows": {
+      "h2": "Native to Windows 11.",
+      "sub": "A native .NET and WPF app. Lives in the tray, keeps no window open, and never steals focus from your terminal.",
+      "points": [
+        {
+          "title": "Global hotkey",
+          "text": "Your own shortcut, conflicts checked by Windows."
+        },
+        {
+          "title": "Tray and autostart",
+          "text": "Starts with the system, shows up only when needed."
+        },
+        {
+          "title": "Multiple monitors and DPI",
+          "text": "Mixed scaling, captures stay sharp."
+        },
+        {
+          "title": "English and Russian",
+          "text": "Interface and notes in any language, emoji included."
+        }
+      ]
+    },
+    "pricing": {
+      "h2": "Pay once. No subscriptions, no usage meters.",
+      "sub": "One payment for a personal Windows license. Updates within the first major version are free.",
+      "plan": {
+        "name": "Personal license",
+        "price": "€29",
+        "period": "one-time, VAT included",
+        "sampleTag": "sample price",
+        "bullets": [
+          "All annotation tools and the capture stack",
+          "Package for Claude Code and Codex",
+          "Blur, conceal, crop, undo",
+          "Free 1.x updates",
+          "Files stay on your machine"
+        ],
+        "cta": "Download for Windows",
+        "note": "Windows 11 x64 · no account · no telemetry"
+      }
+    },
+    "faq": {
+      "h2": "Straight answers",
+      "items": [
+        {
+          "q": "Does SnapBrief send screenshots to a model?",
+          "a": "No. The app prepares PNGs and text and puts them on the clipboard. You paste the package into whichever agent you use."
+        },
+        {
+          "q": "Which agents does it work with?",
+          "a": "The package is built for Claude Code and Codex, in the terminal and in desktop apps. Technically it is a normal clipboard paste, so any composer that accepts images will take it. How each one displays several attachments depends on that app."
+        },
+        {
+          "q": "Does SnapBrief press Enter?",
+          "a": "Never. You send the request. The app only prepares and pastes."
+        },
+        {
+          "q": "Where are captures stored?",
+          "a": "In a sessions folder on your disk, LocalAppData by default. The directory can be overridden. Nothing is uploaded anywhere."
+        },
+        {
+          "q": "What if the paste didn't work?",
+          "a": "The session is kept, captures and notes stay in the stack. Copy again or save the package to a folder."
+        },
+        {
+          "q": "Is it Windows only?",
+          "a": "Yes, the first release is for Windows 11 x64. No other platforms yet."
+        }
+      ]
+    },
+    "final": {
+      "h2": "Stop describing the screen in words.",
+      "sub": "Show it to your agent, notes attached, with one Ctrl+V.",
+      "cta": "Download for Windows",
+      "hint": "The hotkey is set in settings, any combination"
+    },
+    "footer": {
+      "tagline": "Annotated screenshots for Claude Code and Codex. Local, no subscription.",
+      "cols": [
+        {
+          "title": "Product",
+          "links": [
+            "How it works",
+            "Features",
+            "Pricing",
+            "Download"
+          ]
+        },
+        {
+          "title": "Help",
+          "links": [
+            "FAQ",
+            "Compatibility",
+            "Changelog"
+          ]
+        },
+        {
+          "title": "Legal",
+          "links": [
+            "Privacy",
+            "Terms"
+          ]
+        }
+      ],
+      "copyright": "© 2026 SnapBrief"
+    },
+    "demo": {
+      "hint": "Select a region · Esc cancels",
+      "tools": [
+        "Select",
+        "Region",
+        "Arrow",
+        "Pen",
+        "Highlight",
+        "Text",
+        "Conceal",
+        "Blur",
+        "Crop",
+        "Comment",
+        "Undo",
+        "Redo"
+      ],
+      "stackTitle": "SnapBrief",
+      "stackButton": "+ Capture",
+      "restore": "Restore",
+      "captures": [
+        {
+          "label": "A",
+          "title": "Profile settings",
+          "notes": [
+            "Button doesn't change state after click",
+            "Toast covers the email field"
+          ]
+        },
+        {
+          "label": "B",
+          "title": "Orders list",
+          "notes": [
+            "Sorting resets after refresh"
+          ]
+        },
+        {
+          "label": "C",
+          "title": "Terminal",
+          "notes": [
+            "Same error, token blurred"
+          ]
+        }
+      ],
+      "fakeApp": {
+        "title": "Profile settings",
+        "fields": [
+          "Name",
+          "Email",
+          "Time zone"
+        ],
+        "button": "Save",
+        "toast": "Profile saved",
+        "orders": [
+          "Order 1042 · Sep 8",
+          "Order 1041 · Sep 8",
+          "Order 1039 · Sep 7"
+        ]
+      },
+      "composer": {
+        "title": "Claude Code",
+        "placeholder": "Describe the task…",
+        "attached": "3 images",
+        "pasted": "Pasted from SnapBrief"
+      },
+      "kbd": {
+        "capture": "Hotkey",
+        "fold": "Ctrl+C",
+        "paste": "Ctrl+V"
+      }
+    }
+  }
+}

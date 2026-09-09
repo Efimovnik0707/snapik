@@ -1,0 +1,14 @@
+.dotnet/
+.dotnet-home/
+.nuget/
+**/bin/
+**/obj/
+.vs/
+TestResults/
+artifacts/
+.tmp/
+macos/.build/
+macos/*.xcodeproj/xcuserdata/
+macos/DerivedData/
+*.swp
+.DS_Store

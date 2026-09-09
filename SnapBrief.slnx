@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SnapBrief.App/SnapBrief.App.csproj" />
+    <Project Path="src/SnapBrief.Core/SnapBrief.Core.csproj" />
+    <Project Path="src/SnapBrief.Infrastructure/SnapBrief.Infrastructure.csproj" />
+    <Project Path="src/SnapBrief.Windows/SnapBrief.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SnapBrief.App.Imaging.Tests/SnapBrief.App.Imaging.Tests.csproj" />
+    <Project Path="tests/SnapBrief.Core.Tests/SnapBrief.Core.Tests.csproj" />
+    <Project Path="tests/SnapBrief.Windows.Tests/SnapBrief.Windows.Tests.csproj" />
+  </Folder>
+</Solution>

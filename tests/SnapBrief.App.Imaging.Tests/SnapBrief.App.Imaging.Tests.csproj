@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\SnapBrief.App\Imaging\RegionBlur.cs" Link="Imaging\RegionBlur.cs" />
+    <Compile Include="..\..\src\SnapBrief.App\Controls\ResizeGeometry.cs" Link="ResizeGeometry.cs" />
+    <Compile Include="..\..\src\SnapBrief.App\SingleInstanceActivation.cs" Link="SingleInstanceActivation.cs" />
+  </ItemGroup>
+</Project>

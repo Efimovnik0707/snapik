@@ -1,0 +1,115 @@
+namespace SnapBrief.Windows;
+
+public sealed class CodexDesktopPasteCompletionService : ICodexDesktopPasteCompletionService
+{
+    private static readonly TimeSpan DefaultSettlementDelay = TimeSpan.FromMilliseconds(500);
+
+    private readonly IClipboardService clipboard;
+    private readonly IForegroundTargetService foreground;
+    private readonly IGuardedInputInjector input;
+    private readonly TimeSpan settlementDelay;
+
+    public CodexDesktopPasteCompletionService(
+        IClipboardService clipboard,
+        IForegroundTargetService foreground,
+        IGuardedInputInjector input,
+        TimeSpan? settlementDelay = null)
+    {
+        this.clipboard = clipboard ?? throw new ArgumentNullException(nameof(clipboard));
+        this.foreground = foreground ?? throw new ArgumentNullException(nameof(foreground));
+        this.input = input ?? throw new ArgumentNullException(nameof(input));
+        this.settlementDelay = settlementDelay ?? DefaultSettlementDelay;
+        if (this.settlementDelay < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(settlementDelay));
+    }
+
+    public async Task<CodexPasteCompletionResult> CompleteAsync(
+        PasteIntentObserved intent,
+        ClipboardWriteReceipt ownedPackageReceipt,
+        string immutablePromptText,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        ArgumentNullException.ThrowIfNull(immutablePromptText);
+
+        // This executes synchronously before the first await so the focused child is
+        // captured at the physical paste intent, not after the settlement delay.
+        var target = foreground.Capture();
+        if (intent.Gesture != HotkeyGesture.CtrlV ||
+            !target.IsUsable ||
+            target.WindowHandle != intent.ForegroundWindowHandle ||
+            target.ProcessId != intent.ForegroundProcessId ||
+            !foreground.Matches(target, TargetProfiles.CodexDesktop))
+        {
+            return Result(CodexPasteCompletionStatus.NotApplicable, "Paste completion applies only to a physical Ctrl+V in Codex Desktop.");
+        }
+
+        if (intent.ClipboardSequenceNumber != ownedPackageReceipt.SequenceNumber)
+            return Result(CodexPasteCompletionStatus.StaleIntent, "The paste intent does not refer to SnapBrief's current package.");
+
+        if (string.IsNullOrEmpty(immutablePromptText))
+            return Result(CodexPasteCompletionStatus.NothingToDispatch, "The package has no prompt text to paste.");
+
+        ClipboardWriteReceipt? textReceipt = null;
+        try
+        {
+            await Task.Delay(settlementDelay, cancellationToken);
+            if (!await clipboard.IsCurrentAsync(ownedPackageReceipt, cancellationToken))
+                return Result(CodexPasteCompletionStatus.ClipboardChanged, "The clipboard changed before the text paste.");
+            if (!foreground.IsSame(target))
+                return Result(CodexPasteCompletionStatus.TargetLost, "Codex focus changed before the text paste.");
+
+            textReceipt = await clipboard.SetTextGuardedAsync(
+                immutablePromptText,
+                ownedPackageReceipt.SequenceNumber,
+                cancellationToken);
+
+            var rejectedStatus = CodexPasteCompletionStatus.ClipboardChanged;
+            var dispatched = await input.SendGuardedAsync(
+                HotkeyGesture.CtrlV,
+                async guardCancellationToken =>
+                {
+                    if (!await clipboard.IsCurrentAsync(textReceipt.Value, guardCancellationToken))
+                    {
+                        rejectedStatus = CodexPasteCompletionStatus.ClipboardChanged;
+                        return false;
+                    }
+                    if (!foreground.IsSame(target))
+                    {
+                        rejectedStatus = CodexPasteCompletionStatus.TargetLost;
+                        return false;
+                    }
+                    return true;
+                },
+                cancellationToken);
+            if (!dispatched)
+            {
+                var message = rejectedStatus == CodexPasteCompletionStatus.TargetLost
+                    ? "Codex focus changed while the paste keys were being released."
+                    : "The clipboard changed while the paste keys were being released.";
+                return Result(rejectedStatus, message, textReceipt);
+            }
+            return Result(
+                CodexPasteCompletionStatus.CompletedUnverified,
+                "Prompt text paste was dispatched to Codex; receiver acceptance was not observable.",
+                textReceipt);
+        }
+        catch (ClipboardChangedException ex)
+        {
+            return Result(CodexPasteCompletionStatus.ClipboardChanged, ex.Message, textReceipt, ex);
+        }
+        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result(CodexPasteCompletionStatus.Cancelled, "The guarded text paste was cancelled.", textReceipt, ex);
+        }
+        catch (Exception ex)
+        {
+            return Result(CodexPasteCompletionStatus.Failed, $"The guarded text paste failed: {ex.Message}", textReceipt, ex);
+        }
+    }
+
+    private static CodexPasteCompletionResult Result(
+        CodexPasteCompletionStatus status,
+        string message,
+        ClipboardWriteReceipt? receipt = null,
+        Exception? error = null) => new(status, message, receipt, error);
+}

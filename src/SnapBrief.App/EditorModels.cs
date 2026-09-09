@@ -1,0 +1,202 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Collections.Immutable;
+using SnapBrief.Core.Models;
+using CoreAnnotation = SnapBrief.Core.Models.AnnotationItem;
+using CoreCapture = SnapBrief.Core.Models.CaptureItem;
+
+namespace SnapBrief.App;
+
+public enum EditorTool
+{
+    Select,
+    Arrow,
+    Rectangle,
+    Pen,
+    Highlight,
+    Text,
+    Conceal,
+    Blur,
+    Crop
+}
+
+public sealed class AnnotationItem : INotifyPropertyChanged
+{
+    private string _note = string.Empty;
+    private string _text = "Текст";
+    private bool _isSelected;
+
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public EditorTool Kind { get; init; }
+    public List<Point> Points { get; init; } = [];
+    public List<List<Point>> AdditionalPathSegments { get; init; } = [];
+    public Color Color { get; set; } = Color.FromRgb(49, 92, 245);
+    public double Thickness { get; set; } = 4;
+    public string Label { get; set; } = string.Empty;
+
+    public string Note
+    {
+        get => _note;
+        set { if (_note == value) return; _note = value; OnPropertyChanged(); }
+    }
+
+    public string Text
+    {
+        get => _text;
+        set { if (_text == value) return; _text = value; OnPropertyChanged(); }
+    }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { if (_isSelected == value) return; _isSelected = value; OnPropertyChanged(); }
+    }
+
+    public AnnotationItem Clone() => new()
+    {
+        Id = Id,
+        Kind = Kind,
+        Points = [.. Points],
+        AdditionalPathSegments = AdditionalPathSegments.Select(segment => segment.ToList()).ToList(),
+        Color = Color,
+        Thickness = Thickness,
+        Label = Label,
+        Note = Note,
+        Text = Text,
+        IsSelected = IsSelected
+    };
+
+    public CoreAnnotation ToCore(int imageWidth, int imageHeight) => new(
+        Id,
+        Kind switch
+        {
+            EditorTool.Arrow => AnnotationKind.Arrow,
+            EditorTool.Rectangle => AnnotationKind.Rectangle,
+            EditorTool.Pen => AnnotationKind.Freehand,
+            EditorTool.Highlight => AnnotationKind.Highlight,
+            EditorTool.Text => AnnotationKind.Text,
+            EditorTool.Conceal => AnnotationKind.Redaction,
+            EditorTool.Blur => AnnotationKind.Blur,
+            _ => AnnotationKind.Rectangle
+        },
+        Points.Select(p => new NormalizedPoint(
+            Math.Clamp(p.X / imageWidth, 0, 1),
+            Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray(),
+        $"#{Color.A:X2}{Color.R:X2}{Color.G:X2}{Color.B:X2}",
+        Thickness,
+        Text,
+        Note)
+    {
+        PathSegments = AdditionalPathSegments.Count == 0 ? [] : new[] { Points }.Concat(AdditionalPathSegments)
+            .Select(segment => segment.Select(p => new NormalizedPoint(Math.Clamp(p.X / imageWidth, 0, 1), Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray())
+            .ToImmutableArray()
+    };
+
+    public static AnnotationItem FromCore(CoreAnnotation item, int imageWidth, int imageHeight)
+    {
+        var segments = item.GetPathSegments()
+            .Select(segment => segment.Select(p => new Point(p.X * imageWidth, p.Y * imageHeight)).ToList()).ToList();
+        return new()
+        {
+        Id = item.Id,
+        Kind = item.Kind switch
+        {
+            AnnotationKind.Arrow => EditorTool.Arrow,
+            AnnotationKind.Rectangle => EditorTool.Rectangle,
+            AnnotationKind.Freehand => EditorTool.Pen,
+            AnnotationKind.Highlight => EditorTool.Highlight,
+            AnnotationKind.Text => EditorTool.Text,
+            AnnotationKind.Redaction => EditorTool.Conceal,
+            AnnotationKind.Blur => EditorTool.Blur,
+            _ => EditorTool.Rectangle
+        },
+        Points = segments.Count > 0 ? segments[0] : item.Points.Select(p => new Point(p.X * imageWidth, p.Y * imageHeight)).ToList(),
+        AdditionalPathSegments = segments.Skip(1).ToList(),
+        Color = (Color)ColorConverter.ConvertFromString(item.StrokeColor),
+        Thickness = item.Thickness,
+        Text = item.Text,
+        Note = item.Note
+        };
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+public sealed class CaptureItem : INotifyPropertyChanged
+{
+    private string _note = string.Empty;
+    private bool _isSelected;
+
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public required BitmapSource Image { get; set; }
+    public required string SourcePath { get; set; }
+    public ObservableCollection<AnnotationItem> Annotations { get; } = [];
+    public string DisplayLabel { get; set; } = "A";
+
+    public string Note
+    {
+        get => _note;
+        set { if (_note == value) return; _note = value; OnPropertyChanged(); }
+    }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { if (_isSelected == value) return; _isSelected = value; OnPropertyChanged(); }
+    }
+
+    public int NoteCount => Annotations.Count(a => !string.IsNullOrWhiteSpace(a.Note)) + (string.IsNullOrWhiteSpace(Note) ? 0 : 1);
+
+    public CaptureSnapshot Snapshot() => new(Id, Image, SourcePath, DisplayLabel, Note, Annotations.Select(a => a.Clone()).ToList());
+
+    public CaptureItem DeepClone()
+    {
+        var clone = new CaptureItem { Id = Id, Image = Image, SourcePath = SourcePath, DisplayLabel = DisplayLabel, Note = Note, IsSelected = IsSelected };
+        foreach (var annotation in Annotations.Select(a => a.Clone())) clone.Annotations.Add(annotation);
+        return clone;
+    }
+
+    public CoreCapture ToCore() => new(
+        Id,
+        SourcePath,
+        Image.PixelWidth,
+        Image.PixelHeight,
+        Image.DpiX > 0 ? Image.DpiX : 96,
+        Image.DpiY > 0 ? Image.DpiY : 96,
+        string.Empty,
+        Note,
+        Annotations.Select(a => a.ToCore(Image.PixelWidth, Image.PixelHeight)).ToImmutableArray());
+
+    public static CaptureItem FromCore(CoreCapture item, BitmapSource image)
+    {
+        var capture = new CaptureItem { Id = item.Id, SourcePath = item.SourceImagePath, Image = image, Note = item.Note };
+        foreach (var annotation in item.Annotations)
+            capture.Annotations.Add(AnnotationItem.FromCore(annotation, image.PixelWidth, image.PixelHeight));
+        return capture;
+    }
+
+    public void Restore(CaptureSnapshot snapshot)
+    {
+        Image = snapshot.Image;
+        SourcePath = snapshot.SourcePath;
+        DisplayLabel = snapshot.DisplayLabel;
+        Note = snapshot.Note;
+        Annotations.Clear();
+        foreach (var annotation in snapshot.Annotations.Select(a => a.Clone())) Annotations.Add(annotation);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+public sealed record CaptureSnapshot(Guid CaptureId, BitmapSource Image, string SourcePath, string DisplayLabel, string Note, IReadOnlyList<AnnotationItem> Annotations);
+
+public sealed record PreparedPackage(Guid ExportId, IReadOnlyList<string> ImagePaths, string PromptText, string DirectoryPath);
