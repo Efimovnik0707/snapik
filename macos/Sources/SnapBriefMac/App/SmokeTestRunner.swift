@@ -339,14 +339,15 @@ enum SmokeTestRunner {
         // 7b. Editor hover-manipulation + preview probes (SPEC-DELTA-2B.md §F).
         do {
             let probeImage = try makeCheckerboardImage(width: 480, height: 300)
-            check("hover manipulation", AnnotationCanvasView.smokeVerifyHoverManipulation(image: probeImage))
+            let hoverOk = await MainActor.run { AnnotationCanvasView.smokeVerifyHoverManipulation(image: probeImage) }
+            check("hover manipulation", hoverOk)
         } catch {
             check("hover manipulation", false)
         }
         do {
             let previewImage = try makeCheckerboardImage(width: 800, height: 600)
             var probeSucceeded = true
-            do { try CapturePreviewProbe.run(image: previewImage) } catch { probeSucceeded = false }
+            do { try await MainActor.run { try CapturePreviewProbe.run(image: previewImage) } } catch { probeSucceeded = false }
             check("preview probe", probeSucceeded)
         } catch {
             check("preview probe", false)

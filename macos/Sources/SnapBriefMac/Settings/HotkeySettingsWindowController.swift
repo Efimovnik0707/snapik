@@ -273,7 +273,7 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         // Port of SPEC-DELTA-2B §E4: expand `~` and standardize before persisting, so a manually
         // typed `~/Pictures/SnapBrief` resolves the same as the folder picker's absolute path.
         candidate.saveDirectory =
-            URL(fileURLWithPath: savingTab.directoryField.stringValue.expandingTildeInPath).standardizedFileURL.path
+            URL(fileURLWithPath: (savingTab.directoryField.stringValue as NSString).expandingTildeInPath).standardizedFileURL.path
         candidate.language = generalTab.languagePopup.indexOfSelectedItem == 1 ? "en" : "ru"
         return candidate
     }
