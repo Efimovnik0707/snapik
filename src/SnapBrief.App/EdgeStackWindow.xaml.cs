@@ -47,7 +47,13 @@ public partial class EdgeStackWindow : Window
     private bool _allowClose;
     private bool _sessionResetting;
     private bool _pasteObservedForCurrentPackage;
+    private CancellationTokenSource? _receiverEchoWatchCts;
     private Task _pasteIntentTransition = Task.CompletedTask;
+    // Some paste receivers (e.g. a terminal hosting Claude Code) write their own
+    // rendering of the pasted text back to the clipboard right after the paste. This
+    // window bounds how long we keep watching for and re-arming through such an echo.
+    private static readonly TimeSpan ReceiverEchoWatchWindow = TimeSpan.FromSeconds(6);
+    private static readonly TimeSpan ReceiverEchoPollInterval = TimeSpan.FromMilliseconds(200);
     private Point _dragStart;
     private CaptureItem? _draggedCapture;
     private readonly Stack<(CaptureItem Capture, int Index)> _removed = [];
@@ -211,7 +217,11 @@ public partial class EdgeStackWindow : Window
         var receiptAtIntent = _ownedClipboardReceipt;
         var promptAtIntent = _ownedClipboardPromptText;
         StartupTrace.Write(_options, $"PasteIntent observed: gesture={e.Gesture}, intercepted={e.IsIntercepted}, seq={e.ClipboardSequenceNumber}, ownedSeq={receiptAtIntent?.SequenceNumber}, pid={e.ForegroundProcessId}");
-        if (receiptAtIntent is null || e.ClipboardSequenceNumber != receiptAtIntent.Value.SequenceNumber) return;
+        if (receiptAtIntent is null || e.ClipboardSequenceNumber != receiptAtIntent.Value.SequenceNumber)
+        {
+            _ = LogClipboardDiagnosticsAsync();
+            return;
+        }
         if (promptAtIntent is null)
         {
             SetStatus("Не удалось подтвердить содержимое текущего пакета. Сессия сохранена.", true);
@@ -274,6 +284,36 @@ public partial class EdgeStackWindow : Window
     // Runs inside the same critical section as the completion above (the gate is
     // released by CompletePasteIntentAsync's finally), so the republish and the
     // guard it depends on stay atomic with respect to other clipboard publishers.
+    [DllImport("user32.dll")] private static extern nint GetClipboardOwner();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint hWnd, out uint processId);
+
+    /// <summary>Diagnostics only: who owns the clipboard and what it holds when a paste intent misses our package.</summary>
+    private async Task LogClipboardDiagnosticsAsync()
+    {
+        try
+        {
+            var owner = GetClipboardOwner();
+            var ownerName = "none";
+            if (owner != 0)
+            {
+                GetWindowThreadProcessId(owner, out var ownerPid);
+                try { ownerName = $"{System.Diagnostics.Process.GetProcessById((int)ownerPid).ProcessName}({ownerPid})"; }
+                catch { ownerName = $"pid {ownerPid}"; }
+            }
+            var snapshot = await _clipboard.CaptureAsync(CancellationToken.None);
+            var formats = string.Join(",", snapshot.Data.Keys);
+            var text = snapshot.Data.TryGetValue(DataFormats.UnicodeText, out var t) ? t?.ToString() : null;
+            text ??= snapshot.Data.TryGetValue(DataFormats.Text, out var t2) ? t2?.ToString() : null;
+            var preview = text is null ? "<no text>" : text.Length > 120 ? text[..120] : text;
+            var safePreview = preview.Replace('\r', ' ').Replace('\n', '|');
+            StartupTrace.Write(_options, $"Clipboard diagnostics: seq={snapshot.SequenceNumber}, owner={ownerName}, formats=[{formats}], text={safePreview}");
+        }
+        catch (Exception ex)
+        {
+            StartupTrace.Write(_options, $"Clipboard diagnostics failed: {ex.Message}");
+        }
+    }
+
     private async Task RepublishPackageForReuseAsync(string[] pathsAtIntent, string promptAtIntent)
     {
         if (_ownedClipboardReceipt is not { } current || _prepared is null)
@@ -287,17 +327,93 @@ public partial class EdgeStackWindow : Window
             _ownedClipboardReceipt = republished;
             _ownedClipboardPromptText = promptAtIntent;
             _pasteObservedForCurrentPackage = true;
+            StartupTrace.Write(_options, $"PasteIntent republished package: seq={republished.SequenceNumber}, images={pathsAtIntent.Length}");
             var template = UiLanguage.Text("Вставлено: {0} изображений · {1} заметок. Пакет остаётся в буфере, следующий снимок начнёт новую стопку");
             SetStatus(string.Format(template, _prepared.Manifest.CaptureCount, _prepared.Manifest.NoteCount));
+            StartReceiverEchoWatch(pathsAtIntent, promptAtIntent);
         }
         catch (ClipboardChangedException)
         {
             // Someone else copied in the meantime; leave their clipboard untouched and
             // let the next capture's EnsureCurrentCaptureSessionAsync detect the mismatch.
+            CancelReceiverEchoWatch();
             _ownedClipboardReceipt = null;
             _ownedClipboardPromptText = null;
             SetStatus(UiLanguage.Text("Пакет вытеснен другим приложением. Сессия сохранена."), true);
         }
+    }
+
+    // Some receivers (a terminal hosting Claude Code, for example) write their own text
+    // rendering of a just-completed paste back onto the clipboard a moment later. That
+    // overwrites our sequence number and makes the next Ctrl+V/Alt+V miss the interception
+    // predicate, even though our package is still the one the user intends to paste. This
+    // watcher polls the clipboard for a short window after every republish and, if the
+    // change looks like that echo rather than a real foreign copy, republishes the same
+    // package so the predicate keeps recognizing it.
+    private void CancelReceiverEchoWatch()
+    {
+        var cts = _receiverEchoWatchCts;
+        _receiverEchoWatchCts = null;
+        if (cts is null) return;
+        cts.Cancel();
+        cts.Dispose();
+    }
+
+    private void StartReceiverEchoWatch(string[] paths, string prompt)
+    {
+        CancelReceiverEchoWatch();
+        var cts = new CancellationTokenSource();
+        _receiverEchoWatchCts = cts;
+        _ = WatchForReceiverEchoAsync(paths, prompt, cts);
+    }
+
+    private async Task WatchForReceiverEchoAsync(string[] paths, string prompt, CancellationTokenSource cts)
+    {
+        var token = cts.Token;
+        try
+        {
+            var deadline = DateTimeOffset.UtcNow + ReceiverEchoWatchWindow;
+            while (!token.IsCancellationRequested && DateTimeOffset.UtcNow < deadline)
+            {
+                try { await Task.Delay(ReceiverEchoPollInterval, token); }
+                catch (OperationCanceledException) { return; }
+
+                if (_ownedClipboardReceipt is not { } current) return;
+
+                ClipboardSnapshot snapshot;
+                try { snapshot = await _clipboard.CaptureAsync(token); }
+                catch (OperationCanceledException) { return; }
+                catch (Exception ex) { StartupTrace.Write(_options, $"Receiver echo watch: capture failed: {ex.Message}"); continue; }
+
+                if (snapshot.SequenceNumber == current.SequenceNumber) continue;
+
+                if (!ClipboardEchoDetector.IsReceiverEcho(snapshot, prompt))
+                {
+                    StartupTrace.Write(_options, "PasteIntent package displaced by foreign clipboard write");
+                    return;
+                }
+
+                await _clipboardPublicationGate.WaitAsync(token);
+                try
+                {
+                    if (token.IsCancellationRequested) return;
+                    var republished = await _clipboard.SetPackageGuardedAsync(paths, prompt, snapshot.SequenceNumber, token);
+                    StartupTrace.Write(_options, $"PasteIntent re-armed after receiver echo: from seq {current.SequenceNumber} to {republished.SequenceNumber}");
+                    _ownedClipboardReceipt = republished;
+                    _ownedClipboardPromptText = prompt;
+                }
+                catch (OperationCanceledException) { return; }
+                catch (ClipboardChangedException)
+                {
+                    StartupTrace.Write(_options, "PasteIntent package displaced by foreign clipboard write");
+                    return;
+                }
+                finally { _clipboardPublicationGate.Release(); }
+
+                deadline = DateTimeOffset.UtcNow + ReceiverEchoWatchWindow;
+            }
+        }
+        finally { if (ReferenceEquals(_receiverEchoWatchCts, cts)) _receiverEchoWatchCts = null; }
     }
 
     private async void OnCaptureClick(object sender, RoutedEventArgs e) => await CaptureLoopAsync();
@@ -445,6 +561,7 @@ public partial class EdgeStackWindow : Window
     private async Task<bool> SaveAndCopyCommittedPackageAsync()
     {
         await _pasteIntentTransition;
+        CancelReceiverEchoWatch();
         await _clipboardPublicationGate.WaitAsync();
         try
         {
@@ -587,6 +704,7 @@ public partial class EdgeStackWindow : Window
     private async Task CopyPackageAsync()
     {
         await _pasteIntentTransition;
+        CancelReceiverEchoWatch();
         await _clipboardPublicationGate.WaitAsync();
         try
         {
@@ -684,6 +802,7 @@ public partial class EdgeStackWindow : Window
     {
         if (_sessionResetting) return false;
         _sessionResetting = true;
+        CancelReceiverEchoWatch();
         _saveTimer.Stop();
         await _workspaceMutationGate.WaitAsync();
         try
@@ -723,6 +842,7 @@ public partial class EdgeStackWindow : Window
     private async Task RefreshOwnedClipboardAsync()
     {
         await _pasteIntentTransition;
+        CancelReceiverEchoWatch();
         await _clipboardPublicationGate.WaitAsync();
         try { await RefreshOwnedClipboardCoreAsync(); }
         finally { _clipboardPublicationGate.Release(); }
@@ -838,7 +958,7 @@ public partial class EdgeStackWindow : Window
 
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
-        if (_allowClose) {  _hotkeys?.Dispose(); _pasteIntentObserver.Dispose(); _clipboard.Dispose(); _trayIcon.Visible = false; _trayIcon.Dispose(); return; }
+        if (_allowClose) { CancelReceiverEchoWatch(); _hotkeys?.Dispose(); _pasteIntentObserver.Dispose(); _clipboard.Dispose(); _trayIcon.Visible = false; _trayIcon.Dispose(); return; }
         e.Cancel = true;
         _saveTimer.Stop();
         if (!await SaveAsync()) { _exiting = false; ShowStackWithoutActivation(); return; }
