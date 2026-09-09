@@ -33,6 +33,7 @@ public partial class EdgeStackWindow : Window
     private readonly WinForms.NotifyIcon _trayIcon;
     private readonly IPasteIntentObserver _pasteIntentObserver;
     private readonly SemaphoreSlim _workspaceMutationGate = new(1, 1);
+    private readonly SemaphoreSlim _clipboardPublicationGate = new(1, 1);
     private HotkeySettings _settings;
     private WindowsGlobalHotkeyService? _hotkeys;
     private PreparedExport? _prepared;
@@ -66,7 +67,17 @@ public partial class EdgeStackWindow : Window
         _codexPasteCompletion = new CodexDesktopPasteCompletionService(_clipboard, foreground, input);
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _saveTimer.Tick += OnSaveTimerTick;
-        _pasteIntentObserver = new WindowsPasteIntentObserver();
+        _pasteIntentObserver = new WindowsPasteIntentObserver(intent =>
+        {
+            if (_sessionResetting || !_pasteIntentTransition.IsCompleted || _clipboardPublicationGate.CurrentCount == 0 ||
+                _ownedClipboardReceipt is not { } receipt ||
+                intent.ClipboardSequenceNumber != receipt.SequenceNumber ||
+                string.IsNullOrEmpty(_ownedClipboardPromptText) || _prepared is null) return false;
+            var target = foreground.Capture();
+            return target.IsUsable && target.WindowHandle == intent.ForegroundWindowHandle &&
+                target.ProcessId == intent.ForegroundProcessId &&
+                foreground.Matches(target, SnapBrief.Windows.TargetProfiles.ClaudeDesktopCode);
+        });
 
         InitializeComponent();
         DataContext = this;
@@ -187,15 +198,21 @@ public partial class EdgeStackWindow : Window
             return;
         }
 
-        if (_sessionResetting || !_pasteIntentTransition.IsCompleted || _ownedClipboardReceipt != receiptAtIntent) return;
-        _pasteIntentTransition = CompletePasteIntentAsync(e, receiptAtIntent.Value, promptAtIntent);
+        if (_sessionResetting || !_pasteIntentTransition.IsCompleted || _clipboardPublicationGate.CurrentCount == 0 || _ownedClipboardReceipt != receiptAtIntent) return;
+        var pathsAtIntent = _prepared?.GetImagePathsInOrder().ToArray() ?? [];
+        // Snapshot in the keyboard hook, but release the hook before any clipboard I/O.
+        _pasteIntentTransition = Dispatcher.InvokeAsync(() =>
+            CompletePasteIntentAsync(e, receiptAtIntent.Value, promptAtIntent, pathsAtIntent)).Task.Unwrap();
     }
 
-    private async Task CompletePasteIntentAsync(PasteIntentObserved e, ClipboardWriteReceipt receiptAtIntent, string promptAtIntent)
+    private async Task CompletePasteIntentAsync(PasteIntentObserved e, ClipboardWriteReceipt receiptAtIntent, string promptAtIntent, string[] pathsAtIntent)
     {
+        await _clipboardPublicationGate.WaitAsync();
         try
         {
-            var completion = await _codexPasteCompletion.CompleteAsync(
+            var completion = e.IsIntercepted
+                ? await _codexPasteCompletion.CompleteClaudeAsync(e, receiptAtIntent, pathsAtIntent, promptAtIntent, CancellationToken.None)
+                : await _codexPasteCompletion.CompleteAsync(
                 e,
                 receiptAtIntent,
                 promptAtIntent,
@@ -205,7 +222,7 @@ public partial class EdgeStackWindow : Window
             // Never rotate that newer session in response to this older paste intent.
             if (_ownedClipboardReceipt != receiptAtIntent) return;
 
-            if (completion.TextClipboardReceipt is { } textReceipt)
+            if (completion.CurrentClipboardReceipt is { } textReceipt)
                 _ownedClipboardReceipt = textReceipt;
 
             if (completion.Status == CodexPasteCompletionStatus.CompletedUnverified)
@@ -214,7 +231,7 @@ public partial class EdgeStackWindow : Window
                 return;
             }
 
-            if (completion.Status == CodexPasteCompletionStatus.NotApplicable)
+            if (!e.IsIntercepted && completion.Status == CodexPasteCompletionStatus.NotApplicable)
             {
                 if (await _clipboard.IsCurrentAsync(receiptAtIntent, CancellationToken.None))
                     await StartNewSessionAsync();
@@ -227,6 +244,7 @@ public partial class EdgeStackWindow : Window
         {
             SetStatus($"Вставка замечена, но новая сессия не создана: {ex.Message}", true);
         }
+        finally { _clipboardPublicationGate.Release(); }
     }
 
     private async void OnCaptureClick(object sender, RoutedEventArgs e) => await CaptureLoopAsync();
@@ -249,6 +267,8 @@ public partial class EdgeStackWindow : Window
                 Renumber();
                 InvalidatePrepared();
                 var copied = await SaveAndCopyCommittedPackageAsync();
+                CaptureFeedbackSound.Capture(_settings.PlaySounds);
+                await AutoSaveCaptureAsync(result.Capture);
                 addNext = copied && result.AddNext;
             }
         }
@@ -282,30 +302,6 @@ public partial class EdgeStackWindow : Window
             SetStatus($"Не удалось проверить буфер перед новым снимком: {ex.Message}", true);
             return false;
         }
-    }
-
-    private async void OnOpenCaptureClick(object sender, RoutedEventArgs e)
-    {
-        await _pasteIntentTransition;
-        if (_busy || sender is not Button { Tag: CaptureItem capture }) return;
-        _busy = true;
-        var requestNext = false;
-        try
-        {
-            HideForCapture();
-            var index = Captures.IndexOf(capture);
-            var result = await OverlayEditorWindow.EditExistingAsync(_workspace, capture, index);
-            if (!result.Cancelled && result.Capture is not null)
-            {
-                Captures[index] = result.Capture;
-                Renumber();
-                InvalidatePrepared();
-                requestNext = await SaveAndCopyCommittedPackageAsync() && result.AddNext;
-            }
-        }
-        catch (Exception ex) { SetStatus($"Не удалось открыть снимок: {ex.Message}", true); }
-        finally { _busy = false; ShowStackWithoutActivation(); }
-        if (requestNext) await CaptureLoopAsync();
     }
 
     private async void OnRemoveCaptureClick(object sender, RoutedEventArgs e)
@@ -385,6 +381,8 @@ public partial class EdgeStackWindow : Window
 
     private async Task<bool> SaveAndCopyCommittedPackageAsync()
     {
+        await _pasteIntentTransition;
+        await _clipboardPublicationGate.WaitAsync();
         try
         {
             _prepared = await _workspace.PrepareAsync(Captures, string.Empty, SelectedProfile?.Id);
@@ -401,6 +399,7 @@ public partial class EdgeStackWindow : Window
             SetStatus($"Снимок сохранён, но буфер не обновлён: {ex.Message}. Повторите копирование через меню.", true);
             return false;
         }
+        finally { _clipboardPublicationGate.Release(); }
     }
 
     private async void OnPasteClick(object sender, RoutedEventArgs e) => await PasteAsync(true);
@@ -525,6 +524,9 @@ public partial class EdgeStackWindow : Window
     private async Task CopyPackageAsync()
     {
         await _pasteIntentTransition;
+        await _clipboardPublicationGate.WaitAsync();
+        try
+        {
         if (_prepared is null && !await PrepareAsync()) return;
         if (_prepared is null) return;
         var current = await _clipboard.CaptureAsync(CancellationToken.None);
@@ -532,6 +534,8 @@ public partial class EdgeStackWindow : Window
         _ownedClipboardPromptText = _prepared.Manifest.PromptText;
             NotifyCopied();
         SetStatus("PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки.");
+        }
+        finally { _clipboardPublicationGate.Release(); }
     }
 
     private async Task SavePackageAsAsync()
@@ -654,6 +658,14 @@ public partial class EdgeStackWindow : Window
     }
 
     private async Task RefreshOwnedClipboardAsync()
+    {
+        await _pasteIntentTransition;
+        await _clipboardPublicationGate.WaitAsync();
+        try { await RefreshOwnedClipboardCoreAsync(); }
+        finally { _clipboardPublicationGate.Release(); }
+    }
+
+    private async Task RefreshOwnedClipboardCoreAsync()
     {
         if (_ownedClipboardReceipt is not { } receipt) return;
         try
@@ -782,7 +794,3 @@ public partial class EdgeStackWindow : Window
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
 }
-
-
-
-

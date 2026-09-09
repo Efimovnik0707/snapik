@@ -16,6 +16,8 @@ internal static class UiLanguage
         ["Общие"] = "General", ["Клавиши"] = "Hotkeys", ["Сохранение"] = "Saving",
         ["Уведомления о копировании и сохранении"] = "Notify on copy and save",
         ["Запоминать последнюю область"] = "Remember the last region", ["Захватывать курсор"] = "Capture the cursor",
+        ["Звуки захвата и стопки"] = "Capture and stack sounds", ["Автоматически сохранять готовые снимки"] = "Automatically save completed captures",
+        ["Укажите папку сохранения."] = "Choose a save folder.", ["Автосохранение не выполнено"] = "Auto-save failed",
         ["Язык"] = "Language", ["Захват области"] = "Capture region", ["Быстро сохранить весь экран"] = "Instantly save the full screen",
         ["Формат"] = "Format", ["Качество JPEG"] = "JPEG quality", ["Папка сохранения"] = "Save folder", ["Выбрать папку"] = "Choose folder",
         ["Сохранить"] = "Save", ["Отмена"] = "Cancel", ["Нажмите клавишу…"] = "Press a key…",
@@ -24,6 +26,13 @@ internal static class UiLanguage
         ["Маркер"] = "Highlight", ["Текст"] = "Text", ["Скрыть"] = "Conceal", ["Размыть"] = "Blur", ["Обрезать"] = "Crop",
         ["Цвет отметки"] = "Annotation color", ["Толщина"] = "Thickness", ["Ещё инструменты"] = "More tools",
         ["Добавить комментарий"] = "Add comment", ["Удалить комментарий"] = "Remove comment", ["Отменить"] = "Undo", ["Повторить"] = "Redo",
+        ["Просмотр снимка"] = "Capture preview", ["По размеру окна"] = "Fit to window", ["Увеличить"] = "Zoom in", ["Уменьшить"] = "Zoom out",
+        ["На весь экран"] = "Full screen", ["Вернуть размер"] = "Restore size", ["Разметка"] = "Mark up", ["Закрыть просмотр"] = "Close preview",
+        ["Комментарии"] = "Comments", ["Нет комментариев"] = "No comments yet", ["Комментарий к снимку"] = "Capture comment",
+        ["К снимку"] = "To capture", ["К отметке"] = "To annotation",
+        ["Прямая стрелка"] = "Straight arrow", ["Изогнутая стрелка"] = "Curved arrow", ["Толстая стрелка"] = "Bold arrow", ["Широкая стрелка"] = "Wide arrow",
+        ["Стиль стрелки"] = "Arrow style",
+        ["Добавить комментарий (N)"] = "Add comment (N)", ["Закрыть ввод текста"] = "Close text editor",
         ["Сохранить на компьютер (Ctrl+S)"] = "Save to computer (Ctrl+S)", ["Свернуть в трей"] = "Hide to tray", ["Ещё"] = "More",
         ["Удалить"] = "Delete", ["Открыть снимок"] = "Open capture", ["Вернуть"] = "Restore", ["Показать стопку"] = "Show stack",
         ["Запускать с Windows"] = "Start with Windows", ["Выйти"] = "Exit", ["Новая сессия"] = "New session",
@@ -51,4 +60,3 @@ internal static class UiLanguage
         Walk(root);
     }
 }
-

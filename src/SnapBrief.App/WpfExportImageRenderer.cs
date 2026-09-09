@@ -108,23 +108,7 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
                 case AnnotationKind.Redaction: dc.DrawRectangle(Brushes.Black, null, rect); break;
                 case AnnotationKind.Text: DrawText(dc, item.Text, Math.Max(16, item.Thickness * 4.5), FontWeights.SemiBold, brush, start); break;
                 case AnnotationKind.Arrow:
-                    dc.DrawLine(pen, start, end);
-                    var direction = start - end;
-                    if (direction.Length > 0)
-                    {
-                        direction.Normalize();
-                        var side = new Vector(-direction.Y, direction.X);
-                        var size = Math.Max(12, item.Thickness * 3.2);
-                        var geometry = new StreamGeometry();
-                        using (var ctx = geometry.Open())
-                        {
-                            ctx.BeginFigure(end, true, true);
-                            ctx.LineTo(end + direction * size + side * size * .45, true, false);
-                            ctx.LineTo(end + direction * size - side * size * .45, true, false);
-                        }
-                        geometry.Freeze();
-                        dc.DrawGeometry(brush, null, geometry);
-                    }
+                    SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, item.Thickness, item.ArrowStyle);
                     break;
             }
         }

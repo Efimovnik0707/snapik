@@ -10,7 +10,8 @@ public enum AnnotationKind
     Freehand,
     Text,
     Redaction,
-    Blur
+    Blur,
+    Comment
 }
 
 public readonly record struct NormalizedPoint(double X, double Y);
@@ -24,6 +25,8 @@ public sealed record AnnotationItem(
     string Text,
     string Note)
 {
+    public Guid? ParentAnnotationId { get; init; }
+    public string ArrowStyle { get; init; } = "straight";
     public ImmutableArray<ImmutableArray<NormalizedPoint>> PathSegments { get; init; } = [];
 
     public ImmutableArray<ImmutableArray<NormalizedPoint>> GetPathSegments() =>

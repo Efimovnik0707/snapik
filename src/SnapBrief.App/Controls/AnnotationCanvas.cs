@@ -42,6 +42,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     public AnnotationItem? SelectedAnnotation { get; private set; }
     public Color ActiveColor { get; set; } = Color.FromRgb(49, 92, 245);
     public double ActiveThickness { get; set; } = 4;
+    public string ActiveArrowStyle { get; set; } = "straight";
     public double ImagePadding { get; set; } = 28;
 
     public event EventHandler<AnnotationItem>? AnnotationCreated;
@@ -119,11 +120,12 @@ public sealed class AnnotationCanvas : FrameworkElement
         var point = e.GetPosition(this);
         if (!_imageRect.Contains(point)) return;
 
+        if (e.ClickCount == 2 && HitTestAnnotation(ToImage(point)) is { Kind: EditorTool.Text } text) { Select(text); return; }
         var handleHit = FindResizeHandle(point);
-        if (Tool == EditorTool.Select || handleHit.Annotation is not null)
+        if (Tool != EditorTool.Comment && (Tool == EditorTool.Select || handleHit.Annotation is not null || FindMoveEdge(point) is not null))
         {
             var imagePoint = ToImage(point);
-            var hit = handleHit.Annotation ?? HitTestAnnotation(imagePoint);
+            var hit = handleHit.Annotation ?? FindMoveEdge(point) ?? HitTestAnnotation(imagePoint);
             Select(hit);
             if (hit is not null)
             {
@@ -144,7 +146,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         _gestureStart = ToImage(point);
         _draft = new AnnotationItem
         {
-            Kind = Tool,
+            Kind = Tool, ArrowStyle = ActiveArrowStyle,
             Color = Tool == EditorTool.Conceal ? Colors.Black : ActiveColor,
             Thickness = ActiveThickness,
             Points = [_gestureStart.Value, _gestureStart.Value]
@@ -187,7 +189,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (_draft is null || _gestureStart is null || e.LeftButton != MouseButtonState.Pressed)
         {
             var handle = FindResizeHandle(e.GetPosition(this));
-            Cursor = handle.Corner < 0 ? (Tool == EditorTool.Select ? Cursors.Arrow : Cursors.Cross)
+            Cursor = handle.Corner < 0 ? (FindMoveEdge(e.GetPosition(this)) is not null ? Cursors.SizeAll : Tool == EditorTool.Select ? Cursors.Arrow : Cursors.Cross)
                 : handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW;
             return;
         }
@@ -369,23 +371,7 @@ public sealed class AnnotationCanvas : FrameworkElement
                     dc.DrawText(formatted, start);
                     break;
                 case EditorTool.Arrow:
-                    dc.DrawLine(pen, start, end);
-                    var vector = start - end;
-                    if (vector.Length > 0)
-                    {
-                        vector.Normalize();
-                        var side = new Vector(-vector.Y, vector.X);
-                        var size = Math.Max(10, thickness * 3.2);
-                        var geometry = new StreamGeometry();
-                        using (var ctx = geometry.Open())
-                        {
-                            ctx.BeginFigure(end, true, true);
-                            ctx.LineTo(end + vector * size + side * size * .45, true, false);
-                            ctx.LineTo(end + vector * size - side * size * .45, true, false);
-                        }
-                        geometry.Freeze();
-                        dc.DrawGeometry(brush, null, geometry);
-                    }
+                    SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, thickness, item.ArrowStyle);
                     break;
             }
         }
@@ -416,11 +402,23 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     private bool GestureHasSize(AnnotationItem item)
     {
+        if (item.Kind is EditorTool.Comment or EditorTool.Text) return true;
         if (item.Points.Count < 2) return false;
         if (item.Kind is EditorTool.Pen or EditorTool.Highlight) return item.Points.Count > 2;
         return (item.Points[1] - item.Points[0]).Length >= 3;
     }
 
+    private AnnotationItem? FindMoveEdge(Point point)
+    {
+        if (Annotations is null || Tool == EditorTool.Comment) return null;
+        return Annotations.Reverse().FirstOrDefault(a =>
+        {
+            if (a.Kind is not (EditorTool.Rectangle or EditorTool.Blur or EditorTool.Conceal)) return false;
+            var outer = GetDisplayBounds(a); outer.Inflate(6, 6);
+            var inner = GetDisplayBounds(a); inner.Inflate(-Math.Min(6, inner.Width / 2), -Math.Min(6, inner.Height / 2));
+            return outer.Contains(point) && !inner.Contains(point);
+        });
+    }
     private static Rect BoundsOf(AnnotationItem item)
     {
         if (item.Points.Count == 0) return Rect.Empty;
@@ -478,5 +476,47 @@ public sealed class AnnotationCanvas : FrameworkElement
         var scale = Math.Min(availableWidth / imageWidth, availableHeight / imageHeight);
         var w = imageWidth * scale; var h = imageHeight * scale;
         return new Rect((width - w) / 2, (height - h) / 2, w, h);
+    }
+
+    internal static void VerifyHoverManipulation(BitmapSource source)
+    {
+        var rectangle = new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle,
+            Points = [new Point(source.PixelWidth * .08, source.PixelHeight * .12), new Point(source.PixelWidth * .42, source.PixelHeight * .48)]
+        };
+        var blur = new AnnotationItem
+        {
+            Kind = EditorTool.Blur,
+            Points = [new Point(source.PixelWidth * .56, source.PixelHeight * .3), new Point(source.PixelWidth * .9, source.PixelHeight * .78)]
+        };
+        var annotations = new ObservableCollection<AnnotationItem> { rectangle, blur };
+        var canvas = new AnnotationCanvas { Image = source, Annotations = annotations, ImagePadding = 0, Width = 480, Height = 300 };
+        canvas.Measure(new Size(480, 300));
+        canvas.Arrange(new Rect(0, 0, 480, 300));
+        var rendered = new RenderTargetBitmap(480, 300, 96, 96, PixelFormats.Pbgra32);
+        rendered.Render(canvas);
+
+        Verify(rectangle, EditorTool.Blur);
+        Verify(blur, EditorTool.Rectangle);
+
+        void Verify(AnnotationItem target, EditorTool activeTool)
+        {
+            canvas.Tool = activeTool;
+            var bounds = canvas.GetDisplayBounds(target);
+            var edge = new Point(bounds.Left, bounds.Top + bounds.Height / 2);
+            var corner = bounds.TopLeft;
+            var inside = new Point(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2);
+
+            if (!ReferenceEquals(canvas.FindMoveEdge(edge), target))
+                throw new InvalidOperationException("A rectangle or blur edge is not movable while another drawing tool is active.");
+            var resizeHit = canvas.FindResizeHandle(corner);
+            if (!ReferenceEquals(resizeHit.Annotation, target) || resizeHit.Corner != 0)
+                throw new InvalidOperationException("A rectangle or blur corner is not resizable while another drawing tool is active.");
+            if (canvas.FindMoveEdge(inside) is not null || canvas.FindResizeHandle(inside).Annotation is not null)
+                throw new InvalidOperationException("The interior of a rectangle or blur was mistaken for a hover manipulation handle.");
+            if (canvas.Tool != activeTool)
+                throw new InvalidOperationException("Hover manipulation changed the selected drawing tool.");
+        }
     }
 }

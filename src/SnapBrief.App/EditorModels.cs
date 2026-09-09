@@ -24,7 +24,8 @@ public enum EditorTool
     Text,
     Conceal,
     Blur,
-    Crop
+    Crop,
+    Comment
 }
 
 public sealed class AnnotationItem : INotifyPropertyChanged
@@ -40,6 +41,8 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     public Color Color { get; set; } = Color.FromRgb(49, 92, 245);
     public double Thickness { get; set; } = 4;
     public string Label { get; set; } = string.Empty;
+    public Guid? ParentAnnotationId { get; set; }
+    public string ArrowStyle { get; set; } = "straight";
 
     public string Note
     {
@@ -63,6 +66,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     {
         Id = Id,
         Kind = Kind,
+        ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
         Points = [.. Points],
         AdditionalPathSegments = AdditionalPathSegments.Select(segment => segment.ToList()).ToList(),
         Color = Color,
@@ -77,6 +81,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Id,
         Kind switch
         {
+            EditorTool.Comment => AnnotationKind.Comment,
             EditorTool.Arrow => AnnotationKind.Arrow,
             EditorTool.Rectangle => AnnotationKind.Rectangle,
             EditorTool.Pen => AnnotationKind.Freehand,
@@ -94,6 +99,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Text,
         Note)
     {
+        ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
         PathSegments = AdditionalPathSegments.Count == 0 ? [] : new[] { Points }.Concat(AdditionalPathSegments)
             .Select(segment => segment.Select(p => new NormalizedPoint(Math.Clamp(p.X / imageWidth, 0, 1), Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray())
             .ToImmutableArray()
@@ -106,8 +112,10 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         return new()
         {
         Id = item.Id,
+        ParentAnnotationId = item.ParentAnnotationId, ArrowStyle = item.ArrowStyle,
         Kind = item.Kind switch
         {
+            AnnotationKind.Comment => EditorTool.Comment,
             AnnotationKind.Arrow => EditorTool.Arrow,
             AnnotationKind.Rectangle => EditorTool.Rectangle,
             AnnotationKind.Freehand => EditorTool.Pen,

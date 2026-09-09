@@ -43,6 +43,9 @@ public partial class OverlayEditorWindow
     {
         if (AppearanceButton is null || StrokeSlider is null) return;
         _syncingAppearance = true;
+        ArrowOptionsButton.ToolTip = UiLanguage.Text("Стиль стрелки");
+        CommentToolButton.ToolTip = UiLanguage.Text("Добавить комментарий (N)");
+        CommentToolButton.Background = Surface.Tool == EditorTool.Comment ? new SolidColorBrush(Color.FromRgb(40, 75, 120)) : Brushes.Transparent;
         UndoButton.IsEnabled = _undo.Count > 0;
         RedoButton.IsEnabled = _redo.Count > 0;
         var selected = Surface.SelectedAnnotation;
@@ -62,7 +65,7 @@ public partial class OverlayEditorWindow
         StrokePreview.Visibility = HasStroke(tool) ? Visibility.Visible : Visibility.Hidden;
         foreach (Button swatch in ColorPalette.Children)
             swatch.BorderBrush = (Color)swatch.Tag == color ? Brushes.White : Brushes.Transparent;
-        var extra = Surface.Tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Text or EditorTool.Conceal;
+        var extra = Surface.Tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Conceal;
         MoreToolsButton.Background = extra ? new SolidColorBrush(Color.FromRgb(40, 75, 120)) : Brushes.Transparent;
         MoreToolsButton.ToolTip = extra ? $"Ещё инструменты · {Surface.Tool switch { EditorTool.Pen => "Перо (P)", EditorTool.Highlight => "Маркер (H)", EditorTool.Text => "Текст (T)", _ => "Скрыть сплошным (X)" }}" : "Ещё инструменты";
         _syncingAppearance = false;
@@ -105,5 +108,3 @@ public partial class OverlayEditorWindow
         Surface.Focus();
     }
 }
-
-

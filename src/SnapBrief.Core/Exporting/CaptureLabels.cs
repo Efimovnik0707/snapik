@@ -8,12 +8,15 @@ public static class CaptureLabels
 {
     public static string ForIndex(int zeroBasedIndex)
     {
-        if (zeroBasedIndex is < 0 or >= 26)
+        if (zeroBasedIndex < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(zeroBasedIndex));
         }
 
-        return ((char)('A' + zeroBasedIndex)).ToString();
+        var value = (long)zeroBasedIndex + 1;
+        var label = string.Empty;
+        while (value > 0) { value--; label = (char)('A' + value % 26) + label; value /= 26; }
+        return label;
     }
 
     public static string ForAnnotation(string captureLabel, int oneBasedIndex) =>

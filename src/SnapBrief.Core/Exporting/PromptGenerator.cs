@@ -31,12 +31,19 @@ public sealed class PromptGenerator
                 section.Append("\nКомментарий к снимку:\n").Append(capture.Note);
             }
 
-            foreach (var labeled in CaptureLabels.ForNotedAnnotations(captureLabel, capture))
+            var labeledAnnotations = CaptureLabels.ForNotedAnnotations(captureLabel, capture).ToArray();
+            var labelsById = labeledAnnotations.ToDictionary(item => item.Annotation.Id, item => item.DisplayLabel);
+            foreach (var labeled in labeledAnnotations)
             {
                 section.Append('\n')
                     .Append(labeled.DisplayLabel)
                     .Append(": ")
                     .Append(labeled.Annotation.Note);
+                if (labeled.Annotation.ParentAnnotationId is { } parentId)
+                {
+                    var parentLabel = labelsById.GetValueOrDefault(parentId);
+                    if (!string.IsNullOrEmpty(parentLabel)) section.Append(" (к области ").Append(parentLabel).Append(')');
+                }
             }
 
             sections.Add(section.ToString());

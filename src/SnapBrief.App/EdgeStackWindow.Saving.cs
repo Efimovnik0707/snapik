@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using SnapBrief.App.Controls;
 
 namespace SnapBrief.App;
 
@@ -11,6 +12,26 @@ public partial class EdgeStackWindow
     private void Notify(string message)
     {
         if (_settings.ShowNotifications) _trayIcon.ShowBalloonTip(2000, "SnapBrief", UiLanguage.Text(message), ToolTipIcon.Info);
+    }
+
+    internal async Task AutoSaveCaptureAsync(CaptureItem capture)
+    {
+        if (!_settings.AutoSaveCaptures) return;
+        try
+        {
+            var canvas = new AnnotationCanvas { Image = capture.Image, Annotations = capture.Annotations };
+            await LocalImageSave.WriteAsync(
+                canvas.RenderAnnotated(),
+                LocalImageSave.NewPath(_settings),
+                _settings.SaveFormat,
+                _settings.JpegQuality,
+                false);
+            NotifySaved();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"{UiLanguage.Text("Автосохранение не выполнено")}: {ex.Message}", true);
+        }
     }
 
     private async Task SaveFullscreenAsync()

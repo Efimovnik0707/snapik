@@ -15,6 +15,7 @@ public static class SmokeTestRunner
     {
         var root = explicitDataDirectory ?? Path.Combine(Path.GetTempPath(), "SnapBrief", $"smoke-{Guid.NewGuid():N}");
         var workspace = new SessionWorkspace(root);
+        CaptureFeedbackSound.VerifyWaveHeaders();
         var screen = new Rect(0, 0, 1920, 1080);
         foreach (var crop in new[] { new Rect(500, 400, 540, 120), new Rect(500, 940, 540, 130), new Rect(500, 0, 540, 120), new Rect(0, 0, 540, 1080) })
         {
@@ -25,6 +26,7 @@ public static class SmokeTestRunner
         var customSettingsPath = Path.Combine(root, "custom-hotkey-smoke.json");
         var customSettings = new HotkeySettings("custom:6:75", HotkeySettings.Default.PasteId)
         {
+            AutoSaveCaptures = true, PlaySounds = false,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false,
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en"
@@ -76,6 +78,8 @@ public static class SmokeTestRunner
         }
 
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
+        Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
+        CapturePreviewWindow.RunPreviewProbe(captures[0]);
         foreach (var format in new[] { "png", "jpeg" })
         {
             var imagePath = Path.Combine(root, "local-save." + (format == "jpeg" ? "jpg" : "png"));
@@ -134,7 +138,7 @@ public static class SmokeTestRunner
             && prepared.Manifest.NoteCount == 5
             && freshSessionPersisted;
         success = success
-            && noteProbe.Annotations.Single().Note == "Контекстная заметка"
+            && noteProbe.Annotations.Single(a => a.Kind == EditorTool.Comment).Note == "Контекстная заметка"
             && noteProbeLabel.DisplayLabel == "A1"
             && noteProbePng.Length > 0;
         var result = new

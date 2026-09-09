@@ -1,0 +1,45 @@
+using System.Collections.Immutable;
+using SnapBrief.Core.Exporting;
+using SnapBrief.Core.Models;
+using SnapBrief.Infrastructure.Serialization;
+
+namespace SnapBrief.Core.Tests;
+
+public sealed class ExtendedCommentsTests
+{
+    [Theory]
+    [InlineData(0, "A")]
+    [InlineData(25, "Z")]
+    [InlineData(26, "AA")]
+    [InlineData(299, "KN")]
+    public void Labels_extend_beyond_one_alphabet(int index, string expected) => Assert.Equal(expected, CaptureLabels.ForIndex(index));
+
+    [Fact]
+    public void Hundreds_of_comments_preserve_identity_links_and_arrow_style_in_json()
+    {
+        var parent = AnnotationItem.Create(AnnotationKind.Arrow, [new(.1, .1), new(.5, .5)], note: "Область") with { ArrowStyle = "curved" };
+        var notes = Enumerable.Range(0, 300).Select(i => AnnotationItem.Create(AnnotationKind.Comment,
+            [new(.2, .2), new(.21, .21)], note: $"Комментарий {i}") with { ParentAnnotationId = parent.Id }).ToImmutableArray();
+        var capture = CaptureItem.Create("source/a.png", 1000, 1000) with { Annotations = notes.Insert(0, parent) };
+        var session = SnapBriefSession.Create(DateTimeOffset.UtcNow) with { Captures = [capture] };
+        var json = System.Text.Json.JsonSerializer.Serialize(session, SnapBriefJson.Options);
+        var restored = System.Text.Json.JsonSerializer.Deserialize<SnapBriefSession>(json, SnapBriefJson.Options)!;
+        Assert.Equal("curved", restored.Captures[0].Annotations[0].ArrowStyle);
+        Assert.All(restored.Captures[0].Annotations.Skip(1), a => Assert.Equal(parent.Id, a.ParentAnnotationId));
+        var prompt = new PromptGenerator().Generate(restored);
+        Assert.Contains("A301: Комментарий 299 (к области A1)", prompt);
+    }
+
+    [Fact]
+    public void Cropping_keeps_comment_but_clears_a_removed_parent_link()
+    {
+        var parent = AnnotationItem.Create(AnnotationKind.Rectangle, [new(.8, .8), new(.9, .9)]);
+        var comment = AnnotationItem.Create(AnnotationKind.Comment, [new(.1, .1), new(.11, .11)], note: "Keep") with { ParentAnnotationId = parent.Id };
+        var capture = CaptureItem.Create("source/a.png", 1000, 1000) with { Annotations = [parent, comment] };
+        var cropped = SnapBrief.Core.Editing.CaptureCropper.Crop(capture, new(0, 0, .5, .5), "source/crop.png", 500, 500).CroppedCapture;
+        Assert.Equal(comment.Id, Assert.Single(cropped.Annotations).Id);
+        Assert.Null(cropped.Annotations[0].ParentAnnotationId);
+        Assert.Equal("Keep", cropped.Annotations[0].Note);
+    }
+}
+

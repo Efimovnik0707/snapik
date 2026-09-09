@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="SnapBrief — Стопка снимков" AutomationProperties.Name="SnapBrief — Стопка снимков"
-        Width="196" MinHeight="128" MaxHeight="620" SizeToContent="Height"
+        Width="208" MinHeight="128" MaxHeight="620" SizeToContent="Height"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
         BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="False" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">
     <Window.Resources>
@@ -45,6 +45,36 @@
             </ControlTemplate></Setter.Value></Setter>
             <Style.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#303845" /></Trigger></Style.Triggers>
         </Style>
+        <Style x:Key="StackScrollBar" TargetType="ScrollBar">
+            <Setter Property="Width" Value="7" />
+            <Setter Property="Margin" Value="5,2,0,2" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="Transparent">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False" /></Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border x:Name="Grip" Background="#657083" CornerRadius="4" />
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="#8A96A9" /></Trigger>
+                                                    <Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="#7AB8FF" /></Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False" /></Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Border x:Name="Shell" Margin="10" Padding="10" CornerRadius="16" Background="#F2171A20">
         <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="24" ShadowDepth="5" Opacity="0.42" /></Border.Effect>
@@ -67,21 +97,41 @@
                 </Button>
             </Grid>
 
-            <ScrollViewer Background="Transparent" BorderThickness="0" Grid.Row="1" MaxHeight="346" Margin="0,7,0,8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl x:Name="CaptureList" ItemsSource="{Binding Captures}" AllowDrop="True"
-                              PreviewMouseLeftButtonDown="OnCaptureListMouseDown" PreviewMouseMove="OnCaptureListMouseMove" Drop="OnCaptureListDrop">
-                    <ItemsControl.ItemTemplate>
+            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" MaxHeight="372" Margin="0,7,0,8" Padding="0,0,0,52"
+                     Background="Transparent" BorderThickness="0" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel"
+                     PreviewMouseLeftButtonDown="OnCaptureListMouseDown" PreviewMouseMove="OnCaptureListMouseMove"
+                     PreviewMouseWheel="OnCaptureListMouseWheel" Drop="OnCaptureListDrop">
+                <ListBox.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource StackScrollBar}" /></ListBox.Resources>
+                <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" />
+                        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><ContentPresenter /></ControlTemplate></Setter.Value></Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Panel.ZIndex" Value="20" /></Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="Panel.ZIndex" Value="30" /></DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border x:Name="ThumbCard" Margin="0,0,0,7" Height="82" CornerRadius="10" Background="#242A33" BorderBrush="#39424E" BorderThickness="1" ClipToBounds="True">
+                            <Border x:Name="ThumbCard" Margin="0,0,0,-48" Height="78" CornerRadius="11" Background="#242A33"
+                                    BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True" MouseEnter="OnCaptureThumbMouseEnter">
                                 <Grid>
                                     <Button Padding="0" Background="Transparent" BorderThickness="0" Click="OnOpenCaptureClick" Tag="{Binding}" ToolTip="Открыть снимок">
                                         <Grid>
-                                            <Image Source="{Binding Image}" Stretch="UniformToFill" Opacity="0.82" />
-                                            <Border VerticalAlignment="Bottom" Height="25" Background="#D9171A20">
+                                            <Image Source="{Binding Image}" Stretch="UniformToFill" Opacity="0.86" />
+                                            <Border VerticalAlignment="Bottom" Height="26" Background="#E6171A20">
                                                 <StackPanel Orientation="Horizontal" Margin="7,0" VerticalAlignment="Center">
                                                     <Border Width="20" Height="20" CornerRadius="10" Background="#2F8CFF">
                                                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="11" FontWeight="Bold" Text="{Binding DisplayLabel}" />
                                                     </Border>
+                                                    <Path Width="10" Height="10" Margin="7,0,4,0" Stroke="#AEB8C7" StrokeThickness="1.2" StrokeLineJoin="Round" Data="M1,1 L9,1 L9,7 L5,7 L2,9 L2,7 L1,7 Z" />
+                                                    <TextBlock Foreground="#DCE3ED" FontSize="11" Text="{Binding NoteCount}" />
                                                 </StackPanel>
                                             </Border>
                                         </Grid>
@@ -92,13 +142,24 @@
                                 </Grid>
                             </Border>
                             <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True"><Setter TargetName="DeleteButton" Property="Opacity" Value="1" /></DataTrigger>
-                                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=ThumbCard}" Value="True"><Setter TargetName="DeleteButton" Property="Opacity" Value="1" /></DataTrigger>
+                                <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True">
+                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#718096" />
+                                    <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
+                                    <DataTrigger.EnterActions><BeginStoryboard><Storyboard><ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin" To="0,4,0,4" Duration="0:0:0.18" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions><BeginStoryboard><Storyboard><ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin" To="0,0,0,-48" Duration="0:0:0.16" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></DataTrigger.ExitActions>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=ThumbCard}" Value="True">
+                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
+                                    <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
+                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#7AB8FF" />
+                                </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                    </ListBox.ItemTemplate>
+            </ListBox>
 
             <Button Grid.Row="2" Style="{StaticResource StackButton}" Background="#2F8CFF" BorderBrush="#2F8CFF" Click="OnCaptureClick">
                 <StackPanel Orientation="Horizontal">

@@ -55,7 +55,7 @@ public static class CaptureCropper
             var croppedPoints = annotation.Kind switch
             {
                 AnnotationKind.Arrow => CropLine(annotation.Points, cropBounds),
-                AnnotationKind.Rectangle or AnnotationKind.Text or AnnotationKind.Redaction or AnnotationKind.Blur =>
+                AnnotationKind.Rectangle or AnnotationKind.Text or AnnotationKind.Redaction or AnnotationKind.Blur or AnnotationKind.Comment =>
                     CropBox(annotation.Points, cropBounds),
                 _ => ImmutableArray<NormalizedPoint>.Empty
             };
@@ -69,6 +69,11 @@ public static class CaptureCropper
                 retained.Add(annotation with { Points = croppedPoints });
             }
         }
+
+        var retainedIds = retained.Select(annotation => annotation.Id).ToHashSet();
+        for (var i = 0; i < retained.Count; i++)
+            if (retained[i].ParentAnnotationId is { } parentId && !retainedIds.Contains(parentId))
+                retained[i] = retained[i] with { ParentAnnotationId = null };
 
         var cropped = source with
         {

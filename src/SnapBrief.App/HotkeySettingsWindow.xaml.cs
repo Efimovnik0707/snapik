@@ -19,6 +19,8 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public bool ShowNotifications { get; init; } = true;
     public bool RememberRegion { get; init; }
     public bool CaptureCursor { get; init; }
+    public bool AutoSaveCaptures { get; init; }
+    public bool PlaySounds { get; init; } = true;
     public string SaveFormat { get; init; } = "png";
     public int JpegQuality { get; init; } = 90;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "SnapBrief");
@@ -98,6 +100,8 @@ public partial class HotkeySettingsWindow : Window
         NotificationsBox.IsChecked = settings.ShowNotifications;
         RememberBox.IsChecked = settings.RememberRegion;
         CursorBox.IsChecked = settings.CaptureCursor;
+        AutoSaveBox.IsChecked = settings.AutoSaveCaptures;
+        SoundsBox.IsChecked = settings.PlaySounds;
         FormatBox.SelectedIndex = settings.SaveFormat == "jpeg" ? 1 : 0;
         QualitySlider.Value = Math.Clamp(settings.JpegQuality, 1, 100);
         DirectoryBox.Text = settings.SaveDirectory;
@@ -153,6 +157,8 @@ public partial class HotkeySettingsWindow : Window
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(DirectoryBox.Text))
+                throw new InvalidOperationException(UiLanguage.Text("Укажите папку сохранения.", _original.Language));
             var directory = Path.GetFullPath(DirectoryBox.Text);
             Result = _original with
             {
@@ -161,6 +167,8 @@ public partial class HotkeySettingsWindow : Window
                 FullscreenSaveEnabled = FullscreenEnabledBox.IsChecked == true,
                 ShowNotifications = NotificationsBox.IsChecked == true,
                 RememberRegion = RememberBox.IsChecked == true, CaptureCursor = CursorBox.IsChecked == true,
+                AutoSaveCaptures = AutoSaveBox.IsChecked == true,
+                PlaySounds = SoundsBox.IsChecked == true,
                 SaveFormat = FormatBox.SelectedIndex == 1 ? "jpeg" : "png",
                 JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory,
                 Language = LanguageBox.SelectedIndex == 1 ? "en" : "ru"
