@@ -14,6 +14,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources/SnapBriefMac
+      - path: Resources/SnapBrief.icns
+        optional: true
     dependencies:
       - package: SnapBriefCore
         product: SnapBriefCore
@@ -48,6 +50,11 @@ targets:
       - target: SnapBrief
       - package: SnapBriefCore
         product: SnapBriefCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+        PRODUCT_BUNDLE_IDENTIFIER: live.yesworkflow.snapbrief.tests
 schemes:
   SnapBrief:
     build:

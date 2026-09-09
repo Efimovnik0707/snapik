@@ -8,10 +8,12 @@ on:
 concurrency:
   group: macos-build-${{ github.ref }}
   cancel-in-progress: true
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: macos
@@ -19,13 +21,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Toolchain
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.4.app || sudo xcode-select -s /Applications/Xcode.app
+          sudo xcode-select -s /Applications/Xcode_16.4.app
           xcodebuild -version
           swift --version
       - name: SwiftPM build
-        run: swift build -c debug 2>&1 | tee build.log
+        run: |
+          set -o pipefail
+          swift build -c debug 2>&1 | tee build.log | grep -E "error:|warning:|Compiling|Build complete|Build of" | grep -vE "warning: .*(unused|never mutated|never used)" || true
+          grep -q "error:" build.log && exit 1 || true
       - name: SwiftPM tests
-        run: swift test 2>&1 | tee test.log
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee test.log | grep -E "error:|Test Suite|Executed|failed|passed" 
+      - name: Icon
+        run: |
+          if [ -d Resources/SnapBrief.iconset ]; then iconutil -c icns Resources/SnapBrief.iconset -o Resources/SnapBrief.icns; fi
       - name: XcodeGen
         run: |
           brew install xcodegen >/dev/null 2>&1 || true
@@ -35,23 +45,45 @@ jobs:
           set -o pipefail
           xcodebuild -project SnapBrief.xcodeproj -scheme SnapBrief -configuration Release \
             -derivedDataPath DerivedData CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES \
-            build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: unre|BUILD|Compiling|\*\*" 
+            build 2>&1 | tee xcodebuild.log | grep -E "error:|BUILD|\*\*" 
       - name: Xcode tests
         run: |
           set -o pipefail
           xcodebuild -project SnapBrief.xcodeproj -scheme SnapBrief -configuration Debug \
             -derivedDataPath DerivedData CODE_SIGN_IDENTITY=- \
-            test 2>&1 | tee xcodetest.log | grep -E "error:|Test Case|Executed|\*\*|failed" 
-      - name: Package app
+            test 2>&1 | tee xcodetest.log | grep -E "error:|Executed|\*\*|failed" 
+      - name: Smoke run
         run: |
-          cd DerivedData/Build/Products/Release && ditto -c -k --keepParent SnapBrief.app ../../../../SnapBrief-macOS.zip
-          ls -la ../../../../SnapBrief-macOS.zip
+          APP=DerivedData/Build/Products/Release/SnapBrief.app
+          if [ -x scripts/ci-smoke.sh ]; then bash scripts/ci-smoke.sh "$APP"; else echo "no smoke script yet"; fi
+      - name: Package DMG
+        run: |
+          set -e
+          APP=DerivedData/Build/Products/Release/SnapBrief.app
+          VER=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist")
+          rm -rf dmgroot && mkdir dmgroot
+          cp -R "$APP" dmgroot/
+          ln -s /Applications dmgroot/Applications
+          [ -f Resources/DMG-README.txt ] && cp Resources/DMG-README.txt "dmgroot/Прочитай меня.txt" || true
+          hdiutil create -volname "SnapBrief $VER" -srcfolder dmgroot -ov -format UDZO "SnapBrief-$VER-macOS.dmg"
+          ditto -c -k --keepParent "$APP" "SnapBrief-$VER-macOS.zip"
+          ls -la *.dmg *.zip
+          echo "VER=$VER" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: SnapBrief-macOS
           path: |
-            macos/SnapBrief-macOS.zip
-            macos/SnapBrief.xcodeproj
+            macos/*.dmg
+            macos/*.zip
             macos/*.log
+            macos/smoke-out
           if-no-files-found: warn
+      - name: Release (master only)
+        if: github.ref == 'refs/heads/master' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="macos-v${VER}-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" *.dmg *.zip --title "SnapBrief macOS $VER (build $GITHUB_RUN_NUMBER)" \
+            --notes "Автосборка macOS-версии с коммита ${GITHUB_SHA}. Не подписана Developer ID: при первом запуске правый клик → Открыть." || true

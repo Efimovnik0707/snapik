@@ -3,7 +3,7 @@
   "ru": {
     "meta": {
       "title": "Скриншоты с заметками для Claude Code и Codex | SnapBrief",
-      "description": "Windows-приложение для работы с Claude Code и Codex. Разметьте несколько снимков экрана, напишите заметки рядом с отметками и вставьте всё одним Ctrl+V. Файлы остаются на компьютере."
+      "description": "Windows-приложение для работы с Claude Code и Codex. Разметьте несколько снимков экрана, напишите заметки рядом с отметками и вставьте всё одним Ctrl+V."
     },
     "nav": {
       "how": "Как работает",
@@ -19,7 +19,7 @@
         "Покажите агенту экран. Весь и по порядку.",
         "Хватит пересказывать агенту то, что он может увидеть."
       ],
-      "sub": "SnapBrief собирает размеченные снимки экрана и комментарии к ним в один пакет для Claude Code и Codex. Выделили область, написали рядом, вставили в агента.",
+      "sub": "SnapBrief собирает размеченные снимки экрана и комментарии к ним в один пакет для Claude Code и Codex. Выделили область, написали рядом. Дальше Ctrl+V в агента.",
       "ctaPrimary": "Скачать для Windows",
       "ctaSecondary": "Как это работает",
       "risk": [
@@ -35,20 +35,20 @@
         "Codex CLI",
         "Codex Desktop"
       ],
-      "tail": "и в любой композер, который принимает вставку изображений"
+      "tail": "и в любое поле ввода, куда можно вставить картинку"
     },
     "flagship": {
-      "h2": "Один Ctrl+V. Три PNG и текст, где каждая заметка привязана к своей отметке.",
+      "h2": "Один Ctrl+V вставляет три PNG и текст, где каждая заметка привязана к своей отметке.",
       "p": "Обычно вы вставляете скриншоты по одному и объясняете словами, какой к чему относится. SnapBrief держит связь сам: снимок A, отметка A1, комментарий к A1. Агент получает картинки и структурированный текст за одну вставку.",
       "points": [
         "Отдельный PNG на каждый снимок",
-        "Текст с метками A1, B2 вместо «на втором скриншоте слева»",
-        "Enter не нажимается: вы сами отправляете запрос"
+        "Текст с метками A1, B2, привязанными к рамкам",
+        "Порядок снимков задаёт структуру текста"
       ]
     },
     "how": {
       "h2": "Три шага, без окна редактора.",
-      "sub": "Всё происходит поверх вашего экрана и в маленькой стопке у края. Никаких больших окон, в которые надо переключаться.",
+      "sub": "Всё происходит поверх вашего экрана и в маленькой стопке у края.",
       "steps": [
         {
           "n": "1",
@@ -63,13 +63,13 @@
         {
           "n": "3",
           "title": "Вставьте в агента",
-          "text": "Кликните мимо снимка и он свернётся в стопку. Ещё снимок, ещё один. Потом Ctrl+V в Claude Code или Codex."
+          "text": "Кликните мимо снимка, и он свернётся в стопку. Ещё снимок, ещё один. Потом Ctrl+V в Claude Code или Codex."
         }
       ]
     },
     "features": {
       "h2": "Сделано под одну задачу: объяснить агенту, что не так на экране.",
-      "sub": "Не универсальный скриншотер с сотней функций. Инструменты ровно для того, чтобы показать и пояснить.",
+      "sub": "Рамка, стрелка, заметка, размытие. Этого хватает, чтобы показать агенту проблему и пояснить её.",
       "items": [
         {
           "key": "linked",
@@ -78,7 +78,7 @@
         },
         {
           "key": "stack",
-          "title": "Стопка снимков вместо десяти файлов",
+          "title": "Стопка снимков у края экрана",
           "text": "Один, два, пять захватов складываются в одну сессию у края экрана. Открыть и поправить любой можно одним кликом."
         },
         {
@@ -99,20 +99,20 @@
         {
           "key": "safe",
           "title": "Сбой не теряет сессию",
-          "text": "Не сработал буфер, не открылось окно агента, пропал диск. Снимки и заметки остаются, можно повторить вставку."
+          "text": "Не сработал буфер или окно агента не приняло вставку. Снимки и заметки остаются в стопке, вставку можно повторить."
         }
       ]
     },
     "receives": {
       "h2": "Что именно получает агент",
-      "sub": "Никакой магии и никаких моделей посередине. Файлы плюс текст в предсказуемом формате.",
+      "sub": "Без модели посередине. Файлы плюс текст в предсказуемом формате.",
       "files": [
         "snapbrief-A.png",
         "snapbrief-B.png",
         "snapbrief-C.png",
         "brief.md"
       ],
-      "prompt": "Снимок A — Настройки профиля.\nКомментарий к снимку:\nЭкран сразу после нажатия «Сохранить».\nA1: Кнопка не меняет состояние после клика, нет индикации.\nA2: Тост об успехе перекрывает поле email.\n\nСнимок B — Список заказов.\nB1: Сортировка по дате сбрасывается после обновления страницы.\n\nСнимок C — Терминал.\nC1: Ошибка при том же запросе, токен размыт.",
+      "prompt": "Снимок A — Настройки профиля.\nКомментарий к снимку:\nЭкран сразу после нажатия «Сохранить».\nA1: Кнопка не меняет состояние после клика, нет индикации.\nA2: Тост об успехе перекрывает поле email.\n\nСнимок B — Список заказов.\nB1: Сортировка по дате сбрасывается после обновления страницы.\n\nСнимок C — Терминал.\nC1: Та же ошибка при том же запросе, токен размыт.",
       "caption": "Текст генерируется детерминированно из ваших заметок. Enter не нажимается."
     },
     "compare": {
@@ -131,18 +131,18 @@
         "items": [
           "Один Ctrl+V, все снимки и текст",
           "Метки A1, B1 указывают на конкретные рамки",
-          "Порядок и связи заданы структурой, не словами",
+          "Порядок и связи заданы структурой пакета",
           "Размытие применено до экспорта"
         ]
       }
     },
     "windows": {
-      "h2": "Родное приложение для Windows 11.",
-      "sub": "Нативное приложение на .NET и WPF. Живёт в трее, не держит окно открытым и не крадёт фокус у вашего терминала.",
+      "h2": "Живёт в трее и не мешает терминалу.",
+      "sub": "Нативное приложение на .NET и WPF для Windows 11. Не держит окно открытым и не крадёт фокус у поля ввода агента.",
       "points": [
         {
           "title": "Глобальная горячая клавиша",
-          "text": "Своё сочетание, конфликты проверяет Windows."
+          "text": "Любое сочетание. Если его уже занял другой софт, Windows скажет об этом сразу."
         },
         {
           "title": "Трей и автозапуск",
@@ -159,7 +159,7 @@
       ]
     },
     "pricing": {
-      "h2": "Одна покупка. Никаких подписок и счётчиков.",
+      "h2": "Одна покупка, без подписки и без лимита на число снимков.",
       "sub": "Платите один раз за личную лицензию для Windows. Обновления в рамках первой версии бесплатно.",
       "plan": {
         "name": "Личная лицензия",
@@ -178,7 +178,7 @@
       }
     },
     "faq": {
-      "h2": "Прямые ответы",
+      "h2": "Вопросы перед покупкой",
       "items": [
         {
           "q": "SnapBrief отправляет снимки какой-нибудь модели?",
@@ -190,7 +190,7 @@
         },
         {
           "q": "SnapBrief нажимает Enter?",
-          "a": "Никогда. Запрос отправляете вы. Приложение только подготавливает и вставляет."
+          "a": "Никогда. Приложение только собирает пакет и вставляет его в поле, а запрос отправляете вы."
         },
         {
           "q": "Где хранятся снимки?",
@@ -207,8 +207,8 @@
       ]
     },
     "final": {
-      "h2": "Хватит описывать экран словами.",
-      "sub": "Покажите его агенту вместе с заметками и одним Ctrl+V.",
+      "h2": "Покажите агенту экран с заметками одним Ctrl+V.",
+      "sub": "SnapBrief для Windows 11. Скачайте и соберите первый пакет.",
       "cta": "Скачать для Windows",
       "hint": "Горячая клавиша задаётся в настройках, любое сочетание"
     },
@@ -316,7 +316,7 @@
   "en": {
     "meta": {
       "title": "Annotated screenshots for Claude Code and Codex | SnapBrief",
-      "description": "A Windows app for working with Claude Code and Codex. Mark up several screen captures, write notes beside the marks, and paste everything with one Ctrl+V. Files never leave your machine."
+      "description": "A Windows app for working with Claude Code and Codex. Mark up several screenshots, write notes beside the marks, and paste everything with one Ctrl+V."
     },
     "nav": {
       "how": "How it works",
@@ -332,7 +332,7 @@
         "Show your agent the screen. All of it, in order.",
         "Stop retyping what your agent could just see."
       ],
-      "sub": "SnapBrief turns annotated screen captures and the notes beside them into one package for Claude Code and Codex. Select a region, write next to the mark, paste into your agent.",
+      "sub": "SnapBrief turns annotated screenshots and the notes beside them into one package for Claude Code and Codex. Select a region, write next to the mark. Then Ctrl+V into your agent.",
       "ctaPrimary": "Download for Windows",
       "ctaSecondary": "See how it works",
       "risk": [
@@ -348,20 +348,20 @@
         "Codex CLI",
         "Codex Desktop"
       ],
-      "tail": "and any composer that accepts pasted images"
+      "tail": "and any input field that takes a pasted image"
     },
     "flagship": {
-      "h2": "One Ctrl+V. Three PNGs and a text where every note points at its own mark.",
-      "p": "Normally you paste screenshots one by one and explain in words which note belongs where. SnapBrief keeps the link itself: capture A, mark A1, note on A1. The agent gets the images and structured text in a single paste.",
+      "h2": "One Ctrl+V pastes three PNGs and one block of text, and every note in it points at its own mark.",
+      "p": "Normally you paste screenshots one by one and explain in words which note belongs where. SnapBrief keeps that link for you: capture A, mark A1, note on A1. The agent gets the images and structured text in a single paste.",
       "points": [
         "A separate PNG per capture",
-        "Text with labels A1, B2 instead of “top left on the second screenshot”",
-        "Enter is never pressed: you send the request yourself"
+        "Text with labels A1, B2 tied to the boxes",
+        "The capture order sets the structure of the text"
       ]
     },
     "how": {
       "h2": "Three steps, no editor window.",
-      "sub": "Everything happens on top of your screen and in a small stack at the edge. No big window to switch into.",
+      "sub": "Everything happens on top of your screen and in a small stack at the edge.",
       "steps": [
         {
           "n": "1",
@@ -376,28 +376,28 @@
         {
           "n": "3",
           "title": "Paste into your agent",
-          "text": "Click outside the capture and it folds into the stack. Another capture, one more. Then Ctrl+V in Claude Code or Codex."
+          "text": "Click outside the capture and it folds into the stack. Take another, and another. Then Ctrl+V in Claude Code or Codex."
         }
       ]
     },
     "features": {
       "h2": "Built for one job: explaining to an agent what is wrong on screen.",
-      "sub": "Not a general screenshot tool with a hundred features. Exactly the tools for showing and explaining.",
+      "sub": "Box, arrow, note, blur. Enough to show an agent the problem and explain it.",
       "items": [
         {
           "key": "linked",
           "title": "Notes stay attached to marks",
-          "text": "A comment belongs to its own box. Reorder captures in the stack and the links hold."
+          "text": "A note belongs to its own box. Reorder captures in the stack and the links hold."
         },
         {
           "key": "stack",
-          "title": "A stack of captures instead of ten files",
+          "title": "A stack of captures at the screen edge",
           "text": "One, two, five captures fold into a single session at the screen edge. Open and fix any of them with one click."
         },
         {
           "key": "privacy",
           "title": "Blur, conceal, crop",
-          "text": "A token in the terminal, a client's email, an extra part of the window. Blur really changes the pixels, in the export too."
+          "text": "A token in the terminal, a client's email, an extra part of the window. Blur rewrites the pixels for good, in the export too."
         },
         {
           "key": "undo",
@@ -412,13 +412,13 @@
         {
           "key": "safe",
           "title": "A failure never loses the session",
-          "text": "Clipboard didn't take, the agent window didn't open, the disk went away. Captures and notes stay put and you can paste again."
+          "text": "The clipboard didn't take or the agent window rejected the paste. Captures and notes stay in the stack, paste again."
         }
       ]
     },
     "receives": {
       "h2": "What the agent actually receives",
-      "sub": "No magic and no model in the middle. Files plus text in a predictable format.",
+      "sub": "No model in the middle. Files plus text in a predictable format.",
       "files": [
         "snapbrief-A.png",
         "snapbrief-B.png",
@@ -433,7 +433,7 @@
       "before": {
         "title": "Screenshots by hand",
         "items": [
-          "Three files in turn, a separate Ctrl+V each",
+          "Three files one after another, a Ctrl+V for each",
           "A paragraph like “on the first screenshot, top right…”",
           "The agent mixes up which note goes with which capture",
           "The token in the terminal went into the chat as is"
@@ -444,18 +444,18 @@
         "items": [
           "One Ctrl+V, all captures and the text",
           "Labels A1, B1 point at specific boxes",
-          "Order and links come from structure, not from prose",
+          "Order and links come from the structure of the package",
           "Blur applied before export"
         ]
       }
     },
     "windows": {
-      "h2": "Native to Windows 11.",
-      "sub": "A native .NET and WPF app. Lives in the tray, keeps no window open, and never steals focus from your terminal.",
+      "h2": "Lives in the tray and stays out of your terminal's way.",
+      "sub": "A native .NET and WPF app for Windows 11. Keeps no window open and never steals focus from your agent's input field.",
       "points": [
         {
           "title": "Global hotkey",
-          "text": "Your own shortcut, conflicts checked by Windows."
+          "text": "Pick any shortcut. If another app already owns it, Windows says so before you save."
         },
         {
           "title": "Tray and autostart",
@@ -472,7 +472,7 @@
       ]
     },
     "pricing": {
-      "h2": "Pay once. No subscriptions, no usage meters.",
+      "h2": "Pay once, no subscription and no capture limits.",
       "sub": "One payment for a personal Windows license. Updates within the first major version are free.",
       "plan": {
         "name": "Personal license",
@@ -491,7 +491,7 @@
       }
     },
     "faq": {
-      "h2": "Straight answers",
+      "h2": "Questions before you buy",
       "items": [
         {
           "q": "Does SnapBrief send screenshots to a model?",
@@ -503,7 +503,7 @@
         },
         {
           "q": "Does SnapBrief press Enter?",
-          "a": "Never. You send the request. The app only prepares and pastes."
+          "a": "Never. The app builds the package and pastes it, you send the request."
         },
         {
           "q": "Where are captures stored?",
@@ -520,10 +520,10 @@
       ]
     },
     "final": {
-      "h2": "Stop describing the screen in words.",
-      "sub": "Show it to your agent, notes attached, with one Ctrl+V.",
+      "h2": "Show your agent the screen, notes attached, with one Ctrl+V.",
+      "sub": "SnapBrief for Windows 11. Download it and build your first package.",
       "cta": "Download for Windows",
-      "hint": "The hotkey is set in settings, any combination"
+      "hint": "Any key combination, set in Settings"
     },
     "footer": {
       "tagline": "Annotated screenshots for Claude Code and Codex. Local, no subscription.",
