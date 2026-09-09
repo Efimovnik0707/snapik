@@ -241,6 +241,9 @@ enum SmokeTestRunner {
                 // R4 fix: direct-color checks against the asymmetric top marker (finding R4) — a
                 // vertical flip would either move the marker away from row 48 or leave it visible
                 // at the bottom instead of only the top.
+                // Diagnostics for the flip-marker checks (printed in the report so CI logs show the
+                // actual colours when a check fails).
+                report.append("INFO source(0,0)=\(describeColor(colorAt(sourceA, x: 0, y: 0))) source(0,1079)=\(describeColor(colorAt(sourceA, x: 0, y: 1079))) export(0,48)=\(describeColor(colorAt(exportA, x: 0, y: 48))) export(1919,48)=\(describeColor(colorAt(exportA, x: 1919, y: 48))) export(0,1127)=\(describeColor(colorAt(exportA, x: 0, y: 1127))) sourceInfo=\(sourceA.bitsPerPixel)/\(sourceA.bitmapInfo.rawValue)")
                 check("export marker row matches marker color", pixelColorMatches(exportA, x: 0, y: 48, color: flipMarkerColor))
                 check("export bottom content row is not the marker color", !pixelColorMatches(exportA, x: 0, y: 1127, color: flipMarkerColor))
                 // A point well inside the redaction rectangle, away from its number label.
@@ -313,6 +316,11 @@ enum SmokeTestRunner {
     }
 
     // MARK: - Pixel helpers (SPEC §8.4 point 12)
+
+    private static func describeColor(_ color: NSColor?) -> String {
+        guard let color else { return "nil" }
+        return String(format: "#%02X%02X%02X", Int((color.redComponent * 255).rounded()), Int((color.greenComponent * 255).rounded()), Int((color.blueComponent * 255).rounded()))
+    }
 
     private static func colorAt(_ image: CGImage, x: Int, y: Int) -> NSColor? {
         guard x >= 0, y >= 0, x < image.width, y < image.height else { return nil }
