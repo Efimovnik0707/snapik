@@ -55,7 +55,7 @@ jobs:
       - name: Smoke run
         run: |
           APP=DerivedData/Build/Products/Release/SnapBrief.app
-          if [ -x scripts/ci-smoke.sh ]; then bash scripts/ci-smoke.sh "$APP"; else echo "no smoke script yet"; fi
+          if [ -f scripts/ci-smoke.sh ]; then bash scripts/ci-smoke.sh "$APP"; else echo "no smoke script yet"; fi
       - name: Package DMG
         run: |
           set -e
