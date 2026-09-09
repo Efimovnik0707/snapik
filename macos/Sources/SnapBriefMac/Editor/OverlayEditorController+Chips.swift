@@ -13,7 +13,7 @@ extension OverlayEditorController {
         guard capture != nil else { return }
         pushHistory()
         refreshLabels()
-        if annotation.kind == .rectangle {
+        if annotation.kind == .rectangle || annotation.kind == .text {
             visibleChipIds.insert(annotation.id)
             addChip(for: annotation, focus: true)
             contextNoteButtonView?.isHidden = true
@@ -85,10 +85,13 @@ extension OverlayEditorController {
     /// Port of `AddChip` (`:391-434`).
     func addChip(for annotation: EditorAnnotation, focus: Bool) {
         guard let screenIndex = activeScreenIndex else { return }
-        let chip = CommentChipView(annotationId: annotation.id, badgeLabel: provisionalBadgeText(for: annotation), note: annotation.note)
+        let isTextTool = annotation.kind == .text
+        let chip = CommentChipView(
+            annotationId: annotation.id, badgeLabel: provisionalBadgeText(for: annotation),
+            note: isTextTool ? annotation.text : annotation.note, isTextInput: isTextTool)
         chip.onNoteChanged = { [weak self, weak annotation] text in
             guard let self, let annotation, !self.settingUp else { return }
-            annotation.note = text
+            if annotation.kind == .text { annotation.text = text } else { annotation.note = text }
             self.refreshLabels()
             // Finding 12: matches the shot-note chip's own `onNoteChanged` below — typing a note
             // does not push an undo step (SPEC §1.5: "Изменение текста заметки историю не
@@ -144,7 +147,7 @@ extension OverlayEditorController {
         guard capture != nil else { return }
         if !annotation.note.isEmpty, let before = lastSnapshot { history.pushWithoutClearingRedo(before) }
         history.clearRedo()
-        annotation.note = ""
+        if annotation.kind != .text { annotation.note = "" }
         lastSnapshot = snapshotState()
         visibleChipIds.remove(annotation.id)
         chipViews[annotation.id]?.removeFromSuperview()

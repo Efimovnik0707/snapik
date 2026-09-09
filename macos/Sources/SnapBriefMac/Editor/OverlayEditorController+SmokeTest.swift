@@ -129,7 +129,9 @@ extension OverlayEditorController {
 
     /// SPEC §8.4 point 10: creates a Rectangle annotation via `smokeCreateRectangle`, confirms its
     /// comment chip auto-opened (SPEC §1.4), types a probe note into it, and confirms the text
-    /// reached the annotation model.
+    /// reached the annotation model. Also confirms a Text-tool annotation's chip writes into
+    /// `EditorAnnotation.text` (the rendered label) rather than `.note` (mirrors
+    /// `RunNoteAffordanceProbe`'s text-tool assertion, `OverlayEditorWindow.xaml.cs:145-152`).
     @discardableResult
     func smokeRunNoteAffordanceProbe() -> Bool {
         guard let capture, activeScreenIndex != nil else { return false }
@@ -147,8 +149,20 @@ extension OverlayEditorController {
         let probeText = "smoke-note-probe"
         chip.textView.string = probeText
         chip.onNoteChanged?(probeText)
+        guard annotation.note == probeText else { return false }
 
-        return annotation.note == probeText
+        let textAnnotation = EditorAnnotation(
+            kind: .text, points: [CGPoint(x: 100, y: 100), CGPoint(x: 220, y: 160)],
+            color: activeColor, thickness: activeThickness)
+        capture.annotations.append(textAnnotation)
+        annotationCreated(textAnnotation)
+        guard let textChip = chipViews[textAnnotation.id] else { return false }
+
+        let textProbeText = "smoke-text-probe"
+        textChip.textView.string = textProbeText
+        textChip.onNoteChanged?(textProbeText)
+
+        return textAnnotation.text == textProbeText && textAnnotation.note.isEmpty
     }
 
     /// The state that would be delivered to `OverlayEditorDelegate.overlayEditor(_:didCommit:annotations:)`

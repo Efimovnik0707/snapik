@@ -54,9 +54,11 @@ final class CommentChipView: NSView {
 
     override var isFlipped: Bool { true }
 
-    init(annotationId: SBGuid, badgeLabel: String, note: String) {
+    init(annotationId: SBGuid, badgeLabel: String, note: String, isTextInput: Bool = false) {
         self.annotationId = annotationId
-        closeButton = ChipCloseButtonView(size: Self.closeSize, tooltip: EditorStrings.removeComment("ru"))
+        closeButton = ChipCloseButtonView(
+            size: Self.closeSize,
+            tooltip: isTextInput ? EditorStrings.closeTextInput("ru") : EditorStrings.removeComment("ru"))
         super.init(frame: CGRect(x: 0, y: 0, width: Self.width, height: Self.minHeight))
 
         badge.label = badgeLabel

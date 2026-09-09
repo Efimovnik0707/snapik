@@ -38,7 +38,7 @@ extension OverlayEditorController {
         }
         // `NSPopover.close()`, not `performClose(_:)` (that's an `NSWindow`/`NSViewController`
         // pattern; `NSPopover` only exposes the plain no-argument `close()`).
-        let closePopover = { [weak self] in self?.appearancePopover?.close() }
+        let closePopover: () -> Void = { [weak self] in self?.appearancePopover?.close() }
         popoverViewController.onCloseClicked = closePopover
         popoverViewController.onEscape = closePopover
 

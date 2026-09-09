@@ -42,6 +42,7 @@ enum EditorStrings {
     static func strokeThicknessAccessibilityName(_ language: String) -> String { text("Толщина линии", language: language) }
     static func addComment(_ language: String) -> String { text("Добавить комментарий", language: language) }
     static func removeComment(_ language: String) -> String { text("Удалить комментарий", language: language) }
+    static func closeTextInput(_ language: String) -> String { text("Закрыть ввод текста", language: language) }
     static func undo(_ language: String) -> String { text("Отменить", language: language) }
     static func redo(_ language: String) -> String { text("Повторить", language: language) }
     static func saveToComputer(_ language: String) -> String { text("Сохранить на компьютер (Ctrl+S)", language: language) }
