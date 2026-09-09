@@ -10,6 +10,7 @@
 // `kVK_Control = 0x3B`), inlined here rather than imported from `Carbon.HIToolbox` to keep this
 // file's dependency surface to `CoreGraphics` only.
 
+import Foundation
 import CoreGraphics
 import SnapBriefCore
 

@@ -3,6 +3,7 @@
 // Monitoring (`kTCCServiceListenEvent`) and injecting/reading another process' focused element
 // needs Accessibility (`kTCCServiceAccessibility`).
 
+import Foundation
 import ApplicationServices
 import CoreGraphics
 

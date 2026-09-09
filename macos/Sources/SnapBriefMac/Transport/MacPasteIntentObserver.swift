@@ -103,7 +103,7 @@ public final class MacPasteIntentObserver: PasteIntentObserving {
             keyState.observeModifier(role, isKeyDown: Self.isModifierDown(role: role, flags: event.flags), isInjected: false)
         case .keyDown, .keyUp:
             let keyCode = CGKeyCode(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
-            guard keyCode == VirtualKeyV else { return }
+            guard keyCode == MacPasteIntentObserver.VirtualKeyV else { return }
             guard let gesture = keyState.observeV(isKeyDown: type == .keyDown, isInjected: false) else { return }
             guard type == .keyDown else { return }
             emitIntent(alternate: gesture == .optionV)

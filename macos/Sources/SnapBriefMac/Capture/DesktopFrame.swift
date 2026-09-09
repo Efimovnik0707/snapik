@@ -1,4 +1,5 @@
 // Port of `CaptureOverlay.xaml.cs:178` (`DesktopFrame` record), SPEC §1.2 п.4, §9.5.
+import Foundation
 import CoreGraphics
 
 /// Snapshot of the entire virtual desktop, already collapsed into one bitmap.
