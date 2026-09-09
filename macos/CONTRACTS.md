@@ -142,3 +142,56 @@ struct EditorWorkspaceContext { let session: SnapBriefSession; let sessionDirect
 - Никаких `fatalError`/`try!` в рабочих путях; ошибки в статус стопки текстом из спеки.
 - Каждый файл начинается с комментария `// Port of <windows file>, SPEC §x.y`.
 - Компилятора AppKit локально нет: писать консервативно, проверять сигнатуры API дважды, избегать редких API. Предпочитать `NSView` с ручным `draw(_:)` вместо layer-трюков.
+
+## Дополнение sync 2 (2026-09-09): новые кросс-зонные сигнатуры
+
+Спека дельты: `SPEC-DELTA-2.md`, `SPEC-DELTA-2A.md` (транспорт), `SPEC-DELTA-2B.md` (UI). Владение папками на sync 2: см. таблицу «Разбиение» в `SPEC-DELTA-2B.md`.
+
+```swift
+// Core (core-shell)
+public enum AnnotationKind { …; case comment }                       // JSON "comment"
+public struct AnnotationItem { public var parentAnnotationId: SBGuid?; public var arrowStyle: String /* "straight" */ }
+public struct HotkeySettings { public var autoSaveCaptures: Bool /* false */; public var playSounds: Bool /* true */ }
+public enum CaptureLabels { public static func forIndex(_ index: Int) throws -> String }   // A..Z, AA, ..., ошибка только при index < 0
+
+// Core Transport (transport)
+public enum PasteIntentGesture { case commandV, optionV, controlV }
+public struct PasteIntent { …; public let gesture: PasteIntentGesture; public var alternate: Bool { gesture != .commandV }; public let intercepted: Bool }
+public protocol InputInjecting { func injectPaste(gesture: PasteIntentGesture, completion: @escaping (Bool) -> Void); func injectPaste(alternate: Bool, completion: @escaping (Bool) -> Void) /* обёртка */ }
+public final class PasteIntentInterceptionState { func shouldSuppress(isVKey: Bool, isKeyDown: Bool, isInjected: Bool, interceptThisGesture: Bool) -> Bool; func reset() }
+extension CodexDesktopPasteCompletionService { public func completeSequential(intent:ownedPackageReceipt:immutableImagePaths:immutablePromptText:cancellationToken:completion:) }
+public enum ClipboardEchoDetector { public static func isReceiverEcho(_ snapshot: ClipboardSnapshot, promptText: String) -> Bool }
+extension ClipboardSnapshot { public var hasFiles: Bool }
+extension CodexPasteCompletionResult { public var currentClipboardReceipt: ClipboardSnapshot? }
+
+// Mac Transport (transport)
+final class MacPasteIntentObserver { init(foreground:clipboardSequence:shouldIntercept: ((PasteIntent) -> Bool)?); var onDiagnostic: ((String) -> Void)?; private(set) var tapMode: PasteIntentTapMode? }
+final class MacClipboardService { init(queue: DispatchQueue = .main, pngItemIncludesFileURL: Bool = true); func diagnosticTypes() -> [String] }
+
+// App (transport владеет этими файлами): AppCoordinator+PasteIntent.swift, PasteInterceptPredicate.swift, AsyncGate.swift
+final class AsyncGate { var isBusy: Bool; func wait() async; func release() }
+extension AppCoordinator {   // поля добавляет transport в AppCoordinator.swift
+    var pasteObservedForCurrentPackage: Bool; var pasteIntentTransition: Task<Void, Never>?
+    let clipboardPublicationGate: AsyncGate; var receiverEchoWatchTask: Task<Void, Never>?
+    func handlePasteIntent(_ intent: PasteIntent); func republishPackageForReuse(paths: [String], prompt: String) async
+    func startReceiverEchoWatch(paths: [String], prompt: String); func cancelReceiverEchoWatch()
+}
+
+// Shell → Preview (preview)
+final class CapturePreviewWindowController {
+    init(capture: CaptureItem, image: CGImage, displayLabel: String, language: String, playSounds: Bool, persist: @escaping (CaptureItem) async -> Void)
+    func present(on screen: NSScreen?, completion: @escaping (_ markupRequested: Bool) -> Void)
+}
+enum CapturePreviewProbe { static func run(image: CGImage) throws }
+// Shell → Stack (preview владеет Stack/)
+struct StackCaptureRow { let id: SBGuid; let label: String; let thumbnail: NSImage?; let noteCount: Int }
+extension EdgeStackWindowController { func setSelectedCapture(_ id: SBGuid?) }
+// Shell (core-shell), вызывается из Stack/ и App/
+enum CaptureFeedbackSound { static func capture(enabled: Bool); static func tick(enabled: Bool); static func verifyWaveHeaders() throws }
+enum AutoSaveService { static func save(capture: CaptureItem, displayLabel: String, sessionDirectory: URL, settings: HotkeySettings) throws -> URL }
+// Editor → Shell (smoke)
+extension AnnotationCanvasView { static func smokeVerifyHoverManipulation(image: CGImage) -> Bool }
+extension OverlayEditorController { func smokeRunNoteAffordanceProbe() -> Bool /* one-shot comment */; @discardableResult func smokeCreateComment(at point: CGPoint, note: String?) -> SBGuid? }
+// Imaging (editor), используется автосохранением и предпросмотром
+enum ArrowDrawing { static func draw(in ctx: CGContext, from: CGPoint, to: CGPoint, color: CGColor, thickness: CGFloat, style: String); static func sampleImage(style: String, size: NSSize) -> NSImage }
+```
