@@ -142,7 +142,11 @@ public sealed class CodexDesktopPasteCompletionService : ICodexDesktopPasteCompl
             var expectedSequenceNumber = ownedPackageReceipt.SequenceNumber;
             for (var imageIndex = 0; imageIndex < immutableImagePaths.Count; imageIndex++)
             {
-                currentReceipt = await clipboard.SetPngOnlyGuardedAsync(
+                // Chromium (Claude Desktop) and Claude Code's clipboard readers detect an image
+                // through CF_DIB/CF_BITMAP; a registered "PNG"-only data object is invisible to
+                // them, so the image paste was a no-op and only the text arrived. Publish the
+                // standard bitmap formats alongside PNG for every per-image paste.
+                currentReceipt = await clipboard.SetPngGuardedAsync(
                     immutableImagePaths[imageIndex],
                     expectedSequenceNumber,
                     cancellationToken);

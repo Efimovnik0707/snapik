@@ -354,7 +354,14 @@ public sealed class CodexDesktopPasteCompletionServiceTests
             if (ChangeAfterWrite) currentSequence++;
             return Task.FromResult(receipt);
         }
-        public Task<ClipboardWriteReceipt> SetPngGuardedAsync(string pngPath, uint expectedSequenceNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ClipboardWriteReceipt> SetPngGuardedAsync(string pngPath, uint expectedSequenceNumber, CancellationToken cancellationToken)
+        {
+            if (FailWrite || expectedSequenceNumber != currentSequence) throw new ClipboardChangedException();
+            Writes.Add(pngPath);
+            var receipt = new ClipboardWriteReceipt(++currentSequence);
+            if (ChangeAfterWrite) currentSequence++;
+            return Task.FromResult(receipt);
+        }
         public Task<ClipboardWriteReceipt> SetTextGuardedAsync(string text, uint expectedSequenceNumber, CancellationToken cancellationToken)
         {
             if (FailWrite || expectedSequenceNumber != currentSequence) throw new ClipboardChangedException();
