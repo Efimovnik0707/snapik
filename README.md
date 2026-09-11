@@ -27,6 +27,10 @@
 
 `scriptsuild-installer.ps1` собирает публикацию (те же тесты и smoke, что `build.ps1`) и упаковывает её в `artifacts\installer\SnapBrief-Setup-<версия>.exe` через Inno Setup 6 (`winget install --id JRSoftware.InnoSetup -e`). Установщик ставится без прав администратора в `%LOCALAPPDATA%\Programs\SnapBrief`, создаёт ярлыки в меню «Пуск» и, по желанию, на рабочем столе, умеет добавить автозапуск (галочка снята по умолчанию) и корректно удаляется через «Приложения». Версия берётся из `<Version>` в `src\SnapBrief.App\SnapBrief.App.csproj`. Файл не подписан, поэтому SmartScreen при первом запуске покажет предупреждение («Подробнее» → «Выполнить в любом случае»). Параметры `-NoRestore`, `-SkipTests`, `-SkipPublish` пробрасываются или пропускают этап публикации.
 
+### Установщик для других пользователей
+
+`scripts\build-installer.ps1` собирает публикацию (те же тесты и smoke, что `build.ps1`) и упаковывает её в `artifacts\installer\SnapBrief-Setup-<версия>.exe` через Inno Setup 6 (`winget install --id JRSoftware.InnoSetup -e`). Установщик ставится без прав администратора в `%LOCALAPPDATA%\Programs\SnapBrief`, создаёт ярлыки в меню «Пуск» и, по желанию, на рабочем столе, умеет добавить автозапуск (галочка снята по умолчанию) и корректно удаляется через «Приложения». Версия берётся из `<Version>` в `src\SnapBrief.App\SnapBrief.App.csproj`. Файл не подписан, поэтому SmartScreen при первом запуске покажет предупреждение («Подробнее» → «Выполнить в любом случае»). Параметры `-NoRestore`, `-SkipTests`, `-SkipPublish` пробрасываются или пропускают этап публикации.
+
 Рабочие сессии хранятся в `%LOCALAPPDATA%\SnapBrief\sessions`. Параметр `--data-dir` позволяет выбрать изолированный каталог; `--demo` создаёт синтетические снимки, `--smoke-test` проверяет экспорт без управления другими приложениями.
 
 ## Документы
