@@ -10,7 +10,7 @@
     <ApplicationIcon>Assets\SnapBrief.ico</ApplicationIcon>
     <AssemblyName>SnapBrief</AssemblyName>
     <RootNamespace>SnapBrief.App</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Product>SnapBrief</Product>
     <Authors>Nikita Efimov</Authors>
     <Copyright>Copyright (c) 2026 Nikita Efimov</Copyright>
