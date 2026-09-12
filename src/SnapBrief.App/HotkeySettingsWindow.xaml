@@ -5,7 +5,18 @@
  <Window.Resources>
   <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="Margin" Value="0,0,0,16"/></Style>
   <Style TargetType="TextBox"><Setter Property="Background" Value="#252B35"/><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="CaretBrush" Value="White"/><Setter Property="BorderBrush" Value="#445064"/><Setter Property="Padding" Value="10,7"/></Style>
-  <Style TargetType="TabItem"><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem"><Border x:Name="Tab" Padding="15,9" Margin="0,0,6,12" CornerRadius="8" Background="#252B35"><ContentPresenter ContentSource="Header"/></Border><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Tab" Property="Background" Value="#284B78"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+  <Style x:Key="AccentDot" TargetType="RadioButton">
+   <Setter Property="Width" Value="26"/><Setter Property="Height" Value="26"/><Setter Property="Margin" Value="0,0,10,0"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
+    <Grid><Ellipse x:Name="Ring" Stroke="Transparent" StrokeThickness="2"/><Ellipse Margin="4" Fill="{TemplateBinding Background}"/></Grid>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Ring" Property="Stroke" Value="#5C6879"/></Trigger>
+     <Trigger Property="IsChecked" Value="True"><Setter TargetName="Ring" Property="Stroke" Value="White"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource FocusBrush}"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="TabItem"><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem"><Border x:Name="Tab" Padding="15,9" Margin="0,0,6,12" CornerRadius="8" Background="#252B35"><ContentPresenter ContentSource="Header"/></Border><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Tab" Property="Background" Value="{DynamicResource AccentSoftBrush}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
  </Window.Resources>
  <Border Background="#171B22" BorderBrush="#354052" BorderThickness="1" CornerRadius="16" Padding="24">
  <Grid>
@@ -23,6 +34,8 @@
     <CheckBox x:Name="CursorBox" Content="Показывать курсор мыши на скриншоте"/>
     <CheckBox x:Name="ClearStackBox" Content="{local:UiText Очищать ленту после вставки}"/>
     <CheckBox x:Name="SoundsBox" Content="{local:UiText Звуки}"/>
+    <TextBlock Text="Акцент" Margin="0,4,0,7"/>
+    <StackPanel x:Name="AccentRow" Orientation="Horizontal" Margin="0,0,0,18"/>
     <TextBlock Text="Язык" Margin="0,4,0,7"/>
     <ComboBox x:Name="LanguageBox" Width="180" HorizontalAlignment="Left"><ComboBoxItem Content="Русский"/><ComboBoxItem Content="English"/></ComboBox>
    </StackPanel></TabItem>

@@ -4,7 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using SnapBrief.Windows;
 
 namespace SnapBrief.App;
@@ -29,6 +31,8 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public int JpegQuality { get; init; } = 92;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "SnapBrief");
     public string Language { get; init; } = "ru";
+    public string Theme { get; init; } = "dark";
+    public string AccentId { get; init; } = "blue";
     public HotkeyGesture FullscreenSaveGesture => Find(FullscreenSaveId).Gesture;
 
     public static HotkeySettings Default { get; } = new("ctrl-alt-s", "ctrl-alt-v");
@@ -128,6 +132,7 @@ public partial class HotkeySettingsWindow : Window
         QualitySlider.Value = Math.Clamp(settings.JpegQuality, 1, 100);
         DirectoryBox.Text = settings.SaveDirectory;
         LanguageBox.SelectedIndex = settings.Language == "en" ? 1 : 0;
+        BuildAccentRow(settings.AccentId);
         QualitySlider.ValueChanged += (_, _) => UpdateQuality();
         FormatBox.SelectionChanged += (_, _) => UpdateQuality();
         // The captions built in code follow the language picked in this window, not the one it opened with.
@@ -135,6 +140,27 @@ public partial class HotkeySettingsWindow : Window
         UpdateQuality();
         Loaded += (_, _) => ApplyLanguage(settings.Language);
     }
+
+    // The swatches show the accents themselves, so their colours are read from the accent
+    // dictionaries rather than written down a second time here.
+    private void BuildAccentRow(string? accentId)
+    {
+        var selected = ThemeService.Normalize(accentId);
+        foreach (var accent in ThemeService.Accents)
+        {
+            var dot = new RadioButton
+            {
+                Style = (Style)FindResource("AccentDot"), Tag = accent, GroupName = "Accent",
+                Background = new SolidColorBrush((Color)ThemeService.Load(accent)["AccentColor"]),
+                IsChecked = accent == selected
+            };
+            System.Windows.Automation.AutomationProperties.SetName(dot, accent);
+            AccentRow.Children.Add(dot);
+        }
+    }
+
+    internal string SelectedAccent =>
+        AccentRow.Children.OfType<RadioButton>().FirstOrDefault(dot => dot.IsChecked == true)?.Tag as string ?? ThemeService.DefaultAccent;
 
     // The quality caption is built in code, so it has to be rebuilt every time the window is translated.
     internal void ApplyLanguage(string language)
@@ -185,7 +211,7 @@ public partial class HotkeySettingsWindow : Window
                 PlaySounds = SoundsBox.IsChecked == true,
                 ClearStackAfterPaste = ClearStackBox.IsChecked == true,
                 SaveFormat = FormatBox.SelectedIndex == 1 ? "jpeg" : "png",
-                JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory,
+                JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory, AccentId = SelectedAccent,
                 Language = LanguageBox.SelectedIndex == 1 ? "en" : "ru"
             };
             var error = TryApply?.Invoke(Result);

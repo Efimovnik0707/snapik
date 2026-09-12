@@ -19,7 +19,7 @@ internal static class UiLanguage
         ["Показывать курсор мыши на скриншоте"] = "Show the mouse pointer in the screenshot",
         ["Звуки"] = "Sounds", ["Автоматически сохранять готовые снимки"] = "Automatically save completed captures",
         ["Укажите папку сохранения."] = "Choose a save folder.", ["Автосохранение не выполнено"] = "Auto-save failed",
-        ["Язык"] = "Language", ["Сделать скриншот"] = "Take a screenshot", ["Скриншот всего экрана в папку"] = "Save the whole screen to a folder",
+        ["Язык"] = "Language", ["Акцент"] = "Accent", ["Сделать скриншот"] = "Take a screenshot", ["Скриншот всего экрана в папку"] = "Save the whole screen to a folder",
         ["Формат"] = "Format", ["Папка сохранения"] = "Save folder", ["Выбрать папку"] = "Choose folder",
         ["Качество JPEG: {0} % (меньше, легче файл)"] = "JPEG quality: {0} % (lower means a smaller file)",
         ["Сохранить"] = "Save", ["Отмена"] = "Cancel", ["Закрыть"] = "Close", ["Нажмите клавишу…"] = "Press a key…",

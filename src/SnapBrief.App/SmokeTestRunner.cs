@@ -31,7 +31,8 @@ public static class SmokeTestRunner
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, ClearStackAfterPaste = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9,
-            SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en"
+            SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
+            Theme = "dark", AccentId = "violet"
         };
         customSettings.Save(customSettingsPath);
         var restoredSettings = HotkeySettings.Load(customSettingsPath);
@@ -72,6 +73,20 @@ public static class SmokeTestRunner
         if (Directory.EnumerateFiles(root, "atomic-settings-smoke.json*").Count() != 1 ||
             HotkeySettings.Load(atomicSettingsPath).JpegQuality != 55)
             throw new InvalidOperationException("An atomic settings write must leave exactly one file, with the newest content.");
+        // The accent lives in a dictionary of its own and is swapped whole; every accent must carry
+        // the same keys, otherwise a DynamicResource would resolve under one accent and not under another.
+        ThemeService.Apply("dark", "teal");
+        if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(43, 179, 163))
+            throw new InvalidOperationException("Applying an accent must replace the accent brushes of the application.");
+        var accentKeys = ThemeService.Accents
+            .Select(accent => ThemeService.Load(accent).Keys.Cast<object>().Select(key => key.ToString()!).OrderBy(key => key, StringComparer.Ordinal).ToArray())
+            .ToArray();
+        if (accentKeys.Any(keys => !keys.SequenceEqual(accentKeys[0])))
+            throw new InvalidOperationException("The accent dictionaries must all define the same keys.");
+        ThemeService.Apply("dark", "blue");
+        if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(47, 140, 255) ||
+            Application.Current.Resources.MergedDictionaries.Count(entry => entry.Source?.OriginalString.Contains("/Accents/", StringComparison.Ordinal) == true) != 1)
+            throw new InvalidOperationException("Applying an accent must replace the previous accent dictionary, not add another one.");
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
         {
             var window = new HotkeySettingsWindow(restoredSettings);
@@ -93,6 +108,8 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("JPEG quality must be hidden while the PNG format is selected.");
         // The field owns the hotkey now: what is written into it comes back, and the label is shown
         // as one capsule per key.
+        if (settingsWindow.SelectedAccent != "violet")
+            throw new InvalidOperationException("The accent row must show the accent the settings were opened with.");
         settingsWindow.CaptureField.HotkeyId = "custom:2:65";
         if (settingsWindow.CaptureField.HotkeyId != "custom:2:65" || settingsWindow.CaptureField.KeyCaps.Children.Count != 2 ||
             settingsWindow.FullscreenField.KeyCaps.Children.Count != HotkeySettings.Find(restoredSettings.FullscreenSaveId).Label.Split(" + ").Length)

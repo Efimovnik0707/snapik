@@ -6,6 +6,8 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/SnapBriefTheme.xaml" />
+                <!-- The accent dictionary ThemeService replaces at startup and on save. -->
+                <ResourceDictionary Source="Themes/Accents/Blue.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

@@ -16,7 +16,7 @@
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#303845" /><Setter TargetName="B" Property="BorderBrush" Value="#536175" /></Trigger>
-                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#7AB8FF" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
                     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42" /></Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
@@ -62,7 +62,7 @@
                                                 <Border x:Name="Grip" Background="#657083" CornerRadius="4" />
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="#8A96A9" /></Trigger>
-                                                    <Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="#7AB8FF" /></Trigger>
+                                                    <Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource FocusBrush}" /></Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Thumb.Template>
@@ -83,7 +83,7 @@
             <Grid Grid.Row="0" Height="28" MouseLeftButtonDown="OnHeaderMouseDown">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="26" /><ColumnDefinition Width="28" /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="7" Height="7" Fill="#2F8CFF" Margin="1,0,7,0" />
+                    <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="1,0,7,0" />
                     <TextBlock Foreground="White" FontSize="12" FontWeight="SemiBold" Text="SnapBrief" />
                     <Border Margin="7,0,0,0" Padding="6,2" CornerRadius="8" Background="#2B3440">
                         <TextBlock x:Name="CountText" Foreground="#BFC8D6" FontSize="11" Text="0" />
@@ -130,7 +130,7 @@
                                             <Image Source="{Binding Image}" Stretch="UniformToFill" Opacity="0.86" />
                                             <Border VerticalAlignment="Bottom" Height="26" Background="#E6171A20">
                                                 <StackPanel Orientation="Horizontal" Margin="7,0" VerticalAlignment="Center">
-                                                    <Border x:Name="LabelBadge" Width="20" Height="20" CornerRadius="10" Background="#2F8CFF">
+                                                    <Border x:Name="LabelBadge" Width="20" Height="20" CornerRadius="10" Background="{DynamicResource AccentBrush}">
                                                         <Grid>
                                                             <TextBlock x:Name="LabelText" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="11" FontWeight="Bold" Text="{Binding DisplayLabel}" />
                                                             <Path x:Name="SentMark" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Width="11" Height="8" Stretch="Uniform"
@@ -172,14 +172,14 @@
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                     <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
-                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#7AB8FF" />
+                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
             </ListBox>
 
-            <Button Grid.Row="2" Style="{StaticResource StackButton}" Background="#2F8CFF" BorderBrush="#2F8CFF" Click="OnCaptureClick">
+            <Button Grid.Row="2" Style="{StaticResource StackButton}" Background="{DynamicResource AccentBrush}" BorderBrush="{DynamicResource AccentBrush}" Click="OnCaptureClick">
                 <StackPanel Orientation="Horizontal">
                     <Path Stretch="Uniform" Width="16" Height="14" Margin="0,0,7,0" Stroke="White" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,5 L2,3 L6,3 L7,1.5 L11,1.5 L12,3 L16,3 L16,13 L2,13 Z M9,5 A3,3 0 1 0 9,11 A3,3 0 1 0 9,5" />
                     <TextBlock Text="Новый снимок" FontWeight="SemiBold" />
@@ -190,7 +190,7 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="40" /></Grid.ColumnDefinitions>
                 <Button x:Name="TargetButton" Height="36" Style="{StaticResource StackButton}" HorizontalContentAlignment="Left" Click="OnTargetClick" ToolTip="Получатель">
                     <DockPanel LastChildFill="True">
-                        <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Fill="#2F8CFF" Margin="0,0,8,0" />
+                        <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0" />
                         <Path DockPanel.Dock="Right" Width="8" Height="5" Margin="8,0,0,0" Fill="#AEB8C7" Data="M0,0 L4,4 L8,0 Z" />
                         <TextBlock x:Name="TargetCaption" VerticalAlignment="Center" Foreground="#EEF2F8" FontSize="12" TextTrimming="CharacterEllipsis" />
                     </DockPanel>
@@ -203,7 +203,7 @@
             <Border x:Name="Toast" Grid.Row="4" Margin="2,8,2,0" Padding="8,5" CornerRadius="8" Background="#2B3440" Visibility="Collapsed" Opacity="0">
                 <DockPanel LastChildFill="True">
                     <Button x:Name="ToastAction" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="0" VerticalAlignment="Center" Focusable="False"
-                            Visibility="Collapsed" Background="Transparent" BorderThickness="0" Foreground="#7AB8FF" FontSize="11" Cursor="Hand" Click="OnToastActionClick" />
+                            Visibility="Collapsed" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentTextBrush}" FontSize="11" Cursor="Hand" Click="OnToastActionClick" />
                     <TextBlock x:Name="ToastText" Foreground="#DCE3ED" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
                 </DockPanel>
             </Border>

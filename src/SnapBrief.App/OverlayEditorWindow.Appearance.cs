@@ -47,7 +47,7 @@ public partial class OverlayEditorWindow
         if (AppearanceButton is null || StrokeSlider is null) return;
         _syncingAppearance = true;
         ArrowOptionsButton.ToolTip = UiLanguage.Text("Стиль стрелки");
-        CommentToolButton.Background = Surface.Tool == EditorTool.Comment ? new SolidColorBrush(Color.FromRgb(40, 75, 120)) : Brushes.Transparent;
+        CommentToolButton.Background = Surface.Tool == EditorTool.Comment ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
         UndoButton.IsEnabled = _undo.Count > 0;
         RedoButton.IsEnabled = _redo.Count > 0;
         var selected = Surface.SelectedAnnotation;
@@ -68,7 +68,7 @@ public partial class OverlayEditorWindow
         foreach (Button swatch in ColorPalette.Children)
             swatch.BorderBrush = (Color)swatch.Tag == color ? Brushes.White : Brushes.Transparent;
         var extra = Surface.Tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Conceal;
-        MoreToolsButton.Background = extra ? new SolidColorBrush(Color.FromRgb(40, 75, 120)) : Brushes.Transparent;
+        MoreToolsButton.Background = extra ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
         MoreToolsButton.ToolTip = extra ? $"{UiLanguage.Text("Ещё инструменты")} · {EditorShortcuts.Caption(Surface.Tool)}" : UiLanguage.Text("Ещё инструменты");
         _syncingAppearance = false;
     }

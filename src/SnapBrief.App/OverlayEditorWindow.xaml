@@ -42,8 +42,8 @@
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#29303A" /></Trigger>
-                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="Background" Value="#253B58" /><Setter TargetName="B" Property="BorderBrush" Value="#2F8CFF" /><Setter Property="Foreground" Value="White" /></Trigger>
-                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.4"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#7AB8FF" /></Trigger>
+                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="Background" Value="{DynamicResource AccentSoftBrush}" /><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccentBrush}" /><Setter Property="Foreground" Value="White" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.4"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
         </Style>
@@ -58,7 +58,7 @@
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#29303A" /></Trigger>
-                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.4"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#7AB8FF" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.4"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
         </Style>
@@ -67,7 +67,7 @@
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
                 <Grid Background="Transparent">
                     <Track x:Name="PART_Track" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value}">
-                        <Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Height="4" CornerRadius="2" Background="#5EAAFF"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+                        <Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Height="4" CornerRadius="2" Background="{DynamicResource AccentBrush}"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
                         <Track.Thumb><Thumb Width="16" Height="16"><Thumb.Template><ControlTemplate TargetType="Thumb"><Ellipse Fill="#EEF2F8" Stroke="#8193AB" StrokeThickness="1"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
                         <Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Height="4" CornerRadius="2" Background="#465366"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
                     </Track>
@@ -80,7 +80,7 @@
         <Image x:Name="DesktopImage" Stretch="Fill" />
         <Path x:Name="Shade" Fill="#A20A0D12" IsHitTestVisible="False" />
         <Canvas x:Name="EditorLayer">
-            <Border x:Name="CropBorder" Visibility="Collapsed" BorderBrush="#2F8CFF" BorderThickness="2" Background="Transparent">
+            <Border x:Name="CropBorder" Visibility="Collapsed" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" Background="Transparent">
                 <controls:AnnotationCanvas x:Name="Surface" ImagePadding="0" Tool="Rectangle"
                                            AnnotationCreated="OnAnnotationCreated" SelectionChanged="OnSelectionChanged"
                                            AnnotationChanged="OnAnnotationChanged" CropRequested="OnCropRequested" />
@@ -104,7 +104,7 @@
                     </Button>
                 </Grid>
                 <TextBox x:Name="ShotNoteBox" Margin="0,5,0,0" MinHeight="34" MaxHeight="92" AcceptsReturn="True" TextWrapping="Wrap"
-                         Background="#262B34" Foreground="White" BorderBrush="#3A424E" CaretBrush="White" SelectionBrush="#2F8CFF"
+                         Background="#262B34" Foreground="White" BorderBrush="#3A424E" CaretBrush="White" SelectionBrush="{DynamicResource AccentBrush}"
                          TextChanged="OnShotNoteChanged" />
             </StackPanel>
         </Border>
@@ -168,7 +168,7 @@
                 <Button x:Name="SaveImageButton" Style="{StaticResource OverlayButton}" Click="OnSaveImageClick" AutomationProperties.Name="Сохранить на компьютер">
                     <Path Width="17" Height="17" Stroke="#D9DEE8" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,1 L12,1 L16,5 L16,16 L2,16 Z M5,1 L5,6 L12,6 L12,1 M5,16 L5,10 L13,10 L13,16" />
                 </Button>
-                <Button x:Name="DoneButton" Style="{StaticResource OverlayButton}" Click="OnDoneClick" Background="#2F8CFF" FontWeight="SemiBold" Content="Готово" />
+                <Button x:Name="DoneButton" Style="{StaticResource OverlayButton}" Click="OnDoneClick" Background="{DynamicResource AccentBrush}" FontWeight="SemiBold" Content="Готово" />
             </StackPanel>
         </Border>
         <Popup x:Name="AppearancePopup" PlacementTarget="{Binding ElementName=AppearanceButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" Closed="OnAppearanceClosed">

@@ -37,7 +37,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{Binding Path=(controls:ButtonChrome.HoverBackground), RelativeSource={RelativeSource TemplatedParent}}" /><Setter TargetName="Chrome" Property="BorderBrush" Value="#657388" /></Trigger>
                             <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{Binding Path=(controls:ButtonChrome.PressedBackground), RelativeSource={RelativeSource TemplatedParent}}" /></Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="#7AB8FF" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
                             <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -45,10 +45,10 @@
             </Setter>
         </Style>
         <Style x:Key="PreviewPrimaryButton" TargetType="Button" BasedOn="{StaticResource PreviewButton}">
-            <Setter Property="Background" Value="#2F8CFF" />
-            <Setter Property="BorderBrush" Value="#2F8CFF" />
-            <Setter Property="controls:ButtonChrome.HoverBackground" Value="{StaticResource AccentHoverBrush}" />
-            <Setter Property="controls:ButtonChrome.PressedBackground" Value="{StaticResource AccentPressedBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="controls:ButtonChrome.HoverBackground" Value="{DynamicResource AccentHoverBrush}" />
+            <Setter Property="controls:ButtonChrome.PressedBackground" Value="{DynamicResource AccentPressedBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource PreviewButton}">
@@ -61,8 +61,8 @@
             <Setter Property="BorderBrush" Value="#3A4451" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="9,7" />
-            <Setter Property="CaretBrush" Value="#7AB8FF" />
-            <Setter Property="SelectionBrush" Value="#315CF5" />
+            <Setter Property="CaretBrush" Value="{DynamicResource AccentTextBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
@@ -70,7 +70,7 @@
                             <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="#7AB8FF" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -85,7 +85,7 @@
             <Grid Grid.Row="0" Background="#171B22">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" Margin="15,0,0,0" VerticalAlignment="Center">
-                    <Border Width="24" Height="24" CornerRadius="12" Background="#2F8CFF">
+                    <Border Width="24" Height="24" CornerRadius="12" Background="{DynamicResource AccentBrush}">
                         <TextBlock x:Name="CaptureLabel" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontWeight="Bold" FontSize="11" />
                     </Border>
                     <TextBlock Margin="9,0,0,0" Foreground="#EEF2F8" FontWeight="SemiBold" VerticalAlignment="Center" Text="{local:UiText Просмотр снимка}" />
@@ -154,7 +154,7 @@
                                                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
                                                     <StackPanel Orientation="Horizontal" Margin="1,0,5,7">
-                                                        <TextBlock Foreground="#7AB8FF" FontSize="11" FontWeight="SemiBold" Text="{Binding Label}" />
+                                                        <TextBlock Foreground="{DynamicResource AccentTextBrush}" FontSize="11" FontWeight="SemiBold" Text="{Binding Label}" />
                                                         <TextBlock Margin="6,0,0,0" Foreground="#8F9AAA" FontSize="11" Text="{Binding Relation}" TextTrimming="CharacterEllipsis" />
                                                     </StackPanel>
                                                     <Button Grid.Column="1" Style="{StaticResource IconButton}" Width="28" Height="28" Padding="7" Margin="0,-5,-5,0"

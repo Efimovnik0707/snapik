@@ -73,6 +73,8 @@ public partial class EdgeStackWindow : Window
         _settingsPath = Path.Combine(options.DataDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SnapBrief"), "settings.json");
         _settings = HotkeySettings.Load(_settingsPath);
         UiLanguage.Current = _settings.Language;
+        // Before any window content is built: the accent is read through DynamicResource.
+        ThemeService.Apply(_settings.Theme, _settings.AccentId);
         var foreground = new WindowsForegroundTargetService();
         var input = new WindowsInputInjector();
         _pasteCoordinator = new PasteCoordinator(_clipboard, foreground, input, new UnobservableAcceptanceObserver(foreground));
@@ -852,9 +854,11 @@ public partial class EdgeStackWindow : Window
                             CaptureCursor = candidate.CaptureCursor, AutoSaveCaptures = candidate.AutoSaveCaptures,
                             PlaySounds = candidate.PlaySounds, ClearStackAfterPaste = candidate.ClearStackAfterPaste,
                             SaveFormat = candidate.SaveFormat, JpegQuality = candidate.JpegQuality,
-                            SaveDirectory = candidate.SaveDirectory, Language = candidate.Language
+                            SaveDirectory = candidate.SaveDirectory, Language = candidate.Language,
+                            AccentId = candidate.AccentId
                         });
                         if (!merged) return UiLanguage.Text("Не удалось сохранить настройки");
+                        ThemeService.Apply(_settings.Theme, _settings.AccentId);
                         UiLanguage.Current = _settings.Language;
                         UiLanguage.Apply(this, _settings.Language);
                         return null;
