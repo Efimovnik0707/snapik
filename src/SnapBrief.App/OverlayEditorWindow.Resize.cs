@@ -162,9 +162,13 @@ public partial class OverlayEditorWindow
             var scaleX = _cropRect.Width * sx / _capture.Image.PixelWidth;
             var scaleY = _cropRect.Height * sy / _capture.Image.PixelHeight;
             foreach (var mark in inSource.Annotations)
+            {
                 foreach (var segment in new[] { mark.Points }.Concat(mark.AdditionalPathSegments))
                     for (var i = 0; i < segment.Count; i++)
                         segment[i] = new Point(segment[i].X * scaleX, segment[i].Y * scaleY) + sourceOffset;
+                // The badge offset is a shift, so it takes the scale of the new frame but not its origin.
+                if (mark.NoteOffset is { } shift) mark.NoteOffset = new Point(shift.X * scaleX, shift.Y * scaleY);
+            }
             inSource.Image = _resizeSource;
             var normalized = new NormalizedRect((double)left / _resizeSource.PixelWidth, (double)top / _resizeSource.PixelHeight,
                 (double)pixels.Width / _resizeSource.PixelWidth, (double)pixels.Height / _resizeSource.PixelHeight);

@@ -115,14 +115,32 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
 
         if (!string.IsNullOrEmpty(displayLabel))
         {
-            var anchor = P(item.Points[0]);
-            var diameter = Math.Max(34, displayLabel.Length * 9 + 16);
-            var center = new Point(anchor.X, Math.Max(diameter / 2 + 2, anchor.Y - diameter / 2 - 4));
-            dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(47, 140, 255)), null, center, diameter / 2, diameter / 2);
+            var badgeBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255));
+            var badge = ExportBadge(item, displayLabel, width, height, offsetY);
+            // The pill the user dragged moved this badge: the picture the agent receives shows the
+            // same place, with one hair line back to the mark.
+            if (item.NoteOffset is not null)
+            {
+                var points = item.GetPathSegments().SelectMany(segment => segment).Concat(item.Points).ToArray();
+                var outline = new Rect(
+                    new Point(points.Min(point => point.X) * width, points.Min(point => point.Y) * height + offsetY),
+                    new Point(points.Max(point => point.X) * width, points.Max(point => point.Y) * height + offsetY));
+                if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to))
+                    dc.DrawLine(new Pen(badgeBrush, 1), from, to);
+            }
+            dc.DrawEllipse(badgeBrush, null, badge.Center, badge.Radius, badge.Radius);
             var label = new FormattedText(displayLabel, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
                 new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), 13, Brushes.White, 1);
-            dc.DrawText(label, new Point(center.X - label.Width / 2, center.Y - label.Height / 2));
+            dc.DrawText(label, new Point(badge.Center.X - label.Width / 2, badge.Center.Y - label.Height / 2));
         }
+    }
+
+    // The same circle the editor canvas shows, in the pixels of the exported picture.
+    internal static NoteBadge ExportBadge(SnapBrief.Core.Models.AnnotationItem item, string displayLabel, int width, int height, int offsetY)
+    {
+        var anchor = new Point(item.Points[0].X * width, item.Points[0].Y * height + offsetY);
+        var offset = item.NoteOffset is { } shift ? new Vector(shift.X * width, shift.Y * height) : default;
+        return NoteBadgeGeometry.Export(anchor, displayLabel, offset);
     }
 
     private static void DrawText(DrawingContext dc, string text, double size, FontWeight weight, Brush brush, Point point)

@@ -75,6 +75,15 @@ public static class CaptureCropper
             if (retained[i].ParentAnnotationId is { } parentId && !retainedIds.Contains(parentId))
                 retained[i] = retained[i] with { ParentAnnotationId = null };
 
+        // The badge offset is normalized against the image, and the crop makes the image smaller:
+        // the same shift in pixels is a bigger fraction of the cropped picture.
+        for (var i = 0; i < retained.Count; i++)
+            if (retained[i].NoteOffset is { } offset)
+                retained[i] = retained[i] with
+                {
+                    NoteOffset = new NormalizedPoint(offset.X / cropBounds.Width, offset.Y / cropBounds.Height)
+                };
+
         var cropped = source with
         {
             SourceImagePath = croppedSourceImagePath,

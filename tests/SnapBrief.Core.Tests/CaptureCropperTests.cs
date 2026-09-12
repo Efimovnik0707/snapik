@@ -64,6 +64,21 @@ public sealed class CaptureCropperTests
     }
 
     [Fact]
+    public void Crop_rescales_the_note_offset_to_the_smaller_image()
+    {
+        var moved = AnnotationItem.Create(AnnotationKind.Comment, [new(0.4, 0.4), new(0.41, 0.41)], note: "Moved")
+            with { NoteOffset = new NormalizedPoint(0.1, -0.05) };
+        var source = CaptureItem.Create("source/original.png", 1000, 800) with { Annotations = [moved] };
+
+        var cropped = CaptureCropper.Crop(source, new(0.25, 0.25, 0.5, 0.25), "source/crop.png", 500, 200).CroppedCapture;
+
+        // The same shift in pixels is twice the fraction of a half-wide crop, four times that of a
+        // quarter-high one; the badge must not walk away from the mark when the picture is cropped.
+        AssertPoint(cropped.Annotations[0].NoteOffset!.Value, 0.2, -0.2);
+        Assert.Equal(new NormalizedPoint(0.1, -0.05), source.Annotations[0].NoteOffset);
+    }
+
+    [Fact]
     public void Crop_rejects_invalid_bounds_without_mutating_the_source()
     {
         var source = CaptureItem.Create("source/original.png", 100, 100);

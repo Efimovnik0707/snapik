@@ -46,6 +46,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     public double ImagePadding { get; set; } = 28;
 
     public event EventHandler<AnnotationItem>? AnnotationCreated;
+    public event EventHandler<AnnotationItem>? AnnotationActivated;
     public event EventHandler<AnnotationItem?>? SelectionChanged;
     public event EventHandler? AnnotationChanged;
     public event Action<Rect>? CropRequested;
@@ -120,12 +121,19 @@ public sealed class AnnotationCanvas : FrameworkElement
         var point = e.GetPosition(this);
         if (!_imageRect.Contains(point)) return;
 
-        if (e.ClickCount == 2 && HitTestAnnotation(ToImage(point)) is { Kind: EditorTool.Text } text) { Select(text); return; }
+        // A double click opens the note of whatever it lands on: the text editor for a text mark,
+        // the note pill for everything else. The editor window listens for it.
+        if (e.ClickCount == 2 && HitTestAnnotation(ToImage(point)) is { } activated)
+        {
+            Select(activated);
+            AnnotationActivated?.Invoke(this, activated);
+            return;
+        }
         var handleHit = FindResizeHandle(point);
-        if (Tool != EditorTool.Comment && (Tool == EditorTool.Select || handleHit.Annotation is not null || FindMoveEdge(point) is not null))
+        if (Tool != EditorTool.Comment && (Tool == EditorTool.Select || handleHit.Annotation is not null || FindMoveHandle(point) is not null))
         {
             var imagePoint = ToImage(point);
-            var hit = handleHit.Annotation ?? FindMoveEdge(point) ?? HitTestAnnotation(imagePoint);
+            var hit = handleHit.Annotation ?? FindMoveHandle(point) ?? HitTestAnnotation(imagePoint);
             Select(hit);
             if (hit is not null)
             {
@@ -191,7 +199,7 @@ public sealed class AnnotationCanvas : FrameworkElement
             var displayPoint = e.GetPosition(this);
             var handle = FindResizeHandle(displayPoint);
             var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
-            Cursor = handle.Corner < 0 ? (FindMoveEdge(displayPoint) is not null || movablePin ? Cursors.SizeAll : Tool == EditorTool.Select ? Cursors.Arrow : Cursors.Cross)
+            Cursor = handle.Corner < 0 ? (FindMoveHandle(displayPoint) is not null || movablePin ? Cursors.SizeAll : Tool == EditorTool.Select ? Cursors.Arrow : Cursors.Cross)
                 : handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW;
             return;
         }
@@ -382,13 +390,20 @@ public sealed class AnnotationCanvas : FrameworkElement
 
         if (drawLabel && !string.IsNullOrEmpty(item.Label))
         {
-            var anchor = Map(item.Points[0]);
-            var diameter = Math.Max(26, item.Label.Length * 7 + 12);
-            var center = new Point(anchor.X, anchor.Y - diameter / 2 - 3);
-            dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(47, 140, 255)), null, center, diameter / 2, diameter / 2);
+            var badgeBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255));
+            var badge = BadgeOf(item, target);
+            // A badge dragged away from its mark keeps one hair line back to it.
+            if (item.NoteOffset is not null)
+            {
+                var badgeBounds = BoundsOf(item);
+                var outline = new Rect(Map(badgeBounds.TopLeft), Map(badgeBounds.BottomRight));
+                if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to))
+                    dc.DrawLine(new Pen(badgeBrush, 1), from, to);
+            }
+            dc.DrawEllipse(badgeBrush, null, badge.Center, badge.Radius, badge.Radius);
             var label = new FormattedText(item.Label, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
                 new Typeface(new FontFamily("Segoe UI Variable Text"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal), 11, Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip);
-            dc.DrawText(label, new Point(center.X - label.Width / 2, center.Y - label.Height / 2));
+            dc.DrawText(label, new Point(badge.Center.X - label.Width / 2, badge.Center.Y - label.Height / 2));
         }
 
         if (includeSelection && item.IsSelected && HasResizeHandles(item))
@@ -414,16 +429,92 @@ public sealed class AnnotationCanvas : FrameworkElement
         return (item.Points[1] - item.Points[0]).Length >= 3;
     }
 
-    private AnnotationItem? FindMoveEdge(Point point)
+    // Every mark can be grabbed and moved whatever tool is armed: a box by the band along its
+    // outline, a line by the line itself, a comment by its badge. The interior of a frame stays
+    // free for the next drawing, except where the mark is opaque and there is nothing to draw into.
+    private AnnotationItem? FindMoveHandle(Point point)
     {
-        if (Annotations is null || Tool == EditorTool.Comment) return null;
-        return Annotations.Reverse().FirstOrDefault(a =>
+        if (Annotations is null || Image is null || Tool == EditorTool.Comment) return null;
+        return Annotations.Reverse().FirstOrDefault(a => IsMoveHandle(a, point));
+    }
+
+    private bool IsMoveHandle(AnnotationItem item, Point point)
+    {
+        if (item.Points.Count == 0 || Image is null) return false;
+        var scale = _imageRect.Width / Image.PixelWidth;
+        var band = Math.Max(6, item.Thickness * scale);
+        switch (item.Kind)
         {
-            if (a.Kind is not (EditorTool.Rectangle or EditorTool.Blur or EditorTool.Conceal)) return false;
-            var outer = GetDisplayBounds(a); outer.Inflate(6, 6);
-            var inner = GetDisplayBounds(a); inner.Inflate(-Math.Min(6, inner.Width / 2), -Math.Min(6, inner.Height / 2));
-            return outer.Contains(point) && !inner.Contains(point);
-        });
+            case EditorTool.Comment:
+                return BadgeOf(item, _imageRect).Contains(point, 4);
+            case EditorTool.Arrow:
+            {
+                if (item.Points.Count < 2) return false;
+                var shaft = ArrowDrawing.Shaft(ToDisplay(item.Points[0]), ToDisplay(item.Points[1]), item.ArrowStyle);
+                return DistanceToPolyline(shaft, point) <= band;
+            }
+            case EditorTool.Pen:
+            case EditorTool.Highlight:
+            {
+                var width = item.Kind == EditorTool.Highlight ? band * 2 : band;
+                foreach (var segment in new[] { item.Points }.Concat(item.AdditionalPathSegments))
+                    if (DistanceToPolyline(segment.Select(ToDisplay).ToArray(), point) <= width) return true;
+                return false;
+            }
+            default:
+            {
+                var bounds = GetDisplayBounds(item);
+                var outer = bounds; outer.Inflate(6, 6);
+                if (!outer.Contains(point)) return false;
+                // An opaque mark has no free interior, and a small one has no room for a band.
+                if (HasInteriorGrab(item) || bounds.Width < 24 || bounds.Height < 24) return true;
+                var inner = bounds;
+                inner.Inflate(-Math.Min(6, inner.Width / 2), -Math.Min(6, inner.Height / 2));
+                return !inner.Contains(point);
+            }
+        }
+    }
+
+    // Opaque marks are grabbed anywhere inside; a filled frame joins them in the next step.
+    private static bool HasInteriorGrab(AnnotationItem item) => item.Kind is EditorTool.Blur or EditorTool.Conceal;
+
+    private NoteBadge BadgeOf(AnnotationItem item, Rect target)
+    {
+        var anchor = new Point(
+            target.X + item.Points[0].X * target.Width / Image!.PixelWidth,
+            target.Y + item.Points[0].Y * target.Height / Image.PixelHeight);
+        // A pin without a note carries no badge yet, but it still has to be grabbable.
+        if (item.Kind == EditorTool.Comment && string.IsNullOrEmpty(item.Label)) return new NoteBadge(anchor, 13);
+        var offset = item.NoteOffset is { } shift
+            ? new Vector(shift.X * target.Width / Image.PixelWidth, shift.Y * target.Height / Image.PixelHeight)
+            : default;
+        return NoteBadgeGeometry.Screen(anchor, item.Label, offset);
+    }
+
+    // Where the pill of a note has to sit for its own badge to cover the badge on the picture.
+    public Point GetBadgeCenter(AnnotationItem annotation) =>
+        Image is null || annotation.Points.Count == 0 ? default : BadgeOf(annotation, _imageRect).Center;
+
+    private Point ToDisplay(Point imagePoint) => new(
+        _imageRect.X + imagePoint.X * _imageRect.Width / Image!.PixelWidth,
+        _imageRect.Y + imagePoint.Y * _imageRect.Height / Image.PixelHeight);
+
+    private static double DistanceToPolyline(IReadOnlyList<Point> points, Point target)
+    {
+        if (points.Count == 0) return double.PositiveInfinity;
+        if (points.Count == 1) return (target - points[0]).Length;
+        var best = double.PositiveInfinity;
+        for (var i = 1; i < points.Count; i++) best = Math.Min(best, DistanceToSegment(points[i - 1], points[i], target));
+        return best;
+    }
+
+    private static double DistanceToSegment(Point start, Point end, Point target)
+    {
+        var line = end - start;
+        var lengthSquared = line.LengthSquared;
+        if (lengthSquared <= double.Epsilon) return (target - start).Length;
+        var position = Math.Clamp((target - start) * line / lengthSquared, 0, 1);
+        return (target - (start + line * position)).Length;
     }
     private static Rect BoundsOf(AnnotationItem item)
     {
@@ -486,30 +577,38 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     internal static void VerifyHoverManipulation(BitmapSource source)
     {
-        var rectangle = new AnnotationItem
-        {
-            Kind = EditorTool.Rectangle,
-            Points = [new Point(source.PixelWidth * .08, source.PixelHeight * .12), new Point(source.PixelWidth * .42, source.PixelHeight * .48)]
-        };
-        var blur = new AnnotationItem
-        {
-            Kind = EditorTool.Blur,
-            Points = [new Point(source.PixelWidth * .56, source.PixelHeight * .3), new Point(source.PixelWidth * .9, source.PixelHeight * .78)]
-        };
-        var annotations = new ObservableCollection<AnnotationItem> { rectangle, blur };
+        Point At(double x, double y) => new(source.PixelWidth * x, source.PixelHeight * y);
+        var rectangle = new AnnotationItem { Kind = EditorTool.Rectangle, Points = [At(.08, .12), At(.42, .48)] };
+        var blur = new AnnotationItem { Kind = EditorTool.Blur, Points = [At(.56, .3), At(.9, .78)] };
+        var arrow = new AnnotationItem { Kind = EditorTool.Arrow, Points = [At(.1, .62), At(.44, .92)] };
+        var text = new AnnotationItem { Kind = EditorTool.Text, Points = [At(.62, .05), At(.86, .2)] };
+        var annotations = new ObservableCollection<AnnotationItem> { rectangle, blur, arrow, text };
         var canvas = new AnnotationCanvas { Image = source, Annotations = annotations, ImagePadding = 0, Width = 480, Height = 300 };
         canvas.Measure(new Size(480, 300));
         canvas.Arrange(new Rect(0, 0, 480, 300));
         var rendered = new RenderTargetBitmap(480, 300, 96, 96, PixelFormats.Pbgra32);
         rendered.Render(canvas);
 
-        Verify(rectangle, EditorTool.Blur);
-        Verify(blur, EditorTool.Rectangle);
+        // A frame and a text mark keep their interior free for the next drawing; a blur is opaque,
+        // there is nothing to draw inside it, so it is grabbed anywhere within.
+        Verify(rectangle, EditorTool.Blur, interiorGrabs: false);
+        Verify(blur, EditorTool.Rectangle, interiorGrabs: true);
+        Verify(text, EditorTool.Arrow, interiorGrabs: false);
+
+        // An arrow is grabbed by its line, not by the rectangle its two ends span.
+        canvas.Tool = EditorTool.Rectangle;
+        var arrowBounds = canvas.GetDisplayBounds(arrow);
+        var onTheLine = new Point(arrowBounds.Left + arrowBounds.Width / 2, arrowBounds.Top + arrowBounds.Height / 2);
+        var besideTheLine = new Point(onTheLine.X + 40, onTheLine.Y - 40);
+        if (!ReferenceEquals(canvas.FindMoveHandle(onTheLine), arrow))
+            throw new InvalidOperationException("An arrow is not movable by its own line while another drawing tool is active.");
+        if (canvas.FindMoveHandle(besideTheLine) is not null)
+            throw new InvalidOperationException("The empty corner of the bounding box of an arrow was mistaken for a move handle.");
 
         var comment = new AnnotationItem
         {
             Kind = EditorTool.Comment,
-            Points = [new Point(source.PixelWidth * .48, source.PixelHeight * .18), new Point(source.PixelWidth * .48 + 8, source.PixelHeight * .18 + 8)]
+            Points = [At(.48, .18), new Point(source.PixelWidth * .48 + 8, source.PixelHeight * .18 + 8)]
         };
         annotations.Add(comment);
         canvas.SelectAnnotation(comment.Id);
@@ -518,8 +617,14 @@ public sealed class AnnotationCanvas : FrameworkElement
             if (canvas.FindResizeHandle(corner).Annotation is not null)
                 throw new InvalidOperationException("A comment pin exposed geometry resize handles.");
         if (HasResizeHandles(comment)) throw new InvalidOperationException("Comment pins must not render a selection box.");
+        // The pin travels with any tool armed, and it is grabbed by its badge, not by the whole area.
+        var pin = new Point(480 * .48, 300 * .18);
+        if (!ReferenceEquals(canvas.FindMoveHandle(pin), comment))
+            throw new InvalidOperationException("A comment pin is not movable while another drawing tool is active.");
+        if (canvas.FindMoveHandle(new Point(pin.X + 40, pin.Y)) is not null)
+            throw new InvalidOperationException("The empty space next to a comment pin was mistaken for a move handle.");
 
-        void Verify(AnnotationItem target, EditorTool activeTool)
+        void Verify(AnnotationItem target, EditorTool activeTool, bool interiorGrabs)
         {
             canvas.Tool = activeTool;
             var bounds = canvas.GetDisplayBounds(target);
@@ -527,13 +632,15 @@ public sealed class AnnotationCanvas : FrameworkElement
             var corner = bounds.TopLeft;
             var inside = new Point(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2);
 
-            if (!ReferenceEquals(canvas.FindMoveEdge(edge), target))
-                throw new InvalidOperationException("A rectangle or blur edge is not movable while another drawing tool is active.");
+            if (!ReferenceEquals(canvas.FindMoveHandle(edge), target))
+                throw new InvalidOperationException("The edge of a mark is not movable while another drawing tool is active.");
             var resizeHit = canvas.FindResizeHandle(corner);
             if (!ReferenceEquals(resizeHit.Annotation, target) || resizeHit.Corner != 0)
-                throw new InvalidOperationException("A rectangle or blur corner is not resizable while another drawing tool is active.");
-            if (canvas.FindMoveEdge(inside) is not null || canvas.FindResizeHandle(inside).Annotation is not null)
-                throw new InvalidOperationException("The interior of a rectangle or blur was mistaken for a hover manipulation handle.");
+                throw new InvalidOperationException("The corner of a mark is not resizable while another drawing tool is active.");
+            if (interiorGrabs != ReferenceEquals(canvas.FindMoveHandle(inside), target))
+                throw new InvalidOperationException("The interior of a mark did not follow the rule for its kind.");
+            if (!interiorGrabs && canvas.FindResizeHandle(inside).Annotation is not null)
+                throw new InvalidOperationException("The interior of a mark was mistaken for a resize handle.");
             if (canvas.Tool != activeTool)
                 throw new InvalidOperationException("Hover manipulation changed the selected drawing tool.");
         }

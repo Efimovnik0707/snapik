@@ -6,6 +6,25 @@ namespace SnapBrief.App.Imaging;
 
 internal static class ArrowDrawing
 {
+    // The shaft as a polyline, for the hit test of the move handle: a straight arrow is the segment
+    // itself, a curved one is the same quadratic curve the drawing uses, sampled.
+    internal static Point[] Shaft(Point start, Point end, string style)
+    {
+        if (style != "curved") return [start, end];
+        var vector = end - start;
+        var control = new Point((start.X + end.X) / 2 - vector.Y * .25, (start.Y + end.Y) / 2 + vector.X * .25);
+        var points = new Point[17];
+        for (var i = 0; i < points.Length; i++)
+        {
+            var t = (double)i / (points.Length - 1);
+            var inverse = 1 - t;
+            points[i] = new Point(
+                inverse * inverse * start.X + 2 * inverse * t * control.X + t * t * end.X,
+                inverse * inverse * start.Y + 2 * inverse * t * control.Y + t * t * end.Y);
+        }
+        return points;
+    }
+
     internal static void Draw(DrawingContext dc, Point start, Point end, Brush brush, double thickness, string style)
     {
         var length = (end - start).Length;

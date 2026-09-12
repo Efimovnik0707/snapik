@@ -38,15 +38,16 @@ public partial class OverlayEditorWindow
         return false;
     }
 
+    // A chip never leaves the work area of its monitor, wherever it is asked to go.
+    private static Rect ClampChip(Point point, Size size, Rect work) => new(
+        Math.Clamp(point.X, work.Left + 8, Math.Max(work.Left + 8, work.Right - size.Width - 8)),
+        Math.Clamp(point.Y, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - size.Height - 8)),
+        size.Width, size.Height);
+
     private static Rect FindChipPlacement(Point preferred, Size size, Rect work, IReadOnlyList<Rect> occupied)
     {
         const double gap = 6;
-        Rect Clamp(Point point)
-        {
-            var x = Math.Clamp(point.X, work.Left + 8, Math.Max(work.Left + 8, work.Right - size.Width - 8));
-            var y = Math.Clamp(point.Y, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - size.Height - 8));
-            return new Rect(x, y, size.Width, size.Height);
-        }
+        Rect Clamp(Point point) => ClampChip(point, size, work);
         bool IsFree(Rect candidate) => occupied.All(rect => !Inflate(rect, gap).IntersectsWith(candidate));
 
         var first = Clamp(preferred);

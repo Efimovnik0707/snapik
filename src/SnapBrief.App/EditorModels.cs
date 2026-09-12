@@ -44,6 +44,10 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     public Guid? ParentAnnotationId { get; set; }
     public string ArrowStyle { get; set; } = "straight";
 
+    // The shift of the numbered badge from its automatic place, in image pixels; null is automatic.
+    // A plain property on purpose: the drag of a note pill must not push a history entry per pixel.
+    public Point? NoteOffset { get; set; }
+
     public string Note
     {
         get => _note;
@@ -66,7 +70,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     {
         Id = Id,
         Kind = Kind,
-        ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
+        ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle, NoteOffset = NoteOffset,
         Points = [.. Points],
         AdditionalPathSegments = AdditionalPathSegments.Select(segment => segment.ToList()).ToList(),
         Color = Color,
@@ -100,6 +104,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Note)
     {
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
+        NoteOffset = NoteOffset is { } offset ? new NormalizedPoint(offset.X / imageWidth, offset.Y / imageHeight) : null,
         PathSegments = AdditionalPathSegments.Count == 0 ? [] : new[] { Points }.Concat(AdditionalPathSegments)
             .Select(segment => segment.Select(p => new NormalizedPoint(Math.Clamp(p.X / imageWidth, 0, 1), Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray())
             .ToImmutableArray()
@@ -113,6 +118,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         {
         Id = item.Id,
         ParentAnnotationId = item.ParentAnnotationId, ArrowStyle = item.ArrowStyle,
+        NoteOffset = item.NoteOffset is { } offset ? new Point(offset.X * imageWidth, offset.Y * imageHeight) : null,
         Kind = item.Kind switch
         {
             AnnotationKind.Comment => EditorTool.Comment,

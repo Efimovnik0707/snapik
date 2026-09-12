@@ -47,6 +47,10 @@ public partial class OverlayEditorWindow : Window
     private double _activeThickness = DefaultAnnotationThickness;
     private Guid? _commentParentId;
     private Guid? _expandedChipId;
+    private AnnotationItem? _chipDragAnnotation;
+    private Point _chipDragStart;
+    private Point? _chipDragOrigin;
+    private bool _chipDragMoved;
     private bool _settingUp;
     private bool _busyCrop;
 
@@ -67,6 +71,7 @@ public partial class OverlayEditorWindow : Window
         }
         InitializeComponent();
         InitializeCaptureHandles();
+        InitializeNoteButton();
         ApplyShortcutHints();
         DesktopImage.Source = frame.Image;
         var shadeGeometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
@@ -275,6 +280,21 @@ public partial class OverlayEditorWindow : Window
         if (reopenedNoteInput.Text != "Контекстная заметка" || reopenedNoteInput.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("Restored comments must retain their text in a collapsed chip.");
 
+        // The pill of a note is dragged by its badge: the badge on the picture follows it, one undo
+        // puts both back, and the capture the probe returns carries a moved badge for the export.
+        var noteComment = window._capture.Annotations.Single(a => a.Id == comment.Id);
+        window.BeginNoteDrag(noteComment, new Point(0, 0));
+        window.DragNoteTo(new Point(60, -40));
+        if (!window.EndNoteDrag() || noteComment.NoteOffset is null)
+            throw new InvalidOperationException("Dragging a note pill did not move the badge of its comment.");
+        window.OnUndoClick(window, new RoutedEventArgs());
+        var afterUndo = window._capture.Annotations.Single(a => a.Id == comment.Id);
+        if (afterUndo.NoteOffset is not null)
+            throw new InvalidOperationException("One undo must put a dragged note pill back where it was.");
+        window.BeginNoteDrag(afterUndo, new Point(0, 0));
+        window.DragNoteTo(new Point(60, -40));
+        window.EndNoteDrag();
+
         window.SelectToolMode(EditorTool.Rectangle);
         var blankRectangle = new AnnotationItem { Kind = EditorTool.Rectangle, Points = [new Point(320, 200), new Point(460, 300)] };
         window._capture.Annotations.Add(blankRectangle);
@@ -327,13 +347,6 @@ public partial class OverlayEditorWindow : Window
     private void OnWindowMouseDown(object sender, MouseButtonEventArgs e)
     {
         FinishExpandedChipIfOutside(e.OriginalSource as DependencyObject);
-        if (e.ClickCount == 2 && Surface.SelectedAnnotation is { Kind: EditorTool.Text } text)
-        {
-            if (ChipLayer.Children.OfType<Border>().FirstOrDefault(b => b.Tag is Guid id && id == text.Id) is { Child: Grid grid } chip)
-            { chip.Visibility = Visibility.Visible; grid.Children.OfType<TextBox>().First().Focus(); }
-            else { _visibleChipIds.Add(text.Id); AddChip(text, true); }
-            e.Handled = true; return;
-        }
         if (_busyCrop || _closed || _capture is not null) return;
         if (!_isNew || _capture is not null || e.OriginalSource is not Image) return;
         _selectionStart = e.GetPosition(this);
@@ -568,8 +581,101 @@ public partial class OverlayEditorWindow : Window
     private void OnSelectionChanged(object sender, AnnotationItem? annotation)
     {
         SyncAppearance();
+        UpdateNoteButton();
         if (Mouse.LeftButton == MouseButtonState.Pressed) return;
         RepositionChips();
+    }
+
+    private void OnAnnotationActivated(object sender, AnnotationItem annotation) => OpenAnnotationNote(annotation);
+
+    // One double click too many opens the note of a mark: the text editor of a text mark, the note
+    // pill of anything else. The compact "+" beside a selected mark takes the same path.
+    private void OpenAnnotationNote(AnnotationItem annotation)
+    {
+        if (_capture is null || !_capture.Annotations.Contains(annotation)) return;
+        Surface.SelectAnnotation(annotation.Id);
+        if (ChipLayer.Children.OfType<Border>().FirstOrDefault(border => border.Tag is Guid id && id == annotation.Id) is { Child: Grid grid } chip)
+        {
+            chip.Visibility = Visibility.Visible;
+            if (_chipExpanders.TryGetValue(annotation.Id, out var expand)) expand(true);
+            grid.Children.OfType<TextBox>().First().Focus();
+        }
+        else
+        {
+            _visibleChipIds.Add(annotation.Id);
+            AddChip(annotation, focus: true);
+        }
+        UpdateNoteButton();
+    }
+
+    // A note is one click away from a selected mark, without hunting for an icon on the panel.
+    private void InitializeNoteButton()
+    {
+        _addNoteButton.Style = (Style)FindResource("OverlayButton");
+        _addNoteButton.Width = _addNoteButton.Height = _addNoteButton.MinWidth = 24;
+        _addNoteButton.Padding = new Thickness(0);
+        _addNoteButton.Margin = new Thickness(0);
+        _addNoteButton.Background = new SolidColorBrush(Color.FromArgb(244, 23, 26, 32));
+        _addNoteButton.Visibility = Visibility.Collapsed;
+        _addNoteButton.ToolTip = UiLanguage.Text("Добавить комментарий");
+        _addNoteButton.Content = new System.Windows.Shapes.Path
+        {
+            Stroke = new SolidColorBrush(Color.FromRgb(217, 222, 232)), StrokeThickness = 1.6,
+            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+            Data = Geometry.Parse("M5,0 L5,10 M0,5 L10,5")
+        };
+        System.Windows.Automation.AutomationProperties.SetName(_addNoteButton, UiLanguage.Text("Добавить комментарий"));
+        _addNoteButton.Click += (_, _) => { if (Surface.SelectedAnnotation is { } selected) OpenAnnotationNote(selected); };
+        CaptureHandleLayer.Children.Add(_addNoteButton);
+    }
+
+    private void UpdateNoteButton()
+    {
+        var selected = Surface.SelectedAnnotation;
+        var show = _capture is not null && Toolbar.Visibility == Visibility.Visible
+            && selected is not null && !_visibleChipIds.Contains(selected.Id);
+        _addNoteButton.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show || selected is null) return;
+        var bounds = Surface.GetDisplayBounds(selected);
+        Canvas.SetLeft(_addNoteButton, Math.Clamp(_cropRect.Left + bounds.Right + 4, 0, Math.Max(0, ActualWidth - 24)));
+        Canvas.SetTop(_addNoteButton, Math.Clamp(_cropRect.Top + bounds.Top - 12, 0, Math.Max(0, ActualHeight - 24)));
+    }
+
+    // Dragging the pill of a note moves the badge of its mark with it, on screen and in the export.
+    // The offset is written straight to the model, without a property notification, so the whole
+    // drag becomes one history entry when the pill is let go.
+    private void BeginNoteDrag(AnnotationItem annotation, Point start)
+    {
+        _chipDragAnnotation = annotation;
+        _chipDragStart = start;
+        _chipDragOrigin = annotation.NoteOffset;
+        _chipDragMoved = false;
+    }
+
+    private void DragNoteTo(Point current)
+    {
+        if (_chipDragAnnotation is not { } annotation || _capture is null || _cropRect.Width <= 0 || _cropRect.Height <= 0) return;
+        var delta = current - _chipDragStart;
+        if (!_chipDragMoved && delta.Length < 4) return;
+        _chipDragMoved = true;
+        var origin = _chipDragOrigin ?? default;
+        annotation.NoteOffset = new Point(
+            origin.X + delta.X * _capture.Image.PixelWidth / _cropRect.Width,
+            origin.Y + delta.Y * _capture.Image.PixelHeight / _cropRect.Height);
+        Surface.InvalidateVisual();
+        RepositionChips();
+    }
+
+    private bool EndNoteDrag()
+    {
+        var moved = _chipDragMoved;
+        _chipDragAnnotation = null;
+        _chipDragMoved = false;
+        if (!moved) return false;
+        PushHistory();
+        RepositionChips();
+        PositionToolbar();
+        return true;
     }
 
     private void OnAnnotationChanged(object sender, EventArgs e)
@@ -698,10 +804,25 @@ public partial class OverlayEditorWindow : Window
         note.GotKeyboardFocus += (_, _) => Expand(true);
         border.MouseEnter += (_, _) =>
         {
-            if (!HasFocusedChipOtherThan(annotation.Id)) Expand(true);
+            if (_chipDragAnnotation is null && !HasFocusedChipOtherThan(annotation.Id)) Expand(true);
         };
-        border.MouseLeave += (_, _) => { if (!border.IsKeyboardFocusWithin) Finish(); };
-        badgeHost.MouseLeftButtonDown += (_, e) => { note.Focus(); Expand(true); e.Handled = true; };
+        border.MouseLeave += (_, _) => { if (_chipDragAnnotation is null && !border.IsKeyboardFocusWithin) Finish(); };
+        badgeHost.Cursor = Cursors.SizeAll;
+        badgeHost.ToolTip = UiLanguage.Text("Переместить заметку");
+        badgeHost.MouseLeftButtonDown += (_, e) =>
+        {
+            BeginNoteDrag(annotation, e.GetPosition(Root));
+            badgeHost.CaptureMouse();
+            e.Handled = true;
+        };
+        badgeHost.MouseMove += (_, e) => { if (badgeHost.IsMouseCaptured) DragNoteTo(e.GetPosition(Root)); };
+        badgeHost.MouseLeftButtonUp += (_, e) =>
+        {
+            if (badgeHost.IsMouseCaptured) badgeHost.ReleaseMouseCapture();
+            // A press that did not travel is still a click: it opens the note.
+            if (!EndNoteDrag()) { note.Focus(); Expand(true); }
+            e.Handled = true;
+        };
         ChipLayer.Children.Add(border);
         note.LostKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(() => { if (!border.IsKeyboardFocusWithin && !border.IsMouseOver) Finish(); }, DispatcherPriority.Input);
         note.PreviewKeyDown += (_, e) =>
@@ -739,6 +860,7 @@ public partial class OverlayEditorWindow : Window
         var chips = ChipLayer.Children.OfType<Border>()
             .Where(chip => chip.Visibility == Visibility.Visible && chip.Tag is Guid)
             .OrderByDescending(chip => chip.Tag is Guid id && id == _expandedChipId)
+            .ThenByDescending(chip => chip.Tag is Guid id && _capture.Annotations.FirstOrDefault(item => item.Id == id)?.NoteOffset is not null)
             .ThenBy(chip =>
             {
                 var annotation = _capture.Annotations.FirstOrDefault(item => item.Id == (Guid)chip.Tag);
@@ -755,6 +877,18 @@ public partial class OverlayEditorWindow : Window
             var height = isExpanded ? Math.Max(90, chip.ActualHeight) : 40;
             var currentLeft = Canvas.GetLeft(chip);
             var currentTop = Canvas.GetTop(chip);
+            // A pill the user placed by hand stays where it was put, and the others go around it.
+            if (annotation.NoteOffset is not null)
+            {
+                var badge = Surface.GetBadgeCenter(annotation);
+                var manual = ClampChip(
+                    new Point(_cropRect.Left + badge.X - 21.5, _cropRect.Top + badge.Y - height / 2),
+                    new Size(width, height), work);
+                Canvas.SetLeft(chip, manual.Left);
+                Canvas.SetTop(chip, manual.Top);
+                occupied.Add(manual);
+                continue;
+            }
             var keepExpandedPosition = isExpanded
                 && !double.IsNaN(currentLeft) && !double.IsInfinity(currentLeft)
                 && !double.IsNaN(currentTop) && !double.IsInfinity(currentTop);
@@ -766,6 +900,7 @@ public partial class OverlayEditorWindow : Window
             Canvas.SetTop(chip, placement.Top);
             occupied.Add(placement);
         }
+        UpdateNoteButton();
     }
 
     private void PositionShotNote()
@@ -1034,6 +1169,8 @@ public partial class OverlayEditorWindow : Window
             if (source.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(source)) File.Delete(source);
         }
     }
+
+    private readonly Button _addNoteButton = new();
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);

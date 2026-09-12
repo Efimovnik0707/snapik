@@ -27,6 +27,11 @@ public sealed record AnnotationItem(
 {
     public Guid? ParentAnnotationId { get; init; }
     public string ArrowStyle { get; init; } = "straight";
+
+    // Where the user dragged the numbered badge of this mark, as a shift from the place the
+    // renderer picks by itself, in fractions of the image size. Null means automatic placement,
+    // so a session written before the field reads back exactly as it did.
+    public NormalizedPoint? NoteOffset { get; init; }
     public ImmutableArray<ImmutableArray<NormalizedPoint>> PathSegments { get; init; } = [];
 
     public ImmutableArray<ImmutableArray<NormalizedPoint>> GetPathSegments() =>

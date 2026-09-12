@@ -61,6 +61,14 @@ public static class SessionValidation
                     throw new InvalidDataException("Annotation coordinates must be normalized to the [0, 1] image space.");
                 }
 
+                // The badge offset is a shift, not a coordinate: it may be negative and it may point
+                // outside the image, so only a finite number is required of it.
+                if (annotation.NoteOffset is { } noteOffset &&
+                    (!double.IsFinite(noteOffset.X) || !double.IsFinite(noteOffset.Y)))
+                {
+                    throw new InvalidDataException("The note offset of an annotation must be a finite shift.");
+                }
+
                 if (!annotation.PathSegments.IsDefaultOrEmpty)
                 {
                     if (annotation.Kind is not (AnnotationKind.Freehand or AnnotationKind.Highlight) ||

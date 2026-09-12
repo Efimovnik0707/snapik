@@ -31,6 +31,25 @@ public sealed class ExtendedCommentsTests
     }
 
     [Fact]
+    public void Note_offset_survives_json_and_stays_null_in_a_session_written_without_it()
+    {
+        var moved = AnnotationItem.Create(AnnotationKind.Comment, [new(.2, .2), new(.21, .21)], note: "Сдвинутая")
+            with { NoteOffset = new NormalizedPoint(-.08, .15) };
+        var capture = CaptureItem.Create("source/a.png", 1000, 1000) with { Annotations = [moved] };
+        var session = SnapBriefSession.Create(DateTimeOffset.UtcNow) with { Captures = [capture] };
+        var json = System.Text.Json.JsonSerializer.Serialize(session, SnapBriefJson.Options);
+        var restored = System.Text.Json.JsonSerializer.Deserialize<SnapBriefSession>(json, SnapBriefJson.Options)!;
+        Assert.Equal(new NormalizedPoint(-.08, .15), restored.Captures[0].Annotations[0].NoteOffset);
+
+        var legacy = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+        legacy["captures"]![0]!["annotations"]![0]!.AsObject().Remove("noteOffset");
+        var beforeTheField = System.Text.Json.JsonSerializer.Deserialize<SnapBriefSession>(legacy.ToJsonString(), SnapBriefJson.Options)!;
+        Assert.Null(beforeTheField.Captures[0].Annotations[0].NoteOffset);
+        SessionValidation.Validate(beforeTheField);
+        SessionValidation.Validate(restored);
+    }
+
+    [Fact]
     public void Cropping_keeps_comment_but_clears_a_removed_parent_link()
     {
         var parent = AnnotationItem.Create(AnnotationKind.Rectangle, [new(.8, .8), new(.9, .9)]);

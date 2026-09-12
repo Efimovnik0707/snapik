@@ -250,6 +250,17 @@ public static class SmokeTestRunner
         await new WpfExportImageRenderer().RenderAsync(noteProbeCore,
             new SnapBrief.Core.Exporting.ExportImageContext("A", 0, Path.GetFullPath(Path.Combine(workspace.SessionDirectory, noteProbe.SourcePath))),
             noteProbePng, default);
+        // The badge of the dragged note has to be in the exported PNG where the editor showed it.
+        var movedNote = noteProbe.Annotations.Single(a => a.Kind == EditorTool.Comment);
+        var movedBadge = WpfExportImageRenderer.ExportBadge(noteProbeCore.Annotations.Single(a => a.Id == movedNote.Id),
+            noteProbeLabel.DisplayLabel, noteProbe.Image.PixelWidth, noteProbe.Image.PixelHeight, 48);
+        noteProbePng.Position = 0;
+        var noteProbeExport = System.Windows.Media.Imaging.BitmapFrame.Create(noteProbePng,
+            System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+        var movedBadgePixel = PixelAt(noteProbeExport, (int)Math.Round(movedBadge.Center.X), (int)Math.Round(movedBadge.Center.Y));
+        var noteOffsetTravelled = movedNote.NoteOffset is { X: > 1 } &&
+            movedBadgePixel[0] == 255 && movedBadgePixel[1] == 140 && movedBadgePixel[2] == 47;
+
         var paths = prepared.GetImagePathsInOrder();
         // The names the user sees in a saved package: a two-digit index and the letter of the capture.
         if (!prepared.Manifest.Images.Select(image => image.FileName).SequenceEqual(["01-A.png", "02-B.png", "03-C.png"]))
@@ -333,7 +344,8 @@ public static class SmokeTestRunner
         success = success
             && noteProbe.Annotations.Single(a => a.Kind == EditorTool.Comment).Note == "Контекстная заметка"
             && noteProbeLabel.DisplayLabel == "A1"
-            && noteProbePng.Length > 0;
+            && noteProbePng.Length > 0
+            && noteOffsetTravelled;
         var result = new
         {
             success,

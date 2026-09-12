@@ -90,6 +90,7 @@
             <Border x:Name="CropBorder" Visibility="Collapsed" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" Background="Transparent">
                 <controls:AnnotationCanvas x:Name="Surface" ImagePadding="0" Tool="Rectangle"
                                            AnnotationCreated="OnAnnotationCreated" SelectionChanged="OnSelectionChanged"
+                                           AnnotationActivated="OnAnnotationActivated"
                                            AnnotationChanged="OnAnnotationChanged" CropRequested="OnCropRequested" />
             </Border>
         </Canvas>

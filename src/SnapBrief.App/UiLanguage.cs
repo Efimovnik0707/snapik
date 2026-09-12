@@ -33,7 +33,7 @@ internal static class UiLanguage
         ["Цвет отметки"] = "Annotation color", ["Толщина"] = "Thickness", ["Ещё инструменты"] = "More tools",
         ["Цвет"] = "Color", ["Цвет HEX"] = "HEX color", ["Толщина линии"] = "Line thickness",
         ["Выделите область · Esc отменяет"] = "Select an area · Esc cancels", ["СНИМОК {0}"] = "CAPTURE {0}",
-        ["Добавить комментарий"] = "Add comment", ["Удалить комментарий"] = "Remove comment", ["Отменить"] = "Undo", ["Повторить"] = "Redo",
+        ["Добавить комментарий"] = "Add comment", ["Удалить комментарий"] = "Remove comment", ["Переместить заметку"] = "Move the note", ["Отменить"] = "Undo", ["Повторить"] = "Redo",
         ["Просмотр снимка"] = "Capture preview", ["По размеру окна"] = "Fit to window", ["Увеличить"] = "Zoom in", ["Уменьшить"] = "Zoom out",
         ["На весь экран"] = "Full screen", ["Вернуть размер"] = "Restore size", ["Разметка"] = "Mark up", ["Закрыть просмотр"] = "Close preview",
         ["Комментарии"] = "Comments", ["Нет комментариев"] = "No comments yet", ["Комментарий к снимку"] = "Capture comment",
