@@ -1,0 +1,27 @@
+{
+  "exportId": "db5d3d28-6aee-4d14-ba7d-58b297ec9ac9",
+  "sessionId": "a5990584-797f-44ed-8b71-f50fed86c602",
+  "revision": 4,
+  "createdAtUtc": "2026-09-12T15:16:27.6842198+00:00",
+  "images": [
+    {
+      "captureId": "e16481c2-5954-4706-9082-89b1e298e6ab",
+      "displayLabel": "A",
+      "fileName": "A_e16481c259544706908289b1e298e6ab.png",
+      "sha256": "a2102332ee9c70437c88d3520d2664e0943eb99953537b32a0c9ad36b4612b1d",
+      "byteLength": 1493954
+    },
+    {
+      "captureId": "63b4d7ae-2464-49dd-a1e7-fb830b4786ea",
+      "displayLabel": "B",
+      "fileName": "B_63b4d7ae246449dda1e7fb830b4786ea.png",
+      "sha256": "a12a523bdc370cf0d349377af693c3dc862ae4ae5003aeb466f09fceb00e18d3",
+      "byteLength": 961169
+    }
+  ],
+  "promptFileName": "prompt.md",
+  "promptSha256": "84d7a67619b383691b48a372827576ada8dfbf99083fbd4bac5e97080cbf817d",
+  "promptText": "\u0421\u043D\u0438\u043C\u043E\u043A A.\n\n\u0421\u043D\u0438\u043C\u043E\u043A B.",
+  "captureCount": 2,
+  "noteCount": 0
+}
