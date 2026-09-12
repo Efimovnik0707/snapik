@@ -824,15 +824,36 @@ public partial class EdgeStackWindow : Window
     {
         await _pasteIntentTransition;
         if (Captures.Count == 0) { SetStatus(UiLanguage.Text("Сначала сделайте снимок."), true); return; }
-        using var dialog = new WinForms.FolderBrowserDialog { Description = "Папка для пакета SnapBrief", UseDescriptionForTitle = true };
-        WinForms.DialogResult picked;
+        var now = DateTime.Now;
+        var dialog = new SavePackageWindow(_settings, now) { Owner = this };
+        bool? picked;
         using (SuspendTopmost()) picked = dialog.ShowDialog();
-        if (picked != WinForms.DialogResult.OK) return;
+        if (picked != true || dialog.Result is not { } choice) return;
+        // The folder and the subfolder switch are remembered, so saving into the same place a second
+        // time is one click; a settings file that cannot be written leaves its own error on screen
+        // and must not stop the package from being saved.
+        MutateSettings(stored => stored with { PackageSaveDirectory = choice.Directory, PackageCreateSubfolder = choice.CreateSubfolder });
         var package = await _workspace.PrepareAsync(Captures, Captures, string.Empty, SelectedProfile?.Id);
-        var destination = Path.Combine(dialog.SelectedPath, $"SnapBrief-{DateTime.Now:yyyyMMdd-HHmmss}");
-        Directory.CreateDirectory(destination);
-        foreach (var path in Directory.EnumerateFiles(package.RootDirectory)) File.Copy(path, Path.Combine(destination, Path.GetFileName(path)));
-        ShowToast(UiLanguage.Text("Пакет сохранён."));
+        // Without a subfolder the files share the folder with whatever is already there, so the date
+        // of the package goes into every name; with one, the name of the folder already carries it.
+        var destination = choice.CreateSubfolder ? Path.Combine(choice.Directory, choice.FolderName) : choice.Directory;
+        var prefix = choice.CreateSubfolder ? string.Empty : $"{now:yyyyMMdd-HHmmss}-";
+        var promptFileName = package.Manifest.PromptFileName;
+        try
+        {
+            Directory.CreateDirectory(destination);
+            // Only what the user opened the folder for: the images and the text. manifest.json
+            // describes the package for the application itself and stays in the working directory.
+            foreach (var path in Directory.EnumerateFiles(package.RootDirectory))
+            {
+                var name = Path.GetFileName(path);
+                if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) &&
+                    !(promptFileName.Length > 0 && name == promptFileName)) continue;
+                File.Copy(path, Path.Combine(destination, prefix + name), overwrite: false);
+            }
+            ShowToast(UiLanguage.Text("Пакет сохранён."));
+        }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось сохранить пакет")}: {ex.Message}", true); }
     }
 
     // The wizard of the first run, and the tray item that opens it again. Its shortcut field goes

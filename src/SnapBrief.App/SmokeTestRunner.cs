@@ -32,6 +32,7 @@ public static class SmokeTestRunner
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, ClearStackAfterPaste = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9,
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
+            PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion
         };
         customSettings.Save(customSettingsPath);
@@ -128,6 +129,11 @@ public static class SmokeTestRunner
         if ((Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentHoverBrush")).Color ||
             (Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentPressedBrush")).Color)
             throw new InvalidOperationException("The primary button must keep the accent while hovered and pressed.");
+        // The package dialog holds its own folder; without one it starts where single captures go.
+        if (restoredSettings.PackageDirectory() != Path.Combine(root, "packages") ||
+            HotkeySettings.Default.PackageDirectory() != HotkeySettings.Default.SaveDirectory)
+            throw new InvalidOperationException("The package folder must be remembered, and fall back to the save folder.");
+        WithoutBindingErrors("The save package window", () => SavePackageWindow.RunSavePackageProbe(restoredSettings));
         var onboarding = WithoutBindingErrors("The onboarding window", () =>
         {
             var window = OnboardingWindow.RunOnboardingProbe(restoredSettings);
@@ -237,6 +243,9 @@ public static class SmokeTestRunner
             new SnapBrief.Core.Exporting.ExportImageContext("A", 0, Path.GetFullPath(Path.Combine(workspace.SessionDirectory, noteProbe.SourcePath))),
             noteProbePng, default);
         var paths = prepared.GetImagePathsInOrder();
+        // The names the user sees in a saved package: a two-digit index and the letter of the capture.
+        if (!prepared.Manifest.Images.Select(image => image.FileName).SequenceEqual(["01-A.png", "02-B.png", "03-C.png"]))
+            throw new InvalidOperationException("The exported images must be named by index and letter.");
         // Checked here, before the pruning probe below drops this revision: the export directory of
         // the first package is exactly what the probe is expected to remove.
         var preparedFilesOnDisk = paths.All(File.Exists);

@@ -30,12 +30,18 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public string SaveFormat { get; init; } = "png";
     public int JpegQuality { get; init; } = 92;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "SnapBrief");
+    /// <summary>Where "Save package…" wrote the last time; empty means "wherever single captures go".</summary>
+    public string PackageSaveDirectory { get; init; } = string.Empty;
+    public bool PackageCreateSubfolder { get; init; } = true;
     public string Language { get; init; } = "ru";
     /// <summary>The version of the first run wizard this file has already seen; 0 means "never".</summary>
     public int OnboardingVersion { get; init; }
     public string Theme { get; init; } = "dark";
     public string AccentId { get; init; } = "blue";
     public HotkeyGesture FullscreenSaveGesture => Find(FullscreenSaveId).Gesture;
+    // A method rather than a property: everything the record exposes as a property is written into
+    // settings.json, and this one is a fallback, not a preference of its own.
+    public string PackageDirectory() => string.IsNullOrWhiteSpace(PackageSaveDirectory) ? SaveDirectory : PackageSaveDirectory;
 
     public static HotkeySettings Default { get; } = new("ctrl-alt-s", "ctrl-alt-v");
     public static IReadOnlyList<HotkeyChoice> Choices { get; } =

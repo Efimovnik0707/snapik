@@ -40,7 +40,9 @@ public sealed class FileExportService(IExportImageRenderer renderer, TimeProvide
                 cancellationToken.ThrowIfCancellationRequested();
                 var capture = session.Captures[index];
                 var label = CaptureLabels.ForIndex(index);
-                var fileName = $"{label}_{capture.Id:N}.png";
+                // The user opens these files in a folder of their own: "01-A.png" sorts and reads
+                // like a page number. The guid of the capture stays in manifest.images[].captureId.
+                var fileName = $"{index + 1:D2}-{label}.png";
                 var imagePath = Path.Combine(staging, fileName);
                 var sourceImagePath = ResolveSessionPath(sessionRoot, capture.SourceImagePath);
                 if (!File.Exists(sourceImagePath))

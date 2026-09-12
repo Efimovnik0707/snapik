@@ -169,6 +169,9 @@ public sealed class PersistenceAndExportTests : IDisposable
 
         Assert.Equal(["A", "B"], labelsSeen);
         Assert.Equal([first.Id, second.Id], prepared.Manifest.Images.Select(image => image.CaptureId));
+        // The user opens these files by name: a two-digit index and the letter of the capture.
+        Assert.Equal(["01-A.png", "02-B.png"], prepared.Manifest.Images.Select(image => image.FileName));
+        Assert.All(prepared.GetImagePathsInOrder(), path => Assert.True(File.Exists(path)));
         Assert.Equal(2, prepared.Manifest.CaptureCount);
         Assert.Equal(2, prepared.Manifest.NoteCount);
         Assert.All(prepared.Manifest.Images, image => Assert.Equal(64, image.Sha256.Length));
