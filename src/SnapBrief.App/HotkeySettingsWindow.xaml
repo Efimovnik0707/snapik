@@ -1,5 +1,5 @@
 <Window x:Class="SnapBrief.App.HotkeySettingsWindow"
- xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:SnapBrief.App"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:SnapBrief.App" xmlns:controls="clr-namespace:SnapBrief.App.Controls"
  Title="Настройки SnapBrief" Width="530" Height="520" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="#EEF2F8"
  WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
  <Window.Resources>
@@ -12,7 +12,7 @@
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <Grid Margin="0,0,0,22" Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
    <TextBlock Text="Настройки" FontSize="21" FontWeight="SemiBold" VerticalAlignment="Center"/>
-   <Button x:Name="CloseButton" Style="{StaticResource BaseButton}" HorizontalAlignment="Right" VerticalAlignment="Center" Width="28" Height="28" MinHeight="28" Padding="0" Click="OnClose" ToolTip="Закрыть" AutomationProperties.Name="{local:UiText Закрыть}">
+   <Button x:Name="CloseButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#343E4E" HorizontalAlignment="Right" VerticalAlignment="Center" Width="28" Height="28" MinHeight="28" Padding="0" Click="OnClose" ToolTip="Закрыть" AutomationProperties.Name="{local:UiText Закрыть}">
     <Path Data="M0,0 L11,11 M11,0 L0,11" Stroke="#EEF2F8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
    </Button>
   </Grid>
@@ -43,7 +43,7 @@
   </TabControl>
   <TextBlock x:Name="ErrorText" Grid.Row="2" Foreground="#FF9B95" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,8"/>
   <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-   <Button Style="{StaticResource BaseButton}" Foreground="White" Margin="0,0,8,0" IsCancel="True" Content="Отмена"/>
+   <Button Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#343E4E" Foreground="White" Margin="0,0,8,0" IsCancel="True" Content="Отмена"/>
    <Button x:Name="SaveButton" Style="{StaticResource PrimaryButton}" IsDefault="True" Click="OnSave" Content="Сохранить"/>
   </StackPanel>
  </Grid>

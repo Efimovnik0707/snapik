@@ -240,3 +240,11 @@ Claude Desktop использует files-only CF_HDROP вместо конку�
 В заголовке окна появился крестик 28×28 (`Path`, не текстовый «×»), показывается всегда, `Click` вызывает `Close()`: `DialogResult` остаётся `null`, вызывающий код трактует это как отмену, как и раньше при Esc. Тултип и `AutomationProperties.Name` — «Закрыть» / Close через `UiLanguage`.
 
 Проверка: тесты Release (90) и WPF smoke прошли. Smoke на сконструированном окне настроек проверяет round-trip RU↔EN всех новых пар и видимость `QualitySlider`: Visible при `SaveFormat = "jpeg"`, Collapsed после переключения формата на PNG. Живьём не проверено: как крестик и скрытый блок качества выглядят на живом окне.
+
+## Наведение не съедает акцент главной кнопки, 12 сентября
+
+Кнопка «Сохранить» при наведении становилась светло-серой с белым текстом (надпись пропадала), «Отмена» на тёмном окне настроек — тоже. Причина: триггеры `BaseButton` (`src/SnapBrief.App/Themes/SnapBriefTheme.xaml`) писали `HoverBrush` и `#DDE3EE` прямо в элемент шаблона `Chrome`, а `PrimaryButton` менял свойство `Background` самой кнопки, которое доходит до `Chrome` только через `TemplateBinding`; прямое присваивание элементу шаблона всегда выигрывает.
+
+Фикс: новые attached-свойства `ButtonChrome.HoverBackground` и `ButtonChrome.PressedBackground` (`src/SnapBrief.App/Controls/ButtonChrome.cs`). Триггеры `IsMouseOver` и `IsPressed` в шаблоне `BaseButton` читают их с `TemplatedParent`, дефолты заданы сеттерами того же стиля (`HoverBrush`, новый `PressedBrush` = прежний `#DDE3EE`). `PrimaryButton` задаёт `AccentHoverBrush` и новый `AccentPressedBrush` (`#1C3BB4`), собственные `Style.Triggers` по фону убраны. Кнопки на тёмном окне настроек («Отмена» и крестик) задают свои `#2A3240` / `#343E4E` прямо на кнопке. Стили на `BasedOn BaseButton` без своих значений ведут себя как раньше, `ToolButton` шаблон не менял.
+
+Проверка: тесты Release (90) и WPF smoke прошли; smoke на сконструированном окне сверяет `ButtonChrome.GetHoverBackground/GetPressedBackground` кнопки «Сохранить» с ресурсами `AccentHoverBrush` и `AccentPressedBrush`. Живьём не проверено: сам вид наведения и нажатия на «Сохранить», «Отмена» и крестик.

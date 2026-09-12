@@ -49,6 +49,9 @@ public static class SmokeTestRunner
         settingsWindow.FormatBox.SelectedIndex = 0;
         if (settingsWindow.QualitySlider.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("JPEG quality must be hidden while the PNG format is selected.");
+        if ((Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentHoverBrush")).Color ||
+            (Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentPressedBrush")).Color)
+            throw new InvalidOperationException("The primary button must keep the accent while hovered and pressed.");
         foreach (var (russian, english) in new[]
         {
             ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
