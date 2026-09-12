@@ -32,12 +32,23 @@ public static class SmokeTestRunner
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, ClearStackAfterPaste = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9,
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
-            Theme = "dark", AccentId = "violet"
+            Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion
         };
         customSettings.Save(customSettingsPath);
         var restoredSettings = HotkeySettings.Load(customSettingsPath);
-        if (restoredSettings != customSettings || restoredSettings.FullscreenSaveGesture.VirtualKey != 44)
+        if (restoredSettings != customSettings || restoredSettings.FullscreenSaveGesture.VirtualKey != 44 ||
+            restoredSettings.OnboardingVersion != OnboardingWindow.CurrentVersion)
             throw new InvalidOperationException("Local capture preferences did not survive a settings round trip.");
+        // The wizard is shown once per version: never seen (no file, or an older version) opens it,
+        // the current version does not, and a demo run never does.
+        if (!OnboardingWindow.ShouldShowOnboarding(false, HotkeySettings.Default, false) ||
+            !OnboardingWindow.ShouldShowOnboarding(true, HotkeySettings.Default, false) ||
+            OnboardingWindow.ShouldShowOnboarding(true, restoredSettings, false) ||
+            OnboardingWindow.ShouldShowOnboarding(false, HotkeySettings.Default, true))
+            throw new InvalidOperationException("The first run wizard is shown once per version, and never in a demo run.");
+        if (OnboardingWindow.LanguageForCulture("uk") != "ru" || OnboardingWindow.LanguageForCulture("be") != "ru" ||
+            OnboardingWindow.LanguageForCulture("ru") != "ru" || OnboardingWindow.LanguageForCulture("es") != "en")
+            throw new InvalidOperationException("The suggested language must follow the system locale.");
         if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
             OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("Stored annotation colour must be read back, an invalid one must fall back to the default.");
@@ -117,6 +128,21 @@ public static class SmokeTestRunner
         if ((Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentHoverBrush")).Color ||
             (Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentPressedBrush")).Color)
             throw new InvalidOperationException("The primary button must keep the accent while hovered and pressed.");
+        var onboarding = WithoutBindingErrors("The onboarding window", () =>
+        {
+            var window = OnboardingWindow.RunOnboardingProbe(restoredSettings);
+            ResolveTriggerBindings(window);
+            return window;
+        });
+        if (onboarding.Step != 0 || onboarding.SelectedLanguage != "ru" ||
+            onboarding.Step1.Visibility != Visibility.Visible || onboarding.Step4.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("The wizard must come back to its first step after the probe.");
+        if (onboarding.HintKeyText.Text != HotkeySettings.Find(restoredSettings.CaptureId).Label ||
+            onboarding.CaptureField.HotkeyId != restoredSettings.CaptureId)
+            throw new InvalidOperationException("The wizard must open on the shortcut the settings hold, and the hint must show it.");
+        onboarding.GoToStep(3);
+        if (onboarding.Step4.Visibility != Visibility.Visible || onboarding.StepText.Text != "Шаг 4 из 4")
+            throw new InvalidOperationException("The last step must show the animated hint and its own number.");
         foreach (var (russian, english) in new[]
         {
             ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
@@ -124,6 +150,8 @@ public static class SmokeTestRunner
             ("Показывать курсор мыши на скриншоте", "Show the mouse pointer in the screenshot"), ("Звуки", "Sounds"),
             ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close"),
             ("Все снимки уже отправлены. Сделайте новый снимок.", "Every capture was already sent. Take a new one."),
+            ("Как пользоваться", "How it works"), ("Шаг {0} из {1}", "Step {0} of {1}"), ("Начать", "Get started"),
+            ("Нажми на поле и введи своё сочетание", "Click the field and press your own shortcut"),
             ("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.", "This shortcut is already taken. Free it in the other application or pick another one.")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)

@@ -128,6 +128,7 @@ public partial class EdgeStackWindow : Window
         };
         _trayIcon.ContextMenuStrip.Items.Add("Показать стопку", null, (_, _) => Dispatcher.Invoke(ShowStackWithoutActivation));
         _trayIcon.ContextMenuStrip.Items.Add("Настройки", null, (_, _) => Dispatcher.Invoke(() => { ShowStackWithoutActivation(); OpenSettings(); }));
+        _trayIcon.ContextMenuStrip.Items.Add("Как пользоваться", null, (_, _) => Dispatcher.Invoke(ShowOnboarding));
         _trayIcon.ContextMenuStrip.Items.Add("Новый снимок", null, (_, _) => Dispatcher.InvokeAsync(CaptureLoopAsync));
         _trayIcon.ContextMenuStrip.Items.Add(new WinForms.ToolStripSeparator());
         _trayIcon.ContextMenuStrip.Items.Add("Выйти", null, (_, _) => Dispatcher.Invoke(() => { _exiting = true; Close(); }));
@@ -170,6 +171,10 @@ public partial class EdgeStackWindow : Window
         Hide();
         Opacity = 1;
         StartupTrace.Write(_options, "EdgeStack.Loaded entered");
+        // Before the session is restored: on the very first run there is nothing to restore, and the
+        // wizard writes the language and the shortcut the rest of the startup reads.
+        if (OnboardingWindow.ShouldShowOnboarding(File.Exists(_settingsPath), _settings, _options.Demo || _options.SmokeTest))
+            ShowOnboarding();
         _loading = true;
         try
         {
@@ -818,6 +823,61 @@ public partial class EdgeStackWindow : Window
         Directory.CreateDirectory(destination);
         foreach (var path in Directory.EnumerateFiles(package.RootDirectory)) File.Copy(path, Path.Combine(destination, Path.GetFileName(path)));
         ShowToast(UiLanguage.Text("Пакет сохранён."));
+    }
+
+    // The wizard of the first run, and the tray item that opens it again. Its shortcut field goes
+    // through the same registration as the settings dialog, so a taken shortcut is reported inside
+    // the wizard and the user cannot leave that step with it.
+    private void ShowOnboarding()
+    {
+        _hotkeys?.Unregister("capture");
+        _hotkeys?.Unregister("fullscreen-save");
+        try
+        {
+            if (!HotkeySettings.TryLoad(_settingsPath, out var current))
+            {
+                SetStatus(UiLanguage.Text("Файл настроек не читается."), true);
+                return;
+            }
+            var wizard = new OnboardingWindow(current) { TryApply = ApplyOnboarding };
+            using (SuspendTopmost()) wizard.ShowDialog();
+        }
+        finally
+        {
+            _hotkeys?.Unregister("capture");
+            _hotkeys?.Unregister("fullscreen-save");
+            _ = RegisterHotkeys();
+        }
+    }
+
+    private string? ApplyOnboarding(HotkeySettings candidate)
+    {
+        try
+        {
+            if (_hotkeys is null) return UiLanguage.Text("Регистрация клавиш недоступна. Перезапустите SnapBrief.");
+            _hotkeys.Unregister("capture");
+            if (candidate.CaptureEnabled) _hotkeys.Register("capture", candidate.CaptureGesture);
+            // Only the three fields the wizard owns, on top of the file as it is now.
+            var merged = MutateSettings(stored => stored with
+            {
+                CaptureId = candidate.CaptureId, Language = candidate.Language,
+                OnboardingVersion = candidate.OnboardingVersion
+            });
+            if (!merged) return UiLanguage.Text("Не удалось сохранить настройки");
+            UiLanguage.Current = _settings.Language;
+            UiLanguage.Apply(this, _settings.Language);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _hotkeys?.Unregister("capture");
+            StartupTrace.Write(_options, $"Onboarding ({HotkeySettings.Find(candidate.CaptureId).Label}): {ex}");
+            if (ex is Win32Exception { NativeErrorCode: 1409 })
+                return UiLanguage.Text("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.");
+            return ex is Win32Exception
+                ? UiLanguage.Text("Не удалось назначить сочетание. Возможно, оно уже занято — нажмите другое.")
+                : $"{UiLanguage.Text("Не удалось сохранить настройки")}: {ex.Message}";
+        }
     }
 
     private void OpenSettings()

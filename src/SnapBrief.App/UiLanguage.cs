@@ -74,7 +74,20 @@ internal static class UiLanguage
         ["Вставка остановлена"] = "Pasting stopped", ["Не удалось выполнить действие"] = "Could not run the action",
         ["PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки."] = "The PNG and the text were copied. If the receiver takes only one format, use the paste button.",
         ["Не удалось сохранить"] = "Could not save", ["Не удалось очистить ленту"] = "Could not clear the strip",
-        ["Буфер не обновлён"] = "The clipboard was not updated"
+        ["Буфер не обновлён"] = "The clipboard was not updated",
+        ["Знакомство со SnapBrief"] = "Welcome to SnapBrief", ["Шаг {0} из {1}"] = "Step {0} of {1}",
+        ["Назад"] = "Back", ["Далее"] = "Next", ["Начать"] = "Get started", ["Пропустить"] = "Skip",
+        ["Выберите язык"] = "Choose your language",
+        ["Интерфейс и подсказки будут на этом языке."] = "The interface and the hints will be in this language.",
+        ["Клавиша для снимка"] = "The capture shortcut",
+        ["Нажми на поле и введи своё сочетание"] = "Click the field and press your own shortcut",
+        ["Запуск и панель задач"] = "Startup and the taskbar",
+        ["Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»"] =
+            "To keep the strip within reach, pin SnapBrief: open Start, right-click SnapBrief and choose \"Pin to taskbar\"",
+        ["Повторный запуск ярлыка не открывает второе окно, а показывает ленту."] = "Starting the shortcut again does not open a second window, it shows the strip.",
+        ["Показать ярлык"] = "Show the shortcut", ["Не удалось открыть папку с ярлыком"] = "Could not open the folder with the shortcut",
+        ["Как пользоваться"] = "How it works", ["Нажми клавишу"] = "Press the shortcut", ["Выдели область"] = "Select an area",
+        ["Добавь комментарии"] = "Add comments", ["Вставь в чат: Ctrl+V"] = "Paste into the chat: Ctrl+V"
     };
     internal static string Text(string value, string? language = null) => (language ?? Current) == "en" ? (English.TryGetValue(value, out var translated) ? translated : value) : (English.FirstOrDefault(pair => pair.Value == value).Key ?? value);
     internal static void Apply(DependencyObject root, string? language = null)

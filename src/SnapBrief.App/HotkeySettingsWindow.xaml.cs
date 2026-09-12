@@ -31,6 +31,8 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public int JpegQuality { get; init; } = 92;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "SnapBrief");
     public string Language { get; init; } = "ru";
+    /// <summary>The version of the first run wizard this file has already seen; 0 means "never".</summary>
+    public int OnboardingVersion { get; init; }
     public string Theme { get; init; } = "dark";
     public string AccentId { get; init; } = "blue";
     public HotkeyGesture FullscreenSaveGesture => Find(FullscreenSaveId).Gesture;
