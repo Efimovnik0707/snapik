@@ -168,6 +168,7 @@ public partial class EdgeStackWindow : Window
         if (_loadedOnce) return;
         _loadedOnce = true;
         Topmost = _settings.StackTopmost;
+        UiSoundService.Preload();
         Hide();
         Opacity = 1;
         StartupTrace.Write(_options, "EdgeStack.Loaded entered");
@@ -467,7 +468,7 @@ public partial class EdgeStackWindow : Window
                 Renumber();
                 InvalidatePrepared();
                 var copied = await SaveAndCopyCommittedPackageAsync();
-                CaptureFeedbackSound.Capture(_settings.PlaySounds);
+                UiSoundService.Capture(_settings);
                 await AutoSaveCaptureAsync(result.Capture);
                 addNext = copied && result.AddNext;
             }
@@ -977,7 +978,8 @@ public partial class EdgeStackWindow : Window
                             CaptureEnabled = candidate.CaptureEnabled, FullscreenSaveEnabled = candidate.FullscreenSaveEnabled,
                             ShowNotifications = candidate.ShowNotifications, RememberRegion = candidate.RememberRegion,
                             CaptureCursor = candidate.CaptureCursor, AutoSaveCaptures = candidate.AutoSaveCaptures,
-                            PlaySounds = candidate.PlaySounds, ClearStackAfterPaste = candidate.ClearStackAfterPaste,
+                            PlaySounds = candidate.PlaySounds, SoundVolume = candidate.SoundVolume,
+                            ClearStackAfterPaste = candidate.ClearStackAfterPaste,
                             SaveFormat = candidate.SaveFormat, JpegQuality = candidate.JpegQuality,
                             SaveDirectory = candidate.SaveDirectory, Language = candidate.Language,
                             AccentId = candidate.AccentId

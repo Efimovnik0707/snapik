@@ -33,7 +33,11 @@
     <CheckBox x:Name="RememberBox" Content="Предлагать ту же область, что в прошлый раз"/>
     <CheckBox x:Name="CursorBox" Content="Показывать курсор мыши на скриншоте"/>
     <CheckBox x:Name="ClearStackBox" Content="{local:UiText Очищать ленту после вставки}"/>
-    <CheckBox x:Name="SoundsBox" Content="{local:UiText Звуки}"/>
+    <CheckBox x:Name="SoundsBox" Content="{local:UiText Звуки}" Margin="0,0,0,8"/>
+    <StackPanel x:Name="VolumeRow" Margin="22,0,0,16">
+     <TextBlock Text="Громкость" Margin="0,0,0,5"/>
+     <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Width="200" HorizontalAlignment="Left" AutomationProperties.Name="{local:UiText Громкость}"/>
+    </StackPanel>
     <TextBlock Text="Акцент" Margin="0,4,0,7"/>
     <StackPanel x:Name="AccentRow" Orientation="Horizontal" Margin="0,0,0,18"/>
     <TextBlock Text="Язык" Margin="0,4,0,7"/>

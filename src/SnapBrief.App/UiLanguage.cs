@@ -17,7 +17,7 @@ internal static class UiLanguage
         ["Показывать уведомления"] = "Show notifications",
         ["Предлагать ту же область, что в прошлый раз"] = "Offer the same area as last time",
         ["Показывать курсор мыши на скриншоте"] = "Show the mouse pointer in the screenshot",
-        ["Звуки"] = "Sounds", ["Автоматически сохранять готовые снимки"] = "Automatically save completed captures",
+        ["Звуки"] = "Sounds", ["Громкость"] = "Volume", ["Автоматически сохранять готовые снимки"] = "Automatically save completed captures",
         ["Укажите папку сохранения."] = "Choose a save folder.", ["Автосохранение не выполнено"] = "Auto-save failed",
         ["Язык"] = "Language", ["Акцент"] = "Accent", ["Акцент: {0}"] = "Accent: {0}",
         ["синий"] = "blue", ["бирюзовый"] = "teal", ["фиолетовый"] = "violet", ["коралловый"] = "coral",

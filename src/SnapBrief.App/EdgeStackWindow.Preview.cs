@@ -70,10 +70,10 @@ public partial class EdgeStackWindow
         await RefreshOwnedClipboardAsync();
     }
 
-    private void OnCaptureThumbMouseEnter(object sender, MouseEventArgs e) => CaptureFeedbackSound.Tick(_settings.PlaySounds);
+    private void OnCaptureThumbMouseEnter(object sender, MouseEventArgs e) => UiSoundService.Tick(_settings);
 
     private void OnCaptureListMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        CaptureFeedbackSound.Tick(_settings.PlaySounds);
+        UiSoundService.Tick(_settings);
     }
 }

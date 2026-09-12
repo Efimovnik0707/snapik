@@ -23,6 +23,8 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public bool CaptureCursor { get; init; }
     public bool AutoSaveCaptures { get; init; }
     public bool PlaySounds { get; init; } = true;
+    /// <summary>How loud the interface sounds are, 0..100; each sound keeps its own gain on top.</summary>
+    public int SoundVolume { get; init; } = 60;
     public bool StackTopmost { get; init; } = true;
     public bool ClearStackAfterPaste { get; init; }
     public string AnnotationColor { get; init; } = "#2F8CFF";
@@ -188,6 +190,10 @@ public partial class HotkeySettingsWindow : Window
         CursorBox.IsChecked = settings.CaptureCursor;
         AutoSaveBox.IsChecked = settings.AutoSaveCaptures;
         SoundsBox.IsChecked = settings.PlaySounds;
+        VolumeSlider.Value = Math.Clamp(settings.SoundVolume, 0, 100);
+        SoundsBox.Checked += (_, _) => UpdateVolume();
+        SoundsBox.Unchecked += (_, _) => UpdateVolume();
+        UpdateVolume();
         ClearStackBox.IsChecked = settings.ClearStackAfterPaste;
         FormatBox.SelectedIndex = settings.SaveFormat == "jpeg" ? 1 : 0;
         QualitySlider.Value = Math.Clamp(settings.JpegQuality, 1, 100);
@@ -244,6 +250,9 @@ public partial class HotkeySettingsWindow : Window
         UpdateQuality();
     }
 
+    // The volume belongs to the sounds: with them off there is nothing to make quieter.
+    private void UpdateVolume() => VolumeRow.Visibility = SoundsBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+
     private void UpdateQuality()
     {
         QualityLabel.Visibility = QualitySlider.Visibility = FormatBox.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -280,7 +289,7 @@ public partial class HotkeySettingsWindow : Window
                 ShowNotifications = NotificationsBox.IsChecked == true,
                 RememberRegion = RememberBox.IsChecked == true, CaptureCursor = CursorBox.IsChecked == true,
                 AutoSaveCaptures = AutoSaveBox.IsChecked == true,
-                PlaySounds = SoundsBox.IsChecked == true,
+                PlaySounds = SoundsBox.IsChecked == true, SoundVolume = (int)VolumeSlider.Value,
                 ClearStackAfterPaste = ClearStackBox.IsChecked == true,
                 SaveFormat = FormatBox.SelectedIndex == 1 ? "jpeg" : "png",
                 JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory, AccentId = SelectedAccent,

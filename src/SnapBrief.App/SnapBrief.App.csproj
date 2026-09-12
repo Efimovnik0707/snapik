@@ -21,8 +21,8 @@
     <ProjectReference Include="..\SnapBrief.Windows\SnapBrief.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Assets\Audio\camera-shutter.wav" LogicalName="SnapBrief.App.Assets.Audio.camera-shutter.wav" />
-    <EmbeddedResource Include="Assets\Audio\camera-dial-click.wav" LogicalName="SnapBrief.App.Assets.Audio.camera-dial-click.wav" />
+    <!-- Content, not EmbeddedResource: MediaPlayer opens files, not pack:// resources. -->
+    <Content Include="Assets\Audio\*.mp3" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup><Compile Remove="MainWindow.xaml.cs" /><Page Remove="MainWindow.xaml" /></ItemGroup>
 </Project>

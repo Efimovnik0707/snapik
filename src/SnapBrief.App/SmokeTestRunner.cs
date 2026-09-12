@@ -16,7 +16,7 @@ public static class SmokeTestRunner
     {
         var root = explicitDataDirectory ?? Path.Combine(Path.GetTempPath(), "SnapBrief", $"smoke-{Guid.NewGuid():N}");
         var workspace = new SessionWorkspace(root);
-        CaptureFeedbackSound.VerifyWaveHeaders();
+        UiSoundService.VerifyAssets();
         var screen = new Rect(0, 0, 1920, 1080);
         foreach (var crop in new[] { new Rect(500, 400, 540, 120), new Rect(500, 940, 540, 130), new Rect(500, 0, 540, 120), new Rect(0, 0, 540, 1080) })
         {
@@ -27,7 +27,7 @@ public static class SmokeTestRunner
         var customSettingsPath = Path.Combine(root, "custom-hotkey-smoke.json");
         var customSettings = new HotkeySettings("custom:6:75", HotkeySettings.Default.PasteId)
         {
-            AutoSaveCaptures = true, PlaySounds = false,
+            AutoSaveCaptures = true, PlaySounds = false, SoundVolume = 35,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, ClearStackAfterPaste = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9,
@@ -113,6 +113,13 @@ public static class SmokeTestRunner
                 throw new InvalidOperationException("The JPEG quality caption must follow the language applied to the window.");
             return window;
         });
+        // The volume follows the sounds: it is on screen only while they are on.
+        if (settingsWindow.VolumeSlider.Value != 35 || settingsWindow.VolumeRow.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("The volume must hold the stored value and stay hidden while the sounds are off.");
+        settingsWindow.SoundsBox.IsChecked = true;
+        if (settingsWindow.VolumeRow.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("The volume must appear together with the sounds.");
+        settingsWindow.SoundsBox.IsChecked = false;
         if (settingsWindow.QualitySlider.Visibility != Visibility.Visible)
             throw new InvalidOperationException("JPEG quality must be visible while the JPEG format is selected.");
         settingsWindow.FormatBox.SelectedIndex = 0;
@@ -164,7 +171,7 @@ public static class SmokeTestRunner
             ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
             ("Скриншот всего экрана в папку", "Save the whole screen to a folder"), ("Предлагать ту же область, что в прошлый раз", "Offer the same area as last time"),
             ("Показывать курсор мыши на скриншоте", "Show the mouse pointer in the screenshot"), ("Звуки", "Sounds"),
-            ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close"),
+            ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close"), ("Громкость", "Volume"),
             ("Все снимки уже отправлены. Сделайте новый снимок.", "Every capture was already sent. Take a new one."),
             ("Как пользоваться", "How it works"), ("Шаг {0} из {1}", "Step {0} of {1}"), ("Начать", "Get started"),
             ("Нажми на поле и введи своё сочетание", "Click the field and press your own shortcut"),

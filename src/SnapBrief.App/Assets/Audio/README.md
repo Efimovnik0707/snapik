@@ -1,23 +1,28 @@
-# Bundled camera feedback recordings
+# Bundled interface sounds
 
-Both sounds are edits of real camera recordings published under the Creative Commons Zero 1.0 Universal dedication. CC0 permits copying, modification, commercial use, and redistribution without attribution. Attribution is retained here so the source and edit remain auditable.
+Three short sounds picked from the set delivered with the first test round (`tasks/handoff-001/sounds/`,
+`SOUNDS.md`, 12 September 2026). Per that note the set comes from Pixabay and Freesound under the
+Pixabay Content License / CC0 1.0, both of which permit copying, modification, commercial use and
+redistribution without attribution.
 
-## `camera-shutter.wav`
+Provenance is incomplete: the direct source links (URL, author, id) for these three files were not
+delivered with the set and are to be written in here once they arrive. Until then the licence claim
+rests on `SOUNDS.md` alone, which is below the standard the previous camera recordings were held to.
 
-- Source: [Nice Camera click.wav](https://freesound.org/people/mmaruska/sounds/167556/) by Freesound user `mmaruska`, sound ID 167556.
-- Recording described by its author as a Canon DSLR taking a picture.
-- License: [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
-- Retrieved from Freesound's official HQ MP3 preview CDN because original-file download requires an account. Source preview SHA-256: `4F5ABF0034C5AF1743EA46D900AFAFF010041AD586E9A7623C81A95C565D70EB`.
-- Edit: source interval 0.145–0.485 seconds; mono; 80 Hz high-pass and 14 kHz low-pass; reduced 6.3 dB; 4 ms fade-in and 50 ms fade-out; exported as 44.1 kHz, 16-bit PCM WAV.
-- Bundled file SHA-256: `57C7D8AAEA24E1350A72C76BE3D26937600DDEBD1FB6F559A70D9A2E51D1B0E5`.
+The files ship as ordinary content next to the executable (`Assets\Audio\*.mp3` in the csproj), because
+`MediaPlayer` opens files rather than `pack://application` resources. They are played by
+`UiSoundService`, each at a gain of its own on top of the `SoundVolume` preference.
 
-## `camera-dial-click.wav`
+| File | Where it plays | Gain | Size | SHA-256 |
+|---|---|---|---|---|
+| `shutter-2-050s.mp3` | the moment of capture | 1.0 | 15 882 B | `A479D066076503EE27194A3C7FF0B2CB7F07DF55E988D96BB5BB1D6C0B3AF82D` |
+| `click-tiny-005s.mp3` | pointing at a capture in the strip | 0.25 | 1 536 B | `8D81CBFE9A05B30DA6730F03C1976E59143CB425F8FA4D9E4129DF6F65643B7A` |
+| `notify-soft-040.mp3` | the package went to the clipboard | 0.7 | 34 272 B | `C13DA61F3E5BCD79CE3E8785715970EF8D09B2EDCD5F956FEBC6D83E6A759827` |
 
-- Source: [INSTAX CAMERA - Mechanical wheel, ratchet.WAV](https://freesound.org/people/Headphaze/sounds/696760/) by Freesound user `Headphaze`, sound ID 696760.
-- Recording described by its author as the mechanical wheel ratchet of an Instax Mini camera, recorded with an Audio-Technica AT4053b.
-- License: [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
-- Retrieved from Freesound's official HQ MP3 preview CDN because original-file download requires an account. Source preview SHA-256: `30D9487E89C904DC214D470FAFFE35989FDEE4AEB7CAB0A1CA464BE84AB36FB5`.
-- Edit: one dry detent from source interval 25.36–25.51 seconds; mono; 160 Hz high-pass and 10 kHz low-pass; reduced 4.5 dB; 3 ms fade-in and 40 ms fade-out; exported as 44.1 kHz, 16-bit PCM WAV.
-- Bundled file SHA-256: `9A5D6C9019548C410048C5EAC3BDE1E314B31F43D6A1A6E9F13419C203B66666`.
+The files are byte-identical to the delivered ones: nothing was re-encoded or edited here. The smoke run
+checks that all three are shipped next to the assembly, are not empty and start as an MP3 stream
+(`ID3` tag or a frame sync); none of them was auditioned by the agent.
 
-The edits were inspected with FFmpeg/ffprobe for waveform shape, silence boundaries, peak level, duration, channel count, sample rate, bit depth, and decodability. No audio-monitoring tool was available in the editing session, so these particular edits were not auditioned by the agent.
+The camera recordings this replaced (`camera-shutter.wav`, `camera-dial-click.wav`, CC0 from Freesound,
+users `mmaruska` 167556 and `Headphaze` 696760) were removed together with `CaptureFeedbackSound`; their
+provenance stays in the git history of this file.
