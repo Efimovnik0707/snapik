@@ -29,7 +29,7 @@ public partial class EdgeStackWindow : Window
     private readonly IPasteCoordinator _pasteCoordinator;
     private readonly ICodexDesktopPasteCompletionService _codexPasteCompletion;
     private readonly DispatcherTimer _saveTimer;
-    private readonly DispatcherTimer _statusTimer;
+    private readonly DispatcherTimer _toastTimer;
     private readonly string _settingsPath;
     private readonly WinForms.NotifyIcon _trayIcon;
     private readonly IPasteIntentObserver _pasteIntentObserver;
@@ -56,6 +56,10 @@ public partial class EdgeStackWindow : Window
     // window bounds how long we keep watching for and re-arming through such an echo.
     private static readonly TimeSpan ReceiverEchoWatchWindow = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan ReceiverEchoPollInterval = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan ToastLifetime = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ToastFade = TimeSpan.FromMilliseconds(150);
+    private Action? _toastAction;
+    private int _toastGeneration;
     private Point _dragStart;
     private CaptureItem? _draggedCapture;
     private readonly Stack<(CaptureItem Capture, int Index)> _removed = [];
@@ -76,8 +80,8 @@ public partial class EdgeStackWindow : Window
         _codexPasteCompletion = new CodexDesktopPasteCompletionService(_clipboard, foreground, input);
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _saveTimer.Tick += OnSaveTimerTick;
-        _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-        _statusTimer.Tick += OnStatusTimerTick;
+        _toastTimer = new DispatcherTimer { Interval = ToastLifetime };
+        _toastTimer.Tick += OnToastTimerTick;
         _pasteIntentObserver = new WindowsPasteIntentObserver(intent =>
         {
             var receiptSeq = _ownedClipboardReceipt?.SequenceNumber;
@@ -497,9 +501,8 @@ public partial class EdgeStackWindow : Window
         _removed.Push((capture.DeepClone(), index));
         Renumber();
         InvalidatePrepared();
-        if (await SaveAsync()) ShowTransientStatus(UiLanguage.Text("Снимок удалён"));
+        if (await SaveAsync()) ShowToast(UiLanguage.Text("Снимок удалён"), UiLanguage.Text("Отменить"), () => _ = RestoreRemoved());
         await RefreshOwnedClipboardAsync();
-        UndoRemoveButton.Visibility = Visibility.Visible;
         e.Handled = true;
     }
 
@@ -557,7 +560,7 @@ public partial class EdgeStackWindow : Window
             SetStatus("Готовим PNG и текст…");
             _prepared = await _workspace.PrepareAsync(Captures, string.Empty, SelectedProfile?.Id);
             PasteButton.IsEnabled = true;
-            ShowTransientStatus(string.Format(UiLanguage.Text("Готово: {0} изображений · {1} заметок"), _prepared.Manifest.CaptureCount, _prepared.Manifest.NoteCount));
+            ShowToast(string.Format(UiLanguage.Text("Готово: {0} изображений · {1} заметок"), _prepared.Manifest.CaptureCount, _prepared.Manifest.NoteCount));
             return true;
         }
         catch (Exception ex) { SetStatus($"Не удалось подготовить: {ex.Message}", true); return false; }
@@ -756,7 +759,7 @@ public partial class EdgeStackWindow : Window
         await RefreshOwnedClipboardAsync();
         // A failed import must survive the next status update, a successful one has to stay readable for a few seconds.
         if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
-        else if (saved) ShowTransientStatus(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
+        else if (saved) ShowToast(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
     }
 
     private async Task ImportClipboardAsync()
@@ -768,7 +771,7 @@ public partial class EdgeStackWindow : Window
         Renumber(); InvalidatePrepared();
         var saved = await SaveAsync();
         await RefreshOwnedClipboardAsync();
-        if (saved) ShowTransientStatus(UiLanguage.Text("Изображение добавлено."));
+        if (saved) ShowToast(UiLanguage.Text("Изображение добавлено."));
     }
 
     private async Task CopyPackageAsync()
@@ -801,7 +804,7 @@ public partial class EdgeStackWindow : Window
         var destination = Path.Combine(dialog.SelectedPath, $"SnapBrief-{DateTime.Now:yyyyMMdd-HHmmss}");
         Directory.CreateDirectory(destination);
         foreach (var path in Directory.EnumerateFiles(_prepared.RootDirectory)) File.Copy(path, Path.Combine(destination, Path.GetFileName(path)));
-        ShowTransientStatus(UiLanguage.Text("Пакет сохранён."));
+        ShowToast(UiLanguage.Text("Пакет сохранён."));
     }
 
     private void OpenSettings()
@@ -982,29 +985,58 @@ public partial class EdgeStackWindow : Window
     private void SetStatus(string text, bool error = false)
     {
         if (!Dispatcher.CheckAccess()) { Dispatcher.Invoke(() => SetStatus(text, error)); return; }
-        _statusTimer.Stop();
         if (error) StartupTrace.Write(_options, text);
         StatusText.Text = text;
         StatusText.Visibility = error ? Visibility.Visible : Visibility.Collapsed;
         StatusText.Foreground = new SolidColorBrush(Color.FromRgb(255, 155, 149));
     }
 
-    // Plain SetStatus keeps non-error text hidden; this one shows a confirmation for a few seconds.
-    private void ShowTransientStatus(string text)
+    // Plain SetStatus keeps non-error text hidden; a toast shows a confirmation for a few seconds and
+    // can carry one action. Only one toast lives at a time: a new one replaces whatever is on screen.
+    private void ShowToast(string text, string? actionText = null, Action? action = null)
     {
-        if (!Dispatcher.CheckAccess()) { Dispatcher.Invoke(() => ShowTransientStatus(text)); return; }
-        _statusTimer.Stop();
-        StatusText.Text = text;
-        StatusText.Foreground = new SolidColorBrush(Color.FromRgb(174, 184, 199));
-        StatusText.Visibility = Visibility.Visible;
-        _statusTimer.Start();
+        if (!Dispatcher.CheckAccess()) { Dispatcher.Invoke(() => ShowToast(text, actionText, action)); return; }
+        _toastTimer.Stop();
+        _toastGeneration++;
+        _toastAction = action;
+        ToastText.Text = text;
+        ToastAction.Content = actionText ?? string.Empty;
+        ToastAction.Visibility = actionText is null || action is null ? Visibility.Collapsed : Visibility.Visible;
+        Toast.Visibility = Visibility.Visible;
+        Toast.BeginAnimation(OpacityProperty, null);
+        if (SystemParameters.ClientAreaAnimation) Toast.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, ToastFade));
+        else Toast.Opacity = 1;
+        _toastTimer.Start();
     }
 
-    private void OnStatusTimerTick(object? sender, EventArgs e)
+    private void OnToastTimerTick(object? sender, EventArgs e)
     {
-        _statusTimer.Stop();
-        StatusText.Text = string.Empty;
-        StatusText.Visibility = Visibility.Collapsed;
+        _toastTimer.Stop();
+        var generation = _toastGeneration;
+        if (!SystemParameters.ClientAreaAnimation) { HideToast(generation); return; }
+        var fade = new DoubleAnimation(Toast.Opacity, 0, ToastFade);
+        fade.Completed += (_, _) => HideToast(generation);
+        Toast.BeginAnimation(OpacityProperty, fade);
+    }
+
+    // A toast shown while the previous one was fading out keeps its own generation, so the late
+    // fade-out of the older toast must not hide the newer message.
+    private void HideToast(int generation)
+    {
+        if (generation != _toastGeneration) return;
+        Toast.BeginAnimation(OpacityProperty, null);
+        Toast.Opacity = 0;
+        Toast.Visibility = Visibility.Collapsed;
+        _toastAction = null;
+    }
+
+    private void OnToastActionClick(object sender, RoutedEventArgs e)
+    {
+        var action = _toastAction;
+        _toastTimer.Stop();
+        _toastGeneration++;
+        HideToast(_toastGeneration);
+        action?.Invoke();
     }
 
     private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
@@ -1031,7 +1063,7 @@ public partial class EdgeStackWindow : Window
         var target = FindAncestor<ContentPresenter>((DependencyObject)e.OriginalSource)?.Content as CaptureItem;
         if (target is null || ReferenceEquals(source, target)) return;
         Captures.Move(Captures.IndexOf(source), Captures.IndexOf(target));
-        Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowTransientStatus(UiLanguage.Text("Порядок снимков изменён.")); await RefreshOwnedClipboardAsync();
+        Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowToast(UiLanguage.Text("Порядок снимков изменён.")); await RefreshOwnedClipboardAsync();
     }
 
     private async Task RestoreRemoved()
@@ -1040,11 +1072,8 @@ public partial class EdgeStackWindow : Window
         if (_removed.Count == 0) return;
         var removed = _removed.Pop();
         Captures.Insert(Math.Clamp(removed.Index, 0, Captures.Count), removed.Capture);
-        Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowTransientStatus(UiLanguage.Text("Снимок восстановлен.")); await RefreshOwnedClipboardAsync();
-        UndoRemoveButton.Visibility = _removed.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowToast(UiLanguage.Text("Снимок восстановлен.")); await RefreshOwnedClipboardAsync();
     }
-
-    private async void OnRestoreRemovedClick(object sender, RoutedEventArgs e) => await RestoreRemoved();
 
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
     {
@@ -1057,7 +1086,7 @@ public partial class EdgeStackWindow : Window
         if (_allowClose) { CancelReceiverEchoWatch(); _hotkeys?.Dispose(); _pasteIntentObserver.Dispose(); _clipboard.Dispose(); _trayIcon.Visible = false; _trayIcon.Dispose(); return; }
         e.Cancel = true;
         _saveTimer.Stop();
-        _statusTimer.Stop();
+        _toastTimer.Stop();
         if (!await SaveAsync()) { _exiting = false; ShowStackWithoutActivation(); return; }
         if (_exiting) { _allowClose = true; Close(); }
         else Hide();

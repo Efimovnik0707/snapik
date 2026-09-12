@@ -181,9 +181,16 @@
                     <Path Width="14" Height="14" Stroke="White" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M7,13 L7,1 M2,6 L7,1 L12,6" />
                 </Button>
             </Grid>
+            <!-- One toast at a time: it fades in over the strip footer, carries an optional action and never takes focus. -->
+            <Border x:Name="Toast" Grid.Row="4" Margin="2,8,2,0" Padding="8,5" CornerRadius="8" Background="#2B3440" Visibility="Collapsed" Opacity="0">
+                <DockPanel LastChildFill="True">
+                    <Button x:Name="ToastAction" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="0" VerticalAlignment="Center" Focusable="False"
+                            Visibility="Collapsed" Background="Transparent" BorderThickness="0" Foreground="#7AB8FF" FontSize="11" Cursor="Hand" Click="OnToastActionClick" />
+                    <TextBlock x:Name="ToastText" Foreground="#DCE3ED" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
             <Grid Grid.Row="5" Margin="2,8,2,0">
                 <TextBlock x:Name="StatusText" Visibility="Collapsed" Foreground="#FF9B95" FontSize="11" TextWrapping="Wrap" />
-                <Button x:Name="UndoRemoveButton" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="5,1" Visibility="Collapsed" Background="Transparent" BorderThickness="0" Foreground="#7AB8FF" FontSize="11" Content="Вернуть" Click="OnRestoreRemovedClick" />
             </Grid>
         </Grid>
     </Border>
