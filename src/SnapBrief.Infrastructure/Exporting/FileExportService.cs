@@ -58,10 +58,17 @@ public sealed class FileExportService(IExportImageRenderer renderer, TimeProvide
                 images.Add(new ExportImageEntry(capture.Id, label, fileName, await Sha256Async(imagePath, cancellationToken), imageInfo.Length));
             }
 
+            // Captures without notes produce no text at all: the package is then images only, and
+            // an empty prompt.md would just be an empty file for the user to open.
             var promptText = new PromptGenerator().Generate(session);
-            var promptFileName = "prompt.md";
-            var promptPath = Path.Combine(staging, promptFileName);
-            await File.WriteAllTextAsync(promptPath, promptText, new UTF8Encoding(false), cancellationToken);
+            var promptFileName = promptText.Length == 0 ? string.Empty : "prompt.md";
+            var promptSha256 = string.Empty;
+            if (promptText.Length > 0)
+            {
+                var promptPath = Path.Combine(staging, promptFileName);
+                await File.WriteAllTextAsync(promptPath, promptText, new UTF8Encoding(false), cancellationToken);
+                promptSha256 = await Sha256Async(promptPath, cancellationToken);
+            }
 
             var manifest = new ExportManifest(
                 exportId,
@@ -70,7 +77,7 @@ public sealed class FileExportService(IExportImageRenderer renderer, TimeProvide
                 _timeProvider.GetUtcNow(),
                 images.MoveToImmutable(),
                 promptFileName,
-                await Sha256Async(promptPath, cancellationToken),
+                promptSha256,
                 promptText,
                 session.Captures.Length,
                 CountNotes(session));

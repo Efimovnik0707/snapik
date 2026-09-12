@@ -126,6 +126,25 @@ public sealed partial class PasteCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task StagedPasteOfAPackageWithoutText_SkipsTheTextStepAndSucceeds()
+    {
+        // Captures without notes produce no prompt text; the package is then images only.
+        var package = CreatePackage(2) with { PromptText = string.Empty };
+        var clipboard = new FakeClipboard();
+        var input = new FakeInput();
+        var coordinator = CreateCoordinator(clipboard, input, new FakeObserver(
+            [AcceptanceOutcome.Accepted, AcceptanceOutcome.Accepted]));
+
+        var result = await coordinator.PasteAsync(package, Profile());
+
+        Assert.Equal(PasteStatus.CompletedVerified, result.Status);
+        Assert.Equal(package.ImagePaths, clipboard.Writes);
+        Assert.Equal(2, input.Gestures.Count);
+        Assert.False(result.TextDispatched);
+        Assert.Equal(2, result.ImagesConfirmed);
+    }
+
+    [Fact]
     public void ProfilesRejectEnterAndSinglePackageWithTwoGestures()
     {
         var enter = new HotkeyGesture(HotkeyModifiers.None, HotkeyGesture.EnterVirtualKey);

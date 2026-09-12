@@ -59,6 +59,32 @@ public sealed class SessionModelTests
     }
 
     [Fact]
+    public void Captures_without_notes_get_no_section_and_a_silent_session_gets_no_text()
+    {
+        var silent = CaptureItem.Create("source/a.png", 100, 100) with
+        {
+            Annotations = [AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.2, 0.2), new(0.4, 0.4)])]
+        };
+        var noted = CaptureItem.Create("source/b.png", 100, 100) with
+        {
+            Annotations = [AnnotationItem.Create(AnnotationKind.Arrow, [new(0.1, 0.2), new(0.8, 0.9)], note: "Сделать шире")]
+        };
+        var silentSession = SessionOperations.AddCapture(SnapBriefSession.Create(Start), silent, Start);
+        var mixedSession = SessionOperations.AddCapture(silentSession, noted, Start.AddSeconds(1));
+
+        Assert.Equal(string.Empty, new PromptGenerator().Generate(silentSession));
+
+        var prompt = new PromptGenerator().Generate(mixedSession);
+
+        Assert.DoesNotContain("Снимок A", prompt, StringComparison.Ordinal);
+        Assert.Contains("Снимок B.", prompt, StringComparison.Ordinal);
+        Assert.Contains("B1: Сделать шире", prompt, StringComparison.Ordinal);
+        Assert.Equal(
+            "Общее пожелание:\nСохранить цвета",
+            new PromptGenerator().Generate(silentSession with { GlobalNote = "Сохранить цвета" }));
+    }
+
+    [Fact]
     public void Sent_captures_leave_the_package_and_give_their_letters_to_the_waiting_ones()
     {
         var first = CaptureItem.Create("source/first.png", 100, 100) with { Sent = true };

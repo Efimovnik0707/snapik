@@ -179,6 +179,25 @@ public sealed class PersistenceAndExportTests : IDisposable
     }
 
     [Fact]
+    public async Task A_package_without_notes_carries_images_only_and_writes_no_prompt_file()
+    {
+        var service = new FileExportService(new RecordingPngRenderer(new ConcurrentQueue<string>()), new FrozenTimeProvider(Start));
+        var capture = CaptureItem.Create("source/a.png", 800, 600);
+        var session = SessionOperations.AddCapture(SnapBriefSession.Create(Start), capture, Start);
+        var sessionDirectory = Path.Combine(_root, "session");
+        Directory.CreateDirectory(Path.Combine(sessionDirectory, "source"));
+        await File.WriteAllBytesAsync(Path.Combine(sessionDirectory, capture.SourceImagePath), RecordingPngRenderer.OnePixelPng);
+
+        var prepared = await service.PrepareAsync(session, sessionDirectory);
+
+        Assert.Equal(string.Empty, prepared.Manifest.PromptText);
+        Assert.Equal(string.Empty, prepared.Manifest.PromptFileName);
+        Assert.Equal(string.Empty, prepared.Manifest.PromptSha256);
+        Assert.False(File.Exists(Path.Combine(prepared.RootDirectory, "prompt.md")));
+        Assert.Single(prepared.Manifest.Images);
+    }
+
+    [Fact]
     public async Task Invalid_renderer_output_does_not_publish_a_partial_revision()
     {
         var service = new FileExportService(new InvalidRenderer());

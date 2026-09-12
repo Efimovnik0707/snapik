@@ -19,6 +19,15 @@ public sealed class PromptGenerator
         {
             var capture = session.Captures[captureIndex];
             var captureLabel = CaptureLabels.ForIndex(captureIndex);
+            var labeledAnnotations = CaptureLabels.ForNotedAnnotations(captureLabel, capture).ToArray();
+            // A capture the user said nothing about adds nothing to the text: the image speaks for
+            // itself, and a bare "Снимок A." line would only pollute the receiving prompt. Letters
+            // still come from the position in the package, so the badges keep matching the text.
+            if (!ExportText.HasContent(capture.Title) && !ExportText.HasContent(capture.Note) && labeledAnnotations.Length == 0)
+            {
+                continue;
+            }
+
             var section = new StringBuilder($"Снимок {captureLabel}");
             if (ExportText.HasContent(capture.Title))
             {
@@ -31,7 +40,6 @@ public sealed class PromptGenerator
                 section.Append("\nКомментарий к снимку:\n").Append(capture.Note);
             }
 
-            var labeledAnnotations = CaptureLabels.ForNotedAnnotations(captureLabel, capture).ToArray();
             var labelsById = labeledAnnotations.ToDictionary(item => item.Annotation.Id, item => item.DisplayLabel);
             foreach (var labeled in labeledAnnotations)
             {

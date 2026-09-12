@@ -128,31 +128,36 @@ public sealed class PasteCoordinator(
             if (guard is not null) return guard;
         }
 
-        var beforeTextError = CheckTarget(target, state);
-        if (beforeTextError is not null) return beforeTextError;
-        progress?.Report(state.Progress(PastePhase.PreparingClipboard, package.ImagePaths.Count, "Готовим текст задания."));
-        lastReceipt = await clipboard.SetTextGuardedAsync(package.PromptText, expectedSequence, cancellationToken);
-        var textGuard = await CheckAfterWriteAsync(target, lastReceipt.Value, state, cancellationToken);
-        if (textGuard is not null) return textGuard;
+        // A package whose captures carry no notes has no text step at all.
+        var hasText = package.PromptText.Length > 0;
+        if (hasText)
+        {
+            var beforeTextError = CheckTarget(target, state);
+            if (beforeTextError is not null) return beforeTextError;
+            progress?.Report(state.Progress(PastePhase.PreparingClipboard, package.ImagePaths.Count, "Готовим текст задания."));
+            lastReceipt = await clipboard.SetTextGuardedAsync(package.PromptText, expectedSequence, cancellationToken);
+            var textGuard = await CheckAfterWriteAsync(target, lastReceipt.Value, state, cancellationToken);
+            if (textGuard is not null) return textGuard;
 
-        progress?.Report(state.Progress(PastePhase.SendingText, package.ImagePaths.Count, "Вставляем текст задания без отправки."));
-        await input.SendAsync(profile.TextPasteGesture, cancellationToken);
-        state.TextDispatched = true;
-        var textOutcome = await WithTimeoutAsync(
-            token => observer.WaitForTextAsync(target, profile, token),
-            profile.AcceptanceTimeout,
-            cancellationToken);
-        if (textOutcome == AcceptanceOutcome.Accepted) state.TextConfirmed = true;
-        else if (textOutcome == AcceptanceOutcome.NotObservable) state.CanResume = false;
-        else return StopForAcceptance(textOutcome, state);
+            progress?.Report(state.Progress(PastePhase.SendingText, package.ImagePaths.Count, "Вставляем текст задания без отправки."));
+            await input.SendAsync(profile.TextPasteGesture, cancellationToken);
+            state.TextDispatched = true;
+            var textOutcome = await WithTimeoutAsync(
+                token => observer.WaitForTextAsync(target, profile, token),
+                profile.AcceptanceTimeout,
+                cancellationToken);
+            if (textOutcome == AcceptanceOutcome.Accepted) state.TextConfirmed = true;
+            else if (textOutcome == AcceptanceOutcome.NotObservable) state.CanResume = false;
+            else return StopForAcceptance(textOutcome, state);
+        }
 
-        var verified = state.ImagesConfirmed == package.ImagePaths.Count && state.TextConfirmed;
+        var verified = state.ImagesConfirmed == package.ImagePaths.Count && (state.TextConfirmed || !hasText);
         var result = state.Result(
             verified ? PasteStatus.CompletedVerified : PasteStatus.CompletedUnverified,
             verified
                 ? "Все изображения и текст подтверждены получателем. Запрос оставлен черновиком."
                 : "Все комбинации вставки отправлены; часть приёма нельзя проверить автоматически. Проверьте черновик. Запрос не отправлен.");
-        await RestoreWhenSafeAsync(profile, originalClipboard, lastReceipt.Value, result, cancellationToken);
+        if (lastReceipt is { } receipt) await RestoreWhenSafeAsync(profile, originalClipboard, receipt, result, cancellationToken);
         progress?.Report(state.Progress(PastePhase.Completed, package.ImagePaths.Count, result.Message));
         return result;
     }
@@ -183,7 +188,6 @@ public sealed class PasteCoordinator(
         if (package.ImagePaths.Count == 0) return "В пакете нет изображений.";
         if (package.ImagePaths.Any(path => !Path.IsPathFullyQualified(path) || !string.Equals(Path.GetExtension(path), ".png", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)))
             return "Все изображения должны быть существующими PNG с абсолютными путями.";
-        if (string.IsNullOrEmpty(package.PromptText)) return "Текст задания пуст.";
         if (resume is not null && (resume.ExportId != package.ExportId || resume.ConfirmedImageCount < 0 || resume.ConfirmedImageCount > package.ImagePaths.Count || resume.TextConfirmed))
             return "Точка продолжения не относится к этому экспорту или уже завершена.";
         return null;

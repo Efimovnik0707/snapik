@@ -57,8 +57,10 @@ public sealed class CodexDesktopPasteCompletionService : ICodexDesktopPasteCompl
         if (intent.ClipboardSequenceNumber != ownedPackageReceipt.SequenceNumber)
             return Result(CodexPasteCompletionStatus.StaleIntent, "The paste intent does not refer to SnapBrief's current package.");
 
-        if (string.IsNullOrEmpty(immutablePromptText))
-            return Result(CodexPasteCompletionStatus.NothingToDispatch, "The package has no prompt text to paste.");
+        // A package whose captures carry no notes has no text step: the user's own Ctrl+V already
+        // delivered the images, so there is nothing left to dispatch and nothing failed.
+        if (immutablePromptText.Length == 0)
+            return Result(CodexPasteCompletionStatus.CompletedUnverified, "The package has no prompt text; the images were pasted by the user.");
 
         ClipboardWriteReceipt? textReceipt = null;
         try
@@ -142,8 +144,8 @@ public sealed class CodexDesktopPasteCompletionService : ICodexDesktopPasteCompl
 
         if (intent.ClipboardSequenceNumber != ownedPackageReceipt.SequenceNumber)
             return Result(CodexPasteCompletionStatus.StaleIntent, "The paste intent does not refer to SnapBrief's current package.");
-        if (immutableImagePaths.Count == 0 || string.IsNullOrEmpty(immutablePromptText))
-            return Result(CodexPasteCompletionStatus.NothingToDispatch, "The package needs at least one image and prompt text.");
+        if (immutableImagePaths.Count == 0)
+            return Result(CodexPasteCompletionStatus.NothingToDispatch, "The package needs at least one image.");
 
         var imageGesture = intent.Gesture;
         var perImageDelay = imageGesture == HotkeyGesture.AltV ? altVImageSettlementDelay : imageSettlementDelay;
@@ -175,6 +177,13 @@ public sealed class CodexDesktopPasteCompletionService : ICodexDesktopPasteCompl
                 if (!foreground.IsSame(target))
                     return Result(CodexPasteCompletionStatus.TargetLost, $"Focus changed after image {imageIndex + 1} paste.", currentReceipt);
             }
+
+            // A package without notes has no text step; the images are the whole package.
+            if (immutablePromptText.Length == 0)
+                return Result(
+                    CodexPasteCompletionStatus.CompletedUnverified,
+                    "Image paste shortcuts were dispatched in order; the package has no prompt text.",
+                    currentReceipt);
 
             // The terminal pastes text with Ctrl+V even when Alt+V is the image shortcut.
             textReceipt = await clipboard.SetTextGuardedAsync(

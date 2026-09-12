@@ -230,7 +230,9 @@ public sealed partial class WindowsClipboardService : IClipboardService, IDispos
         var files = new StringCollection();
         foreach (var path in pngPaths) files.Add(path);
         data.SetFileDropList(files);
-        data.SetText(text, TextDataFormat.UnicodeText);
+        // A package whose captures carry no notes has no text: publishing an empty UnicodeText
+        // would paste an empty line into the receiver's text field.
+        if (text.Length > 0) data.SetText(text, TextDataFormat.UnicodeText);
         return data;
     }
 

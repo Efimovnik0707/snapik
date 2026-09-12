@@ -87,9 +87,9 @@ public partial class EdgeStackWindow : Window
             if (_sessionResetting || !_pasteIntentTransition.IsCompleted || _clipboardPublicationGate.CurrentCount == 0 ||
                 _ownedClipboardReceipt is not { } receipt ||
                 intent.ClipboardSequenceNumber != receipt.SequenceNumber ||
-                string.IsNullOrEmpty(_ownedClipboardPromptText) || _prepared is null)
+                _ownedClipboardPromptText is null || _prepared is null)
             {
-                StartupTrace.Write(_options, $"PasteIntent predicate: state not ready (resetting={_sessionResetting}, transitionDone={_pasteIntentTransition.IsCompleted}, gate={_clipboardPublicationGate.CurrentCount}, ownedSeq={receiptSeq}, intentSeq={intent.ClipboardSequenceNumber}, prompt={!string.IsNullOrEmpty(_ownedClipboardPromptText)}, prepared={_prepared is not null}, gesture={intent.Gesture})");
+                StartupTrace.Write(_options, $"PasteIntent predicate: state not ready (resetting={_sessionResetting}, transitionDone={_pasteIntentTransition.IsCompleted}, gate={_clipboardPublicationGate.CurrentCount}, ownedSeq={receiptSeq}, intentSeq={intent.ClipboardSequenceNumber}, prompt={_ownedClipboardPromptText is not null}, prepared={_prepared is not null}, gesture={intent.Gesture})");
                 return false;
             }
             if (intent.Gesture != HotkeyGesture.CtrlV && intent.Gesture != HotkeyGesture.AltV)
@@ -373,6 +373,8 @@ public partial class EdgeStackWindow : Window
     private void StartReceiverEchoWatch(string[] paths, string prompt)
     {
         CancelReceiverEchoWatch();
+        // A package without text cannot come back as a text echo from the receiver.
+        if (prompt.Length == 0) return;
         var cts = new CancellationTokenSource();
         _receiverEchoWatchCts = cts;
         _ = WatchForReceiverEchoAsync(paths, prompt, cts);

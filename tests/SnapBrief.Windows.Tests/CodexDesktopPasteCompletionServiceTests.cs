@@ -406,18 +406,41 @@ public sealed class CodexDesktopPasteCompletionServiceTests
     }
 
     [Fact]
-    public async Task AltVAndEmptyPrompt_DoNotInject()
+    public async Task AltVDoesNotInject_AndAPackageWithoutTextSkipsTheTextStep()
     {
         var clipboard = new FakeClipboard(41);
         var input = new FakeInput();
         var service = Create(clipboard, new FakeTarget(Codex), input);
 
         var alt = await service.CompleteAsync(Intent(41) with { Gesture = HotkeyGesture.AltV }, new ClipboardWriteReceipt(41), "text");
+        // Captures without notes produce no prompt text: the user's own Ctrl+V pasted the images
+        // and there is no second step to dispatch, which is a success and not a failure.
         var empty = await service.CompleteAsync(Intent(41), new ClipboardWriteReceipt(41), string.Empty);
 
         Assert.Equal(CodexPasteCompletionStatus.NotApplicable, alt.Status);
-        Assert.Equal(CodexPasteCompletionStatus.NothingToDispatch, empty.Status);
+        Assert.Equal(CodexPasteCompletionStatus.CompletedUnverified, empty.Status);
+        Assert.Null(empty.TextClipboardReceipt);
+        Assert.Empty(clipboard.Writes);
         Assert.Empty(input.Gestures);
+    }
+
+    [Fact]
+    public async Task InterceptedPasteOfAPackageWithoutText_DispatchesImagesOnly()
+    {
+        var grokBot = new TargetSnapshot(101, 202, 303, "GrokBot", "GrokBot");
+        var clipboard = new FakeClipboard(41);
+        var input = new FakeInput();
+        var service = Create(clipboard, new FakeTarget(grokBot), input);
+        var paths = new[] { @"C:\shots\0.png", @"C:\shots\1.png" };
+        var intent = new PasteIntentObserved(HotkeyGesture.CtrlV, 101, 303, 41, DateTimeOffset.UtcNow, IsIntercepted: true);
+
+        var result = await service.CompleteSequentialAsync(intent, new ClipboardWriteReceipt(41), paths, string.Empty);
+
+        Assert.Equal(CodexPasteCompletionStatus.CompletedUnverified, result.Status);
+        Assert.Equal(paths, clipboard.Writes);
+        Assert.Null(clipboard.WrittenText);
+        Assert.Equal(2, input.Gestures.Count);
+        Assert.Equal(new ClipboardWriteReceipt(43), result.CurrentClipboardReceipt);
     }
 
     private static CodexDesktopPasteCompletionService Create(FakeClipboard clipboard, FakeTarget target, FakeInput input) =>
