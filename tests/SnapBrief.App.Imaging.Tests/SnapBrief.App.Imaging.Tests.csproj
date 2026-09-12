@@ -16,5 +16,6 @@
     <Compile Include="..\..\src\SnapBrief.App\Controls\ResizeGeometry.cs" Link="ResizeGeometry.cs" />
     <Compile Include="..\..\src\SnapBrief.App\Controls\HotkeyLabelParts.cs" Link="HotkeyLabelParts.cs" />
     <Compile Include="..\..\src\SnapBrief.App\SingleInstanceActivation.cs" Link="SingleInstanceActivation.cs" />
+    <Compile Include="..\..\src\SnapBrief.App\PublishedPackage.cs" Link="PublishedPackage.cs" />
   </ItemGroup>
 </Project>

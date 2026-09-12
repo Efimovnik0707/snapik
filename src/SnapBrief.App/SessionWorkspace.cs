@@ -46,6 +46,13 @@ public sealed class SessionWorkspace
     public string RestoredGlobalNote { get; private set; } = string.Empty;
     public string? RestoredProfileId { get; private set; }
 
+    /// <summary>
+    /// The export directory whose PNGs are on the clipboard right now. It survives the trim together
+    /// with the newest revisions: a manual "Copy package" or "Save package…" writes revisions of its
+    /// own, and without the pin they could push out the directory the published package points at.
+    /// </summary>
+    public string? PinnedExportDirectory { get; set; }
+
     public async Task<IReadOnlyList<CaptureItem>> LoadCurrentAsync(CancellationToken cancellationToken = default)
     {
         if (!File.Exists(_currentPointer)) return [];
@@ -151,18 +158,21 @@ public sealed class SessionWorkspace
 
     // Every prepared package writes another exports/revision-* directory with a full copy of the
     // strip, and captures now live on across pastes, so only the newest few are kept. The directory
-    // the current package points at is never removed, and a directory that refuses to go (a reader
-    // still holding a file) is left for the next run.
+    // the current package points at and the pinned one (the package on the clipboard) are never
+    // removed, and a directory that refuses to go (a reader still holding a file) is left for the
+    // next run.
     private void TrimExports(string currentPackageDirectory)
     {
         var exportsRoot = Path.Combine(SessionDirectory, "exports");
         if (!Directory.Exists(exportsRoot)) return;
         var keep = Path.GetFullPath(currentPackageDirectory);
+        var pinned = PinnedExportDirectory is { } pin ? Path.GetFullPath(pin) : null;
         var stale = Directory.EnumerateDirectories(exportsRoot, "revision-*")
             .Select(Path.GetFullPath)
             .OrderByDescending(ExportRevisionNumber)
             .Skip(KeptExportRevisions)
-            .Where(path => !string.Equals(path, keep, StringComparison.OrdinalIgnoreCase))
+            .Where(path => !string.Equals(path, keep, StringComparison.OrdinalIgnoreCase) &&
+                           !string.Equals(path, pinned, StringComparison.OrdinalIgnoreCase))
             // A .staging-* directory is removed by the export itself unless the process died in the
             // middle of writing it, so only the ones older than this process are safe to drop.
             .Concat(Directory.EnumerateDirectories(exportsRoot, ".staging-*")

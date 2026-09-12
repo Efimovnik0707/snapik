@@ -75,13 +75,23 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     }
 
     // Written through a neighbouring temporary file: a write interrupted halfway must not leave
-    // a truncated file where every preference lived, because such a file no longer loads.
+    // a truncated file where every preference lived, because such a file no longer loads. The name
+    // of that file carries the process id, so a second SnapBrief (or a smoke run against the same
+    // directory) writes its own; a write that failed takes its temporary file with it.
     public void Save(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
-        File.Move(temporary, path, overwrite: true);
+        var temporary = $"{path}.{Environment.ProcessId}.tmp";
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(temporary, path, overwrite: true);
+        }
+        catch
+        {
+            try { File.Delete(temporary); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            throw;
+        }
     }
 
     public static HotkeyChoice Find(string id)

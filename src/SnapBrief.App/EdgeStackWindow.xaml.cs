@@ -39,8 +39,8 @@ public partial class EdgeStackWindow : Window
     private int _topmostSuspensions;
     private WindowsGlobalHotkeyService? _hotkeys;
     private PreparedExport? _prepared;
+    private PublishedPackage? _published;
     private ClipboardWriteReceipt? _ownedClipboardReceipt;
-    private string? _ownedClipboardPromptText;
     private string _legacyGlobalNote = string.Empty;
     private bool _loadedOnce;
     private bool _busy;
@@ -86,12 +86,13 @@ public partial class EdgeStackWindow : Window
         _pasteIntentObserver = new WindowsPasteIntentObserver(intent =>
         {
             var receiptSeq = _ownedClipboardReceipt?.SequenceNumber;
+            // What the clipboard holds is the published package, not the prepared export: the export
+            // is rebuilt (or dropped) as soon as the strip changes, while the package the user is
+            // about to paste stays on the clipboard until something replaces it.
             if (_sessionResetting || !_pasteIntentTransition.IsCompleted || _clipboardPublicationGate.CurrentCount == 0 ||
-                _ownedClipboardReceipt is not { } receipt ||
-                intent.ClipboardSequenceNumber != receipt.SequenceNumber ||
-                _ownedClipboardPromptText is null || _prepared is null)
+                !PublishedPackage.IsOwnPaste(_published, receiptSeq, intent.ClipboardSequenceNumber))
             {
-                StartupTrace.Write(_options, $"PasteIntent predicate: state not ready (resetting={_sessionResetting}, transitionDone={_pasteIntentTransition.IsCompleted}, gate={_clipboardPublicationGate.CurrentCount}, ownedSeq={receiptSeq}, intentSeq={intent.ClipboardSequenceNumber}, prompt={_ownedClipboardPromptText is not null}, prepared={_prepared is not null}, gesture={intent.Gesture})");
+                StartupTrace.Write(_options, $"PasteIntent predicate: state not ready (resetting={_sessionResetting}, transitionDone={_pasteIntentTransition.IsCompleted}, gate={_clipboardPublicationGate.CurrentCount}, ownedSeq={receiptSeq}, intentSeq={intent.ClipboardSequenceNumber}, published={_published is not null}, gesture={intent.Gesture})");
                 return false;
             }
             if (intent.Gesture != HotkeyGesture.CtrlV && intent.Gesture != HotkeyGesture.AltV)
@@ -225,45 +226,45 @@ public partial class EdgeStackWindow : Window
     private void OnPasteIntentObserved(object? sender, PasteIntentObserved e)
     {
         var receiptAtIntent = _ownedClipboardReceipt;
-        var promptAtIntent = _ownedClipboardPromptText;
+        // The files, the text and the captures come from the package that was published, so the
+        // completion works on what is on the clipboard even when the prepared export has moved on.
+        // Which captures the package holds is decided by id: the strip may be reordered or trimmed
+        // before the completion finishes, and then indices would point at other captures. A capture
+        // edited between this intent and the completion keeps its id, so it is marked as sent
+        // together with the rest of the package it left in.
+        var publishedAtIntent = _published;
         StartupTrace.Write(_options, $"PasteIntent observed: gesture={e.Gesture}, intercepted={e.IsIntercepted}, seq={e.ClipboardSequenceNumber}, ownedSeq={receiptAtIntent?.SequenceNumber}, pid={e.ForegroundProcessId}");
         if (receiptAtIntent is null || e.ClipboardSequenceNumber != receiptAtIntent.Value.SequenceNumber)
         {
             _ = LogClipboardDiagnosticsAsync();
             return;
         }
-        if (promptAtIntent is null)
+        if (publishedAtIntent is null)
         {
             SetStatus(UiLanguage.Text("Не удалось подтвердить содержимое текущего пакета. Сессия сохранена."), true);
             return;
         }
 
         if (_sessionResetting || !_pasteIntentTransition.IsCompleted || _clipboardPublicationGate.CurrentCount == 0 || _ownedClipboardReceipt != receiptAtIntent) return;
-        var pathsAtIntent = _prepared?.GetImagePathsInOrder().ToArray() ?? [];
-        // Which captures the package holds is decided here, by id: the strip may be reordered or
-        // trimmed before the completion finishes, and then indices would point at other captures.
-        // A capture edited between this intent and the completion keeps its id, so it is marked as
-        // sent together with the rest of the package it left in.
-        var idsAtIntent = _prepared?.Manifest.Images.Select(image => image.CaptureId).ToArray() ?? [];
         // Snapshot in the keyboard hook, but release the hook before any clipboard I/O.
         _pasteIntentTransition = Dispatcher.InvokeAsync(() =>
-            CompletePasteIntentAsync(e, receiptAtIntent.Value, promptAtIntent, pathsAtIntent, idsAtIntent)).Task.Unwrap();
+            CompletePasteIntentAsync(e, receiptAtIntent.Value, publishedAtIntent)).Task.Unwrap();
     }
 
-    private async Task CompletePasteIntentAsync(PasteIntentObserved e, ClipboardWriteReceipt receiptAtIntent, string promptAtIntent, string[] pathsAtIntent, Guid[] idsAtIntent)
+    private async Task CompletePasteIntentAsync(PasteIntentObserved e, ClipboardWriteReceipt receiptAtIntent, PublishedPackage publishedAtIntent)
     {
         await _clipboardPublicationGate.WaitAsync();
         try
         {
             var completion = e.IsIntercepted
-                ? await _codexPasteCompletion.CompleteSequentialAsync(e, receiptAtIntent, pathsAtIntent, promptAtIntent, CancellationToken.None)
+                ? await _codexPasteCompletion.CompleteSequentialAsync(e, receiptAtIntent, publishedAtIntent.Paths, publishedAtIntent.Prompt, CancellationToken.None)
                 : await _codexPasteCompletion.CompleteAsync(
                 e,
                 receiptAtIntent,
-                promptAtIntent,
+                publishedAtIntent.Prompt,
                 CancellationToken.None);
 
-            StartupTrace.Write(_options, $"PasteIntent completion: intercepted={e.IsIntercepted}, images={pathsAtIntent.Length}, status={completion.Status}, message={completion.Message}");
+            StartupTrace.Write(_options, $"PasteIntent completion: intercepted={e.IsIntercepted}, images={publishedAtIntent.Paths.Length}, status={completion.Status}, message={completion.Message}");
             // A newer capture may have replaced the package while completion was waiting.
             // Never rotate that newer session in response to this older paste intent.
             if (_ownedClipboardReceipt != receiptAtIntent) return;
@@ -277,15 +278,15 @@ public partial class EdgeStackWindow : Window
                 // application right away; the captures stay in the strip and only turn sent. The
                 // republish arms the echo watch first, and marking runs after it: only captures
                 // that are still waiting rebuild the clipboard and cancel that watch.
-                await RepublishPackageForReuseAsync(pathsAtIntent, promptAtIntent);
-                await MarkCapturesSentAsync(idsAtIntent);
+                await RepublishPackageForReuseAsync(publishedAtIntent);
+                await MarkCapturesSentAsync(publishedAtIntent.CaptureIds);
                 return;
             }
 
             if (!e.IsIntercepted && completion.Status == CodexPasteCompletionStatus.NotApplicable)
             {
                 if (await _clipboard.IsCurrentAsync(receiptAtIntent, CancellationToken.None))
-                    await MarkCapturesSentAsync(idsAtIntent);
+                    await MarkCapturesSentAsync(publishedAtIntent.CaptureIds);
                 return;
             }
 
@@ -332,30 +333,31 @@ public partial class EdgeStackWindow : Window
         }
     }
 
-    private async Task RepublishPackageForReuseAsync(string[] pathsAtIntent, string promptAtIntent)
+    private async Task RepublishPackageForReuseAsync(PublishedPackage publishedAtIntent)
     {
-        if (_ownedClipboardReceipt is not { } current || _prepared is null)
+        if (_ownedClipboardReceipt is not { } current)
         {
             SetStatus(UiLanguage.Text("Пакет вытеснен другим приложением. Сессия сохранена."), true);
             return;
         }
         try
         {
-            var republished = await _clipboard.SetPackageGuardedAsync(pathsAtIntent, promptAtIntent, current.SequenceNumber, CancellationToken.None);
+            var republished = await _clipboard.SetPackageGuardedAsync(publishedAtIntent.Paths, publishedAtIntent.Prompt, current.SequenceNumber, CancellationToken.None);
             _ownedClipboardReceipt = republished;
-            _ownedClipboardPromptText = promptAtIntent;
-            StartupTrace.Write(_options, $"PasteIntent republished package: seq={republished.SequenceNumber}, images={pathsAtIntent.Length}");
+            SetPublished(publishedAtIntent);
+            StartupTrace.Write(_options, $"PasteIntent republished package: seq={republished.SequenceNumber}, images={publishedAtIntent.Paths.Length}");
             var template = UiLanguage.Text("Вставлено: {0} изображений · {1} заметок. Снимки помечены как отправленные");
-            ShowToast(string.Format(template, _prepared.Manifest.CaptureCount, _prepared.Manifest.NoteCount));
-            StartReceiverEchoWatch(pathsAtIntent, promptAtIntent);
+            ShowToast(string.Format(template, publishedAtIntent.Paths.Length, publishedAtIntent.NoteCount));
+            StartReceiverEchoWatch(publishedAtIntent);
         }
         catch (ClipboardChangedException)
         {
-            // Someone else copied in the meantime; leave their clipboard untouched and
-            // let the next capture's EnsureCurrentCaptureSessionAsync detect the mismatch.
+            // Someone else copied in the meantime; leave their clipboard untouched. The next capture
+            // rebuilds the package in SaveAndCopyCommittedPackageAsync from the captures that are
+            // still waiting, and nothing of ours is on the clipboard until then.
             CancelReceiverEchoWatch();
             _ownedClipboardReceipt = null;
-            _ownedClipboardPromptText = null;
+            SetPublished(null);
             SetStatus(UiLanguage.Text("Пакет вытеснен другим приложением. Сессия сохранена."), true);
         }
     }
@@ -376,17 +378,17 @@ public partial class EdgeStackWindow : Window
         cts.Dispose();
     }
 
-    private void StartReceiverEchoWatch(string[] paths, string prompt)
+    private void StartReceiverEchoWatch(PublishedPackage published)
     {
         CancelReceiverEchoWatch();
         // A package without text cannot come back as a text echo from the receiver.
-        if (prompt.Length == 0) return;
+        if (published.Prompt.Length == 0) return;
         var cts = new CancellationTokenSource();
         _receiverEchoWatchCts = cts;
-        _ = WatchForReceiverEchoAsync(paths, prompt, cts);
+        _ = WatchForReceiverEchoAsync(published, cts);
     }
 
-    private async Task WatchForReceiverEchoAsync(string[] paths, string prompt, CancellationTokenSource cts)
+    private async Task WatchForReceiverEchoAsync(PublishedPackage published, CancellationTokenSource cts)
     {
         var token = cts.Token;
         try
@@ -406,7 +408,7 @@ public partial class EdgeStackWindow : Window
 
                 if (snapshot.SequenceNumber == current.SequenceNumber) continue;
 
-                if (!ClipboardEchoDetector.IsReceiverEcho(snapshot, prompt))
+                if (!ClipboardEchoDetector.IsReceiverEcho(snapshot, published.Prompt))
                 {
                     StartupTrace.Write(_options, "PasteIntent package displaced by foreign clipboard write");
                     return;
@@ -416,10 +418,10 @@ public partial class EdgeStackWindow : Window
                 try
                 {
                     if (token.IsCancellationRequested) return;
-                    var republished = await _clipboard.SetPackageGuardedAsync(paths, prompt, snapshot.SequenceNumber, token);
+                    var republished = await _clipboard.SetPackageGuardedAsync(published.Paths, published.Prompt, snapshot.SequenceNumber, token);
                     StartupTrace.Write(_options, $"PasteIntent re-armed after receiver echo: from seq {current.SequenceNumber} to {republished.SequenceNumber}");
                     _ownedClipboardReceipt = republished;
-                    _ownedClipboardPromptText = prompt;
+                    SetPublished(published);
                 }
                 catch (OperationCanceledException) { return; }
                 catch (ClipboardChangedException)
@@ -566,14 +568,14 @@ public partial class EdgeStackWindow : Window
                 await SaveCoreAsync();
                 _prepared = null;
                 _ownedClipboardReceipt = null;
-                _ownedClipboardPromptText = null;
+                SetPublished(null);
                 SetStatus(string.Empty);
                 return true;
             }
             _prepared = await _workspace.PrepareAsync(Captures, pending, string.Empty, SelectedProfile?.Id);
             var current = await _clipboard.CaptureAsync(CancellationToken.None);
             _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(_prepared.GetImagePathsInOrder(), _prepared.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
-            _ownedClipboardPromptText = _prepared.Manifest.PromptText;
+            SetPublished(Published(_prepared));
             NotifyCopied();
             SetStatus(string.Empty);
             return true;
@@ -794,7 +796,7 @@ public partial class EdgeStackWindow : Window
             var package = await _workspace.PrepareAsync(Captures, Captures, string.Empty, SelectedProfile?.Id);
             var current = await _clipboard.CaptureAsync(CancellationToken.None);
             _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(package.GetImagePathsInOrder(), package.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
-            _ownedClipboardPromptText = package.Manifest.PromptText;
+            SetPublished(Published(package));
             // The next capture rebuilds the package from the captures that are still waiting anyway.
             _prepared = package;
             NotifyCopied();
@@ -903,6 +905,22 @@ public partial class EdgeStackWindow : Window
     private IReadOnlyList<CaptureItem> PendingCaptures => SentCaptureRules.ForPackage(Captures, capture => capture.IsSent);
 
     private void InvalidatePrepared() { _prepared = null; }
+
+    private static PublishedPackage Published(PreparedExport export) => new(
+        [.. export.GetImagePathsInOrder()],
+        export.Manifest.PromptText,
+        [.. export.Manifest.Images.Select(image => image.CaptureId)],
+        export.RootDirectory,
+        export.Manifest.NoteCount);
+
+    // The export directory of the published package is pinned in the workspace: its PNGs are the ones
+    // on the clipboard, so the revisions written by a manual "Copy package" must not trim it away.
+    private void SetPublished(PublishedPackage? published)
+    {
+        _published = published;
+        _workspace.PinnedExportDirectory = published?.ExportDirectory;
+    }
+
     private void QueueSave() { _saveTimer.Stop(); _saveTimer.Start(); }
     // The clipboard follows the strip even when the session file could not be written: an old receipt
     // would make the next Ctrl+V paste a package that no longer matches what the strip holds.
@@ -943,8 +961,7 @@ public partial class EdgeStackWindow : Window
             // holds the capture it points at.
             HideToastNow();
             _prepared = null;
-            _ownedClipboardReceipt = null;
-            _ownedClipboardPromptText = null;
+            await ReleaseOwnedClipboardAsync();
             Renumber();
             SetStatus(string.Empty);
             ShowToast(UiLanguage.Text("Лента очищена"));
@@ -961,6 +978,25 @@ public partial class EdgeStackWindow : Window
             _loading = false;
             _sessionResetting = false;
         }
+    }
+
+    // The package lives on the clipboard until the next capture or until the strip is cleared, so
+    // clearing gives the clipboard back — but only while it still holds our own write; a package
+    // another application has already replaced is not ours to erase.
+    private async Task ReleaseOwnedClipboardAsync()
+    {
+        if (_ownedClipboardReceipt is { } receipt)
+        {
+            try
+            {
+                if (await _clipboard.IsCurrentAsync(receipt, CancellationToken.None))
+                    await _clipboard.SetTextGuardedAsync(string.Empty, receipt.SequenceNumber, CancellationToken.None);
+            }
+            catch (ClipboardChangedException) { }
+            catch (Exception ex) { StartupTrace.Write(_options, $"Clear strip: the clipboard was not released: {ex.Message}"); }
+        }
+        _ownedClipboardReceipt = null;
+        SetPublished(null);
     }
 
     private async Task ClearStackFromUserAsync()
@@ -1010,38 +1046,39 @@ public partial class EdgeStackWindow : Window
             if (!await _clipboard.IsCurrentAsync(receipt, CancellationToken.None))
             {
                 _ownedClipboardReceipt = null;
-                _ownedClipboardPromptText = null;
+                SetPublished(null);
                 return;
             }
             var pending = PendingCaptures;
             if (pending.Count == 0)
             {
                 // A strip that holds only sent captures keeps the package that was pasted from it:
-                // the clipboard, the prepared export and the receipt all still describe that package,
-                // so the same set can be pasted again elsewhere. Only a strip that is really empty
-                // gives the clipboard back.
+                // the clipboard, the published package and the receipt all still describe it, so the
+                // same set can be pasted again elsewhere; the prepared export may already be gone,
+                // and that is exactly why the two are tracked apart. Only a strip that is really
+                // empty gives the clipboard back.
                 if (Captures.Count > 0) return;
                 _ownedClipboardReceipt = await _clipboard.SetTextGuardedAsync(string.Empty, receipt.SequenceNumber, CancellationToken.None);
-                _ownedClipboardPromptText = null;
+                SetPublished(null);
                 _prepared = null;
                 return;
             }
             _prepared = await _workspace.PrepareAsync(Captures, pending, string.Empty, SelectedProfile?.Id);
             _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(_prepared.GetImagePathsInOrder(), _prepared.Manifest.PromptText, receipt.SequenceNumber, CancellationToken.None);
-            _ownedClipboardPromptText = _prepared.Manifest.PromptText;
+            SetPublished(Published(_prepared));
             if (notifyCopied) NotifyCopied();
         }
         catch (ClipboardChangedException)
         {
             _ownedClipboardReceipt = null;
-            _ownedClipboardPromptText = null;
+            SetPublished(null);
         }
         catch (Exception ex)
         {
             // The receipt no longer describes anything we can trust, and this method cannot tell
             // whether the session itself was written: the message promises only what is known.
             _ownedClipboardReceipt = null;
-            _ownedClipboardPromptText = null;
+            SetPublished(null);
             SetStatus($"{UiLanguage.Text("Буфер не обновлён")}: {ex.Message}", true);
         }
     }
