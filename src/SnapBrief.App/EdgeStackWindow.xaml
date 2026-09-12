@@ -76,6 +76,7 @@
             </Setter>
         </Style>
     </Window.Resources>
+    <Grid>
     <Border x:Name="Shell" Margin="10" Padding="10" CornerRadius="16" Background="#F2171A20">
         <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="24" ShadowDepth="5" Opacity="0.42" /></Border.Effect>
         <Grid>
@@ -212,4 +213,12 @@
             </Grid>
         </Grid>
     </Border>
+    <!-- The left edge of the card resizes the strip: six invisible pixels over the border, right
+         where the pointer expects them. The right edge is fixed while dragging, so the strip keeps
+         its place at the screen edge. The header drag lives further in and never meets this. -->
+    <Thumb x:Name="WidthGrip" HorizontalAlignment="Left" Width="6" Margin="10,22,0,22" Cursor="SizeWE"
+           DragStarted="OnWidthDragStarted" DragDelta="OnWidthDragDelta" DragCompleted="OnWidthDragCompleted">
+        <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
+    </Thumb>
+    </Grid>
 </Window>

@@ -60,6 +60,7 @@ public partial class EdgeStackWindow : Window
     private Action? _toastAction;
     private int _toastGeneration;
     private Point _dragStart;
+    private double _resizeRightEdge;
     private CaptureItem? _draggedCapture;
     private readonly Stack<(CaptureItem Capture, int Index)> _removed = [];
     private TargetProfile? _selectedProfile;
@@ -539,9 +540,27 @@ public partial class EdgeStackWindow : Window
     private void PositionAtEdge()
     {
         var work = SystemParameters.WorkArea;
+        // The width the user dragged the strip to, kept inside its range: a settings file written by
+        // hand (or by an older build with another range) must not produce a strip nobody can use.
+        Width = Controls.StripResizeGeometry.ClampWidth(_settings.StackWidth);
         Left = work.Right - Width - 10;
         Top = Math.Max(work.Top + 24, work.Top + (work.Height - Math.Max(ActualHeight, 160)) / 2);
     }
+
+    // The right edge is taken once, at the start of the drag: reading it from Left + Width on every
+    // delta would accumulate the rounding of each step and let the strip drift off the screen edge.
+    private void OnWidthDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e) =>
+        _resizeRightEdge = Left + Width;
+
+    private void OnWidthDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, SystemParameters.WorkArea.Left);
+        Width = width;
+        Left = left;
+    }
+
+    private void OnWidthDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
+        MutateSettings(stored => stored with { StackWidth = Width });
 
     private async Task<bool> PrepareAsync()
     {

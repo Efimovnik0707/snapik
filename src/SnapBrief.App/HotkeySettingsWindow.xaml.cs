@@ -26,6 +26,8 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// <summary>How loud the interface sounds are, 0..100; each sound keeps its own gain on top.</summary>
     public int SoundVolume { get; init; } = 60;
     public bool StackTopmost { get; init; } = true;
+    /// <summary>The width of the strip window in pixels; the visible card is 20 px narrower.</summary>
+    public double StackWidth { get; init; } = Controls.StripResizeGeometry.DefaultWidth;
     public bool ClearStackAfterPaste { get; init; }
     public string AnnotationColor { get; init; } = "#2F8CFF";
     public double AnnotationThickness { get; init; } = 4;

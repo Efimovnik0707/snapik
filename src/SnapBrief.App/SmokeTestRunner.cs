@@ -29,7 +29,7 @@ public static class SmokeTestRunner
         {
             AutoSaveCaptures = true, PlaySounds = false, SoundVolume = 35,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
-            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, ClearStackAfterPaste = true,
+            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9,
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
