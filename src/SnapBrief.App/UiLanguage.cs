@@ -48,7 +48,11 @@ internal static class UiLanguage
         ["Изображения"] = "Images", ["Все файлы"] = "All files", ["Добавлено снимков: {0}"] = "Captures added: {0}",
         ["Изображение добавлено."] = "Image added.", ["В буфере нет изображения."] = "There is no image on the clipboard.",
         ["Не удалось добавить"] = "Could not add", ["Формат не поддерживается системой"] = "The system does not support this format",
-        ["Поверх других окон"] = "Always on top"
+        ["Поверх других окон"] = "Always on top", ["Не удалось сохранить настройки"] = "Could not save the settings",
+        ["Файл настроек не читается."] = "The settings file cannot be read.",
+        ["Снимок удалён"] = "Capture removed", ["Снимок восстановлен."] = "Capture restored.",
+        ["Порядок снимков изменён."] = "Capture order changed.", ["Пакет сохранён."] = "Package saved.",
+        ["Готово: {0} изображений · {1} заметок"] = "Ready: {0} images · {1} notes"
     };
     internal static string Text(string value, string? language = null) => (language ?? Current) == "en" ? (English.TryGetValue(value, out var translated) ? translated : value) : (English.FirstOrDefault(pair => pair.Value == value).Key ?? value);
     internal static void Apply(DependencyObject root, string? language = null)

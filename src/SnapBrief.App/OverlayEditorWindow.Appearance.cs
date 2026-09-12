@@ -107,9 +107,18 @@ public partial class OverlayEditorWindow
             _undo.Push(_appearanceBefore); _redo.Clear(); _lastSnapshot = SnapshotState();
         }
         _appearanceBefore = null; _appearanceChanged = false;
-        if (_appearanceDefaultsChanged) { _appearanceDefaultsChanged = false; SaveAppearanceDefaults(); }
+        FlushAppearanceDefaults();
         SyncAppearance();
         Surface.Focus();
+    }
+
+    // The popover normally writes the defaults when it closes, but a window completed by the global
+    // capture hotkey never raises Popup.Closed, so the editor flushes them while closing as well.
+    private void FlushAppearanceDefaults()
+    {
+        if (!_appearanceDefaultsChanged) return;
+        _appearanceDefaultsChanged = false;
+        SaveAppearanceDefaults();
     }
 
     // The editor window is created again for every capture, so the last picked colour
@@ -119,7 +128,9 @@ public partial class OverlayEditorWindow
         try
         {
             var path = _workspace.SettingsPath;
-            var settings = HotkeySettings.Load(path) with
+            // Load-modify-write over a file that exists but cannot be read would drop every other setting.
+            if (!HotkeySettings.TryLoad(path, out var stored)) return;
+            var settings = stored with
             {
                 AnnotationColor = $"#{_activeColor.R:X2}{_activeColor.G:X2}{_activeColor.B:X2}",
                 AnnotationThickness = Math.Clamp(_activeThickness, 1, 16)

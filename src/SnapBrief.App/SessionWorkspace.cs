@@ -148,16 +148,20 @@ public sealed class SessionWorkspace
     public static BitmapSource LoadBitmap(string path)
     {
         using var stream = File.OpenRead(path);
-        BitmapDecoder decoder;
-        // WebP and other exotic formats decode only when the system ships a WIC codec for them.
-        try { decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad); }
+        // WebP and other exotic formats decode only when the system ships a WIC codec for them, and
+        // such a codec can also fail while producing the frame, not only while creating the decoder.
+        try
+        {
+            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            if (decoder.Frames.Count == 0) throw new FileFormatException(new Uri(path), UiLanguage.Text("Формат не поддерживается системой"));
+            var frame = decoder.Frames[0];
+            frame.Freeze();
+            return frame;
+        }
         catch (Exception ex) when (ex is NotSupportedException or FileFormatException)
         {
             throw new InvalidOperationException(UiLanguage.Text("Формат не поддерживается системой"), ex);
         }
-        var frame = decoder.Frames[0];
-        frame.Freeze();
-        return frame;
     }
 
     public static BitmapSource CreateDemoBitmap(int index, int width = 1280, int height = 720, double dpi = 96)

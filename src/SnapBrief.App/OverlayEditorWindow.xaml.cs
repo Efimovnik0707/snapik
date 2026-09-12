@@ -881,6 +881,7 @@ public partial class OverlayEditorWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         _closed = true;
+        FlushAppearanceDefaults();
         if (Result.Cancelled) CancelEdit();
     }
 

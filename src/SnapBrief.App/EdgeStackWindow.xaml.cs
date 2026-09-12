@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -36,6 +36,7 @@ public partial class EdgeStackWindow : Window
     private readonly SemaphoreSlim _workspaceMutationGate = new(1, 1);
     private readonly SemaphoreSlim _clipboardPublicationGate = new(1, 1);
     private HotkeySettings _settings;
+    private int _topmostSuspensions;
     private WindowsGlobalHotkeyService? _hotkeys;
     private PreparedExport? _prepared;
     private ClipboardWriteReceipt? _ownedClipboardReceipt;
@@ -496,7 +497,7 @@ public partial class EdgeStackWindow : Window
         _removed.Push((capture.DeepClone(), index));
         Renumber();
         InvalidatePrepared();
-        if (await SaveAsync()) SetStatus("Снимок удалён");
+        if (await SaveAsync()) ShowTransientStatus(UiLanguage.Text("Снимок удалён"));
         await RefreshOwnedClipboardAsync();
         UndoRemoveButton.Visibility = Visibility.Visible;
         e.Handled = true;
@@ -556,7 +557,7 @@ public partial class EdgeStackWindow : Window
             SetStatus("Готовим PNG и текст…");
             _prepared = await _workspace.PrepareAsync(Captures, string.Empty, SelectedProfile?.Id);
             PasteButton.IsEnabled = true;
-            SetStatus($"Готово: {_prepared.Manifest.CaptureCount} изображений · {_prepared.Manifest.NoteCount} заметок");
+            ShowTransientStatus(string.Format(UiLanguage.Text("Готово: {0} изображений · {1} заметок"), _prepared.Manifest.CaptureCount, _prepared.Manifest.NoteCount));
             return true;
         }
         catch (Exception ex) { SetStatus($"Не удалось подготовить: {ex.Message}", true); return false; }
@@ -639,24 +640,51 @@ public partial class EdgeStackWindow : Window
         menu.IsOpen = true;
     }
 
-    private void ToggleTopmost()
+    // The editor writes annotation defaults into the same file, so a change made from the strip is
+    // applied on top of what is on disk right now, not on top of the snapshot taken at startup.
+    private bool MutateSettings(Func<HotkeySettings, HotkeySettings> change)
     {
-        _settings = _settings with { StackTopmost = !_settings.StackTopmost };
-        Topmost = _settings.StackTopmost;
-        try { _settings.Save(_settingsPath); }
-        catch (Exception ex) { SetStatus($"Не удалось сохранить настройки: {ex.Message}", true); }
+        try
+        {
+            if (!HotkeySettings.TryLoad(_settingsPath, out var stored))
+                throw new InvalidOperationException(UiLanguage.Text("Файл настроек не читается."));
+            var updated = change(stored);
+            updated.Save(_settingsPath);
+            _settings = updated;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"{UiLanguage.Text("Не удалось сохранить настройки")}: {ex.Message}", true);
+            return false;
+        }
     }
 
-    // Modal dialogs owned by the strip would otherwise open behind a topmost strip.
+    private void ToggleTopmost()
+    {
+        if (MutateSettings(settings => settings with { StackTopmost = !settings.StackTopmost })) ApplyTopmost();
+    }
+
+    // Modal dialogs owned by the strip would otherwise open behind a topmost strip. Suspensions nest
+    // (a dialog opened over another one), so the strip returns on top only when the last one ends.
     private IDisposable SuspendTopmost()
     {
+        _topmostSuspensions++;
         Topmost = false;
         return new TopmostSuspension(this);
     }
 
+    private void ApplyTopmost() => Topmost = _topmostSuspensions == 0 && _settings.StackTopmost;
+
     private sealed class TopmostSuspension(EdgeStackWindow owner) : IDisposable
     {
-        public void Dispose() => owner.Topmost = owner._settings.StackTopmost;
+        private bool _released;
+        public void Dispose()
+        {
+            if (_released) return;
+            _released = true;
+            if (--owner._topmostSuspensions == 0) owner.ApplyTopmost();
+        }
     }
 
     private void OnTargetClick(object sender, RoutedEventArgs e)
@@ -723,10 +751,12 @@ public partial class EdgeStackWindow : Window
         }
         Renumber(); InvalidatePrepared();
         var saved = await SaveAsync();
+        // The clipboard package follows the stack even when the session file could not be written:
+        // a receipt left pointing at the previous package makes the next Ctrl+V rotate the session.
+        await RefreshOwnedClipboardAsync();
         // A failed import must survive the next status update, a successful one has to stay readable for a few seconds.
         if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
         else if (saved) ShowTransientStatus(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
-        if (saved) await RefreshOwnedClipboardAsync();
     }
 
     private async Task ImportClipboardAsync()
@@ -736,9 +766,9 @@ public partial class EdgeStackWindow : Window
         image.Freeze();
         Captures.Add(await _workspace.AddImageAsync(image));
         Renumber(); InvalidatePrepared();
-        if (!await SaveAsync()) return;
-        ShowTransientStatus(UiLanguage.Text("Изображение добавлено."));
+        var saved = await SaveAsync();
         await RefreshOwnedClipboardAsync();
+        if (saved) ShowTransientStatus(UiLanguage.Text("Изображение добавлено."));
     }
 
     private async Task CopyPackageAsync()
@@ -771,7 +801,7 @@ public partial class EdgeStackWindow : Window
         var destination = Path.Combine(dialog.SelectedPath, $"SnapBrief-{DateTime.Now:yyyyMMdd-HHmmss}");
         Directory.CreateDirectory(destination);
         foreach (var path in Directory.EnumerateFiles(_prepared.RootDirectory)) File.Copy(path, Path.Combine(destination, Path.GetFileName(path)));
-        SetStatus("Пакет сохранён.");
+        ShowTransientStatus(UiLanguage.Text("Пакет сохранён."));
     }
 
     private void OpenSettings()
@@ -780,7 +810,10 @@ public partial class EdgeStackWindow : Window
         _hotkeys?.Unregister("fullscreen-save");
         try
         {
-            var dialog = new HotkeySettingsWindow(_settings, showPasteSettings: false)
+            // The editor may have written annotation defaults since this window loaded its snapshot,
+            // so the dialog edits the file as it is now and saves its own fields on top of that.
+            if (!HotkeySettings.TryLoad(_settingsPath, out var current)) current = _settings;
+            var dialog = new HotkeySettingsWindow(current, showPasteSettings: false)
             {
                 Owner = this,
                 TryApply = candidate =>
@@ -998,7 +1031,7 @@ public partial class EdgeStackWindow : Window
         var target = FindAncestor<ContentPresenter>((DependencyObject)e.OriginalSource)?.Content as CaptureItem;
         if (target is null || ReferenceEquals(source, target)) return;
         Captures.Move(Captures.IndexOf(source), Captures.IndexOf(target));
-        Renumber(); InvalidatePrepared(); if (await SaveAsync()) SetStatus("Порядок снимков изменён."); await RefreshOwnedClipboardAsync();
+        Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowTransientStatus(UiLanguage.Text("Порядок снимков изменён.")); await RefreshOwnedClipboardAsync();
     }
 
     private async Task RestoreRemoved()
@@ -1007,7 +1040,7 @@ public partial class EdgeStackWindow : Window
         if (_removed.Count == 0) return;
         var removed = _removed.Pop();
         Captures.Insert(Math.Clamp(removed.Index, 0, Captures.Count), removed.Capture);
-        Renumber(); InvalidatePrepared(); if (await SaveAsync()) SetStatus("Снимок восстановлен."); await RefreshOwnedClipboardAsync();
+        Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowTransientStatus(UiLanguage.Text("Снимок восстановлен.")); await RefreshOwnedClipboardAsync();
         UndoRemoveButton.Visibility = _removed.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -1024,6 +1057,7 @@ public partial class EdgeStackWindow : Window
         if (_allowClose) { CancelReceiverEchoWatch(); _hotkeys?.Dispose(); _pasteIntentObserver.Dispose(); _clipboard.Dispose(); _trayIcon.Visible = false; _trayIcon.Dispose(); return; }
         e.Cancel = true;
         _saveTimer.Stop();
+        _statusTimer.Stop();
         if (!await SaveAsync()) { _exiting = false; ShowStackWithoutActivation(); return; }
         if (_exiting) { _allowClose = true; Close(); }
         else Hide();

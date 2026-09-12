@@ -39,6 +39,23 @@ public static class SmokeTestRunner
         if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
             OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("Stored annotation colour must be read back, an invalid one must fall back to the default.");
+        // The strip and the editor write the same file: every write starts from the file on disk.
+        var mergeSettingsPath = Path.Combine(root, "merge-settings-smoke.json");
+        (HotkeySettings.Default with { AnnotationColor = "#FF0000", AnnotationThickness = 7 }).Save(mergeSettingsPath);
+        if (!HotkeySettings.TryLoad(mergeSettingsPath, out var beforeMerge))
+            throw new InvalidOperationException("A settings file that was just written must load back.");
+        (beforeMerge with { StackTopmost = !beforeMerge.StackTopmost }).Save(mergeSettingsPath);
+        var mergedSettings = HotkeySettings.Load(mergeSettingsPath);
+        if (mergedSettings.AnnotationColor != "#FF0000" || mergedSettings.AnnotationThickness != 7 ||
+            mergedSettings.StackTopmost == HotkeySettings.Default.StackTopmost)
+            throw new InvalidOperationException("Changing one setting must keep the annotation defaults written by the editor.");
+        var brokenSettingsPath = Path.Combine(root, "broken-settings-smoke.json");
+        await File.WriteAllTextAsync(brokenSettingsPath, "{ \"CaptureId\": ");
+        if (HotkeySettings.TryLoad(brokenSettingsPath, out _))
+            throw new InvalidOperationException("A settings file that cannot be parsed must not be reported as loaded.");
+        if (!HotkeySettings.TryLoad(Path.Combine(root, "missing-settings-smoke.json"), out var missingSettings) ||
+            missingSettings != HotkeySettings.Default)
+            throw new InvalidOperationException("A missing settings file must load the defaults and stay writable.");
         var settingsWindow = new HotkeySettingsWindow(restoredSettings);
         UiLanguage.Apply(settingsWindow, "en");
         settingsWindow.Measure(new Size(530, 480));

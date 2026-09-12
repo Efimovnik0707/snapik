@@ -47,10 +47,21 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public HotkeyGesture CaptureGesture => Find(CaptureId).Gesture;
     public HotkeyGesture PasteGesture => Find(PasteId).Gesture;
 
-    public static HotkeySettings Load(string path)
+    public static HotkeySettings Load(string path) => TryLoad(path, out var settings) ? settings : Default;
+
+    // A missing file means "nothing saved yet" and may be overwritten with defaults; a file that
+    // exists but does not parse must be left alone, otherwise one bad read wipes every preference.
+    public static bool TryLoad(string path, out HotkeySettings settings)
     {
-        try { return File.Exists(path) ? JsonSerializer.Deserialize<HotkeySettings>(File.ReadAllText(path)) ?? Default : Default; }
-        catch { return Default; }
+        settings = Default;
+        try
+        {
+            if (!File.Exists(path)) return true;
+            if (JsonSerializer.Deserialize<HotkeySettings>(File.ReadAllText(path)) is not { } stored) return false;
+            settings = stored;
+            return true;
+        }
+        catch { return false; }
     }
 
     public void Save(string path)

@@ -20,8 +20,13 @@ public partial class EdgeStackWindow
         var requestNext = false;
         try
         {
-            var preview = new CapturePreviewWindow(capture, PersistPreviewChangesAsync);
-            var editRequested = await preview.ShowForAsync(this);
+            bool editRequested;
+            // The preview is a window of its own: a topmost strip would cover it.
+            using (SuspendTopmost())
+            {
+                var preview = new CapturePreviewWindow(capture, PersistPreviewChangesAsync);
+                editRequested = await preview.ShowForAsync(this);
+            }
             if (!editRequested) return;
 
             HideForCapture();
