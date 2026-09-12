@@ -39,6 +39,9 @@ public partial class EdgeStackWindow
             var result = await OverlayEditorWindow.EditExistingAsync(_workspace, capture, labelIndex);
             if (!result.Cancelled && result.Capture is not null)
             {
+                // An edited capture no longer matches what the receiver got, so it returns to the package
+                // even though the editor works on a copy that carries the sent flag over.
+                result.Capture.IsSent = false;
                 Captures[index] = result.Capture;
                 Renumber();
                 InvalidatePrepared();
@@ -62,7 +65,9 @@ public partial class EdgeStackWindow
         capture.IsSent = false;
         Renumber();
         InvalidatePrepared();
-        if (await SaveAsync()) await RefreshOwnedClipboardAsync();
+        // The clipboard follows the edited comments even when the session file could not be written.
+        await SaveAsync();
+        await RefreshOwnedClipboardAsync();
     }
 
     private void OnCaptureThumbMouseEnter(object sender, MouseEventArgs e) => CaptureFeedbackSound.Tick(_settings.PlaySounds);

@@ -57,6 +57,21 @@ public static class SmokeTestRunner
         if (!HotkeySettings.TryLoad(Path.Combine(root, "missing-settings-smoke.json"), out var missingSettings) ||
             missingSettings != HotkeySettings.Default)
             throw new InvalidOperationException("A missing settings file must load the defaults and stay writable.");
+        var emptySettingsPath = Path.Combine(root, "empty-settings-smoke.json");
+        await File.WriteAllTextAsync(emptySettingsPath, "   \r\n");
+        if (!HotkeySettings.TryLoad(emptySettingsPath, out var emptySettings) || emptySettings != HotkeySettings.Default)
+            throw new InvalidOperationException("A settings file with nothing in it must read as the defaults.");
+        var idlessSettingsPath = Path.Combine(root, "idless-settings-smoke.json");
+        await File.WriteAllTextAsync(idlessSettingsPath, "{}");
+        if (HotkeySettings.TryLoad(idlessSettingsPath, out _))
+            throw new InvalidOperationException("Settings without the hotkey ids must not be reported as loaded.");
+        // The write goes through a neighbouring temporary file, and that file must not outlive it.
+        var atomicSettingsPath = Path.Combine(root, "atomic-settings-smoke.json");
+        HotkeySettings.Default.Save(atomicSettingsPath);
+        (HotkeySettings.Default with { JpegQuality = 55 }).Save(atomicSettingsPath);
+        if (Directory.EnumerateFiles(root, "atomic-settings-smoke.json*").Count() != 1 ||
+            HotkeySettings.Load(atomicSettingsPath).JpegQuality != 55)
+            throw new InvalidOperationException("An atomic settings write must leave exactly one file, with the newest content.");
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
         {
             var window = new HotkeySettingsWindow(restoredSettings);
@@ -238,16 +253,21 @@ public static class SmokeTestRunner
         var source = PresentationTraceSources.DataBindingSource;
         var listener = new BindingErrorListener();
         var previousLevel = source.Switch.Level;
+        var errors = new List<string>();
         source.Switch.Level = SourceLevels.Error;
         source.Listeners.Add(listener);
         try { result = action(); }
         finally
         {
+            // Detached from the trace source first, disposed only then: a listener disposed while the
+            // source still holds it would keep receiving records.
             source.Listeners.Remove(listener);
             source.Switch.Level = previousLevel;
+            errors.AddRange(listener.Errors);
+            listener.Dispose();
         }
-        if (listener.Errors.Count > 0)
-            throw new InvalidOperationException($"{what} reported a binding error: {listener.Errors[0]}");
+        if (errors.Count > 0)
+            throw new InvalidOperationException($"{what} reported a binding error: {errors[0]}");
         return result;
     }
 
@@ -261,10 +281,18 @@ public static class SmokeTestRunner
             foreach (var setter in template.Triggers.OfType<Trigger>().SelectMany(trigger => trigger.Setters).OfType<Setter>())
                 if (setter.Value is System.Windows.Data.Binding { RelativeSource.Mode: System.Windows.Data.RelativeSourceMode.TemplatedParent } binding)
                 {
-                    var probe = new System.Windows.Controls.Border();
-                    System.Windows.Data.BindingOperations.SetBinding(probe, System.Windows.Controls.Border.BackgroundProperty,
-                        new System.Windows.Data.Binding { Path = binding.Path, Source = control });
-                    System.Windows.Data.BindingOperations.ClearBinding(probe, System.Windows.Controls.Border.BackgroundProperty);
+                    // The probe target takes anything (Tag is typed object), so a value of the wrong type
+                    // cannot hide the path error behind a conversion one; the rest of the binding travels
+                    // along, otherwise a converter or a fallback would change what the trace reports.
+                    var probe = new FrameworkElement();
+                    System.Windows.Data.BindingOperations.SetBinding(probe, FrameworkElement.TagProperty,
+                        new System.Windows.Data.Binding
+                        {
+                            Path = binding.Path, Source = control,
+                            Converter = binding.Converter, ConverterParameter = binding.ConverterParameter,
+                            FallbackValue = binding.FallbackValue, TargetNullValue = binding.TargetNullValue
+                        });
+                    System.Windows.Data.BindingOperations.ClearBinding(probe, FrameworkElement.TagProperty);
                 }
         }
         foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(root))

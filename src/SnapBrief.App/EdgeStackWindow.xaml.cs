@@ -146,7 +146,7 @@ public partial class EdgeStackWindow : Window
             catch (Exception ex)
             {
                 ShowStackWithoutActivation();
-                SetStatus($"Не удалось изменить автозапуск: {ex.Message}", true);
+                SetStatus($"{UiLanguage.Text("Не удалось изменить автозапуск")}: {ex.Message}", true);
             }
         });
         _trayIcon.DoubleClick += (_, _) => Dispatcher.Invoke(ShowStackWithoutActivation);
@@ -183,7 +183,7 @@ public partial class EdgeStackWindow : Window
             PositionAtEdge();
             StartupTrace.Write(_options, $"EdgeStack.Loaded completed with {Captures.Count} captures");
         }
-        catch (Exception ex) { SetStatus($"Не удалось восстановить сессию: {ex.Message}", true); StartupTrace.Write(_options, ex.ToString()); }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось восстановить сессию")}: {ex.Message}", true); StartupTrace.Write(_options, ex.ToString()); }
         finally { _loading = false; }
     }
 
@@ -196,21 +196,21 @@ public partial class EdgeStackWindow : Window
             _hotkeys.Pressed += OnHotkey;
             _ = RegisterHotkeys();
         }
-        catch (Exception ex) { SetStatus($"Захват: {ex.Message}", true); }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Захват")}: {ex.Message}", true); }
         try
         {
             _pasteIntentObserver.PasteIntentObserved += OnPasteIntentObserved;
             _pasteIntentObserver.Start();
         }
-        catch (Exception ex) { SetStatus($"Отслеживание вставки недоступно: {ex.Message}", true); }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Отслеживание вставки недоступно")}: {ex.Message}", true); }
     }
 
     private bool RegisterHotkeys()
     {
         var conflicts = new List<string>();
-        if (_settings.CaptureEnabled) try { _hotkeys?.Register("capture", _settings.CaptureGesture); } catch { conflicts.Add("захват"); }
-        if (_settings.FullscreenSaveEnabled) try { _hotkeys?.Register("fullscreen-save", _settings.FullscreenSaveGesture); } catch { conflicts.Add("сохранение экрана"); }
-        if (conflicts.Count > 0) SetStatus($"Сочетание занято: {string.Join(", ", conflicts)}", true);
+        if (_settings.CaptureEnabled) try { _hotkeys?.Register("capture", _settings.CaptureGesture); } catch { conflicts.Add(UiLanguage.Text("захват")); }
+        if (_settings.FullscreenSaveEnabled) try { _hotkeys?.Register("fullscreen-save", _settings.FullscreenSaveGesture); } catch { conflicts.Add(UiLanguage.Text("сохранение экрана")); }
+        if (conflicts.Count > 0) SetStatus($"{UiLanguage.Text("Сочетание занято")}: {string.Join(", ", conflicts)}", true);
         return conflicts.Count == 0;
     }
 
@@ -232,7 +232,7 @@ public partial class EdgeStackWindow : Window
         }
         if (promptAtIntent is null)
         {
-            SetStatus("Не удалось подтвердить содержимое текущего пакета. Сессия сохранена.", true);
+            SetStatus(UiLanguage.Text("Не удалось подтвердить содержимое текущего пакета. Сессия сохранена."), true);
             return;
         }
 
@@ -288,7 +288,7 @@ public partial class EdgeStackWindow : Window
         catch (Exception ex)
         {
             StartupTrace.Write(_options, $"PasteIntent completion failed: {ex}");
-            SetStatus($"Вставка замечена, но лента не обновлена: {ex.Message}", true);
+            SetStatus($"{UiLanguage.Text("Вставка замечена, но лента не обновлена")}: {ex.Message}", true);
         }
         finally { _clipboardPublicationGate.Release(); }
     }
@@ -453,7 +453,7 @@ public partial class EdgeStackWindow : Window
                 addNext = copied && result.AddNext;
             }
         }
-        catch (Exception ex) { SetStatus($"Захват не завершён: {ex.Message}", true); }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Захват не завершён")}: {ex.Message}", true); }
         finally
         {
             _busy = false;
@@ -499,7 +499,7 @@ public partial class EdgeStackWindow : Window
 
     private void HideStack()
     {
-
+        HideToastNow();
         Hide();
     }
 
@@ -523,16 +523,16 @@ public partial class EdgeStackWindow : Window
     private async Task<bool> PrepareAsync()
     {
         await _pasteIntentTransition;
-        if (Captures.Count == 0) { SetStatus("Сначала сделайте снимок.", true); return false; }
+        if (Captures.Count == 0) { SetStatus(UiLanguage.Text("Сначала сделайте снимок."), true); return false; }
         try
         {
-            SetStatus("Готовим PNG и текст…");
+            SetStatus(UiLanguage.Text("Готовим PNG и текст…"));
             _prepared = await _workspace.PrepareAsync(Captures, string.Empty, SelectedProfile?.Id);
             PasteButton.IsEnabled = true;
             ShowToast(string.Format(UiLanguage.Text("Готово: {0} изображений · {1} заметок"), _prepared.Manifest.CaptureCount, _prepared.Manifest.NoteCount));
             return true;
         }
-        catch (Exception ex) { SetStatus($"Не удалось подготовить: {ex.Message}", true); return false; }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось подготовить")}: {ex.Message}", true); return false; }
     }
 
     private async Task<bool> SaveAndCopyCommittedPackageAsync()
@@ -565,7 +565,7 @@ public partial class EdgeStackWindow : Window
         catch (Exception ex)
         {
             await SaveAsync();
-            SetStatus($"Снимок сохранён, но буфер не обновлён: {ex.Message}. Повторите копирование через меню.", true);
+            SetStatus($"{UiLanguage.Text("Снимок сохранён, но буфер не обновлён")}: {ex.Message}. {UiLanguage.Text("Повторите копирование через меню.")}", true);
             return false;
         }
         finally { _clipboardPublicationGate.Release(); }
@@ -594,7 +594,7 @@ public partial class EdgeStackWindow : Window
             var result = await _pasteCoordinator.PasteAsync(package, SelectedProfile, progress: progress);
             SetStatus(result.Message, result.Status is not (PasteStatus.CompletedVerified or PasteStatus.CompletedUnverified));
         }
-        catch (Exception ex) { SetStatus($"Вставка остановлена: {ex.Message}", true); }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Вставка остановлена")}: {ex.Message}", true); }
         finally
         {
             _busy = false;
@@ -606,7 +606,7 @@ public partial class EdgeStackWindow : Window
     {
         var menu = new ContextMenu();
         var topmostItem = new MenuItem { Header = "Поверх других окон", IsCheckable = true, IsChecked = _settings.StackTopmost };
-        topmostItem.Click += (_, _) => ToggleTopmost();
+        topmostItem.Click += (_, _) => ToggleTopmost(topmostItem);
         menu.Items.Add(topmostItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("Импортировать файл…", async () => await ImportFileAsync()));
@@ -644,9 +644,17 @@ public partial class EdgeStackWindow : Window
         }
     }
 
-    private void ToggleTopmost()
+    // An unreadable settings file must not freeze the panel: the click still applies to this session,
+    // with the save error on screen. A write that failed for any other reason changes nothing, so the
+    // checkmark that WPF has already flipped goes back to the state the panel is really in.
+    private void ToggleTopmost(MenuItem item)
     {
-        if (MutateSettings(settings => settings with { StackTopmost = !settings.StackTopmost })) ApplyTopmost();
+        var desired = !_settings.StackTopmost;
+        if (!MutateSettings(settings => settings with { StackTopmost = desired }) &&
+            !HotkeySettings.TryLoad(_settingsPath, out _))
+            _settings = _settings with { StackTopmost = desired };
+        item.IsChecked = _settings.StackTopmost;
+        ApplyTopmost();
     }
 
     // Modal dialogs owned by the strip would otherwise open behind a topmost strip. Suspensions nest
@@ -713,7 +721,7 @@ public partial class EdgeStackWindow : Window
         item.Click += async (_, _) =>
         {
             try { await action(); }
-            catch (Exception ex) { SetStatus($"Не удалось выполнить действие: {ex.Message}", true); }
+            catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось выполнить действие")}: {ex.Message}", true); }
         };
         return item;
     }
@@ -737,7 +745,8 @@ public partial class EdgeStackWindow : Window
         var saved = await SaveAsync();
         // The clipboard package follows the stack even when the session file could not be written:
         // a receipt left pointing at the previous package makes the next Ctrl+V rotate the session.
-        await RefreshOwnedClipboardAsync();
+        // Nothing was added means nothing changed, so the published package stays as it is.
+        if (imported > 0) await RefreshOwnedClipboardAsync();
         // A failed import must survive the next status update, a successful one has to stay readable for a few seconds.
         if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
         else if (saved) ShowToast(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
@@ -768,7 +777,7 @@ public partial class EdgeStackWindow : Window
         _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(_prepared.GetImagePathsInOrder(), _prepared.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
         _ownedClipboardPromptText = _prepared.Manifest.PromptText;
             NotifyCopied();
-        SetStatus("PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки.");
+        SetStatus(UiLanguage.Text("PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки."));
         }
         finally { _clipboardPublicationGate.Release(); }
     }
@@ -795,8 +804,13 @@ public partial class EdgeStackWindow : Window
         try
         {
             // The editor may have written annotation defaults since this window loaded its snapshot,
-            // so the dialog edits the file as it is now and saves its own fields on top of that.
-            if (!HotkeySettings.TryLoad(_settingsPath, out var current)) current = _settings;
+            // so the dialog edits the file as it is now and saves its own fields on top of that. A file
+            // that exists but cannot be read is never opened as defaults: saving would wipe it.
+            if (!HotkeySettings.TryLoad(_settingsPath, out var current))
+            {
+                SetStatus(UiLanguage.Text("Файл настроек не читается."), true);
+                return;
+            }
             var dialog = new HotkeySettingsWindow(current, showPasteSettings: false)
             {
                 Owner = this,
@@ -809,10 +823,21 @@ public partial class EdgeStackWindow : Window
                         _hotkeys.Unregister("fullscreen-save");
                         if (candidate.CaptureEnabled) _hotkeys.Register("capture", candidate.CaptureGesture);
                         if (candidate.FullscreenSaveEnabled) _hotkeys.Register("fullscreen-save", candidate.FullscreenSaveGesture);
-                        candidate.Save(_settingsPath);
-                        _settings = candidate;
-                        UiLanguage.Current = candidate.Language;
-                        UiLanguage.Apply(this, candidate.Language);
+                        // Only the fields this dialog owns are written, on top of the file as it is now:
+                        // the editor may have saved its annotation defaults while the dialog was open.
+                        var merged = MutateSettings(stored => stored with
+                        {
+                            CaptureId = candidate.CaptureId, FullscreenSaveId = candidate.FullscreenSaveId,
+                            CaptureEnabled = candidate.CaptureEnabled, FullscreenSaveEnabled = candidate.FullscreenSaveEnabled,
+                            ShowNotifications = candidate.ShowNotifications, RememberRegion = candidate.RememberRegion,
+                            CaptureCursor = candidate.CaptureCursor, AutoSaveCaptures = candidate.AutoSaveCaptures,
+                            PlaySounds = candidate.PlaySounds, ClearStackAfterPaste = candidate.ClearStackAfterPaste,
+                            SaveFormat = candidate.SaveFormat, JpegQuality = candidate.JpegQuality,
+                            SaveDirectory = candidate.SaveDirectory, Language = candidate.Language
+                        });
+                        if (!merged) return UiLanguage.Text("Не удалось сохранить настройки");
+                        UiLanguage.Current = _settings.Language;
+                        UiLanguage.Apply(this, _settings.Language);
                         return null;
                     }
                     catch (Exception ex)
@@ -854,7 +879,9 @@ public partial class EdgeStackWindow : Window
 
     private void InvalidatePrepared() { _prepared = null; }
     private void QueueSave() { _saveTimer.Stop(); _saveTimer.Start(); }
-    private async void OnSaveTimerTick(object? sender, EventArgs e) { _saveTimer.Stop(); if (await SaveAsync()) await RefreshOwnedClipboardAsync(); }
+    // The clipboard follows the strip even when the session file could not be written: an old receipt
+    // would make the next Ctrl+V paste a package that no longer matches what the strip holds.
+    private async void OnSaveTimerTick(object? sender, EventArgs e) { _saveTimer.Stop(); await SaveAsync(); await RefreshOwnedClipboardAsync(); }
 
     private async Task<bool> SaveAsync()
     {
@@ -867,7 +894,7 @@ public partial class EdgeStackWindow : Window
     {
         await _workspaceMutationGate.WaitAsync();
         try { await _workspace.SaveAsync(Captures, _legacyGlobalNote, SelectedProfile?.Id); return true; }
-        catch (Exception ex) { SetStatus($"Не удалось сохранить: {ex.Message}", true); return false; }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось сохранить")}: {ex.Message}", true); return false; }
         finally { _workspaceMutationGate.Release(); }
     }
 
@@ -897,7 +924,7 @@ public partial class EdgeStackWindow : Window
         }
         catch (Exception ex)
         {
-            SetStatus($"Не удалось очистить ленту: {ex.Message}", true);
+            SetStatus($"{UiLanguage.Text("Не удалось очистить ленту")}: {ex.Message}", true);
             return false;
         }
         finally
@@ -973,7 +1000,11 @@ public partial class EdgeStackWindow : Window
         }
         catch (Exception ex)
         {
-            SetStatus($"Сессия сохранена, но буфер не обновлён: {ex.Message}", true);
+            // The receipt no longer describes anything we can trust, and this method cannot tell
+            // whether the session itself was written: the message promises only what is known.
+            _ownedClipboardReceipt = null;
+            _ownedClipboardPromptText = null;
+            SetStatus($"{UiLanguage.Text("Буфер не обновлён")}: {ex.Message}", true);
         }
     }
 
@@ -1045,12 +1076,19 @@ public partial class EdgeStackWindow : Window
         _toastAction = null;
     }
 
-    private void OnToastActionClick(object sender, RoutedEventArgs e)
+    // A toast that outlives the panel it belongs to would greet the next show with stale text,
+    // so hiding the panel takes the toast with it instead of waiting for the timer.
+    private void HideToastNow()
     {
-        var action = _toastAction;
         _toastTimer.Stop();
         _toastGeneration++;
         HideToast(_toastGeneration);
+    }
+
+    private void OnToastActionClick(object sender, RoutedEventArgs e)
+    {
+        var action = _toastAction;
+        HideToastNow();
         action?.Invoke();
     }
 
@@ -1101,7 +1139,7 @@ public partial class EdgeStackWindow : Window
         if (_allowClose) { CancelReceiverEchoWatch(); _hotkeys?.Dispose(); _pasteIntentObserver.Dispose(); _clipboard.Dispose(); _trayIcon.Visible = false; _trayIcon.Dispose(); return; }
         e.Cancel = true;
         _saveTimer.Stop();
-        _toastTimer.Stop();
+        HideToastNow();
         if (!await SaveAsync()) { _exiting = false; ShowStackWithoutActivation(); return; }
         if (_exiting) { _allowClose = true; Close(); }
         else Hide();

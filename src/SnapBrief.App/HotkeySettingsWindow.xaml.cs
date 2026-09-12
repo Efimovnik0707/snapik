@@ -58,17 +58,26 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
         try
         {
             if (!File.Exists(path)) return true;
-            if (JsonSerializer.Deserialize<HotkeySettings>(File.ReadAllText(path)) is not { } stored) return false;
+            var content = File.ReadAllText(path);
+            // A file truncated to nothing (or to blanks) carries no preferences: it is "nothing saved yet" too.
+            if (string.IsNullOrWhiteSpace(content)) return true;
+            if (JsonSerializer.Deserialize<HotkeySettings>(content) is not { } stored) return false;
+            // JSON without the hotkey ids builds a record with empty ones, and every Find over them would fail.
+            if (string.IsNullOrEmpty(stored.CaptureId) || string.IsNullOrEmpty(stored.PasteId)) return false;
             settings = stored;
             return true;
         }
         catch { return false; }
     }
 
+    // Written through a neighbouring temporary file: a write interrupted halfway must not leave
+    // a truncated file where every preference lived, because such a file no longer loads.
     public void Save(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        var temporary = path + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        File.Move(temporary, path, overwrite: true);
     }
 
     public static HotkeyChoice Find(string id)
@@ -126,6 +135,8 @@ public partial class HotkeySettingsWindow : Window
         LanguageBox.SelectedIndex = settings.Language == "en" ? 1 : 0;
         QualitySlider.ValueChanged += (_, _) => UpdateQuality();
         FormatBox.SelectionChanged += (_, _) => UpdateQuality();
+        // The captions built in code follow the language picked in this window, not the one it opened with.
+        LanguageBox.SelectionChanged += (_, _) => _language = LanguageBox.SelectedIndex == 1 ? "en" : "ru";
         UpdateQuality();
         Loaded += (_, _) => ApplyLanguage(settings.Language);
     }

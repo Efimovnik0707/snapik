@@ -175,7 +175,9 @@ public sealed class CaptureItem : INotifyPropertyChanged
 
     public CaptureItem DeepClone()
     {
-        var clone = new CaptureItem { Id = Id, Image = Image, SourcePath = SourcePath, DisplayLabel = DisplayLabel, Note = Note, IsSelected = IsSelected };
+        // The sent flag travels with the copy: a capture restored through "Undo" must not come back
+        // as unsent and land in the next package a second time.
+        var clone = new CaptureItem { Id = Id, Image = Image, SourcePath = SourcePath, DisplayLabel = DisplayLabel, Note = Note, IsSelected = IsSelected, IsSent = IsSent };
         foreach (var annotation in Annotations.Select(a => a.Clone())) clone.Annotations.Add(annotation);
         return clone;
     }

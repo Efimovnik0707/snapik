@@ -193,7 +193,9 @@ public sealed class SessionWorkspace
         try
         {
             var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-            if (decoder.Frames.Count == 0) throw new FileFormatException(new Uri(path), UiLanguage.Text("Формат не поддерживается системой"));
+            // Reported without wrapping the path in a Uri: a path the Uri parser rejects would replace
+            // the real reason with a parsing error of its own.
+            if (decoder.Frames.Count == 0) throw new NotSupportedException(UiLanguage.Text("Формат не поддерживается системой"));
             var frame = decoder.Frames[0];
             frame.Freeze();
             return frame;

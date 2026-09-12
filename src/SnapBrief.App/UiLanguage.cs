@@ -54,7 +54,21 @@ internal static class UiLanguage
         ["Файл настроек не читается."] = "The settings file cannot be read.",
         ["Снимок удалён"] = "Capture removed", ["Снимок восстановлен."] = "Capture restored.",
         ["Порядок снимков изменён."] = "Capture order changed.", ["Пакет сохранён."] = "Package saved.",
-        ["Готово: {0} изображений · {1} заметок"] = "Ready: {0} images · {1} notes"
+        ["Готово: {0} изображений · {1} заметок"] = "Ready: {0} images · {1} notes",
+        ["Не удалось изменить автозапуск"] = "Could not change the startup setting",
+        ["Не удалось восстановить сессию"] = "Could not restore the session",
+        ["Захват"] = "Capture", ["Отслеживание вставки недоступно"] = "Paste tracking is unavailable",
+        ["Сочетание занято"] = "The shortcut is taken", ["захват"] = "capture", ["сохранение экрана"] = "screen saving",
+        ["Не удалось подтвердить содержимое текущего пакета. Сессия сохранена."] = "Could not confirm what the current package holds. The session was saved.",
+        ["Вставка замечена, но лента не обновлена"] = "The paste was noticed, but the strip was not updated",
+        ["Захват не завершён"] = "The capture did not finish", ["Сначала сделайте снимок."] = "Take a capture first.",
+        ["Готовим PNG и текст…"] = "Preparing the PNG and the text…", ["Не удалось подготовить"] = "Could not prepare",
+        ["Снимок сохранён, но буфер не обновлён"] = "The capture was saved, but the clipboard was not updated",
+        ["Повторите копирование через меню."] = "Copy the package again from the menu.",
+        ["Вставка остановлена"] = "Pasting stopped", ["Не удалось выполнить действие"] = "Could not run the action",
+        ["PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки."] = "The PNG and the text were copied. If the receiver takes only one format, use the paste button.",
+        ["Не удалось сохранить"] = "Could not save", ["Не удалось очистить ленту"] = "Could not clear the strip",
+        ["Буфер не обновлён"] = "The clipboard was not updated"
     };
     internal static string Text(string value, string? language = null) => (language ?? Current) == "en" ? (English.TryGetValue(value, out var translated) ? translated : value) : (English.FirstOrDefault(pair => pair.Value == value).Key ?? value);
     internal static void Apply(DependencyObject root, string? language = null)
