@@ -29,12 +29,16 @@ public static class SmokeTestRunner
             AutoSaveCaptures = true, PlaySounds = false,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false,
+            AnnotationColor = "#FF4D4F", AnnotationThickness = 9,
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en"
         };
         customSettings.Save(customSettingsPath);
         var restoredSettings = HotkeySettings.Load(customSettingsPath);
         if (restoredSettings != customSettings || restoredSettings.FullscreenSaveGesture.VirtualKey != 44)
             throw new InvalidOperationException("Local capture preferences did not survive a settings round trip.");
+        if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
+            OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
+            throw new InvalidOperationException("Stored annotation colour must be read back, an invalid one must fall back to the default.");
         var settingsWindow = new HotkeySettingsWindow(restoredSettings);
         UiLanguage.Apply(settingsWindow, "en");
         settingsWindow.Measure(new Size(530, 480));

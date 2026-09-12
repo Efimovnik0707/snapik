@@ -13,6 +13,9 @@ public partial class OverlayEditorWindow
     private bool _syncingAppearance;
     private OverlaySnapshot? _appearanceBefore;
     private bool _appearanceChanged;
+    private bool _appearanceDefaultsChanged;
+    internal static readonly Color DefaultAnnotationColor = Color.FromRgb(47, 140, 255);
+    internal const double DefaultAnnotationThickness = 4;
     private static bool HasColor(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Arrow or EditorTool.Pen or EditorTool.Highlight or EditorTool.Text;
     private static bool HasStroke(EditorTool tool) => HasColor(tool) && tool != EditorTool.Text;
 
@@ -75,8 +78,8 @@ public partial class OverlayEditorWindow
     {
         var selected = Surface.SelectedAnnotation;
         var tool = selected?.Kind ?? Surface.Tool;
-        if (color is { } c && HasColor(tool)) { _activeColor = c; Surface.ActiveColor = c; if (selected is not null) { selected.Color = c; _appearanceChanged = true; } }
-        if (thickness is { } t && HasStroke(tool)) { _activeThickness = t; Surface.ActiveThickness = t; if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; } }
+        if (color is { } c && HasColor(tool)) { _appearanceDefaultsChanged |= c != _activeColor; _activeColor = c; Surface.ActiveColor = c; if (selected is not null) { selected.Color = c; _appearanceChanged = true; } }
+        if (thickness is { } t && HasStroke(tool)) { _appearanceDefaultsChanged |= t != _activeThickness; _activeThickness = t; Surface.ActiveThickness = t; if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; } }
         Surface.InvalidateVisual();
         SyncAppearance();
     }
@@ -104,7 +107,31 @@ public partial class OverlayEditorWindow
             _undo.Push(_appearanceBefore); _redo.Clear(); _lastSnapshot = SnapshotState();
         }
         _appearanceBefore = null; _appearanceChanged = false;
+        if (_appearanceDefaultsChanged) { _appearanceDefaultsChanged = false; SaveAppearanceDefaults(); }
         SyncAppearance();
         Surface.Focus();
+    }
+
+    // The editor window is created again for every capture, so the last picked colour
+    // and thickness live in the settings file and become the defaults for the next one.
+    private void SaveAppearanceDefaults()
+    {
+        try
+        {
+            var path = _workspace.SettingsPath;
+            var settings = HotkeySettings.Load(path) with
+            {
+                AnnotationColor = $"#{_activeColor.R:X2}{_activeColor.G:X2}{_activeColor.B:X2}",
+                AnnotationThickness = Math.Clamp(_activeThickness, 1, 16)
+            };
+            settings.Save(path);
+        }
+        catch (Exception) { /* a preference that cannot be written must not break the editor */ }
+    }
+
+    internal static Color ParseAnnotationColor(string? value)
+    {
+        try { return !string.IsNullOrWhiteSpace(value) && ColorConverter.ConvertFromString(value) is Color color ? color : DefaultAnnotationColor; }
+        catch (Exception) { return DefaultAnnotationColor; }
     }
 }

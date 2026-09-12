@@ -43,8 +43,8 @@ public partial class OverlayEditorWindow : Window
     private Rect _cropRect;
     private CaptureItem? _capture;
     private OverlaySnapshot? _lastSnapshot;
-    private Color _activeColor = Color.FromRgb(47, 140, 255);
-    private double _activeThickness = 4;
+    private Color _activeColor = DefaultAnnotationColor;
+    private double _activeThickness = DefaultAnnotationThickness;
     private Guid? _commentParentId;
     private Guid? _expandedChipId;
     private bool _settingUp;
@@ -55,6 +55,9 @@ public partial class OverlayEditorWindow : Window
         _workspace = workspace;
         _frame = frame;
         _captureIndex = captureIndex;
+        var preferences = workspace.Preferences;
+        _activeColor = ParseAnnotationColor(preferences.AnnotationColor);
+        _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
         _capture = existing?.DeepClone();
         _isNew = existing is null;
         if (_capture is not null && !string.IsNullOrWhiteSpace(_capture.Note))
