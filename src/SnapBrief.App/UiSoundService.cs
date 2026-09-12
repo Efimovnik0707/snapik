@@ -103,8 +103,11 @@ internal static class UiSoundService
             if (_player is { } opened) return opened;
             var player = new MediaPlayer();
             player.MediaFailed += (_, _) => _failed = true;
-            player.Open(new Uri(PathOf(fileName), UriKind.Absolute));
+            // The player is kept before the file is opened, and a throwing Open switches the sound
+            // off: otherwise every play would build another MediaPlayer on the same broken file.
             _player = player;
+            try { player.Open(new Uri(PathOf(fileName), UriKind.Absolute)); }
+            catch { _failed = true; throw; }
             return player;
         }
     }

@@ -59,20 +59,29 @@ public partial class SavePackageWindow : Window
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(DirectoryBox.Text))
+            var directory = DirectoryBox.Text.Trim();
+            if (directory.Length == 0)
                 throw new InvalidOperationException(UiLanguage.Text("Укажите папку сохранения.", _language));
+            // A relative path would be resolved against the working directory of the process, and
+            // the package would land somewhere the user never named.
+            if (!Path.IsPathFullyQualified(directory))
+                throw new InvalidOperationException(UiLanguage.Text(@"Укажите полный путь к папке, например C:\Users\Public\Pictures.", _language));
             var createSubfolder = SubfolderBox.IsChecked == true;
             var name = NameBox.Text.Trim();
             if (createSubfolder && name.Length == 0)
                 throw new InvalidOperationException(UiLanguage.Text("Укажите имя папки.", _language));
             if (createSubfolder && name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 throw new InvalidOperationException(UiLanguage.Text("В имени папки есть недопустимые символы.", _language));
-            Result = new SavePackageChoice(Path.GetFullPath(DirectoryBox.Text), createSubfolder, name);
+            Result = new SavePackageChoice(Path.GetFullPath(directory), createSubfolder, name);
             DialogResult = true;
         }
         catch (Exception ex)
         {
-            ErrorText.Text = UiLanguage.Text(ex.Message, _language);
+            // The lines thrown above are already in the language of the window; anything else is a
+            // .NET message about a path, and the user is told what to do with it instead.
+            ErrorText.Text = ex is InvalidOperationException
+                ? ex.Message
+                : UiLanguage.Text("Этот путь не подходит. Выберите папку кнопкой обзора.", _language);
             ErrorText.Visibility = Visibility.Visible;
             Result = null;
         }

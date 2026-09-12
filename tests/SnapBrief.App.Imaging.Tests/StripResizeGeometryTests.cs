@@ -1,3 +1,4 @@
+using System.Windows;
 using SnapBrief.App.Controls;
 
 namespace SnapBrief.App.Imaging.Tests;
@@ -29,6 +30,15 @@ public sealed class StripResizeGeometryTests
 
         Assert.Equal(250, width);
         Assert.Equal(1250, left);
+    }
+
+    [Fact]
+    public void A_working_area_of_a_scaled_monitor_is_read_in_window_units()
+    {
+        var area = StripResizeGeometry.ToDeviceIndependent(new Rect(1920, 0, 2560, 1400), 1.25, 1.25);
+
+        Assert.Equal(new Rect(1536, 0, 2048, 1120), area);
+        Assert.Equal(new Rect(0, 0, 1920, 1040), StripResizeGeometry.ToDeviceIndependent(new Rect(0, 0, 1920, 1040), 0, 0));
     }
 
     [Theory]

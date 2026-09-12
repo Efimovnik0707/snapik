@@ -157,7 +157,11 @@ public sealed class AnnotationCanvas : FrameworkElement
         _gestureStart = ToImage(point);
         _draft = new AnnotationItem
         {
-            Kind = Tool, ArrowStyle = ActiveArrowStyle, Shape = ActiveShape, Fill = ActiveFill,
+            Kind = Tool, ArrowStyle = ActiveArrowStyle,
+            // The shape and the fill belong to the frame: on a text or a pen mark they would only
+            // travel into session.json and change what a later build draws there.
+            Shape = Tool == EditorTool.Rectangle ? ActiveShape : AnnotationShape.Rectangle,
+            Fill = Tool == EditorTool.Rectangle ? ActiveFill : AnnotationFill.None,
             Color = Tool == EditorTool.Conceal ? Colors.Black : ActiveColor,
             Thickness = ActiveThickness,
             Points = [_gestureStart.Value, _gestureStart.Value]
@@ -507,9 +511,11 @@ public sealed class AnnotationCanvas : FrameworkElement
         }
     }
 
-    // Opaque marks are grabbed anywhere inside; a filled frame joins them in the next step.
+    // Opaque marks are grabbed anywhere inside, and so is a filled frame; the fill of any other
+    // kind means nothing on screen, so its interior stays free for a new mark.
     private static bool HasInteriorGrab(AnnotationItem item) =>
-        item.Kind is EditorTool.Blur or EditorTool.Conceal || item.Fill != AnnotationFill.None;
+        item.Kind is EditorTool.Blur or EditorTool.Conceal ||
+        (item.Kind == EditorTool.Rectangle && item.Fill != AnnotationFill.None);
 
     private NoteBadge BadgeOf(AnnotationItem item, Rect target)
     {

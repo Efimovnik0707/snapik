@@ -19,5 +19,6 @@
     <Compile Include="..\..\src\SnapBrief.App\SingleInstanceActivation.cs" Link="SingleInstanceActivation.cs" />
     <Compile Include="..\..\src\SnapBrief.App\PublishedPackage.cs" Link="PublishedPackage.cs" />
     <Compile Include="..\..\src\SnapBrief.App\SoundThrottle.cs" Link="SoundThrottle.cs" />
+    <Compile Include="..\..\src\SnapBrief.App\SaveNaming.cs" Link="SaveNaming.cs" />
   </ItemGroup>
 </Project>

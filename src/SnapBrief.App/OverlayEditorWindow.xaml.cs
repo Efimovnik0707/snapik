@@ -45,6 +45,8 @@ public partial class OverlayEditorWindow : Window
     private OverlaySnapshot? _lastSnapshot;
     private Color _activeColor = DefaultAnnotationColor;
     private double _activeThickness = DefaultAnnotationThickness;
+    private SnapBrief.Core.Models.AnnotationShape _activeShape = SnapBrief.Core.Models.AnnotationShape.Rectangle;
+    private SnapBrief.Core.Models.AnnotationFill _activeFill = SnapBrief.Core.Models.AnnotationFill.None;
     private Guid? _commentParentId;
     private Guid? _expandedChipId;
     private AnnotationItem? _chipDragAnnotation;
@@ -62,6 +64,8 @@ public partial class OverlayEditorWindow : Window
         var preferences = workspace.Preferences;
         _activeColor = ParseAnnotationColor(preferences.AnnotationColor);
         _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
+        _activeShape = ParseAnnotationShape(preferences.AnnotationShape);
+        _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
         _capture = existing?.DeepClone();
         _isNew = existing is null;
         if (_capture is not null && !string.IsNullOrWhiteSpace(_capture.Note))
@@ -435,9 +439,13 @@ public partial class OverlayEditorWindow : Window
         Surface.Image = _capture.Image;
         Surface.Annotations = _capture.Annotations;
         Surface.Tool = EditorTool.Rectangle;
-        SyncAppearance();
+        // The whole panel starts from the settings file, so the sync below shows what the next mark
+        // will really look like.
         Surface.ActiveColor = _activeColor;
         Surface.ActiveThickness = _activeThickness;
+        Surface.ActiveShape = _activeShape;
+        Surface.ActiveFill = _activeFill;
+        SyncAppearance();
         Hint.Visibility = Visibility.Collapsed;
         Toolbar.Visibility = Visibility.Visible;
         ShotNoteChip.Visibility = Visibility.Collapsed;
@@ -834,11 +842,17 @@ public partial class OverlayEditorWindow : Window
         badgeHost.MouseMove += (_, e) => { if (badgeHost.IsMouseCaptured) DragNoteTo(e.GetPosition(Root)); };
         badgeHost.MouseLeftButtonUp += (_, e) =>
         {
+            // The drag is closed before the capture is released, because releasing it runs the
+            // handler below, and after that a real drag would read as a click.
+            var dragged = EndNoteDrag();
             if (badgeHost.IsMouseCaptured) badgeHost.ReleaseMouseCapture();
             // A press that did not travel is still a click: it opens the note.
-            if (!EndNoteDrag()) { note.Focus(); Expand(true); }
+            if (!dragged) { note.Focus(); Expand(true); }
             e.Handled = true;
         };
+        // Alt+Tab, a dialog or anything else that takes the capture away ends the drag too:
+        // otherwise the editor stays inside a drag that never finishes and no chip expands again.
+        badgeHost.LostMouseCapture += (_, _) => EndNoteDrag();
         ChipLayer.Children.Add(border);
         note.LostKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(() => { if (!border.IsKeyboardFocusWithin && !border.IsMouseOver) Finish(); }, DispatcherPriority.Input);
         note.PreviewKeyDown += (_, e) =>

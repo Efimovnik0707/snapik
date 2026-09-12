@@ -6,13 +6,20 @@ namespace SnapBrief.App.Imaging;
 
 internal static class ArrowDrawing
 {
+    // How far a curved arrow bends: the hit test and the drawing read it from here, so the line the
+    // user grabs is the line they see.
+    internal static Point ControlPoint(Point start, Point end)
+    {
+        var vector = end - start;
+        return new Point((start.X + end.X) / 2 - vector.Y * .25, (start.Y + end.Y) / 2 + vector.X * .25);
+    }
+
     // The shaft as a polyline, for the hit test of the move handle: a straight arrow is the segment
     // itself, a curved one is the same quadratic curve the drawing uses, sampled.
     internal static Point[] Shaft(Point start, Point end, string style)
     {
         if (style != "curved") return [start, end];
-        var vector = end - start;
-        var control = new Point((start.X + end.X) / 2 - vector.Y * .25, (start.Y + end.Y) / 2 + vector.X * .25);
+        var control = ControlPoint(start, end);
         var points = new Point[17];
         for (var i = 0; i < points.Length; i++)
         {
@@ -33,8 +40,7 @@ internal static class ArrowDrawing
         var pen = new Pen(brush, thickness * (style == "bold" ? 2 : 1)) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
         if (style == "curved")
         {
-            var vector = end - start;
-            var control = new Point((start.X + end.X) / 2 - vector.Y * .25, (start.Y + end.Y) / 2 + vector.X * .25);
+            var control = ControlPoint(start, end);
             var curve = new StreamGeometry();
             using (var ctx = curve.Open()) { ctx.BeginFigure(start, false, false); ctx.QuadraticBezierTo(control, end, true, false); }
             dc.DrawGeometry(null, pen, curve);

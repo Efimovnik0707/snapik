@@ -30,7 +30,7 @@ public static class SmokeTestRunner
             AutoSaveCaptures = true, PlaySounds = false, SoundVolume = 35,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
-            AnnotationColor = "#FF4D4F", AnnotationThickness = 9,
+            AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationShape = "ellipse", AnnotationFill = "translucent",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion
@@ -53,6 +53,13 @@ public static class SmokeTestRunner
         if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
             OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("Stored annotation colour must be read back, an invalid one must fall back to the default.");
+        // The shape and the fill of the frame are remembered next to the colour and the thickness,
+        // so the whole panel comes back the same way for the next capture.
+        if (OverlayEditorWindow.ParseAnnotationShape(restoredSettings.AnnotationShape) != SnapBrief.Core.Models.AnnotationShape.Ellipse ||
+            OverlayEditorWindow.ParseAnnotationFill(restoredSettings.AnnotationFill) != SnapBrief.Core.Models.AnnotationFill.Translucent ||
+            OverlayEditorWindow.ParseAnnotationShape("hexagon") != SnapBrief.Core.Models.AnnotationShape.Rectangle ||
+            OverlayEditorWindow.ParseAnnotationFill("2") != SnapBrief.Core.Models.AnnotationFill.None)
+            throw new InvalidOperationException("Stored frame shape and fill must be read back, unknown ones must fall back to the defaults.");
         // The strip and the editor write the same file: every write starts from the file on disk.
         var mergeSettingsPath = Path.Combine(root, "merge-settings-smoke.json");
         (HotkeySettings.Default with { AnnotationColor = "#FF0000", AnnotationThickness = 7 }).Save(mergeSettingsPath);

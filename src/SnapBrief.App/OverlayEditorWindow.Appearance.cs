@@ -126,8 +126,8 @@ public partial class OverlayEditorWindow
         var tool = selected?.Kind ?? Surface.Tool;
         if (color is { } c && HasColor(tool)) { _appearanceDefaultsChanged |= c != _activeColor; _activeColor = c; Surface.ActiveColor = c; if (selected is not null) { selected.Color = c; _appearanceChanged = true; } }
         if (thickness is { } t && HasStroke(tool)) { _appearanceDefaultsChanged |= t != _activeThickness; _activeThickness = t; Surface.ActiveThickness = t; if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; } }
-        if (shape is { } s && HasShape(tool)) { Surface.ActiveShape = s; if (selected is not null) { selected.Shape = s; _appearanceChanged = true; } }
-        if (fill is { } f && HasShape(tool)) { Surface.ActiveFill = f; if (selected is not null) { selected.Fill = f; _appearanceChanged = true; } }
+        if (shape is { } s && HasShape(tool)) { _appearanceDefaultsChanged |= s != _activeShape; _activeShape = s; Surface.ActiveShape = s; if (selected is not null) { selected.Shape = s; _appearanceChanged = true; } }
+        if (fill is { } f && HasShape(tool)) { _appearanceDefaultsChanged |= f != _activeFill; _activeFill = f; Surface.ActiveFill = f; if (selected is not null) { selected.Fill = f; _appearanceChanged = true; } }
         if (arrowStyle is { } style && tool == EditorTool.Arrow) { Surface.ActiveArrowStyle = style; if (selected is not null) { selected.ArrowStyle = style; _appearanceChanged = true; } }
         Surface.InvalidateVisual();
         SyncAppearance();
@@ -193,8 +193,8 @@ public partial class OverlayEditorWindow
         SaveAppearanceDefaults();
     }
 
-    // The editor window is created again for every capture, so the last picked colour
-    // and thickness live in the settings file and become the defaults for the next one.
+    // The editor window is created again for every capture, so the whole panel (colour, thickness,
+    // shape and fill) lives in the settings file and becomes the defaults for the next one.
     private void SaveAppearanceDefaults()
     {
         try
@@ -205,7 +205,9 @@ public partial class OverlayEditorWindow
             var settings = stored with
             {
                 AnnotationColor = $"#{_activeColor.R:X2}{_activeColor.G:X2}{_activeColor.B:X2}",
-                AnnotationThickness = Math.Clamp(_activeThickness, 1, 16)
+                AnnotationThickness = Math.Clamp(_activeThickness, 1, 16),
+                AnnotationShape = _activeShape.ToString().ToLowerInvariant(),
+                AnnotationFill = _activeFill.ToString().ToLowerInvariant()
             };
             settings.Save(path);
         }
@@ -217,4 +219,15 @@ public partial class OverlayEditorWindow
         try { return !string.IsNullOrWhiteSpace(value) && ColorConverter.ConvertFromString(value) is Color color ? color : DefaultAnnotationColor; }
         catch (Exception) { return DefaultAnnotationColor; }
     }
+
+    // A settings file written by hand, or by a build that knew other names, falls back to the frame
+    // the editor started with. Only a name counts: Enum.TryParse also reads "2" as a value, and a
+    // number in the file must not quietly become a shape.
+    internal static AnnotationShape ParseAnnotationShape(string? value) =>
+        Enum.TryParse<AnnotationShape>(value, ignoreCase: true, out var shape) &&
+        string.Equals(shape.ToString(), value, StringComparison.OrdinalIgnoreCase) ? shape : AnnotationShape.Rectangle;
+
+    internal static AnnotationFill ParseAnnotationFill(string? value) =>
+        Enum.TryParse<AnnotationFill>(value, ignoreCase: true, out var fill) &&
+        string.Equals(fill.ToString(), value, StringComparison.OrdinalIgnoreCase) ? fill : AnnotationFill.None;
 }

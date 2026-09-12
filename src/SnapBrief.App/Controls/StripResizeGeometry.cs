@@ -1,4 +1,5 @@
 using System;
+using System.Windows;
 
 namespace SnapBrief.App.Controls;
 
@@ -26,5 +27,17 @@ internal static class StripResizeGeometry
         var allowed = Math.Clamp(right - leftLimit, MinimumWidth, MaximumWidth);
         var resized = Math.Clamp(width - delta, MinimumWidth, allowed);
         return (right - resized, resized);
+    }
+
+    /// <summary>
+    /// A working area read from the monitor, in pixels, in the units the window is placed in. The
+    /// strip may live on a second monitor with a scale of its own, and the placement and the drag
+    /// limit must both come from that one, not from the primary screen.
+    /// </summary>
+    internal static Rect ToDeviceIndependent(Rect area, double dpiScaleX, double dpiScaleY)
+    {
+        var scaleX = dpiScaleX > 0 ? dpiScaleX : 1;
+        var scaleY = dpiScaleY > 0 ? dpiScaleY : 1;
+        return new Rect(area.X / scaleX, area.Y / scaleY, area.Width / scaleX, area.Height / scaleY);
     }
 }

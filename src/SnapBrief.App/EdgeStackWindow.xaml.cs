@@ -38,6 +38,7 @@ public partial class EdgeStackWindow : Window
     private HotkeySettings _settings;
     private int _topmostSuspensions;
     private WindowsGlobalHotkeyService? _hotkeys;
+    private bool _hotkeysStarting;
     private PreparedExport? _preparedExport;
     private PublishedPackage? _published;
     private ClipboardWriteReceipt? _ownedClipboardReceipt;
@@ -206,13 +207,21 @@ public partial class EdgeStackWindow : Window
     // is created by whichever of the two events comes first; the handle already exists in both.
     private void EnsureHotkeys()
     {
-        if (_hotkeys is not null) return;
-        var handle = new WindowInteropHelper(this).EnsureHandle();
-        _hotkeys = new WindowsGlobalHotkeyService(handle);
-        _ = SetWindowDisplayAffinity(handle, 0x00000011);
-        _hotkeys.Pressed += OnHotkey;
-        _ = RegisterHotkeys();
-        StartupTrace.Write(_options, $"Hotkeys ready: hwnd={handle}");
+        // EnsureHandle() raises SourceInitialized on the spot, and that handler comes back here while
+        // the service is still being built: without the flag the window would end up with two
+        // services on one hwnd, and the second registration of the same shortcut reports it as taken.
+        if (_hotkeys is not null || _hotkeysStarting) return;
+        _hotkeysStarting = true;
+        try
+        {
+            var handle = new WindowInteropHelper(this).EnsureHandle();
+            _hotkeys = new WindowsGlobalHotkeyService(handle);
+            _ = SetWindowDisplayAffinity(handle, 0x00000011);
+            _hotkeys.Pressed += OnHotkey;
+            _ = RegisterHotkeys();
+            StartupTrace.Write(_options, $"Hotkeys ready: hwnd={handle}");
+        }
+        finally { _hotkeysStarting = false; }
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -553,9 +562,21 @@ public partial class EdgeStackWindow : Window
         BeginAnimation(OpacityProperty, animation);
     }
 
+    // The working area of the monitor the strip is on, in the units Left and Top are written in;
+    // before the window has a handle there is nothing to ask about and the primary screen is used.
+    private Rect StackWorkArea()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == 0) return SystemParameters.WorkArea;
+        var area = WinForms.Screen.FromHandle(handle).WorkingArea;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        return Controls.StripResizeGeometry.ToDeviceIndependent(
+            new Rect(area.Left, area.Top, area.Width, area.Height), dpi.DpiScaleX, dpi.DpiScaleY);
+    }
+
     private void PositionAtEdge()
     {
-        var work = SystemParameters.WorkArea;
+        var work = StackWorkArea();
         // The width the user dragged the strip to, kept inside its range: a settings file written by
         // hand (or by an older build with another range) must not produce a strip nobody can use.
         Width = Controls.StripResizeGeometry.ClampWidth(_settings.StackWidth);
@@ -570,7 +591,7 @@ public partial class EdgeStackWindow : Window
 
     private void OnWidthDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
     {
-        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, SystemParameters.WorkArea.Left);
+        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, StackWorkArea().Left);
         Width = width;
         Left = left;
     }
@@ -870,23 +891,40 @@ public partial class EdgeStackWindow : Window
         // and must not stop the package from being saved.
         MutateSettings(stored => stored with { PackageSaveDirectory = choice.Directory, PackageCreateSubfolder = choice.CreateSubfolder });
         var package = await _workspace.PrepareAsync(Captures, Captures, string.Empty, SelectedProfile?.Id);
-        // Without a subfolder the files share the folder with whatever is already there, so the date
-        // of the package goes into every name; with one, the name of the folder already carries it.
-        var destination = choice.CreateSubfolder ? Path.Combine(choice.Directory, choice.FolderName) : choice.Directory;
-        var prefix = choice.CreateSubfolder ? string.Empty : $"{now:yyyyMMdd-HHmmss}-";
         var promptFileName = package.Manifest.PromptFileName;
         try
         {
-            Directory.CreateDirectory(destination);
             // Only what the user opened the folder for: the images and the text. manifest.json
             // describes the package for the application itself and stays in the working directory.
-            foreach (var path in Directory.EnumerateFiles(package.RootDirectory))
+            var sources = Directory.EnumerateFiles(package.RootDirectory)
+                .Where(path => Path.GetFileName(path).EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                               (promptFileName.Length > 0 && Path.GetFileName(path) == promptFileName))
+                .ToArray();
+            // Without a subfolder the files share the folder with whatever is already there, so the
+            // date of the package goes into every name; with one, the folder name already carries it.
+            // Either way the whole set of destinations is checked before the first copy: a package
+            // saved twice into the same place becomes "…-2" as a whole, never half of one and half
+            // of another, and the user never sees a raw .NET message about an existing file.
+            string destination, prefix;
+            if (choice.CreateSubfolder)
             {
-                var name = Path.GetFileName(path);
-                if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) &&
-                    !(promptFileName.Length > 0 && name == promptFileName)) continue;
-                File.Copy(path, Path.Combine(destination, prefix + name), overwrite: false);
+                var folder = SaveNaming.FreeName(choice.FolderName,
+                    candidate => sources.Any(path => File.Exists(Path.Combine(choice.Directory, candidate, Path.GetFileName(path)))));
+                if (folder is null) { SetStatus(UiLanguage.Text("В этой папке нет свободного имени для пакета. Выберите другую папку."), true); return; }
+                destination = Path.Combine(choice.Directory, folder);
+                prefix = string.Empty;
             }
+            else
+            {
+                var stamp = SaveNaming.FreeName($"{now:yyyyMMdd-HHmmss}",
+                    candidate => sources.Any(path => File.Exists(Path.Combine(choice.Directory, $"{candidate}-{Path.GetFileName(path)}"))));
+                if (stamp is null) { SetStatus(UiLanguage.Text("В этой папке нет свободного имени для пакета. Выберите другую папку."), true); return; }
+                destination = choice.Directory;
+                prefix = $"{stamp}-";
+            }
+            Directory.CreateDirectory(destination);
+            foreach (var path in sources)
+                File.Copy(path, Path.Combine(destination, prefix + Path.GetFileName(path)), overwrite: false);
             ShowToast(UiLanguage.Text("Пакет сохранён."));
         }
         catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось сохранить пакет")}: {ex.Message}", true); }

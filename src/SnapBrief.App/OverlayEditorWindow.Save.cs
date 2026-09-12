@@ -23,9 +23,10 @@ public partial class OverlayEditorWindow
             {
                 Title = UiLanguage.Text("Сохранить на компьютер"),
                 // "All supported" first, so saving does not start with a choice of format; the
-                // extension the dialog appends still follows the preferred one. WebP is not offered:
-                // neither WPF nor System.Drawing has an encoder for it.
-                Filter = $"{UiLanguage.Text("Все поддерживаемые")} (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg|PNG (*.png)|*.png|JPEG (*.jpg;*.jpeg)|*.jpg;*.jpeg",
+                // preferred format leads the patterns of that line, because the dialog appends the
+                // extension of the first one. WebP is not offered: neither WPF nor System.Drawing
+                // has an encoder for it.
+                Filter = SaveNaming.ImageFilter(settings.SaveFormat, UiLanguage.Text("Все поддерживаемые")),
                 FilterIndex = 1,
                 DefaultExt = settings.SaveFormat == "jpeg" ? ".jpg" : ".png",
                 FileName = Path.GetFileNameWithoutExtension(LocalImageSave.NewPath(settings)),

@@ -14,10 +14,25 @@ internal readonly record struct NoteBadge(Point Center, double Radius)
 internal static class NoteBadgeGeometry
 {
     internal static NoteBadge Screen(Point anchor, string label, Vector offset) =>
-        Create(anchor, Math.Max(26, label.Length * 7 + 12), offset, 3, double.NegativeInfinity);
+        Create(anchor, ScreenDiameter(label), offset, 3, double.NegativeInfinity);
 
-    internal static NoteBadge Export(Point anchor, string label, Vector offset) =>
-        Create(anchor, Math.Max(34, label.Length * 9 + 16), offset, 4, 2);
+    /// <summary>
+    /// The same circle in the pixels of the exported picture. <paramref name="topMargin"/> is the
+    /// first row the badge may touch: the export draws a white header the badge must stay under.
+    /// </summary>
+    internal static NoteBadge Export(Point anchor, string label, Vector offset, double topMargin) =>
+        Create(anchor, ExportDiameter(label), offset, 4, topMargin);
+
+    /// <summary>
+    /// The leader of an exported badge, in pixels: the badge itself is drawn larger than the one on
+    /// screen, so the line grows with it instead of thinning out to a thread, and never below 1 px.
+    /// </summary>
+    internal static double ExportLeaderThickness(string label) =>
+        Math.Max(1, ExportDiameter(label) / ScreenDiameter(label));
+
+    private static double ScreenDiameter(string label) => Math.Max(26, label.Length * 7 + 12);
+
+    private static double ExportDiameter(string label) => Math.Max(34, label.Length * 9 + 16);
 
     private static NoteBadge Create(Point anchor, double diameter, Vector offset, double gap, double topMargin)
     {

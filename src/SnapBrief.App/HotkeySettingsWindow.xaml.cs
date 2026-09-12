@@ -31,6 +31,10 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public bool ClearStackAfterPaste { get; init; }
     public string AnnotationColor { get; init; } = "#2F8CFF";
     public double AnnotationThickness { get; init; } = 4;
+    /// <summary>The frame the editor draws by default: rectangle, rounded or ellipse.</summary>
+    public string AnnotationShape { get; init; } = "rectangle";
+    /// <summary>How that frame is filled by default: none, solid or translucent.</summary>
+    public string AnnotationFill { get; init; } = "none";
     public string SaveFormat { get; init; } = "png";
     public int JpegQuality { get; init; } = 92;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "SnapBrief");

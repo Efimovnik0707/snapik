@@ -25,6 +25,9 @@
    <TextBlock x:Name="NameLabel" Text="Имя папки" Margin="0,14,0,7"/>
    <TextBox x:Name="NameBox"/>
    <TextBlock Text="В папку лягут снимки и prompt.md, текст с комментариями для ИИ" Foreground="#9AA6B6" TextWrapping="Wrap" Margin="0,14,0,0"/>
+   <!-- The package takes the whole strip, sent captures included, and letters it in strip order,
+        so a capture that was already sent can carry another letter here than in the strip. -->
+   <TextBlock Text="Снимки в пакете нумеруются заново: A, B, C…" Foreground="#9AA6B6" TextWrapping="Wrap" Margin="0,6,0,0"/>
    <TextBlock x:Name="ErrorText" Foreground="#FF9B95" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,12,0,0"/>
    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
     <Button Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" Foreground="White" Margin="0,0,8,0" IsCancel="True" Content="Отмена"/>

@@ -128,7 +128,7 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
                     new Point(points.Min(point => point.X) * width, points.Min(point => point.Y) * height + offsetY),
                     new Point(points.Max(point => point.X) * width, points.Max(point => point.Y) * height + offsetY));
                 if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to))
-                    dc.DrawLine(new Pen(badgeBrush, 1), from, to);
+                    dc.DrawLine(new Pen(badgeBrush, NoteBadgeGeometry.ExportLeaderThickness(displayLabel)), from, to);
             }
             dc.DrawEllipse(badgeBrush, null, badge.Center, badge.Radius, badge.Radius);
             var label = new FormattedText(displayLabel, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
@@ -142,7 +142,8 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
     {
         var anchor = new Point(item.Points[0].X * width, item.Points[0].Y * height + offsetY);
         var offset = item.NoteOffset is { } shift ? new Vector(shift.X * width, shift.Y * height) : default;
-        return NoteBadgeGeometry.Export(anchor, displayLabel, offset);
+        // The badge stops below the white header instead of climbing into it.
+        return NoteBadgeGeometry.Export(anchor, displayLabel, offset, HeaderHeight + 2);
     }
 
     private static void DrawText(DrawingContext dc, string text, double size, FontWeight weight, Brush brush, Point point)
