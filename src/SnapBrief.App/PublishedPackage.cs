@@ -16,9 +16,11 @@ internal sealed record PublishedPackage(
     int NoteCount)
 {
     /// <summary>
-    /// Whether a paste intent is about the package this application published: something has to be
-    /// published, and the clipboard has to still hold the write that published it.
+    /// Whether a paste intent is about the package this application published: something with files
+    /// in it has to be published, and the clipboard has to still hold the write that published it.
+    /// The sequence number compared here is the one of that write (the receipt this window owns),
+    /// not the one of the package.
     /// </summary>
-    internal static bool IsOwnPaste(PublishedPackage? published, uint? publishedSequenceNumber, uint intentSequenceNumber) =>
-        published is not null && publishedSequenceNumber == intentSequenceNumber;
+    internal static bool IsOwnPaste(PublishedPackage? published, uint? ownedSequenceNumber, uint intentSequenceNumber) =>
+        published is { Paths.Length: > 0 } && ownedSequenceNumber == intentSequenceNumber;
 }

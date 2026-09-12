@@ -83,6 +83,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public void Save(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        RemoveAbandonedTemporaries(path);
         var temporary = $"{path}.{Environment.ProcessId}.tmp";
         try
         {
@@ -93,6 +94,48 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
         {
             try { File.Delete(temporary); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             throw;
+        }
+    }
+
+    // A write that died with its process (a crash, the machine going down) leaves its temporary file
+    // behind for good, and nothing else ever touches it. The name carries the process id, so the
+    // ones whose process is gone can be dropped before a new write adds another; the unsuffixed name
+    // an older version wrote goes the same way.
+    private static void RemoveAbandonedTemporaries(string path)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(path)!;
+            var name = Path.GetFileName(path);
+            foreach (var candidate in Directory.EnumerateFiles(directory, $"{name}.*"))
+            {
+                // The pattern also matches through the short 8.3 names Windows keeps, and the file
+                // itself: only a real ".<something>.tmp" tail on top of the full name is a leftover.
+                var fileName = Path.GetFileName(candidate);
+                if (fileName.Length <= name.Length || !fileName.StartsWith(name, StringComparison.OrdinalIgnoreCase)) continue;
+                var suffix = fileName[name.Length..];
+                if (suffix == ".tmp") { Delete(candidate); continue; }
+                if (!suffix.StartsWith('.') || !suffix.EndsWith(".tmp", StringComparison.Ordinal)) continue;
+                if (!int.TryParse(suffix[1..^".tmp".Length], out var processId)) continue;
+                if (processId != Environment.ProcessId && IsRunning(processId)) continue;
+                Delete(candidate);
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+
+        static bool IsRunning(int processId)
+        {
+            try { using var process = System.Diagnostics.Process.GetProcessById(processId); return !process.HasExited; }
+            catch (ArgumentException) { return false; }
+            catch (InvalidOperationException) { return false; }
+            // A process we are not allowed to look at is a process that exists.
+            catch { return true; }
+        }
+
+        static void Delete(string file)
+        {
+            try { File.Delete(file); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
 

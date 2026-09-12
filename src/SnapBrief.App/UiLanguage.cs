@@ -58,6 +58,7 @@ internal static class UiLanguage
         ["Не удалось добавить"] = "Could not add", ["Формат не поддерживается системой"] = "The system does not support this format",
         ["Поверх других окон"] = "Always on top", ["Не удалось сохранить настройки"] = "Could not save the settings",
         ["Файл настроек не читается."] = "The settings file cannot be read.",
+        ["Файл настроек не читался, настройки созданы заново"] = "The settings file could not be read, the settings were created anew",
         ["Снимок удалён"] = "Capture removed", ["Снимок восстановлен."] = "Capture restored.",
         ["Порядок снимков изменён."] = "Capture order changed.", ["Пакет сохранён."] = "Package saved.",
         ["Готово: {0} изображений · {1} заметок"] = "Ready: {0} images · {1} notes",
@@ -90,6 +91,7 @@ internal static class UiLanguage
         ["Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»"] =
             "To keep the strip within reach, pin SnapBrief: open Start, right-click SnapBrief and choose \"Pin to taskbar\"",
         ["Повторный запуск ярлыка не открывает второе окно, а показывает ленту."] = "Starting the shortcut again does not open a second window, it shows the strip.",
+        ["Автозапуск недоступен"] = "Autostart is unavailable",
         ["Показать ярлык"] = "Show the shortcut", ["Не удалось открыть папку с ярлыком"] = "Could not open the folder with the shortcut",
         ["Как пользоваться"] = "How it works", ["Нажми клавишу"] = "Press the shortcut", ["Выдели область"] = "Select an area",
         ["Добавь комментарии"] = "Add comments", ["Вставь в чат: Ctrl+V"] = "Paste into the chat: Ctrl+V"

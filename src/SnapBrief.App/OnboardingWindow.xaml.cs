@@ -27,6 +27,7 @@ public partial class OnboardingWindow : Window
     private string _appliedCaptureId;
     private string _language;
     private bool _hintRunning;
+    private bool _hintApplied;
     private int _step;
 
     /// <summary>
@@ -34,6 +35,16 @@ public partial class OnboardingWindow : Window
     /// reported before the user leaves the step) and returns the error to show, or null.
     /// </summary>
     public Func<HotkeySettings, string?>? TryApply { get; init; }
+
+    /// <summary>
+    /// Marks the wizard as passed. It runs when the window is gone, whatever closed it, and it is
+    /// deliberately separate from <see cref="TryApply"/>: a shortcut that could not be registered
+    /// keeps the user on its step, but must not bring the whole wizard back on every start.
+    /// </summary>
+    public Action? MarkPassed { get; init; }
+
+    /// <summary>Writes a line into the startup log; the wizard has no log of its own.</summary>
+    public Action<string>? Trace { get; init; }
 
     public OnboardingWindow(HotkeySettings settings)
     {
@@ -55,6 +66,22 @@ public partial class OnboardingWindow : Window
         // Shown while the strip is still hidden: without this the wizard can open behind the window
         // the user was working in.
         Loaded += (_, _) => Activate();
+    }
+
+    // The window can go away without any button: the cross, Alt+F4, the taskbar, "Get started".
+    // Every one of them counts as "seen", and every one of them has to release the loop of step 4 —
+    // stopping it is not enough, the clock it left on this window has to be removed as well.
+    protected override void OnClosed(EventArgs e)
+    {
+        if (_hintApplied)
+        {
+            _hint.Stop(this);
+            _hint.Remove(this);
+            _hintApplied = false;
+            _hintRunning = false;
+        }
+        MarkPassed?.Invoke();
+        base.OnClosed(e);
     }
 
     /// <summary>
@@ -108,17 +135,25 @@ public partial class OnboardingWindow : Window
         StartButton.IsDefault = last;
         RefreshStepCaption();
         // The loop only runs while its step is on screen.
-        if (last && !_hintRunning) { _hint.Begin(this, true); _hintRunning = true; }
+        if (last && !_hintRunning) { _hint.Begin(this, true); _hintRunning = true; _hintApplied = true; }
         else if (!last && _hintRunning) { _hint.Stop(this); _hintRunning = false; }
     }
 
     private void RefreshStepCaption() =>
         StepText.Text = string.Format(UiLanguage.Text("Шаг {0} из {1}", _language), _step + 1, StepCount);
 
+    // The registry key of the startup entry can be closed to us (a policy, a locked profile). The
+    // step still explains the taskbar, and the checkbox says why it cannot be used instead of
+    // going quietly grey.
     private void LoadStartupState()
     {
         try { StartupBox.IsChecked = WindowsStartupService.IsEnabled(); }
-        catch { StartupBox.IsEnabled = false; }
+        catch (Exception ex)
+        {
+            StartupBox.IsEnabled = false;
+            StartupUnavailableText.Visibility = Visibility.Visible;
+            Trace?.Invoke($"Onboarding startup state: {ex}");
+        }
     }
 
     // Only the three fields the wizard owns are new; everything else travels from the file it was
@@ -128,12 +163,13 @@ public partial class OnboardingWindow : Window
 
     // The shortcut is applied when the user leaves its step and again at the finish: the wizard has
     // no "cancel", so what is on screen is what the settings file gets.
+    // The candidate carries the language of the wizard, so what comes back is already in it.
     private bool Apply(string captureId)
     {
         var error = TryApply?.Invoke(Candidate(captureId));
         if (error is not null)
         {
-            ErrorText.Text = UiLanguage.Text(error, _language);
+            ErrorText.Text = error;
             ErrorText.Visibility = Visibility.Visible;
             return false;
         }
@@ -193,12 +229,21 @@ public partial class OnboardingWindow : Window
         }
     }
 
+    // An installation for every user puts the shortcut into the common desktop and the common Start
+    // menu, so those are searched too; the executable itself is the last resort, and explorer selects
+    // it just as well.
     internal static string ShortcutPath()
     {
-        var desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "SnapBrief.lnk");
-        if (File.Exists(desktop)) return desktop;
-        var startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "SnapBrief", "SnapBrief.lnk");
-        return File.Exists(startMenu) ? startMenu : Environment.ProcessPath ?? desktop;
+        string[] candidates =
+        [
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "SnapBrief.lnk"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "SnapBrief", "SnapBrief.lnk"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "SnapBrief", "SnapBrief.lnk"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "SnapBrief.lnk")
+        ];
+        foreach (var candidate in candidates)
+            if (File.Exists(candidate)) return candidate;
+        return Environment.ProcessPath ?? candidates[0];
     }
 
     // Smoke probe: the wizard is built, laid out, translated both ways and walked through every

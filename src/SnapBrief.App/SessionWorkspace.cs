@@ -47,11 +47,11 @@ public sealed class SessionWorkspace
     public string? RestoredProfileId { get; private set; }
 
     /// <summary>
-    /// The export directory whose PNGs are on the clipboard right now. It survives the trim together
-    /// with the newest revisions: a manual "Copy package" or "Save package…" writes revisions of its
-    /// own, and without the pin they could push out the directory the published package points at.
+    /// The export directories that must outlive the trim: the one whose PNGs are on the clipboard
+    /// and the one the prepared package points at. They diverge, and a manual "Copy package" or
+    /// "Save package…" writes revisions of its own that could otherwise push either of them out.
     /// </summary>
-    public string? PinnedExportDirectory { get; set; }
+    public IReadOnlyCollection<string> PinnedExportDirectories { get; set; } = [];
 
     public async Task<IReadOnlyList<CaptureItem>> LoadCurrentAsync(CancellationToken cancellationToken = default)
     {
@@ -158,21 +158,20 @@ public sealed class SessionWorkspace
 
     // Every prepared package writes another exports/revision-* directory with a full copy of the
     // strip, and captures now live on across pastes, so only the newest few are kept. The directory
-    // the current package points at and the pinned one (the package on the clipboard) are never
-    // removed, and a directory that refuses to go (a reader still holding a file) is left for the
-    // next run.
+    // the current package points at and the pinned ones (the package on the clipboard and the
+    // prepared one) are never removed, and a directory that refuses to go (a reader still holding a
+    // file) is left for the next run.
     private void TrimExports(string currentPackageDirectory)
     {
         var exportsRoot = Path.Combine(SessionDirectory, "exports");
         if (!Directory.Exists(exportsRoot)) return;
-        var keep = Path.GetFullPath(currentPackageDirectory);
-        var pinned = PinnedExportDirectory is { } pin ? Path.GetFullPath(pin) : null;
+        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Path.GetFullPath(currentPackageDirectory) };
+        foreach (var pinned in PinnedExportDirectories) keep.Add(Path.GetFullPath(pinned));
         var stale = Directory.EnumerateDirectories(exportsRoot, "revision-*")
             .Select(Path.GetFullPath)
             .OrderByDescending(ExportRevisionNumber)
             .Skip(KeptExportRevisions)
-            .Where(path => !string.Equals(path, keep, StringComparison.OrdinalIgnoreCase) &&
-                           !string.Equals(path, pinned, StringComparison.OrdinalIgnoreCase))
+            .Where(path => !keep.Contains(path))
             // A .staging-* directory is removed by the export itself unless the process died in the
             // middle of writing it, so only the ones older than this process are safe to drop.
             .Concat(Directory.EnumerateDirectories(exportsRoot, ".staging-*")

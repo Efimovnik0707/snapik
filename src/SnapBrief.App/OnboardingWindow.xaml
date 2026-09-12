@@ -95,6 +95,9 @@
     <StackPanel x:Name="Step3" Visibility="Collapsed">
      <TextBlock Text="Запуск и панель задач" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,14"/>
      <CheckBox x:Name="StartupBox" Content="{local:UiText Запускать с Windows}" Margin="0,0,0,22"/>
+     <!-- Shown only when the startup entry cannot be read or written: a checkbox that is grey for no
+          visible reason looks like a bug. -->
+     <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" Foreground="#8F9AAA" TextWrapping="Wrap" Visibility="Collapsed" Margin="24,-14,0,22"/>
      <TextBlock Text="Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»" TextWrapping="Wrap" Margin="0,0,0,10"/>
      <TextBlock Text="Повторный запуск ярлыка не открывает второе окно, а показывает ленту." Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,0,0,14"/>
      <Button x:Name="ShortcutButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" HorizontalAlignment="Left" Padding="0" Foreground="{DynamicResource AccentTextBrush}" Content="Показать ярлык" Click="OnShowShortcut"/>

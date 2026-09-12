@@ -38,7 +38,7 @@ public partial class EdgeStackWindow : Window
     private HotkeySettings _settings;
     private int _topmostSuspensions;
     private WindowsGlobalHotkeyService? _hotkeys;
-    private PreparedExport? _prepared;
+    private PreparedExport? _preparedExport;
     private PublishedPackage? _published;
     private ClipboardWriteReceipt? _ownedClipboardReceipt;
     private string _legacyGlobalNote = string.Empty;
@@ -275,7 +275,13 @@ public partial class EdgeStackWindow : Window
             if (_ownedClipboardReceipt != receiptAtIntent) return;
 
             if (completion.CurrentClipboardReceipt is { } textReceipt)
+            {
+                // That receipt is the write of the prompt text: the package is no longer on the
+                // clipboard. Only the completed branch below puts it back, so every other outcome
+                // leaves nothing of ours published and the paste intent must stop recognizing it.
                 _ownedClipboardReceipt = textReceipt;
+                if (completion.Status != CodexPasteCompletionStatus.CompletedUnverified) SetPublished(null);
+            }
 
             if (completion.Status == CodexPasteCompletionStatus.CompletedUnverified)
             {
@@ -838,13 +844,20 @@ public partial class EdgeStackWindow : Window
         _hotkeys?.Unregister("fullscreen-save");
         try
         {
-            if (!HotkeySettings.TryLoad(_settingsPath, out var current))
+            // A file that exists but does not parse used to swallow the wizard, and the first run
+            // ended with a hidden strip and a line of status nobody was there to read. The wizard
+            // opens on the defaults instead, and everything it collects is written over that file
+            // as a whole: merging into it would fail on the very read that failed here.
+            var readable = HotkeySettings.TryLoad(_settingsPath, out var current);
+            if (!readable) current = HotkeySettings.Default;
+            var wizard = new OnboardingWindow(current)
             {
-                SetStatus(UiLanguage.Text("Файл настроек не читается."), true);
-                return;
-            }
-            var wizard = new OnboardingWindow(current) { TryApply = ApplyOnboarding };
+                TryApply = candidate => ApplyOnboarding(candidate, readable),
+                MarkPassed = () => CompleteOnboarding(readable),
+                Trace = message => StartupTrace.Write(_options, message)
+            };
             using (SuspendTopmost()) wizard.ShowDialog();
+            if (!readable) SetStatus(UiLanguage.Text("Файл настроек не читался, настройки созданы заново"), true);
         }
         finally
         {
@@ -854,20 +867,17 @@ public partial class EdgeStackWindow : Window
         }
     }
 
-    private string? ApplyOnboarding(HotkeySettings candidate)
+    // Every message goes back in the language of the wizard, not in the one the strip is showing:
+    // the candidate carries the language its first step has just chosen.
+    private string? ApplyOnboarding(HotkeySettings candidate, bool merge)
     {
+        var language = candidate.Language;
         try
         {
-            if (_hotkeys is null) return UiLanguage.Text("Регистрация клавиш недоступна. Перезапустите SnapBrief.");
+            if (_hotkeys is null) return UiLanguage.Text("Регистрация клавиш недоступна. Перезапустите SnapBrief.", language);
             _hotkeys.Unregister("capture");
             if (candidate.CaptureEnabled) _hotkeys.Register("capture", candidate.CaptureGesture);
-            // Only the three fields the wizard owns, on top of the file as it is now.
-            var merged = MutateSettings(stored => stored with
-            {
-                CaptureId = candidate.CaptureId, Language = candidate.Language,
-                OnboardingVersion = candidate.OnboardingVersion
-            });
-            if (!merged) return UiLanguage.Text("Не удалось сохранить настройки");
+            if (!WriteOnboarding(candidate, merge)) return UiLanguage.Text("Не удалось сохранить настройки", language);
             UiLanguage.Current = _settings.Language;
             UiLanguage.Apply(this, _settings.Language);
             return null;
@@ -877,11 +887,39 @@ public partial class EdgeStackWindow : Window
             _hotkeys?.Unregister("capture");
             StartupTrace.Write(_options, $"Onboarding ({HotkeySettings.Find(candidate.CaptureId).Label}): {ex}");
             if (ex is Win32Exception { NativeErrorCode: 1409 })
-                return UiLanguage.Text("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.");
+                return UiLanguage.Text("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.", language);
             return ex is Win32Exception
-                ? UiLanguage.Text("Не удалось назначить сочетание. Возможно, оно уже занято — нажмите другое.")
-                : $"{UiLanguage.Text("Не удалось сохранить настройки")}: {ex.Message}";
+                ? UiLanguage.Text("Не удалось назначить сочетание. Возможно, оно уже занято — нажмите другое.", language)
+                : $"{UiLanguage.Text("Не удалось сохранить настройки", language)}: {ex.Message}";
         }
+    }
+
+    // Only the three fields the wizard owns, on top of the file as it is now; a file that could not
+    // be read is replaced whole, because there is nothing in it to merge into.
+    private bool WriteOnboarding(HotkeySettings candidate, bool merge)
+    {
+        if (merge)
+            return MutateSettings(stored => stored with
+            {
+                CaptureId = candidate.CaptureId, Language = candidate.Language,
+                OnboardingVersion = candidate.OnboardingVersion
+            });
+        try { candidate.Save(_settingsPath); _settings = candidate; return true; }
+        catch (Exception ex)
+        {
+            SetStatus($"{UiLanguage.Text("Не удалось сохранить настройки", candidate.Language)}: {ex.Message}", true);
+            return false;
+        }
+    }
+
+    // The wizard counts as passed the moment its window is gone, however it was closed, and the
+    // version is written on its own: a shortcut that stayed in conflict keeps the user on its step,
+    // but must not bring the whole wizard back on every start. The tray opens it again at any time.
+    private void CompleteOnboarding(bool merge)
+    {
+        if (_settings.OnboardingVersion >= OnboardingWindow.CurrentVersion) return;
+        if (merge) MutateSettings(stored => stored with { OnboardingVersion = OnboardingWindow.CurrentVersion });
+        else WriteOnboarding(_settings with { OnboardingVersion = OnboardingWindow.CurrentVersion }, merge: false);
     }
 
     private void OpenSettings()
@@ -982,8 +1020,20 @@ public partial class EdgeStackWindow : Window
     private void SetPublished(PublishedPackage? published)
     {
         _published = published;
-        _workspace.PinnedExportDirectory = published?.ExportDirectory;
+        PinExportDirectories();
     }
+
+    // The prepared export is what an intercepted Ctrl+V pastes and the published one is what is on
+    // the clipboard; the two diverge, and a revision either of them points at must survive the trim.
+    // Going through a property keeps the pin in step with every assignment of `_prepared`.
+    private PreparedExport? _prepared
+    {
+        get => _preparedExport;
+        set { _preparedExport = value; PinExportDirectories(); }
+    }
+
+    private void PinExportDirectories() =>
+        _workspace.PinnedExportDirectories = [.. new[] { _published?.ExportDirectory, _preparedExport?.RootDirectory }.OfType<string>()];
 
     private void QueueSave() { _saveTimer.Stop(); _saveTimer.Start(); }
     // The clipboard follows the strip even when the session file could not be written: an old receipt
@@ -1007,7 +1057,19 @@ public partial class EdgeStackWindow : Window
 
     // Clearing the strip archives the current session on disk and opens an empty one; the panel
     // itself stays visible, and there is no undo in this version (the files remain in the session).
-    private async Task<bool> ClearStackAsync()
+    private async Task<bool> ClearStackAsync(bool clipboardGateHeld = false)
+    {
+        // Clearing gives the clipboard back, so it belongs in the same critical section as every
+        // other publication. The gate is taken here in the same order as everywhere else (before the
+        // workspace one); the ClearStackAfterPaste path runs inside CompletePasteIntentAsync, which
+        // holds it already.
+        if (clipboardGateHeld) return await ClearStackCoreAsync();
+        await _clipboardPublicationGate.WaitAsync();
+        try { return await ClearStackCoreAsync(); }
+        finally { _clipboardPublicationGate.Release(); }
+    }
+
+    private async Task<bool> ClearStackCoreAsync()
     {
         if (_sessionResetting) return false;
         _sessionResetting = true;
@@ -1025,7 +1087,7 @@ public partial class EdgeStackWindow : Window
             // holds the capture it points at.
             HideToastNow();
             _prepared = null;
-            await ReleaseOwnedClipboardAsync();
+            await ReleaseOwnedClipboardCoreAsync();
             Renumber();
             SetStatus(string.Empty);
             ShowToast(UiLanguage.Text("Лента очищена"));
@@ -1047,7 +1109,7 @@ public partial class EdgeStackWindow : Window
     // The package lives on the clipboard until the next capture or until the strip is cleared, so
     // clearing gives the clipboard back — but only while it still holds our own write; a package
     // another application has already replaced is not ours to erase.
-    private async Task ReleaseOwnedClipboardAsync()
+    private async Task ReleaseOwnedClipboardCoreAsync()
     {
         if (_ownedClipboardReceipt is { } receipt)
         {
@@ -1077,7 +1139,7 @@ public partial class EdgeStackWindow : Window
     // the clipboard, and repeating Ctrl+V pastes the same set into another application.
     private async Task MarkCapturesSentAsync(Guid[] idsAtIntent)
     {
-        if (_settings.ClearStackAfterPaste) { await ClearStackAsync(); return; }
+        if (_settings.ClearStackAfterPaste) { await ClearStackAsync(clipboardGateHeld: true); return; }
         var ids = idsAtIntent.ToHashSet();
         var marked = false;
         foreach (var capture in Captures)
@@ -1104,7 +1166,9 @@ public partial class EdgeStackWindow : Window
 
     private async Task RefreshOwnedClipboardCoreAsync(bool notifyCopied = true)
     {
-        if (_ownedClipboardReceipt is not { } receipt) return;
+        // A session being reset is about to give the clipboard back; republishing into it would
+        // leave a package pointing at captures the reset has already taken away.
+        if (_sessionResetting || _ownedClipboardReceipt is not { } receipt) return;
         try
         {
             if (!await _clipboard.IsCurrentAsync(receipt, CancellationToken.None))

@@ -22,4 +22,10 @@ public sealed class PublishedPackageTests
     [Fact]
     public void APackageWithoutAReceiptIsNotOurs() =>
         Assert.False(PublishedPackage.IsOwnPaste(Package(), null, 17u));
+
+    // An intercepted paste dispatches the files one by one: a package without any is nothing to
+    // paste, and the intent belongs to whoever else wrote the clipboard.
+    [Fact]
+    public void APackageWithoutFilesIsNotOurs() =>
+        Assert.False(PublishedPackage.IsOwnPaste(Package() with { Paths = [] }, 17u, 17u));
 }

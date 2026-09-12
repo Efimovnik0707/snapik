@@ -146,6 +146,13 @@ public static class SmokeTestRunner
         // The wizard is built for the checks above and belongs to nobody afterwards; the probe cannot
         // close it itself, because those checks read the window it returns.
         onboarding.Close();
+        // Whatever closes the window (here: nothing but Close itself, as Alt+F4 or the taskbar would
+        // do) has to leave the wizard marked as passed, or the first run comes back on every start.
+        var closedWithoutButtons = false;
+        var skipped = new OnboardingWindow(restoredSettings) { MarkPassed = () => closedWithoutButtons = true };
+        skipped.Close();
+        if (!closedWithoutButtons)
+            throw new InvalidOperationException("Closing the wizard without pressing anything must mark it as passed.");
         foreach (var (russian, english) in new[]
         {
             ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
@@ -196,7 +203,14 @@ public static class SmokeTestRunner
 
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
-        WithoutBindingErrors("The preview window", () => ResolveTriggerBindings(CapturePreviewWindow.RunPreviewProbe(captures[0])));
+        var preview = WithoutBindingErrors("The preview window", () =>
+        {
+            var window = CapturePreviewWindow.RunPreviewProbe(captures[0]);
+            ResolveTriggerBindings(window);
+            return window;
+        });
+        // The probe returns the window because its own checks read it; nothing reads it here.
+        preview.Close();
         foreach (var format in new[] { "png", "jpeg" })
         {
             var imagePath = Path.Combine(root, "local-save." + (format == "jpeg" ? "jpg" : "png"));
