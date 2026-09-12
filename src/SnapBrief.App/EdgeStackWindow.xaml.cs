@@ -173,6 +173,10 @@ public partial class EdgeStackWindow : Window
         Hide();
         Opacity = 1;
         StartupTrace.Write(_options, "EdgeStack.Loaded entered");
+        // Loaded may arrive before SourceInitialized (SizeToContent), and the wizard below registers
+        // the shortcut through the hotkey service.
+        try { EnsureHotkeys(); }
+        catch (Exception ex) { StartupTrace.Write(_options, $"Hotkeys in Loaded: {ex}"); }
         // Before the session is restored: on the very first run there is nothing to restore, and the
         // wizard writes the language and the shortcut the rest of the startup reads.
         if (OnboardingWindow.ShouldShowOnboarding(File.Exists(_settingsPath), _settings, _options.Demo || _options.SmokeTest))
@@ -197,16 +201,28 @@ public partial class EdgeStackWindow : Window
         finally { _loading = false; }
     }
 
+    // With SizeToContent WPF runs the first layout pass, and raises Loaded, before it raises
+    // SourceInitialized. The wizard opens from Loaded and needs the hotkey service, so the service
+    // is created by whichever of the two events comes first; the handle already exists in both.
+    private void EnsureHotkeys()
+    {
+        if (_hotkeys is not null) return;
+        var handle = new WindowInteropHelper(this).EnsureHandle();
+        _hotkeys = new WindowsGlobalHotkeyService(handle);
+        _ = SetWindowDisplayAffinity(handle, 0x00000011);
+        _hotkeys.Pressed += OnHotkey;
+        _ = RegisterHotkeys();
+        StartupTrace.Write(_options, $"Hotkeys ready: hwnd={handle}");
+    }
+
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
-        try
+        try { EnsureHotkeys(); }
+        catch (Exception ex)
         {
-            _hotkeys = new WindowsGlobalHotkeyService(new WindowInteropHelper(this).Handle);
-            _ = SetWindowDisplayAffinity(new WindowInteropHelper(this).Handle, 0x00000011);
-            _hotkeys.Pressed += OnHotkey;
-            _ = RegisterHotkeys();
+            StartupTrace.Write(_options, $"Hotkeys: {ex}");
+            SetStatus($"{UiLanguage.Text("Захват")}: {ex.Message}", true);
         }
-        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Захват")}: {ex.Message}", true); }
         try
         {
             _pasteIntentObserver.PasteIntentObserved += OnPasteIntentObserved;
@@ -881,6 +897,7 @@ public partial class EdgeStackWindow : Window
     // the wizard and the user cannot leave that step with it.
     private void ShowOnboarding()
     {
+        StartupTrace.Write(_options, $"Onboarding opens: hotkeys={_hotkeys is not null}");
         _hotkeys?.Unregister("capture");
         _hotkeys?.Unregister("fullscreen-save");
         try
