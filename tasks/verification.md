@@ -208,3 +208,7 @@ Claude Desktop использует files-only CF_HDROP вместо конку�
 `ImportFileAsync` и `ImportClipboardAsync` (`src/SnapBrief.App/EdgeStackWindow.xaml.cs`) после успешного сохранения вызывают `RefreshOwnedClipboardAsync()`, как удаление, реордер и восстановление снимка: импортированный снимок попадает в опубликованный пакет, предикат перехвата снова видит `_prepared`, и следующее Ctrl+V не уходит в `StartNewSessionAsync` (панель больше не обнуляется после импорта). Ошибки импорта копятся в список и показываются одним сообщением с флагом ошибки (видимый статус), успех показывается новым `ShowTransientStatus` на 4 секунды через `_statusTimer` (обычный `SetStatus` не-ошибку по-прежнему прячет). Фильтр диалога: `png;jpg;jpeg;webp;bmp;gif;tif;tiff` плюс «Все файлы»; `SessionWorkspace.LoadBitmap` переводит `NotSupportedException`/`FileFormatException` в понятное «Формат не поддерживается системой» (webp читается только при системном WIC-кодеке).
 
 Проверка: `dotnet test` Release — 90 тестов (14 imaging, 18 core, 58 transport) и WPF smoke на собранной dll прошли. Живьём не проверено: импорт webp без системного кодека, показ ошибки при недоступном файле.
+
+## Иконка «Новый снимок» не обрезается, 12 сентября
+
+Иконка камеры на кнопке «Новый снимок» (`src/SnapBrief.App/EdgeStackWindow.xaml`) была `Width=15 Height=15` при геометрии шириной до x=16, правый край корпуса срезался. Теперь `Stretch="Uniform" Width=16 Height=14`: геометрия вписывается целиком вместе с обводкой 1.6. Проверка: тесты Release и WPF smoke прошли; визуально на живом окне ещё не смотрели.
