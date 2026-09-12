@@ -29,6 +29,7 @@ public partial class EdgeStackWindow : Window
     private readonly IPasteCoordinator _pasteCoordinator;
     private readonly ICodexDesktopPasteCompletionService _codexPasteCompletion;
     private readonly DispatcherTimer _saveTimer;
+    private readonly DispatcherTimer _statusTimer;
     private readonly string _settingsPath;
     private readonly WinForms.NotifyIcon _trayIcon;
     private readonly IPasteIntentObserver _pasteIntentObserver;
@@ -74,6 +75,8 @@ public partial class EdgeStackWindow : Window
         _codexPasteCompletion = new CodexDesktopPasteCompletionService(_clipboard, foreground, input);
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _saveTimer.Tick += OnSaveTimerTick;
+        _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _statusTimer.Tick += OnStatusTimerTick;
         _pasteIntentObserver = new WindowsPasteIntentObserver(intent =>
         {
             var receiptSeq = _ownedClipboardReceipt?.SequenceNumber;
@@ -681,24 +684,34 @@ public partial class EdgeStackWindow : Window
     private async Task ImportFileAsync()
     {
         await _pasteIntentTransition;
-        var dialog = new OpenFileDialog { Filter = "Изображения|*.png;*.jpg;*.jpeg", Multiselect = true };
+        var filter = $"{UiLanguage.Text("Изображения")}|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif;*.tif;*.tiff|{UiLanguage.Text("Все файлы")}|*.*";
+        var dialog = new OpenFileDialog { Filter = filter, Multiselect = true };
         if (dialog.ShowDialog(this) != true) return;
         var imported = 0;
+        var failures = new List<string>();
         foreach (var path in dialog.FileNames)
         {
             try { Captures.Add(await _workspace.AddImageAsync(SessionWorkspace.LoadBitmap(path))); imported++; }
-            catch (Exception ex) { SetStatus($"{Path.GetFileName(path)}: {ex.Message}", true); }
+            catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
         }
-        Renumber(); InvalidatePrepared(); await SaveAsync(); SetStatus($"Добавлено: {imported}");
+        Renumber(); InvalidatePrepared();
+        var saved = await SaveAsync();
+        // A failed import must survive the next status update, a successful one has to stay readable for a few seconds.
+        if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
+        else if (saved) ShowTransientStatus(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
+        if (saved) await RefreshOwnedClipboardAsync();
     }
 
     private async Task ImportClipboardAsync()
     {
         await _pasteIntentTransition;
-        if (!Clipboard.ContainsImage() || Clipboard.GetImage() is not { } image) { SetStatus("В буфере нет изображения.", true); return; }
+        if (!Clipboard.ContainsImage() || Clipboard.GetImage() is not { } image) { SetStatus(UiLanguage.Text("В буфере нет изображения."), true); return; }
         image.Freeze();
         Captures.Add(await _workspace.AddImageAsync(image));
-        Renumber(); InvalidatePrepared(); await SaveAsync(); SetStatus("Изображение добавлено.");
+        Renumber(); InvalidatePrepared();
+        if (!await SaveAsync()) return;
+        ShowTransientStatus(UiLanguage.Text("Изображение добавлено."));
+        await RefreshOwnedClipboardAsync();
     }
 
     private async Task CopyPackageAsync()
@@ -905,10 +918,29 @@ public partial class EdgeStackWindow : Window
     private void SetStatus(string text, bool error = false)
     {
         if (!Dispatcher.CheckAccess()) { Dispatcher.Invoke(() => SetStatus(text, error)); return; }
+        _statusTimer.Stop();
         if (error) StartupTrace.Write(_options, text);
         StatusText.Text = text;
         StatusText.Visibility = error ? Visibility.Visible : Visibility.Collapsed;
         StatusText.Foreground = new SolidColorBrush(Color.FromRgb(255, 155, 149));
+    }
+
+    // Plain SetStatus keeps non-error text hidden; this one shows a confirmation for a few seconds.
+    private void ShowTransientStatus(string text)
+    {
+        if (!Dispatcher.CheckAccess()) { Dispatcher.Invoke(() => ShowTransientStatus(text)); return; }
+        _statusTimer.Stop();
+        StatusText.Text = text;
+        StatusText.Foreground = new SolidColorBrush(Color.FromRgb(174, 184, 199));
+        StatusText.Visibility = Visibility.Visible;
+        _statusTimer.Start();
+    }
+
+    private void OnStatusTimerTick(object? sender, EventArgs e)
+    {
+        _statusTimer.Stop();
+        StatusText.Text = string.Empty;
+        StatusText.Visibility = Visibility.Collapsed;
     }
 
     private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }

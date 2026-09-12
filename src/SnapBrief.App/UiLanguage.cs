@@ -42,7 +42,10 @@ internal static class UiLanguage
         ["Снимки скопированы"] = "Captures copied", ["Скопировано"] = "Copied", ["Изображения и комментарии готовы к вставке"] = "Images and comments are ready to paste",
         ["Снимки сохранены, но вставка не завершена"] = "Captures were saved, but pasting did not finish",
         ["Вставлено: {0} изображений · {1} заметок. Пакет остаётся в буфере, следующий снимок начнёт новую стопку"] = "Pasted: {0} images · {1} notes. The package stays on the clipboard, the next capture will start a new stack",
-        ["Пакет вытеснен другим приложением. Сессия сохранена."] = "Another app replaced the package. The session was saved."
+        ["Пакет вытеснен другим приложением. Сессия сохранена."] = "Another app replaced the package. The session was saved.",
+        ["Изображения"] = "Images", ["Все файлы"] = "All files", ["Добавлено снимков: {0}"] = "Captures added: {0}",
+        ["Изображение добавлено."] = "Image added.", ["В буфере нет изображения."] = "There is no image on the clipboard.",
+        ["Не удалось добавить"] = "Could not add", ["Формат не поддерживается системой"] = "The system does not support this format"
     };
     internal static string Text(string value, string? language = null) => (language ?? Current) == "en" ? (English.TryGetValue(value, out var translated) ? translated : value) : (English.FirstOrDefault(pair => pair.Value == value).Key ?? value);
     internal static void Apply(DependencyObject root, string? language = null)
