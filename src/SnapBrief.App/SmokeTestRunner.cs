@@ -99,7 +99,9 @@ public static class SmokeTestRunner
             ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
             ("Скриншот всего экрана в папку", "Save the whole screen to a folder"), ("Предлагать ту же область, что в прошлый раз", "Offer the same area as last time"),
             ("Показывать курсор мыши на скриншоте", "Show the mouse pointer in the screenshot"), ("Звуки", "Sounds"),
-            ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close")
+            ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close"),
+            ("Все снимки уже отправлены. Сделайте новый снимок.", "Every capture was already sent. Take a new one."),
+            ("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.", "This shortcut is already taken. Free it in the other application or pick another one.")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");

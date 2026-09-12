@@ -531,9 +531,13 @@ public partial class EdgeStackWindow : Window
     {
         await _pasteIntentTransition;
         // The paste button sends what is still waiting, so an empty strip and a strip of sent
-        // captures are the same case here: there is nothing to prepare.
+        // captures are both "nothing to prepare", but they need different advice.
         var pending = PendingCaptures;
-        if (pending.Count == 0) { SetStatus(UiLanguage.Text("Сначала сделайте снимок."), true); return false; }
+        if (pending.Count == 0)
+        {
+            SetStatus(UiLanguage.Text(Captures.Count == 0 ? "Сначала сделайте снимок." : "Все снимки уже отправлены. Сделайте новый снимок."), true);
+            return false;
+        }
         try
         {
             SetStatus(UiLanguage.Text("Готовим PNG и текст…"));
@@ -775,7 +779,8 @@ public partial class EdgeStackWindow : Window
     }
 
     // Copying and saving by hand are about the strip as a whole: they take every capture, sent ones
-    // included, into a package of their own and leave the export the paste button prepared alone.
+    // included, into a package of their own. Copying also becomes the current package, because an
+    // intercepted Ctrl+V pastes `_prepared`, and that must be what the user just put on the clipboard.
     private async Task CopyPackageAsync()
     {
         await _pasteIntentTransition;
@@ -788,6 +793,8 @@ public partial class EdgeStackWindow : Window
             var current = await _clipboard.CaptureAsync(CancellationToken.None);
             _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(package.GetImagePathsInOrder(), package.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
             _ownedClipboardPromptText = package.Manifest.PromptText;
+            // The next capture rebuilds the package from the captures that are still waiting anyway.
+            _prepared = package;
             NotifyCopied();
             SetStatus(UiLanguage.Text("PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки."));
         }
@@ -830,7 +837,7 @@ public partial class EdgeStackWindow : Window
                 {
                     try
                     {
-                        if (_hotkeys is null) return "Регистрация клавиш недоступна. Перезапустите SnapBrief.";
+                        if (_hotkeys is null) return UiLanguage.Text("Регистрация клавиш недоступна. Перезапустите SnapBrief.");
                         _hotkeys.Unregister("capture");
                         _hotkeys.Unregister("fullscreen-save");
                         if (candidate.CaptureEnabled) _hotkeys.Register("capture", candidate.CaptureGesture);
@@ -858,8 +865,10 @@ public partial class EdgeStackWindow : Window
         _hotkeys?.Unregister("fullscreen-save");
                         StartupTrace.Write(_options, $"Hotkey settings ({HotkeySettings.Find(candidate.CaptureId).Label}): {ex}");
                         if (ex is Win32Exception { NativeErrorCode: 1409 })
-                            return "Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.";
-                        return ex is Win32Exception ? "Не удалось назначить сочетание. Возможно, оно уже занято — нажмите другое." : $"Не удалось сохранить настройки: {ex.Message}";
+                            return UiLanguage.Text("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.");
+                        return ex is Win32Exception
+                            ? UiLanguage.Text("Не удалось назначить сочетание. Возможно, оно уже занято — нажмите другое.")
+                            : $"{UiLanguage.Text("Не удалось сохранить настройки")}: {ex.Message}";
                     }
                 }
             };
