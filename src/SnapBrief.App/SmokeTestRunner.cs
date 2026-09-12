@@ -44,8 +44,20 @@ public static class SmokeTestRunner
         settingsWindow.Measure(new Size(530, 480));
         settingsWindow.Arrange(new Rect(0, 0, 530, 480));
         UiLanguage.Apply(settingsWindow, "ru");
-        if (UiLanguage.Text("Настройки", "en") != "Settings" || UiLanguage.Text("Settings", "ru") != "Настройки")
-            throw new InvalidOperationException("Settings language switching failed.");
+        if (settingsWindow.QualitySlider.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("JPEG quality must be visible while the JPEG format is selected.");
+        settingsWindow.FormatBox.SelectedIndex = 0;
+        if (settingsWindow.QualitySlider.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("JPEG quality must be hidden while the PNG format is selected.");
+        foreach (var (russian, english) in new[]
+        {
+            ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
+            ("Скриншот всего экрана в папку", "Save the whole screen to a folder"), ("Предлагать ту же область, что в прошлый раз", "Offer the same area as last time"),
+            ("Показывать курсор мыши на скриншоте", "Show the mouse pointer in the screenshot"), ("Звуки", "Sounds"),
+            ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close")
+        })
+            if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
+                throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");
         if (restoredSettings.CaptureGesture.VirtualKey != 75 ||
             restoredSettings.CaptureGesture.Modifiers != (SnapBrief.Windows.HotkeyModifiers.Control | SnapBrief.Windows.HotkeyModifiers.Shift | SnapBrief.Windows.HotkeyModifiers.NoRepeat) ||
             HotkeySettings.Find("print-screen").Gesture.VirtualKey != 0x2C ||

@@ -10,27 +10,32 @@
  <Border Background="#171B22" BorderBrush="#354052" BorderThickness="1" CornerRadius="16" Padding="24">
  <Grid>
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <TextBlock Text="Настройки" FontSize="21" FontWeight="SemiBold" Margin="0,0,0,22" MouseLeftButtonDown="OnHeaderDrag"/>
+  <Grid Margin="0,0,0,22" Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
+   <TextBlock Text="Настройки" FontSize="21" FontWeight="SemiBold" VerticalAlignment="Center"/>
+   <Button x:Name="CloseButton" Style="{StaticResource BaseButton}" HorizontalAlignment="Right" VerticalAlignment="Center" Width="28" Height="28" MinHeight="28" Padding="0" Click="OnClose" ToolTip="Закрыть" AutomationProperties.Name="{local:UiText Закрыть}">
+    <Path Data="M0,0 L11,11 M11,0 L0,11" Stroke="#EEF2F8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+   </Button>
+  </Grid>
   <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
    <TabItem Header="Общие"><StackPanel Margin="0,10,0,0">
-    <CheckBox x:Name="NotificationsBox" Content="Уведомления о копировании и сохранении"/>
-    <CheckBox x:Name="RememberBox" Content="Запоминать последнюю область"/>
-    <CheckBox x:Name="CursorBox" Content="Захватывать курсор"/>
-    <CheckBox x:Name="SoundsBox" Content="{local:UiText Звуки захвата и стопки}"/>
+    <CheckBox x:Name="NotificationsBox" Content="Показывать уведомления"/>
+    <CheckBox x:Name="RememberBox" Content="Предлагать ту же область, что в прошлый раз"/>
+    <CheckBox x:Name="CursorBox" Content="Показывать курсор мыши на скриншоте"/>
+    <CheckBox x:Name="SoundsBox" Content="{local:UiText Звуки}"/>
     <TextBlock Text="Язык" Margin="0,4,0,7"/>
     <ComboBox x:Name="LanguageBox" Width="180" HorizontalAlignment="Left"><ComboBoxItem Content="Русский"/><ComboBoxItem Content="English"/></ComboBox>
    </StackPanel></TabItem>
    <TabItem Header="Клавиши"><StackPanel Margin="0,10,0,0">
-    <CheckBox x:Name="CaptureEnabledBox" Content="Захват области" Margin="0,0,0,7"/>
+    <CheckBox x:Name="CaptureEnabledBox" Content="Сделать скриншот" Margin="0,0,0,7"/>
     <TextBox x:Name="CaptureBox" IsReadOnly="True" Margin="0,0,0,20" GotKeyboardFocus="OnBeginRecording" PreviewMouseLeftButtonDown="OnBeginRecordingClick" PreviewKeyDown="OnCaptureKeyDown" PreviewKeyUp="OnCaptureKeyUp" ToolTip="Нажмите своё сочетание клавиш"/>
-    <CheckBox x:Name="FullscreenEnabledBox" Content="Быстро сохранить весь экран" Margin="0,0,0,7"/>
+    <CheckBox x:Name="FullscreenEnabledBox" Content="Скриншот всего экрана в папку" Margin="0,0,0,7"/>
     <TextBox x:Name="FullscreenBox" IsReadOnly="True" GotKeyboardFocus="OnBeginRecording" PreviewMouseLeftButtonDown="OnBeginRecordingClick" PreviewKeyDown="OnCaptureKeyDown" PreviewKeyUp="OnCaptureKeyUp" ToolTip="Нажмите своё сочетание клавиш"/>
    </StackPanel></TabItem>
    <TabItem Header="Сохранение"><StackPanel Margin="0,10,0,0">
     <CheckBox x:Name="AutoSaveBox" Content="{local:UiText Автоматически сохранять готовые снимки}" Margin="0,0,0,16"/>
     <TextBlock Text="Формат" Margin="0,0,0,7"/>
     <ComboBox x:Name="FormatBox" Width="140" HorizontalAlignment="Left"><ComboBoxItem Content="PNG"/><ComboBoxItem Content="JPEG"/></ComboBox>
-    <Grid Margin="0,14,0,0"><TextBlock Text="Качество JPEG"/><TextBlock HorizontalAlignment="Right" Text="{Binding ElementName=QualitySlider, Path=Value, StringFormat={}{0:0}}"/></Grid>
+    <TextBlock x:Name="QualityLabel" Margin="0,14,0,0"/>
     <Slider x:Name="QualitySlider" Minimum="1" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,6,0,16"/>
     <TextBlock Text="Папка сохранения" Margin="0,0,0,7"/>
     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions><TextBox x:Name="DirectoryBox"/><Button Grid.Column="1" Content="…" Click="OnBrowseDirectory" ToolTip="Выбрать папку"/></Grid>

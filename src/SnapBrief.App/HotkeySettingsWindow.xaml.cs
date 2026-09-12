@@ -25,7 +25,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public string AnnotationColor { get; init; } = "#2F8CFF";
     public double AnnotationThickness { get; init; } = 4;
     public string SaveFormat { get; init; } = "png";
-    public int JpegQuality { get; init; } = 90;
+    public int JpegQuality { get; init; } = 92;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "SnapBrief");
     public string Language { get; init; } = "ru";
     public HotkeyGesture FullscreenSaveGesture => Find(FullscreenSaveId).Gesture;
@@ -109,8 +109,19 @@ public partial class HotkeySettingsWindow : Window
         QualitySlider.Value = Math.Clamp(settings.JpegQuality, 1, 100);
         DirectoryBox.Text = settings.SaveDirectory;
         LanguageBox.SelectedIndex = settings.Language == "en" ? 1 : 0;
+        QualitySlider.ValueChanged += (_, _) => UpdateQuality();
+        FormatBox.SelectionChanged += (_, _) => UpdateQuality();
+        UpdateQuality();
         Loaded += (_, _) => UiLanguage.Apply(this, settings.Language);
     }
+
+    private void UpdateQuality()
+    {
+        QualityLabel.Visibility = QualitySlider.Visibility = FormatBox.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        QualityLabel.Text = string.Format(UiLanguage.Text("Качество JPEG: {0} % (меньше, легче файл)", _original.Language), (int)QualitySlider.Value);
+    }
+
+    private void OnClose(object sender, RoutedEventArgs e) => Close();
 
     private void BeginRecording(System.Windows.Controls.TextBox box)
     {
