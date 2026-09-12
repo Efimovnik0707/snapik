@@ -113,7 +113,8 @@ public partial class OverlayEditorWindow : Window
     internal static void RunShortcutHintProbe(CaptureItem source)
     {
         var capture = source.DeepClone();
-        var workspace = new SessionWorkspace(Path.Combine(Path.GetTempPath(), "SnapBrief", $"hint-probe-{Guid.NewGuid():N}"));
+        var root = Path.Combine(Path.GetTempPath(), "SnapBrief", $"hint-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
         var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
         var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
         window.Measure(new Size(1280, 720));
@@ -130,24 +131,50 @@ public partial class OverlayEditorWindow : Window
             window.SelectToolMode(EditorTool.Pen);
             window.SyncAppearance();
             var cyrillic = new System.Text.RegularExpressions.Regex("[А-Яа-яЁё]");
-            foreach (var text in PanelStrings(window.Toolbar))
-                if (cyrillic.IsMatch(text))
-                    throw new InvalidOperationException($"The English markup panel still shows Russian text: \"{text}\".");
+            // The panel, the palette popover and the cheat sheet: everything written in the dark of
+            // the editor, including the two popups that are built but never opened in a smoke run.
+            foreach (var panel in new DependencyObject?[] { window.Toolbar, window.AppearancePopup.Child, window.ShortcutSheetPopup.Child })
+                foreach (var text in PanelStrings(panel))
+                    if (cyrillic.IsMatch(text))
+                        throw new InvalidOperationException($"The English markup panel still shows Russian text: \"{text}\".");
             if (EditorShortcuts.Caption(EditorTool.Pen) != "Pen (P)" || (string?)window.SelectTool.ToolTip != "Select" ||
-                EditorShortcuts.GetShortcutKey(window.SelectTool) != "V")
+                window.SelectTool.Uid != "V")
                 throw new InvalidOperationException("The panel must show the translated name and the key from EditorShortcuts.");
+            var capsule = ShortcutCapsuleText(window, window.SelectTool);
+            if (capsule != "V")
+                throw new InvalidOperationException($"The tooltip of the select tool must carry the capsule \"V\", it carried \"{capsule}\".");
         }
         finally
         {
             UiLanguage.Current = language;
             UiLanguage.Apply(window, language);
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
         }
     }
 
-    private static IEnumerable<string> PanelStrings(DependencyObject root)
+    // The tooltip of a button is built for real here, template and all: the capsule reads the letter
+    // through PlacementTarget, a path nothing else in a smoke run walks, and an empty capsule means
+    // the binding fell off, which it does without a word in the binding trace.
+    private static string? ShortcutCapsuleText(OverlayEditorWindow window, FrameworkElement target)
+    {
+        var tooltip = new ToolTip
+        {
+            Style = (Style)window.FindResource(typeof(ToolTip)),
+            PlacementTarget = target,
+            Content = target.ToolTip
+        };
+        tooltip.ApplyTemplate();
+        tooltip.Measure(new Size(400, 200));
+        var capsule = tooltip.Template?.FindName("KeyCap", tooltip) as Border;
+        return (capsule?.Child as TextBlock)?.Text;
+    }
+
+    private static IEnumerable<string> PanelStrings(DependencyObject? root)
     {
         var visited = new HashSet<DependencyObject>();
         var found = new List<string>();
+        if (root is null) return found;
         void Walk(DependencyObject item)
         {
             if (!visited.Add(item)) return;
@@ -174,13 +201,26 @@ public partial class OverlayEditorWindow : Window
             Thickness = 4
         };
         capture.Annotations.Add(annotation);
-        var workspace = new SessionWorkspace(Path.Combine(Path.GetTempPath(), "SnapBrief", $"note-probe-{Guid.NewGuid():N}"));
+        var root = Path.Combine(Path.GetTempPath(), "SnapBrief", $"note-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
         var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
         var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
         window.Measure(new Size(1280, 720));
         window.Arrange(new Rect(0, 0, 1280, 720));
         window._cropRect = new Rect(120, 90, 900, 506);
         window.SetupEditor();
+        // The window and its temporary workspace belong to the probe alone: both go away even when a
+        // check below throws, so a failed smoke run leaves nothing behind either.
+        try { return NoteAffordanceChecks(window); }
+        finally
+        {
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static CaptureItem NoteAffordanceChecks(OverlayEditorWindow window)
+    {
         var workingAnnotation = window._capture!.Annotations[0];
         window.Surface.SelectAnnotation(workingAnnotation.Id);
         window.OnCommentClick(window.CommentToolButton, new RoutedEventArgs());
@@ -373,7 +413,7 @@ public partial class OverlayEditorWindow : Window
         Toolbar.Visibility = Visibility.Visible;
         ShotNoteChip.Visibility = Visibility.Collapsed;
         ShotNoteBox.Text = _capture.Note;
-        ShotLabel.Text = $"СНИМОК {_capture.DisplayLabel}";
+        ShotLabel.Text = string.Format(UiLanguage.Text("СНИМОК {0}"), _capture.DisplayLabel);
         UpdateCaptureHandles();
         PositionShotNote();
         foreach (var annotation in _capture.Annotations) annotation.PropertyChanged += OnAnnotationPropertyChanged;
@@ -419,14 +459,19 @@ public partial class OverlayEditorWindow : Window
         if (EditorShortcuts.Find(EditorTool.Comment) is { } comment) Hint(CommentToolButton, comment.Name, comment.Caption);
         foreach (var (element, name) in new (FrameworkElement Element, string Name)[]
                  { (UndoButton, "Отменить"), (RedoButton, "Повторить"), (SaveImageButton, "Сохранить на компьютер"), (DoneButton, "Готово") })
-            Hint(element, name, EditorShortcuts.Actions.First(action => action.Name == name).Caption);
+            // A renamed action leaves the button without a capsule instead of throwing the editor
+            // window away in its constructor.
+            Hint(element, name, EditorShortcuts.Actions.FirstOrDefault(action => action.Name == name).Caption);
         foreach (var shortcut in EditorShortcuts.Tools) SheetTools.Children.Add(SheetRow(shortcut.Name, shortcut.Caption));
         foreach (var (caption, name) in EditorShortcuts.Actions) SheetActions.Children.Add(SheetRow(name, caption));
 
-        static void Hint(FrameworkElement element, string name, string key)
+        // Uid carries the letter to the capsule of the tooltip template; the app has no other use
+        // for it, and a path without a prefix is the only one a style of a resource dictionary can
+        // still resolve when the tooltip is built.
+        static void Hint(FrameworkElement element, string name, string? key)
         {
             element.ToolTip = name;
-            EditorShortcuts.SetShortcutKey(element, key);
+            element.Uid = key ?? string.Empty;
         }
     }
 

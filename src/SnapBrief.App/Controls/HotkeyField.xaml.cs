@@ -17,7 +17,6 @@ public partial class HotkeyField : UserControl
     private const string IdleCaption = "Нажми, чтобы изменить";
     private const string RecordingCaption = "Нажмите своё сочетание клавиш";
     private static readonly Brush IdleBorder = new SolidColorBrush(Color.FromRgb(68, 80, 100));
-    private static readonly Brush RecordingBorder = new SolidColorBrush(Color.FromRgb(122, 184, 255));
     private bool _recording;
     private string _language = UiLanguage.Current;
 
@@ -53,7 +52,10 @@ public partial class HotkeyField : UserControl
         KeyCaps.Children.Clear();
         foreach (var part in HotkeyLabelParts.Split(HotkeySettings.Find(HotkeyId).Label)) KeyCaps.Children.Add(KeyCap(part));
         KeyCaps.Visibility = _recording ? Visibility.Collapsed : Visibility.Visible;
-        Frame.BorderBrush = _recording ? RecordingBorder : IdleBorder;
+        // The recording border is the accent of the current theme, so it follows the accent the user
+        // picks; a local value put back over it returns the field to its idle frame.
+        if (_recording) Frame.SetResourceReference(Border.BorderBrushProperty, "FocusBrush");
+        else Frame.BorderBrush = IdleBorder;
         Caption.Text = UiLanguage.Text(_recording ? RecordingCaption : IdleCaption, _language);
     }
 
@@ -86,8 +88,12 @@ public partial class HotkeyField : UserControl
     private void OnCaptureKeyDown(object sender, KeyEventArgs e)
     {
         if (!_recording) return;
-        e.Handled = true;
         var key = e.Key == Key.System ? e.SystemKey : e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key;
+        // Tab keeps walking the window instead of becoming a hotkey, and Escape leaves the recording
+        // with the shortcut the field already had.
+        if (key == Key.Tab) return;
+        e.Handled = true;
+        if (key == Key.Escape) { _recording = false; Refresh(); return; }
         if (!IsModifier(key)) RecordKey(key);
     }
     private void RecordKey(Key key)

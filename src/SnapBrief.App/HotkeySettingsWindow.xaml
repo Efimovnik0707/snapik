@@ -41,9 +41,9 @@
    </StackPanel></TabItem>
    <TabItem Header="Клавиши"><StackPanel Margin="0,10,0,0">
     <CheckBox x:Name="CaptureEnabledBox" Content="Сделать скриншот" Margin="0,0,0,7"/>
-    <controls:HotkeyField x:Name="CaptureField" Margin="0,0,0,20" HotkeyChanged="OnHotkeyChanged"/>
+    <controls:HotkeyField x:Name="CaptureField" Margin="0,0,0,20" HotkeyChanged="OnHotkeyChanged" AutomationProperties.Name="{local:UiText Сделать скриншот}"/>
     <CheckBox x:Name="FullscreenEnabledBox" Content="Скриншот всего экрана в папку" Margin="0,0,0,7"/>
-    <controls:HotkeyField x:Name="FullscreenField" HotkeyChanged="OnHotkeyChanged"/>
+    <controls:HotkeyField x:Name="FullscreenField" HotkeyChanged="OnHotkeyChanged" AutomationProperties.Name="{local:UiText Скриншот всего экрана в папку}"/>
    </StackPanel></TabItem>
    <TabItem Header="Сохранение"><StackPanel Margin="0,10,0,0">
     <CheckBox x:Name="AutoSaveBox" Content="{local:UiText Автоматически сохранять готовые снимки}" Margin="0,0,0,16"/>

@@ -166,9 +166,19 @@ public partial class HotkeySettingsWindow : Window
                 Background = new SolidColorBrush((Color)ThemeService.Load(accent)["AccentColor"]),
                 IsChecked = accent == selected
             };
-            System.Windows.Automation.AutomationProperties.SetName(dot, accent);
             AccentRow.Children.Add(dot);
         }
+        RefreshAccentNames();
+    }
+
+    // A swatch has no caption of its own, so the screen reader gets one built in code; it is rebuilt
+    // with the window, because the name of the colour is translated as well.
+    private void RefreshAccentNames()
+    {
+        foreach (var dot in AccentRow.Children.OfType<RadioButton>())
+            if (dot.Tag is string accent)
+                System.Windows.Automation.AutomationProperties.SetName(dot,
+                    string.Format(UiLanguage.Text("Акцент: {0}", _language), UiLanguage.Text(accent, _language)));
     }
 
     internal string SelectedAccent =>
@@ -181,6 +191,7 @@ public partial class HotkeySettingsWindow : Window
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
         FullscreenField.ApplyLanguage(language);
+        RefreshAccentNames();
         UpdateQuality();
     }
 

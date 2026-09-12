@@ -29,6 +29,7 @@ public partial class CapturePreviewWindow : Window
     private bool _closing;
     private bool _closed;
     private double _zoom = 1;
+    private static readonly Brush IdleButtonBorder = new SolidColorBrush(Color.FromRgb(58, 68, 81));
 
     public CapturePreviewWindow(CaptureItem capture, Func<Task> persist)
     {
@@ -246,7 +247,10 @@ public partial class CapturePreviewWindow : Window
     {
         ImageScale.ScaleX = ImageScale.ScaleY = _zoom;
         ZoomText.Text = $"{_zoom:P0}";
-        FitButton.BorderBrush = _fitToWindow ? new SolidColorBrush(Color.FromRgb(122, 184, 255)) : new SolidColorBrush(Color.FromRgb(58, 68, 81));
+        // The frame of the active "fit" is the accent of the current theme; the idle one is the line
+        // colour of the dark chrome, and setting it locally drops the resource reference again.
+        if (_fitToWindow) FitButton.SetResourceReference(Control.BorderBrushProperty, "FocusBrush");
+        else FitButton.BorderBrush = IdleButtonBorder;
     }
 
     private void OnImageViewportSizeChanged(object sender, SizeChangedEventArgs e) => UpdateFitZoom();

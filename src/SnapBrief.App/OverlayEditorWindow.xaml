@@ -9,8 +9,12 @@
         KeyDown="OnWindowKeyDown" MouseLeftButtonDown="OnWindowMouseDown"
         MouseMove="OnWindowMouseMove" MouseLeftButtonUp="OnWindowMouseUp">
     <Window.Resources>
-        <!-- Name plus a key capsule, in the dark of the popover. The letter comes from the attached
-             property the code fills out of EditorShortcuts, so the panel keeps no letters of its own. -->
+        <!-- Name plus a key capsule, in the dark of the popover. The letter is carried by Uid of the
+             button, filled by the code out of EditorShortcuts, so the panel keeps no letters of its
+             own. Uid and not an attached property of ours: a path with a prefix
+             ("(local:EditorShortcuts.ShortcutKey)") is resolved by the parser context, which a style
+             of a resource dictionary no longer has by the time the tooltip is built, and the capsule
+             stays empty without a single line in the binding trace. -->
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="0" /><Setter Property="HasDropShadow" Value="False" />
@@ -20,12 +24,15 @@
                     <StackPanel Orientation="Horizontal">
                         <ContentPresenter VerticalAlignment="Center" />
                         <Border x:Name="KeyCap" Margin="9,0,0,0" Padding="6,1" VerticalAlignment="Center" CornerRadius="5" Background="#252C36" BorderBrush="#465366" BorderThickness="1">
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#B9C3D1" Text="{Binding PlacementTarget.(local:EditorShortcuts.ShortcutKey), RelativeSource={RelativeSource TemplatedParent}}" />
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#B9C3D1" Text="{Binding PlacementTarget.Uid, RelativeSource={RelativeSource TemplatedParent}}" />
                         </Border>
                     </StackPanel>
                 </Border>
                 <ControlTemplate.Triggers>
-                    <DataTrigger Binding="{Binding PlacementTarget.(local:EditorShortcuts.ShortcutKey), RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                    <DataTrigger Binding="{Binding PlacementTarget.Uid, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                        <Setter TargetName="KeyCap" Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding PlacementTarget.Uid, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
                         <Setter TargetName="KeyCap" Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
                 </ControlTemplate.Triggers>
@@ -98,7 +105,7 @@
                 Padding="8" CornerRadius="12" Background="#F2171A20">
             <StackPanel>
                 <Grid>
-                    <TextBlock x:Name="ShotLabel" VerticalAlignment="Center" Foreground="#9AA7B8" FontSize="11" FontWeight="SemiBold" Text="КОММЕНТАРИЙ К СНИМКУ" />
+                    <TextBlock x:Name="ShotLabel" VerticalAlignment="Center" Foreground="#9AA7B8" FontSize="11" FontWeight="SemiBold" />
                     <Button HorizontalAlignment="Right" Width="25" Height="25" Padding="7" Background="Transparent" BorderThickness="0" Click="OnCloseShotNoteClick" ToolTip="Удалить комментарий">
                         <Path Stroke="#D9DEE8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,1 L9,9 M9,1 L1,9" />
                     </Button>
@@ -176,9 +183,9 @@
                 <StackPanel>
                     <Grid Margin="0,0,0,14"><TextBlock Text="Цвет" FontWeight="SemiBold"/><Button HorizontalAlignment="Right" Width="22" MinWidth="22" Height="22" Padding="5" Style="{StaticResource OverlayButton}" Click="OnCloseAppearance" ToolTip="Закрыть"><Path Stroke="#D9DEE8" StrokeThickness="1.5" Data="M1,1 L9,9 M9,1 L1,9"/></Button></Grid>
                     <WrapPanel x:Name="ColorPalette" Margin="-3,0,-3,10"/>
-                    <TextBox x:Name="ColorHex" Text="#2F8CFF" MaxLength="7" Background="#252C36" Foreground="#EEF2F8" CaretBrush="White" BorderBrush="#465366" Padding="9,6" LostKeyboardFocus="OnHexLostFocus" PreviewKeyDown="OnHexKeyDown" AutomationProperties.Name="Цвет HEX"/>
+                    <TextBox x:Name="ColorHex" Text="#2F8CFF" MaxLength="7" Background="#252C36" Foreground="#EEF2F8" CaretBrush="White" BorderBrush="#465366" Padding="9,6" LostKeyboardFocus="OnHexLostFocus" PreviewKeyDown="OnHexKeyDown" AutomationProperties.Name="{local:UiText Цвет HEX}"/>
                     <Grid Margin="0,18,0,8"><TextBlock Text="Толщина" FontWeight="SemiBold"/><TextBlock x:Name="StrokeValue" HorizontalAlignment="Right"/></Grid>
-                    <Slider x:Name="StrokeSlider" Style="{StaticResource StrokeSliderStyle}" Minimum="1" Maximum="16" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" ValueChanged="OnStrokeChanged" AutomationProperties.Name="Толщина линии"/>
+                    <Slider x:Name="StrokeSlider" Style="{StaticResource StrokeSliderStyle}" Minimum="1" Maximum="16" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" ValueChanged="OnStrokeChanged" AutomationProperties.Name="{local:UiText Толщина линии}"/>
                     <Border Background="#222933" CornerRadius="7" Height="36" Margin="0,12,0,0"><Line x:Name="StrokePreview" X1="15" Y1="18" X2="225" Y2="18" Stroke="#2F8CFF" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/></Border>
                 </StackPanel>
             </Border>

@@ -89,7 +89,7 @@
     <StackPanel x:Name="Step2" Visibility="Collapsed">
      <TextBlock Text="Клавиша для снимка" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
      <TextBlock Text="Нажми на поле и введи своё сочетание" Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,0,0,18"/>
-     <controls:HotkeyField x:Name="CaptureField" Width="360" HorizontalAlignment="Left"/>
+     <controls:HotkeyField x:Name="CaptureField" Width="360" HorizontalAlignment="Left" AutomationProperties.Name="{local:UiText Клавиша для снимка}"/>
     </StackPanel>
 
     <StackPanel x:Name="Step3" Visibility="Collapsed">

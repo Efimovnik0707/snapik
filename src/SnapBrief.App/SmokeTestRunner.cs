@@ -143,6 +143,9 @@ public static class SmokeTestRunner
         onboarding.GoToStep(3);
         if (onboarding.Step4.Visibility != Visibility.Visible || onboarding.StepText.Text != "Шаг 4 из 4")
             throw new InvalidOperationException("The last step must show the animated hint and its own number.");
+        // The wizard is built for the checks above and belongs to nobody afterwards; the probe cannot
+        // close it itself, because those checks read the window it returns.
+        onboarding.Close();
         foreach (var (russian, english) in new[]
         {
             ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
@@ -209,7 +212,9 @@ public static class SmokeTestRunner
         var prepared = await workspace.PrepareAsync(captures, "Сохранить цвета", SnapBrief.Windows.TargetProfiles.CodexDesktop.Id);
         await OverlayEditorWindow.RunCaptureResizeProbeAsync(workspace, captures[0]);
         await OverlayEditorWindow.RunCaptureResizeProbeAsync(workspace, captures[2]);
-        OverlayEditorWindow.RunShortcutHintProbe(captures[0]);
+        // The tooltip of the panel is built for real inside the probe, so the binding that fills its
+        // key capsule is watched here like every other binding of the run.
+        WithoutBindingErrors("The markup panel", () => OverlayEditorWindow.RunShortcutHintProbe(captures[0]));
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
         var noteProbeCore = noteProbe.ToCore();
         var noteProbeLabel = SnapBrief.Core.Exporting.CaptureLabels.ForNotedAnnotations("A", noteProbeCore).SingleOrDefault();

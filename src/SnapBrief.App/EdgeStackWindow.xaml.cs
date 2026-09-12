@@ -805,7 +805,11 @@ public partial class EdgeStackWindow : Window
             // The next capture rebuilds the package from the captures that are still waiting anyway.
             _prepared = package;
             NotifyCopied();
-            SetStatus(UiLanguage.Text("PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки."));
+            // The advice about the paste button only makes sense while that button is enabled, and it
+            // is enabled by the captures that are still waiting.
+            SetStatus(UiLanguage.Text(PendingCaptures.Count > 0
+                ? "PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки."
+                : "PNG и текст скопированы."));
         }
         finally { _clipboardPublicationGate.Release(); }
     }
