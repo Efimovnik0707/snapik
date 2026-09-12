@@ -72,6 +72,9 @@ public partial class OverlayEditorWindow : Window
         InitializeComponent();
         InitializeCaptureHandles();
         InitializeNoteButton();
+        BuildColorDots();
+        AttachLongPress(RectangleTool, () => BuildShapeMenu(RectangleTool));
+        AttachLongPress(ArrowTool, () => BuildArrowMenu(ArrowTool));
         ApplyShortcutHints();
         DesktopImage.Source = frame.Image;
         var shadeGeometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
@@ -148,6 +151,19 @@ public partial class OverlayEditorWindow : Window
             var capsule = ShortcutCapsuleText(window, window.SelectTool);
             if (capsule != "V")
                 throw new InvalidOperationException($"The tooltip of the select tool must carry the capsule \"V\", it carried \"{capsule}\".");
+            // The menus of the two split buttons are built, read and used without a popup on screen.
+            var shapeMenu = window.BuildShapeMenu(window.ShapeMenuButton);
+            var arrowMenu = window.BuildArrowMenu(window.ArrowMenuButton);
+            foreach (var menu in new[] { shapeMenu, arrowMenu })
+                foreach (var text in PanelStrings(menu))
+                    if (cyrillic.IsMatch(text))
+                        throw new InvalidOperationException($"The English split button menu still shows Russian text: \"{text}\".");
+            MenuItem Row(ContextMenu menu, string caption) => menu.Items.OfType<MenuItem>().Single(item =>
+                item.Header is StackPanel panel && panel.Children.OfType<TextBlock>().Any(text => text.Text == caption));
+            Row(shapeMenu, "Ellipse").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Row(arrowMenu, "Curved arrow").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            if (window.Surface.ActiveShape != SnapBrief.Core.Models.AnnotationShape.Ellipse || window.Surface.ActiveArrowStyle != "curved")
+                throw new InvalidOperationException("A pick in a split button menu must reach the active shape and the active arrow style.");
         }
         finally
         {

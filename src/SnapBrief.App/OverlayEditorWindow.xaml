@@ -54,6 +54,50 @@
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
         </Style>
+        <!-- Split button: one capsule made of the tool itself and a 14 px chevron zone that opens the
+             menu of that tool. The halves are rounded outwards only, so they read as one control. -->
+        <Style x:Key="OverlayToolStart" TargetType="ToggleButton" BasedOn="{StaticResource OverlayTool}">
+            <Setter Property="Width" Value="32" /><Setter Property="Margin" Value="2,0,0,0" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+                <Border x:Name="B" CornerRadius="9,0,0,9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#29303A" /></Trigger>
+                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="Background" Value="{DynamicResource AccentSoftBrush}" /><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccentBrush}" /><Setter Property="Foreground" Value="White" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.4"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style x:Key="OverlayToolChevron" TargetType="Button">
+            <Setter Property="ToolTipService.InitialShowDelay" Value="150" />
+            <Setter Property="Width" Value="14" /><Setter Property="MinWidth" Value="14" /><Setter Property="Height" Value="36" />
+            <Setter Property="Margin" Value="0,0,2,0" /><Setter Property="Padding" Value="0" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="B" CornerRadius="0,9,9,0" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+                    <Path Width="8" Height="5" Stroke="#D9DEE8" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M0.5,1 L4,4 L7.5,1" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#29303A" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.4"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style x:Key="SegmentButton" TargetType="ToggleButton">
+            <Setter Property="Height" Value="30" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" /><Setter Property="Margin" Value="1,0" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleButton">
+                <Border x:Name="B" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#29303A" /></Trigger>
+                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="Background" Value="{DynamicResource AccentSoftBrush}" /><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccentBrush}" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.4"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
         <Style x:Key="OverlayButton" TargetType="Button">
             <Setter Property="ToolTipService.InitialShowDelay" Value="150" />
             <Setter Property="Height" Value="36" /><Setter Property="MinWidth" Value="36" /><Setter Property="Padding" Value="11,0" />
@@ -124,13 +168,14 @@
                 <ToggleButton x:Name="SelectTool" Style="{StaticResource OverlayTool}" Tag="Select" Click="OnToolClick">
                     <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M2,1 L14,9 L9,10 L7,15 Z" />
                 </ToggleButton>
-                <ToggleButton x:Name="RectangleTool" IsChecked="True" Style="{StaticResource OverlayTool}" Tag="Rectangle" Click="OnToolClick">
+                <ToggleButton x:Name="RectangleTool" IsChecked="True" Style="{StaticResource OverlayToolStart}" Tag="Rectangle" Click="OnToolClick">
                     <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" Data="M2,3 L14,3 L14,13 L2,13 Z" />
                 </ToggleButton>
-                <ToggleButton x:Name="ArrowTool" Style="{StaticResource OverlayTool}" Tag="Arrow" Click="OnToolClick">
+                <Button x:Name="ShapeMenuButton" Style="{StaticResource OverlayToolChevron}" Click="OnShapeMenuClick" ToolTip="Фигура" AutomationProperties.Name="{local:UiText Фигура}" />
+                <ToggleButton x:Name="ArrowTool" Style="{StaticResource OverlayToolStart}" Tag="Arrow" Click="OnToolClick">
                     <Path Width="17" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M2,15 L15,2 M9,2 L15,2 L15,8" />
                 </ToggleButton>
-                <Button Style="{StaticResource OverlayButton}" Width="23" MinWidth="23" Padding="6" x:Name="ArrowOptionsButton" Click="OnArrowOptionsClick"><Path Width="9" Height="5" Stroke="#D9DEE8" StrokeThickness="1.5" Data="M1,1 L4.5,4 L8,1"/></Button>
+                <Button x:Name="ArrowMenuButton" Style="{StaticResource OverlayToolChevron}" Click="OnArrowOptionsClick" ToolTip="Стиль стрелки" AutomationProperties.Name="{local:UiText Стиль стрелки}" />
                 <ToggleButton x:Name="PenTool" Visibility="Collapsed" Style="{StaticResource OverlayTool}" Tag="Pen" Click="OnToolClick">
                     <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M2,14 C5,12 5,8 8,7 M8,7 L13,2 L15,4 L10,9 Z" />
                 </ToggleButton>
@@ -149,6 +194,7 @@
                 <ToggleButton x:Name="CropTool" Style="{StaticResource OverlayTool}" Tag="Crop" Click="OnToolClick">
                     <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeStartLineCap="Round" Data="M4,1 L4,12 L15,12 M1,4 L12,4 L12,15" />
                 </ToggleButton>
+                <StackPanel x:Name="ColorDots" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,2,0" />
                 <Button x:Name="AppearanceButton" Style="{StaticResource OverlayButton}" Click="OnColorClick" ToolTip="Цвет и толщина" AutomationProperties.Name="{local:UiText Цвет и толщина}">
                     <StackPanel Orientation="Horizontal"><Ellipse x:Name="ColorSwatch" Width="16" Height="16" Fill="#2F8CFF" Stroke="#D9DEE8" StrokeThickness="1"/><TextBlock x:Name="AppearanceValue" Text="4 px" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
                 </Button>
@@ -185,6 +231,20 @@
                     <Grid Margin="0,0,0,14"><TextBlock Text="Цвет" FontWeight="SemiBold"/><Button HorizontalAlignment="Right" Width="22" MinWidth="22" Height="22" Padding="5" Style="{StaticResource OverlayButton}" Click="OnCloseAppearance" ToolTip="Закрыть"><Path Stroke="#D9DEE8" StrokeThickness="1.5" Data="M1,1 L9,9 M9,1 L1,9"/></Button></Grid>
                     <WrapPanel x:Name="ColorPalette" Margin="-3,0,-3,10"/>
                     <TextBox x:Name="ColorHex" Text="#2F8CFF" MaxLength="7" Background="#252C36" Foreground="#EEF2F8" CaretBrush="White" BorderBrush="#465366" Padding="9,6" LostKeyboardFocus="OnHexLostFocus" PreviewKeyDown="OnHexKeyDown" AutomationProperties.Name="{local:UiText Цвет HEX}"/>
+                    <TextBlock Text="Заливка" FontWeight="SemiBold" Margin="0,18,0,8"/>
+                    <Border x:Name="FillRow" Background="#222933" CornerRadius="8" Padding="3">
+                        <UniformGrid Columns="3">
+                            <ToggleButton x:Name="FillNoneSegment" Style="{StaticResource SegmentButton}" Tag="None" Click="OnFillClick" ToolTip="Контур" AutomationProperties.Name="{local:UiText Контур}">
+                                <Rectangle Width="22" Height="15" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
+                            </ToggleButton>
+                            <ToggleButton x:Name="FillSolidSegment" Style="{StaticResource SegmentButton}" Tag="Solid" Click="OnFillClick" ToolTip="Сплошная заливка" AutomationProperties.Name="{local:UiText Сплошная заливка}">
+                                <Rectangle Width="22" Height="15" Fill="#D9DEE8" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
+                            </ToggleButton>
+                            <ToggleButton x:Name="FillTranslucentSegment" Style="{StaticResource SegmentButton}" Tag="Translucent" Click="OnFillClick" ToolTip="Полупрозрачная заливка" AutomationProperties.Name="{local:UiText Полупрозрачная заливка}">
+                                <Rectangle Width="22" Height="15" Fill="#59D9DEE8" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
+                            </ToggleButton>
+                        </UniformGrid>
+                    </Border>
                     <Grid Margin="0,18,0,8"><TextBlock Text="Толщина" FontWeight="SemiBold"/><TextBlock x:Name="StrokeValue" HorizontalAlignment="Right"/></Grid>
                     <Slider x:Name="StrokeSlider" Style="{StaticResource StrokeSliderStyle}" Minimum="1" Maximum="16" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" ValueChanged="OnStrokeChanged" AutomationProperties.Name="{local:UiText Толщина линии}"/>
                     <Border Background="#222933" CornerRadius="7" Height="36" Margin="0,12,0,0"><Line x:Name="StrokePreview" X1="15" Y1="18" X2="225" Y2="18" Stroke="#2F8CFF" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/></Border>

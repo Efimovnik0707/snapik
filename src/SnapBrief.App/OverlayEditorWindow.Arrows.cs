@@ -8,30 +8,47 @@ namespace SnapBrief.App;
 
 public partial class OverlayEditorWindow
 {
-    private void OnArrowOptionsClick(object sender, RoutedEventArgs e)
+    private ContextMenu BuildArrowMenu(UIElement target)
     {
-        var menu = new ContextMenu { PlacementTarget = (UIElement)sender };
-        foreach (var (style, caption) in new[] { ("straight", "Прямая стрелка"), ("curved", "Изогнутая стрелка"), ("bold", "Толстая стрелка"), ("wide", "Широкая стрелка") })
+        var menu = ToolMenu(target);
+        var selected = Surface.SelectedAnnotation;
+        var current = selected?.Kind == EditorTool.Arrow ? selected.ArrowStyle : Surface.ActiveArrowStyle;
+        // "bold" is still drawn for arrows that carry it, but it is not offered any more: it only
+        // doubles the thickness, and the thickness is on the slider below.
+        foreach (var (style, caption) in new[] { ("straight", "Прямая стрелка"), ("curved", "Изогнутая стрелка"), ("wide", "Широкая стрелка") })
         {
             var drawing = new DrawingGroup();
             using (var dc = drawing.Open()) ArrowDrawing.Draw(dc, new Point(4, 24), new Point(70, 8), Brushes.White, 2, style);
-            var header = new StackPanel { Orientation = Orientation.Horizontal };
-            header.Children.Add(new Image { Source = new DrawingImage(drawing), Width = 64, Height = 28, Margin = new Thickness(0, 0, 14, 0) });
-            header.Children.Add(new TextBlock { Text = UiLanguage.Text(caption), VerticalAlignment = VerticalAlignment.Center });
-            var selected = Surface.SelectedAnnotation;
-            var item = new MenuItem { Header = header, IsChecked = (selected?.Kind == EditorTool.Arrow ? selected.ArrowStyle : Surface.ActiveArrowStyle) == style };
-            item.Click += (_, _) =>
-            {
-                if (Surface.SelectedAnnotation is { Kind: EditorTool.Arrow } arrow && _capture is not null)
+            var pick = style;
+            menu.Items.Add(MenuRow(
+                new Image { Source = new DrawingImage(drawing), Width = 64, Height = 28 },
+                UiLanguage.Text(caption), current == style, () =>
                 {
-                    _undo.Push(SnapshotState()); _redo.Clear(); arrow.ArrowStyle = style; _lastSnapshot = SnapshotState(); Surface.InvalidateVisual();
-                }
-                else SelectToolMode(EditorTool.Arrow);
-                Surface.ActiveArrowStyle = style;
-                SyncAppearance();
-            };
-            menu.Items.Add(item);
+                    if (Surface.SelectedAnnotation is not { Kind: EditorTool.Arrow }) SelectToolMode(EditorTool.Arrow);
+                    ApplyAppearance(null, null, arrowStyle: pick);
+                }));
         }
-        menu.IsOpen = true;
+
+        // The same edit as the slider in the popover, not a second state: one ApplyAppearance call.
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 4, 10, 2) };
+        row.Children.Add(new TextBlock
+        {
+            Text = UiLanguage.Text("Толщина"), Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0)
+        });
+        var slider = new Slider
+        {
+            Width = 120, Minimum = 1, Maximum = 16, TickFrequency = 1, IsSnapToTickEnabled = true, IsMoveToPointEnabled = true,
+            Style = (Style)FindResource("StrokeSliderStyle"), VerticalAlignment = VerticalAlignment.Center,
+            Value = Math.Clamp(selected?.Thickness ?? _activeThickness, 1, 16)
+        };
+        System.Windows.Automation.AutomationProperties.SetName(slider, UiLanguage.Text("Толщина линии"));
+        slider.ValueChanged += (_, e) => ApplyAppearance(null, Math.Round(e.NewValue));
+        row.Children.Add(slider);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(new MenuItem { Header = row, StaysOpenOnClick = true, Foreground = Brushes.White, Padding = new Thickness(0) });
+        return menu;
     }
+
+    private void OnArrowOptionsClick(object sender, RoutedEventArgs e) => OpenToolMenu(BuildArrowMenu((UIElement)sender));
 }

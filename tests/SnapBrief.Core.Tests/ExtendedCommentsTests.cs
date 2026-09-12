@@ -50,6 +50,30 @@ public sealed class ExtendedCommentsTests
     }
 
     [Fact]
+    public void Shape_and_fill_survive_json_and_default_for_a_session_written_without_them()
+    {
+        var oval = AnnotationItem.Create(AnnotationKind.Rectangle, [new(.1, .1), new(.6, .4)])
+            with { Shape = AnnotationShape.Ellipse, Fill = AnnotationFill.Translucent };
+        var capture = CaptureItem.Create("source/a.png", 1000, 1000) with { Annotations = [oval] };
+        var session = SnapBriefSession.Create(DateTimeOffset.UtcNow) with { Captures = [capture] };
+        var json = System.Text.Json.JsonSerializer.Serialize(session, SnapBriefJson.Options);
+        Assert.Contains("\"shape\": \"ellipse\"", json);
+        Assert.Contains("\"fill\": \"translucent\"", json);
+        var restored = System.Text.Json.JsonSerializer.Deserialize<SnapBriefSession>(json, SnapBriefJson.Options)!;
+        Assert.Equal(AnnotationShape.Ellipse, restored.Captures[0].Annotations[0].Shape);
+        Assert.Equal(AnnotationFill.Translucent, restored.Captures[0].Annotations[0].Fill);
+
+        var legacy = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+        var written = legacy["captures"]![0]!["annotations"]![0]!.AsObject();
+        written.Remove("shape");
+        written.Remove("fill");
+        var beforeTheFields = System.Text.Json.JsonSerializer.Deserialize<SnapBriefSession>(legacy.ToJsonString(), SnapBriefJson.Options)!;
+        Assert.Equal(AnnotationShape.Rectangle, beforeTheFields.Captures[0].Annotations[0].Shape);
+        Assert.Equal(AnnotationFill.None, beforeTheFields.Captures[0].Annotations[0].Fill);
+        SessionValidation.Validate(beforeTheFields);
+    }
+
+    [Fact]
     public void Cropping_keeps_comment_but_clears_a_removed_parent_link()
     {
         var parent = AnnotationItem.Create(AnnotationKind.Rectangle, [new(.8, .8), new(.9, .9)]);

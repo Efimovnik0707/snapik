@@ -215,6 +215,18 @@ public static class SmokeTestRunner
             captures.Add(capture);
         }
 
+        // A region can be an oval with a translucent fill; the exported PNG has to show the blend
+        // inside the oval and leave the corner of its box alone.
+        captures[1].Annotations.Add(new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle,
+            Shape = SnapBrief.Core.Models.AnnotationShape.Ellipse,
+            Fill = SnapBrief.Core.Models.AnnotationFill.Translucent,
+            Points = [new Point(200, 200), new Point(600, 500)],
+            Color = Color.FromRgb(255, 77, 79),
+            Thickness = 6
+        });
+
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
         var preview = WithoutBindingErrors("The preview window", () =>
@@ -276,6 +288,15 @@ public static class SmokeTestRunner
         var sourceBlurPixel = PixelAt(captures[2].Image, 1010, 700);
         var exportedBlurPixel = PixelAt(decoded[2], 1010, 48 + 700);
         var redactionLabelHasLightInk = HasLightPixel(decoded[2], 1048, 48 + 615, 70, 35);
+        var ovalSourceCenter = PixelAt(captures[1].Image, 400, 350);
+        var ovalExportCenter = PixelAt(decoded[1], 400, 48 + 350);
+        var ovalSourceCorner = PixelAt(captures[1].Image, 205, 205);
+        var ovalExportCorner = PixelAt(decoded[1], 205, 48 + 205);
+        var translucentOvalExported = !ovalSourceCenter.SequenceEqual(ovalExportCenter)
+            // Translucent, not solid: the fill colour itself would be exactly 79, 77, 255 in BGRA.
+            && !(ovalExportCenter[0] == 79 && ovalExportCenter[1] == 77 && ovalExportCenter[2] == 255)
+            // An oval, not a box: the corner of the bounding box keeps the pixels of the capture.
+            && ovalSourceCorner.SequenceEqual(ovalExportCorner);
         // A pasted capture is not removed: it keeps its place in the strip with the sent flag, stays
         // out of the next package and gives its letter away to the captures that are still waiting.
         captures[0].IsSent = true;
@@ -340,6 +361,7 @@ public static class SmokeTestRunner
             && prepared.Manifest.PromptText.Contains("C1: Уточнить подпись", StringComparison.Ordinal)
             && prepared.Manifest.NoteCount == 5
             && sentFlagPersisted
+            && translucentOvalExported
             && freshSessionPersisted;
         success = success
             && noteProbe.Annotations.Single(a => a.Kind == EditorTool.Comment).Note == "Контекстная заметка"

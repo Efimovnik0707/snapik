@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using SnapBrief.App.Imaging;
+using SnapBrief.Core.Models;
 using System.Runtime.CompilerServices;
 
 namespace SnapBrief.App.Controls;
@@ -43,6 +44,8 @@ public sealed class AnnotationCanvas : FrameworkElement
     public Color ActiveColor { get; set; } = Color.FromRgb(49, 92, 245);
     public double ActiveThickness { get; set; } = 4;
     public string ActiveArrowStyle { get; set; } = "straight";
+    public AnnotationShape ActiveShape { get; set; } = AnnotationShape.Rectangle;
+    public AnnotationFill ActiveFill { get; set; } = AnnotationFill.None;
     public double ImagePadding { get; set; } = 28;
 
     public event EventHandler<AnnotationItem>? AnnotationCreated;
@@ -154,7 +157,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         _gestureStart = ToImage(point);
         _draft = new AnnotationItem
         {
-            Kind = Tool, ArrowStyle = ActiveArrowStyle,
+            Kind = Tool, ArrowStyle = ActiveArrowStyle, Shape = ActiveShape, Fill = ActiveFill,
             Color = Tool == EditorTool.Conceal ? Colors.Black : ActiveColor,
             Thickness = ActiveThickness,
             Points = [_gestureStart.Value, _gestureStart.Value]
@@ -366,7 +369,7 @@ public sealed class AnnotationCanvas : FrameworkElement
             switch (item.Kind)
             {
                 case EditorTool.Rectangle:
-                    dc.DrawRectangle(null, pen, rect);
+                    DrawBoxShape(dc, item, rect, pen, scale);
                     break;
                 case EditorTool.Conceal:
                     dc.DrawRectangle(Brushes.Black, null, rect);
@@ -418,6 +421,35 @@ public sealed class AnnotationCanvas : FrameworkElement
                 dc.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), new Rect(corner.X - 4, corner.Y - 4, 8, 8));
         }
     }
+
+    // The frame of a region: the outline follows Shape, what stands inside it follows Fill. The
+    // export renderer draws the same three shapes from the same numbers, in image pixels.
+    internal static void DrawBoxShape(DrawingContext dc, Brush? fill, Pen pen, AnnotationShape shape, Rect rect, double scale)
+    {
+        switch (shape)
+        {
+            case AnnotationShape.Ellipse:
+                dc.DrawEllipse(fill, pen, new Point(rect.X + rect.Width / 2, rect.Y + rect.Height / 2), rect.Width / 2, rect.Height / 2);
+                break;
+            case AnnotationShape.Rounded:
+                var radius = Math.Min(14 * scale, Math.Min(rect.Width, rect.Height) / 4);
+                dc.DrawRoundedRectangle(fill, pen, rect, radius, radius);
+                break;
+            default:
+                dc.DrawRectangle(fill, pen, rect);
+                break;
+        }
+    }
+
+    internal static Brush? ShapeFillBrush(Color color, AnnotationFill fill) => fill switch
+    {
+        AnnotationFill.Solid => new SolidColorBrush(color),
+        AnnotationFill.Translucent => new SolidColorBrush(Color.FromArgb(64, color.R, color.G, color.B)),
+        _ => null
+    };
+
+    private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale) =>
+        DrawBoxShape(dc, ShapeFillBrush(item.Color, item.Fill), pen, item.Shape, rect, scale);
 
     private static bool HasResizeHandles(AnnotationItem item) => item.Kind != EditorTool.Comment;
 
@@ -476,7 +508,8 @@ public sealed class AnnotationCanvas : FrameworkElement
     }
 
     // Opaque marks are grabbed anywhere inside; a filled frame joins them in the next step.
-    private static bool HasInteriorGrab(AnnotationItem item) => item.Kind is EditorTool.Blur or EditorTool.Conceal;
+    private static bool HasInteriorGrab(AnnotationItem item) =>
+        item.Kind is EditorTool.Blur or EditorTool.Conceal || item.Fill != AnnotationFill.None;
 
     private NoteBadge BadgeOf(AnnotationItem item, Rect target)
     {

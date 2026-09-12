@@ -104,7 +104,9 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
             var rect = new Rect(start, end);
             switch (item.Kind)
             {
-                case AnnotationKind.Rectangle: dc.DrawRectangle(null, pen, rect); break;
+                case AnnotationKind.Rectangle:
+                    Controls.AnnotationCanvas.DrawBoxShape(dc, Controls.AnnotationCanvas.ShapeFillBrush(color, item.Fill), pen, item.Shape, rect, 1);
+                    break;
                 case AnnotationKind.Redaction: dc.DrawRectangle(Brushes.Black, null, rect); break;
                 case AnnotationKind.Text: DrawText(dc, item.Text, Math.Max(16, item.Thickness * 4.5), FontWeights.SemiBold, brush, start); break;
                 case AnnotationKind.Arrow:
