@@ -23,6 +23,7 @@ public sealed class SessionWorkspace
     private readonly string _root;
     private readonly string _currentPointer;
     private const int KeptExportRevisions = 3;
+    private static readonly DateTime ProcessStartUtc = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime();
     private int _revision;
     private DateTimeOffset _createdAtUtc;
 
@@ -159,15 +160,30 @@ public sealed class SessionWorkspace
         var keep = Path.GetFullPath(currentPackageDirectory);
         var stale = Directory.EnumerateDirectories(exportsRoot, "revision-*")
             .Select(Path.GetFullPath)
-            .OrderByDescending(path => path, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(ExportRevisionNumber)
             .Skip(KeptExportRevisions)
-            .Where(path => !string.Equals(path, keep, StringComparison.OrdinalIgnoreCase));
+            .Where(path => !string.Equals(path, keep, StringComparison.OrdinalIgnoreCase))
+            // A .staging-* directory is removed by the export itself unless the process died in the
+            // middle of writing it, so only the ones older than this process are safe to drop.
+            .Concat(Directory.EnumerateDirectories(exportsRoot, ".staging-*")
+                .Select(Path.GetFullPath)
+                .Where(path => Directory.GetLastWriteTimeUtc(path) < ProcessStartUtc));
         foreach (var directory in stale)
         {
             try { Directory.Delete(directory, true); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
+    }
+
+    // revision-000123-{export id}: the revision number is what orders the directories. Sorting the
+    // names as text keeps that order only while the number fits the padding it was written with.
+    private static int ExportRevisionNumber(string directory)
+    {
+        var digits = Path.GetFileName(directory).AsSpan("revision-".Length);
+        var end = 0;
+        while (end < digits.Length && char.IsAsciiDigit(digits[end])) end++;
+        return int.TryParse(digits[..end], out var revision) ? revision : 0;
     }
 
     private SnapBriefSession CreateSnapshot(IEnumerable<CaptureItem> captures, string globalNote, string? profileId)

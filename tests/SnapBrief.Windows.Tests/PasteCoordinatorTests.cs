@@ -126,6 +126,24 @@ public sealed partial class PasteCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task SinglePackagePasteOfAPackageWithoutText_DoesNotWaitForTextAcceptance()
+    {
+        // The one-shot transport writes images and text together, but a package without notes has
+        // no text: an unconfirmed text step must neither time the paste out nor deny verification.
+        var package = CreatePackage(2) with { PromptText = string.Empty };
+        var observer = new FakeObserver([]) { Package = new(AcceptanceOutcome.Accepted, AcceptanceOutcome.TimedOut) };
+        var profile = Profile(PasteTransport.SingleClipboardPackage, HotkeyGesture.CtrlV, HotkeyGesture.CtrlV);
+        var coordinator = CreateCoordinator(new FakeClipboard(), new FakeInput(), observer);
+
+        var result = await coordinator.PasteAsync(package, profile);
+
+        Assert.Equal(PasteStatus.CompletedVerified, result.Status);
+        Assert.Equal(2, result.ImagesConfirmed);
+        Assert.False(result.TextDispatched);
+        Assert.False(result.TextConfirmed);
+    }
+
+    [Fact]
     public async Task StagedPasteOfAPackageWithoutText_SkipsTheTextStepAndSucceeds()
     {
         // Captures without notes produce no prompt text; the package is then images only.

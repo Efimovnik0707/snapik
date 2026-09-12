@@ -164,6 +164,9 @@ public static class SmokeTestRunner
             new SnapBrief.Core.Exporting.ExportImageContext("A", 0, Path.GetFullPath(Path.Combine(workspace.SessionDirectory, noteProbe.SourcePath))),
             noteProbePng, default);
         var paths = prepared.GetImagePathsInOrder();
+        // Checked here, before the pruning probe below drops this revision: the export directory of
+        // the first package is exactly what the probe is expected to remove.
+        var preparedFilesOnDisk = paths.All(File.Exists);
         var decoded = paths.Select(SessionWorkspace.LoadBitmap).ToArray();
         var sourceFirst = captures[0].Image;
         var sourceCorner = PixelAt(sourceFirst, sourceFirst.PixelWidth - 1, sourceFirst.PixelHeight - 1);
@@ -192,9 +195,22 @@ public static class SmokeTestRunner
             && preparedAfterSend.Manifest.PromptText.Contains("A1: Перенести пункт выше", StringComparison.Ordinal)
             && preparedAfterSend.Manifest.PromptText.Contains("B1: Уточнить подпись", StringComparison.Ordinal)
             && !preparedAfterSend.Manifest.PromptText.Contains("Снимок C", StringComparison.Ordinal);
-        // Only the newest three revision directories survive a prepare.
-        var exportRevisions = Directory.EnumerateDirectories(Path.Combine(workspace.SessionDirectory, "exports"), "revision-*").Count();
-        sentFlagPersisted = sentFlagPersisted && exportRevisions <= 3 && Directory.Exists(preparedAfterSend.RootDirectory);
+        // Only the newest three revision directories survive a prepare, and they are the three
+        // highest revision numbers rather than the three names that happen to sort last.
+        var preparedRevisions = new List<int> { preparedAfterSend.Manifest.Revision };
+        var latestExport = preparedAfterSend;
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            latestExport = await workspace.PrepareAsync(captures, packageAfterSend, string.Empty, SnapBrief.Windows.TargetProfiles.CodexDesktop.Id);
+            preparedRevisions.Add(latestExport.Manifest.Revision);
+        }
+        var keptRevisions = Directory.EnumerateDirectories(Path.Combine(workspace.SessionDirectory, "exports"), "revision-*")
+            .Select(path => int.Parse(Path.GetFileName(path).Split('-')[1], System.Globalization.CultureInfo.InvariantCulture))
+            .Order()
+            .ToArray();
+        sentFlagPersisted = sentFlagPersisted
+            && keptRevisions.SequenceEqual(preparedRevisions.TakeLast(3))
+            && Directory.Exists(latestExport.RootDirectory);
         captures[0].IsSent = false;
 
         var previousSessionId = workspace.SessionId;
@@ -212,7 +228,7 @@ public static class SmokeTestRunner
             && File.Exists(Path.Combine(previousSessionDirectory, "session.json"))
             && File.Exists(previousSourcePath);
         var success = paths.Count == 3
-            && paths.All(File.Exists)
+            && preparedFilesOnDisk
             && decoded.All(bitmap => bitmap.PixelWidth == 1920 && bitmap.PixelHeight == 1128)
             && sourceCorner.SequenceEqual(exportedCorner)
             && redactionPixel[3] == 255 && redactionPixel[0] < 8 && redactionPixel[1] < 8 && redactionPixel[2] < 8

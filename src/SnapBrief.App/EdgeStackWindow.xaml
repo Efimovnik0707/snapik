@@ -125,7 +125,7 @@
                             <Border x:Name="ThumbCard" Margin="0,0,0,-48" Height="78" CornerRadius="11" Background="#242A33"
                                     BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True" MouseEnter="OnCaptureThumbMouseEnter">
                                 <Grid>
-                                    <Button Padding="0" Background="Transparent" BorderThickness="0" Click="OnOpenCaptureClick" Tag="{Binding}" ToolTip="Открыть снимок">
+                                    <Button x:Name="ThumbContent" Padding="0" Background="Transparent" BorderThickness="0" Click="OnOpenCaptureClick" Tag="{Binding}" ToolTip="Открыть снимок">
                                         <Grid>
                                             <Image Source="{Binding Image}" Stretch="UniformToFill" Opacity="0.86" />
                                             <Border VerticalAlignment="Bottom" Height="26" Background="#E6171A20">
@@ -150,9 +150,11 @@
                             </Border>
                             <DataTemplate.Triggers>
                                 <!-- Sent captures stay in the strip, dimmed and with a check instead of a letter; hover and
-                                     selection are declared after this trigger so they still light the card up. -->
+                                     selection are declared after this trigger so they still light the card up. The dimming
+                                     sits on the thumbnail and its badge, not on the card, so the delete button that appears
+                                     on hover stays as bright as on any other capture. -->
                                 <DataTrigger Binding="{Binding IsSent}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Opacity" Value="0.45" />
+                                    <Setter TargetName="ThumbContent" Property="Opacity" Value="0.45" />
                                     <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#333C49" />
                                     <Setter TargetName="LabelBadge" Property="Background" Value="#4A5563" />
                                     <Setter TargetName="LabelText" Property="Visibility" Value="Collapsed" />

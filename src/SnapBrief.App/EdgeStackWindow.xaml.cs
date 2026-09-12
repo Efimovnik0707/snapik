@@ -240,6 +240,8 @@ public partial class EdgeStackWindow : Window
         var pathsAtIntent = _prepared?.GetImagePathsInOrder().ToArray() ?? [];
         // Which captures the package holds is decided here, by id: the strip may be reordered or
         // trimmed before the completion finishes, and then indices would point at other captures.
+        // A capture edited between this intent and the completion keeps its id, so it is marked as
+        // sent together with the rest of the package it left in.
         var idsAtIntent = _prepared?.Manifest.Images.Select(image => image.CaptureId).ToArray() ?? [];
         // Snapshot in the keyboard hook, but release the hook before any clipboard I/O.
         _pasteIntentTransition = Dispatcher.InvokeAsync(() =>
@@ -269,8 +271,10 @@ public partial class EdgeStackWindow : Window
 
             if (completion.Status == CodexPasteCompletionStatus.CompletedUnverified)
             {
-                // Keep the package on the clipboard until the strip is republished: the pasted
-                // captures stay in place and only change their state to sent.
+                // The pasted package stays on the clipboard so the same set can go into another
+                // application right away; the captures stay in the strip and only turn sent. The
+                // republish arms the echo watch first, and marking runs after it: only captures
+                // that are still waiting rebuild the clipboard and cancel that watch.
                 await RepublishPackageForReuseAsync(pathsAtIntent, promptAtIntent);
                 await MarkCapturesSentAsync(idsAtIntent);
                 return;
@@ -470,7 +474,10 @@ public partial class EdgeStackWindow : Window
         _removed.Push((capture.DeepClone(), index));
         Renumber();
         InvalidatePrepared();
-        if (await SaveAsync()) ShowToast(UiLanguage.Text("Снимок удалён"), UiLanguage.Text("Отменить"), () => _ = RestoreRemoved());
+        // Undo works from the copy held in memory, so the offer stands even when the session file
+        // could not be written; that failure stays on the status line under the toast.
+        await SaveAsync();
+        ShowToast(UiLanguage.Text("Снимок удалён"), UiLanguage.Text("Отменить"), () => _ = RestoreRemoved());
         await RefreshOwnedClipboardAsync();
         e.Handled = true;
     }
@@ -523,11 +530,14 @@ public partial class EdgeStackWindow : Window
     private async Task<bool> PrepareAsync()
     {
         await _pasteIntentTransition;
-        if (Captures.Count == 0) { SetStatus(UiLanguage.Text("Сначала сделайте снимок."), true); return false; }
+        // The paste button sends what is still waiting, so an empty strip and a strip of sent
+        // captures are the same case here: there is nothing to prepare.
+        var pending = PendingCaptures;
+        if (pending.Count == 0) { SetStatus(UiLanguage.Text("Сначала сделайте снимок."), true); return false; }
         try
         {
             SetStatus(UiLanguage.Text("Готовим PNG и текст…"));
-            _prepared = await _workspace.PrepareAsync(Captures, string.Empty, SelectedProfile?.Id);
+            _prepared = await _workspace.PrepareAsync(Captures, pending, string.Empty, SelectedProfile?.Id);
             PasteButton.IsEnabled = true;
             ShowToast(string.Format(UiLanguage.Text("Готово: {0} изображений · {1} заметок"), _prepared.Manifest.CaptureCount, _prepared.Manifest.NoteCount));
             return true;
@@ -764,20 +774,22 @@ public partial class EdgeStackWindow : Window
         if (saved) ShowToast(UiLanguage.Text("Изображение добавлено."));
     }
 
+    // Copying and saving by hand are about the strip as a whole: they take every capture, sent ones
+    // included, into a package of their own and leave the export the paste button prepared alone.
     private async Task CopyPackageAsync()
     {
         await _pasteIntentTransition;
+        if (Captures.Count == 0) { SetStatus(UiLanguage.Text("Сначала сделайте снимок."), true); return; }
         CancelReceiverEchoWatch();
         await _clipboardPublicationGate.WaitAsync();
         try
         {
-        if (_prepared is null && !await PrepareAsync()) return;
-        if (_prepared is null) return;
-        var current = await _clipboard.CaptureAsync(CancellationToken.None);
-        _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(_prepared.GetImagePathsInOrder(), _prepared.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
-        _ownedClipboardPromptText = _prepared.Manifest.PromptText;
+            var package = await _workspace.PrepareAsync(Captures, Captures, string.Empty, SelectedProfile?.Id);
+            var current = await _clipboard.CaptureAsync(CancellationToken.None);
+            _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(package.GetImagePathsInOrder(), package.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
+            _ownedClipboardPromptText = package.Manifest.PromptText;
             NotifyCopied();
-        SetStatus(UiLanguage.Text("PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки."));
+            SetStatus(UiLanguage.Text("PNG и текст скопированы. Если получатель выберет один формат, используйте кнопку вставки."));
         }
         finally { _clipboardPublicationGate.Release(); }
     }
@@ -785,15 +797,15 @@ public partial class EdgeStackWindow : Window
     private async Task SavePackageAsAsync()
     {
         await _pasteIntentTransition;
-        if (_prepared is null && !await PrepareAsync()) return;
-        if (_prepared is null) return;
+        if (Captures.Count == 0) { SetStatus(UiLanguage.Text("Сначала сделайте снимок."), true); return; }
         using var dialog = new WinForms.FolderBrowserDialog { Description = "Папка для пакета SnapBrief", UseDescriptionForTitle = true };
         WinForms.DialogResult picked;
         using (SuspendTopmost()) picked = dialog.ShowDialog();
         if (picked != WinForms.DialogResult.OK) return;
+        var package = await _workspace.PrepareAsync(Captures, Captures, string.Empty, SelectedProfile?.Id);
         var destination = Path.Combine(dialog.SelectedPath, $"SnapBrief-{DateTime.Now:yyyyMMdd-HHmmss}");
         Directory.CreateDirectory(destination);
-        foreach (var path in Directory.EnumerateFiles(_prepared.RootDirectory)) File.Copy(path, Path.Combine(destination, Path.GetFileName(path)));
+        foreach (var path in Directory.EnumerateFiles(package.RootDirectory)) File.Copy(path, Path.Combine(destination, Path.GetFileName(path)));
         ShowToast(UiLanguage.Text("Пакет сохранён."));
     }
 
@@ -914,6 +926,9 @@ public partial class EdgeStackWindow : Window
             Captures.Clear();
             _legacyGlobalNote = string.Empty;
             _removed.Clear();
+            // An undo toast still on screen would offer to restore into a session that no longer
+            // holds the capture it points at.
+            HideToastNow();
             _prepared = null;
             _ownedClipboardReceipt = null;
             _ownedClipboardPromptText = null;
@@ -944,7 +959,9 @@ public partial class EdgeStackWindow : Window
     private async void OnClearStackClick(object sender, RoutedEventArgs e) => await ClearStackFromUserAsync();
 
     // A completed paste keeps the captures in the strip and only marks the ones that were in the
-    // package; the clipboard is then rebuilt from what is left, so the next Ctrl+V cannot repeat them.
+    // package. Captures that are still waiting rebuild the clipboard, so the next Ctrl+V cannot
+    // repeat what was already sent; when nothing is left waiting the just-pasted package stays on
+    // the clipboard, and repeating Ctrl+V pastes the same set into another application.
     private async Task MarkCapturesSentAsync(Guid[] idsAtIntent)
     {
         if (_settings.ClearStackAfterPaste) { await ClearStackAsync(); return; }
@@ -954,10 +971,13 @@ public partial class EdgeStackWindow : Window
             if (ids.Contains(capture.Id) && !capture.IsSent) { capture.IsSent = true; marked = true; }
         if (!marked) return;
         Renumber();
+        await SaveCoreAsync();
+        if (PendingCaptures.Count == 0) return;
         InvalidatePrepared();
         CancelReceiverEchoWatch();
-        await SaveCoreAsync();
-        await RefreshOwnedClipboardCoreAsync();
+        // The strip published this package itself a moment ago; a balloon about copying would
+        // describe a paste the user has just made by hand.
+        await RefreshOwnedClipboardCoreAsync(notifyCopied: false);
     }
 
     private async Task RefreshOwnedClipboardAsync()
@@ -969,7 +989,7 @@ public partial class EdgeStackWindow : Window
         finally { _clipboardPublicationGate.Release(); }
     }
 
-    private async Task RefreshOwnedClipboardCoreAsync()
+    private async Task RefreshOwnedClipboardCoreAsync(bool notifyCopied = true)
     {
         if (_ownedClipboardReceipt is not { } receipt) return;
         try
@@ -983,6 +1003,11 @@ public partial class EdgeStackWindow : Window
             var pending = PendingCaptures;
             if (pending.Count == 0)
             {
+                // A strip that holds only sent captures keeps the package that was pasted from it:
+                // the clipboard, the prepared export and the receipt all still describe that package,
+                // so the same set can be pasted again elsewhere. Only a strip that is really empty
+                // gives the clipboard back.
+                if (Captures.Count > 0) return;
                 _ownedClipboardReceipt = await _clipboard.SetTextGuardedAsync(string.Empty, receipt.SequenceNumber, CancellationToken.None);
                 _ownedClipboardPromptText = null;
                 _prepared = null;
@@ -991,7 +1016,7 @@ public partial class EdgeStackWindow : Window
             _prepared = await _workspace.PrepareAsync(Captures, pending, string.Empty, SelectedProfile?.Id);
             _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(_prepared.GetImagePathsInOrder(), _prepared.Manifest.PromptText, receipt.SequenceNumber, CancellationToken.None);
             _ownedClipboardPromptText = _prepared.Manifest.PromptText;
-            NotifyCopied();
+            if (notifyCopied) NotifyCopied();
         }
         catch (ClipboardChangedException)
         {

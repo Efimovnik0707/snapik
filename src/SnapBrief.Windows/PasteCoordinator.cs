@@ -58,22 +58,25 @@ public sealed class PasteCoordinator(
         var guard = await CheckAfterWriteAsync(target, receipt, state, cancellationToken);
         if (guard is not null) return guard;
 
+        // A package whose captures carry no notes has no text in it at all, so nothing about the
+        // text can be dispatched, confirmed or time out.
+        var hasText = package.PromptText.Length > 0;
         await input.SendAsync(profile.ImagePasteGesture, cancellationToken);
         state.ImagesDispatched = package.ImagePaths.Count;
-        state.TextDispatched = true;
+        state.TextDispatched = hasText;
         var observed = await WithPackageTimeoutAsync(
             token => observer.WaitForPackageAsync(target, profile, token),
             profile.AcceptanceTimeout,
             cancellationToken);
         if (observed.Images == AcceptanceOutcome.TargetLost || observed.Text == AcceptanceOutcome.TargetLost)
             return state.Result(PasteStatus.TargetChanged, "Активное окно или поле ввода изменилось во время ожидания.");
-        if (observed.Images == AcceptanceOutcome.TimedOut || observed.Text == AcceptanceOutcome.TimedOut)
+        if (observed.Images == AcceptanceOutcome.TimedOut || (hasText && observed.Text == AcceptanceOutcome.TimedOut))
             return state.Result(PasteStatus.AcceptanceTimedOut, "Получатель не подтвердил весь пакет вовремя. Проверьте черновик перед повтором.");
 
         state.ImagesConfirmed = observed.Images == AcceptanceOutcome.Accepted ? package.ImagePaths.Count : 0;
-        state.TextConfirmed = observed.Text == AcceptanceOutcome.Accepted;
+        state.TextConfirmed = hasText && observed.Text == AcceptanceOutcome.Accepted;
         state.CanResume = false;
-        var verified = state.ImagesConfirmed == package.ImagePaths.Count && state.TextConfirmed;
+        var verified = state.ImagesConfirmed == package.ImagePaths.Count && (state.TextConfirmed || !hasText);
         var result = state.Result(
             verified ? PasteStatus.CompletedVerified : PasteStatus.CompletedUnverified,
             verified
