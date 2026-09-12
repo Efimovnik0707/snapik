@@ -84,6 +84,35 @@ public sealed class PersistenceAndExportTests : IDisposable
     }
 
     [Fact]
+    public async Task Json_store_round_trips_the_sent_flag_and_reads_a_file_written_without_it()
+    {
+        var sessionsRoot = Path.Combine(_root, "sessions");
+        var store = new JsonSessionStore(sessionsRoot);
+        var sent = CaptureItem.Create("source/sent.png", 100, 100) with { Sent = true };
+        var waiting = CaptureItem.Create("source/waiting.png", 100, 100);
+        var session = SessionOperations.AddCapture(SnapBriefSession.Create(Start), sent, Start);
+        session = SessionOperations.AddCapture(session, waiting, Start.AddSeconds(1));
+
+        await store.SaveAsync(session);
+        var restored = await store.LoadAsync(session.Id);
+
+        Assert.True(restored!.Captures[0].Sent);
+        Assert.False(restored.Captures[1].Sent);
+
+        var json = JsonNode.Parse(JsonSerializer.Serialize(session, SnapBriefJson.Options))!.AsObject();
+        foreach (var capture in json["captures"]!.AsArray()) Assert.True(capture!.AsObject().Remove("sent"));
+        var legacy = session with { Id = Guid.NewGuid() };
+        json["id"] = legacy.Id.ToString("D");
+        var directory = store.GetSessionDirectory(legacy.Id);
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "session.json"), json.ToJsonString(SnapBriefJson.Options));
+
+        var restoredLegacy = await store.LoadAsync(legacy.Id);
+
+        Assert.All(restoredLegacy!.Captures, capture => Assert.False(capture.Sent));
+    }
+
+    [Fact]
     public async Task Overlapping_saves_commit_the_latest_invocation_even_when_revisions_repeat()
     {
         var store = new JsonSessionStore(Path.Combine(_root, "sessions"));

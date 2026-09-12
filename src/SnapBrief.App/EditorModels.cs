@@ -142,6 +142,7 @@ public sealed class CaptureItem : INotifyPropertyChanged
 {
     private string _note = string.Empty;
     private bool _isSelected;
+    private bool _isSent;
 
     public Guid Id { get; init; } = Guid.NewGuid();
     public required BitmapSource Image { get; set; }
@@ -159,6 +160,13 @@ public sealed class CaptureItem : INotifyPropertyChanged
     {
         get => _isSelected;
         set { if (_isSelected == value) return; _isSelected = value; OnPropertyChanged(); }
+    }
+
+    // The capture was pasted with a package: it stays in the strip, dimmed and out of the next package.
+    public bool IsSent
+    {
+        get => _isSent;
+        set { if (_isSent == value) return; _isSent = value; OnPropertyChanged(); }
     }
 
     public int NoteCount => Annotations.Count(a => !string.IsNullOrWhiteSpace(a.Note)) + (string.IsNullOrWhiteSpace(Note) ? 0 : 1);
@@ -181,11 +189,14 @@ public sealed class CaptureItem : INotifyPropertyChanged
         Image.DpiY > 0 ? Image.DpiY : 96,
         string.Empty,
         Note,
-        Annotations.Select(a => a.ToCore(Image.PixelWidth, Image.PixelHeight)).ToImmutableArray());
+        Annotations.Select(a => a.ToCore(Image.PixelWidth, Image.PixelHeight)).ToImmutableArray())
+    {
+        Sent = IsSent
+    };
 
     public static CaptureItem FromCore(CoreCapture item, BitmapSource image)
     {
-        var capture = new CaptureItem { Id = item.Id, SourcePath = item.SourceImagePath, Image = image, Note = item.Note };
+        var capture = new CaptureItem { Id = item.Id, SourcePath = item.SourceImagePath, Image = image, Note = item.Note, IsSent = item.Sent };
         foreach (var annotation in item.Annotations)
             capture.Annotations.Add(AnnotationItem.FromCore(annotation, image.PixelWidth, image.PixelHeight));
         return capture;

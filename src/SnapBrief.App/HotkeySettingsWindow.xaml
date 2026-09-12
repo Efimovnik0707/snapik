@@ -21,6 +21,7 @@
     <CheckBox x:Name="NotificationsBox" Content="Показывать уведомления"/>
     <CheckBox x:Name="RememberBox" Content="Предлагать ту же область, что в прошлый раз"/>
     <CheckBox x:Name="CursorBox" Content="Показывать курсор мыши на скриншоте"/>
+    <CheckBox x:Name="ClearStackBox" Content="Очищать ленту после вставки"/>
     <CheckBox x:Name="SoundsBox" Content="{local:UiText Звуки}"/>
     <TextBlock Text="Язык" Margin="0,4,0,7"/>
     <ComboBox x:Name="LanguageBox" Width="180" HorizontalAlignment="Left"><ComboBoxItem Content="Русский"/><ComboBoxItem Content="English"/></ComboBox>

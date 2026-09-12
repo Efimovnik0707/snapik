@@ -24,7 +24,7 @@ The product keeps screenshot-level and annotation-level notes structurally linke
 
 ## Operating Context
 
-SnapBrief runs locally on Windows 11 as a small edge stack rather than a conventional editor window. A typical session contains one to five captures from ordinary desktop applications. The user invokes capture with a global shortcut, selects and marks the frozen desktop in place, adds a compact note beside a marked region, then folds the result by clicking the dimmed backdrop, pressing Ctrl+C, or starting the next capture. Each fold updates the clipboard package. After SnapBrief observes the user paste its current package with Ctrl+V or Alt+V in another application, it preserves the sent files and clipboard while rotating the active stack to a new empty session.
+SnapBrief runs locally on Windows 11 as a small edge stack rather than a conventional editor window. A typical session contains one to five captures from ordinary desktop applications. The user invokes capture with a global shortcut, selects and marks the frozen desktop in place, adds a compact note beside a marked region, then folds the result by clicking the dimmed backdrop, pressing Ctrl+C, or starting the next capture. Each fold updates the clipboard package. After SnapBrief observes the user paste its current package with Ctrl+V or Alt+V in another application, the pasted captures stay in the strip marked as sent: they are dimmed, carry a check instead of a letter and are excluded from the next package, while the letters and the counter follow the captures that are still waiting. A foreign clipboard copy no longer resets anything; the strip is emptied only by the explicit "clear" action or by the optional "clear the strip after pasting" setting.
 
 ## Capabilities and Constraints
 

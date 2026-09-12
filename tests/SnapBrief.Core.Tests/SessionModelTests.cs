@@ -58,6 +58,24 @@ public sealed class SessionModelTests
             CaptureLabels.ForNotedAnnotations("A", capture).Select(item => item.DisplayLabel));
     }
 
+    [Fact]
+    public void Sent_captures_leave_the_package_and_give_their_letters_to_the_waiting_ones()
+    {
+        var first = CaptureItem.Create("source/first.png", 100, 100) with { Sent = true };
+        var second = CaptureItem.Create("source/second.png", 100, 100);
+        var third = CaptureItem.Create("source/third.png", 100, 100) with { Sent = true };
+        var fourth = CaptureItem.Create("source/fourth.png", 100, 100);
+        CaptureItem[] captures = [first, second, third, fourth];
+
+        var package = SentCaptureRules.ForPackage(captures, capture => capture.Sent);
+        var labels = SentCaptureRules.StripLabels([.. captures.Select(capture => capture.Sent)]);
+
+        Assert.Equal([second.Id, fourth.Id], package.Select(capture => capture.Id));
+        Assert.Equal([null, "A", null, "B"], labels);
+        Assert.Equal(["A", "B"], SentCaptureRules.StripLabels([false, false]));
+        Assert.Empty(SentCaptureRules.ForPackage(captures, _ => true));
+    }
+
     private sealed class FrozenTimeProvider(DateTimeOffset value) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => value;

@@ -22,6 +22,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public bool AutoSaveCaptures { get; init; }
     public bool PlaySounds { get; init; } = true;
     public bool StackTopmost { get; init; } = true;
+    public bool ClearStackAfterPaste { get; init; }
     public string AnnotationColor { get; init; } = "#2F8CFF";
     public double AnnotationThickness { get; init; } = 4;
     public string SaveFormat { get; init; } = "png";
@@ -118,6 +119,7 @@ public partial class HotkeySettingsWindow : Window
         CursorBox.IsChecked = settings.CaptureCursor;
         AutoSaveBox.IsChecked = settings.AutoSaveCaptures;
         SoundsBox.IsChecked = settings.PlaySounds;
+        ClearStackBox.IsChecked = settings.ClearStackAfterPaste;
         FormatBox.SelectedIndex = settings.SaveFormat == "jpeg" ? 1 : 0;
         QualitySlider.Value = Math.Clamp(settings.JpegQuality, 1, 100);
         DirectoryBox.Text = settings.SaveDirectory;
@@ -204,6 +206,7 @@ public partial class HotkeySettingsWindow : Window
                 RememberRegion = RememberBox.IsChecked == true, CaptureCursor = CursorBox.IsChecked == true,
                 AutoSaveCaptures = AutoSaveBox.IsChecked == true,
                 PlaySounds = SoundsBox.IsChecked == true,
+                ClearStackAfterPaste = ClearStackBox.IsChecked == true,
                 SaveFormat = FormatBox.SelectedIndex == 1 ? "jpeg" : "png",
                 JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory,
                 Language = LanguageBox.SelectedIndex == 1 ? "en" : "ru"

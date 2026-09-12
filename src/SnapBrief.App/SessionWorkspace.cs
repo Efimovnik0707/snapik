@@ -22,6 +22,7 @@ public sealed class SessionWorkspace
     private readonly ISessionAssetStore _assets;
     private readonly string _root;
     private readonly string _currentPointer;
+    private const int KeptExportRevisions = 3;
     private int _revision;
     private DateTimeOffset _createdAtUtc;
 
@@ -123,11 +124,50 @@ public sealed class SessionWorkspace
         RestoredProfileId = null;
     }
 
-    public async Task<PreparedExport> PrepareAsync(IEnumerable<CaptureItem> captures, string globalNote, string? profileId, CancellationToken cancellationToken = default)
+    public Task<PreparedExport> PrepareAsync(IEnumerable<CaptureItem> captures, string globalNote, string? profileId, CancellationToken cancellationToken = default) =>
+        PrepareAsync(captures, null, globalNote, profileId, cancellationToken);
+
+    /// <summary>
+    /// The whole strip is what gets persisted; <paramref name="packageCaptures"/> (null means all of
+    /// them) is the part that goes into the exported package, so sent captures stay in session.json.
+    /// </summary>
+    public async Task<PreparedExport> PrepareAsync(
+        IEnumerable<CaptureItem> captures,
+        IEnumerable<CaptureItem>? packageCaptures,
+        string globalNote,
+        string? profileId,
+        CancellationToken cancellationToken = default)
     {
         var session = CreateSnapshot(captures, globalNote, profileId);
         await SaveSnapshotAsync(session, cancellationToken);
-        return await new FileExportService(new WpfExportImageRenderer()).PrepareAsync(session, SessionDirectory, cancellationToken);
+        var exported = packageCaptures is null
+            ? session
+            : session with { Captures = packageCaptures.Select(capture => capture.ToCore()).ToImmutableArray() };
+        var prepared = await new FileExportService(new WpfExportImageRenderer()).PrepareAsync(exported, SessionDirectory, cancellationToken);
+        TrimExports(prepared.RootDirectory);
+        return prepared;
+    }
+
+    // Every prepared package writes another exports/revision-* directory with a full copy of the
+    // strip, and captures now live on across pastes, so only the newest few are kept. The directory
+    // the current package points at is never removed, and a directory that refuses to go (a reader
+    // still holding a file) is left for the next run.
+    private void TrimExports(string currentPackageDirectory)
+    {
+        var exportsRoot = Path.Combine(SessionDirectory, "exports");
+        if (!Directory.Exists(exportsRoot)) return;
+        var keep = Path.GetFullPath(currentPackageDirectory);
+        var stale = Directory.EnumerateDirectories(exportsRoot, "revision-*")
+            .Select(Path.GetFullPath)
+            .OrderByDescending(path => path, StringComparer.OrdinalIgnoreCase)
+            .Skip(KeptExportRevisions)
+            .Where(path => !string.Equals(path, keep, StringComparison.OrdinalIgnoreCase));
+        foreach (var directory in stale)
+        {
+            try { Directory.Delete(directory, true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
     }
 
     private SnapBriefSession CreateSnapshot(IEnumerable<CaptureItem> captures, string globalNote, string? profileId)

@@ -29,7 +29,7 @@ public static class SmokeTestRunner
         {
             AutoSaveCaptures = true, PlaySounds = false,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
-            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false,
+            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, ClearStackAfterPaste = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9,
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en"
         };
@@ -157,6 +157,31 @@ public static class SmokeTestRunner
         var sourceBlurPixel = PixelAt(captures[2].Image, 1010, 700);
         var exportedBlurPixel = PixelAt(decoded[2], 1010, 48 + 700);
         var redactionLabelHasLightInk = HasLightPixel(decoded[2], 1048, 48 + 615, 70, 35);
+        // A pasted capture is not removed: it keeps its place in the strip with the sent flag, stays
+        // out of the next package and gives its letter away to the captures that are still waiting.
+        captures[0].IsSent = true;
+        await workspace.SaveAsync(captures, "Сохранить цвета", SnapBrief.Windows.TargetProfiles.CodexDesktop.Id);
+        var reloadedAfterSend = await new SessionWorkspace(root).LoadCurrentAsync();
+        var stripLabels = SnapBrief.Core.Exporting.SentCaptureRules.StripLabels([.. captures.Select(capture => capture.IsSent)]);
+        var packageAfterSend = SnapBrief.Core.Exporting.SentCaptureRules.ForPackage(captures, capture => capture.IsSent);
+        var sentFlagPersisted = reloadedAfterSend.Count == 3
+            && reloadedAfterSend[0].IsSent
+            && !reloadedAfterSend[1].IsSent
+            && packageAfterSend.Count == 2
+            && packageAfterSend[0].Id == captures[1].Id
+            && stripLabels[0] is null && stripLabels[1] == "A" && stripLabels[2] == "B";
+        var preparedAfterSend = await workspace.PrepareAsync(captures, packageAfterSend, string.Empty, SnapBrief.Windows.TargetProfiles.CodexDesktop.Id);
+        sentFlagPersisted = sentFlagPersisted
+            && preparedAfterSend.Manifest.CaptureCount == 2
+            && preparedAfterSend.Manifest.Images[0].DisplayLabel == "A"
+            && preparedAfterSend.Manifest.PromptText.Contains("A1: Перенести пункт выше", StringComparison.Ordinal)
+            && preparedAfterSend.Manifest.PromptText.Contains("B1: Уточнить подпись", StringComparison.Ordinal)
+            && !preparedAfterSend.Manifest.PromptText.Contains("Снимок C", StringComparison.Ordinal);
+        // Only the newest three revision directories survive a prepare.
+        var exportRevisions = Directory.EnumerateDirectories(Path.Combine(workspace.SessionDirectory, "exports"), "revision-*").Count();
+        sentFlagPersisted = sentFlagPersisted && exportRevisions <= 3 && Directory.Exists(preparedAfterSend.RootDirectory);
+        captures[0].IsSent = false;
+
         var previousSessionId = workspace.SessionId;
         var previousSessionDirectory = workspace.SessionDirectory;
         var previousSourcePath = Path.GetFullPath(Path.Combine(previousSessionDirectory, captures[0].SourcePath));
@@ -182,6 +207,7 @@ public static class SmokeTestRunner
             && prepared.Manifest.PromptText.Contains("Снимок C", StringComparison.Ordinal)
             && prepared.Manifest.PromptText.Contains("C1: Уточнить подпись", StringComparison.Ordinal)
             && prepared.Manifest.NoteCount == 5
+            && sentFlagPersisted
             && freshSessionPersisted;
         success = success
             && noteProbe.Annotations.Single(a => a.Kind == EditorTool.Comment).Note == "Контекстная заметка"

@@ -81,7 +81,7 @@
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Grid.Row="0" Height="28" MouseLeftButtonDown="OnHeaderMouseDown">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="28" /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="26" /><ColumnDefinition Width="28" /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="7" Height="7" Fill="#2F8CFF" Margin="1,0,7,0" />
                     <TextBlock Foreground="White" FontSize="12" FontWeight="SemiBold" Text="SnapBrief" />
@@ -89,10 +89,13 @@
                         <TextBlock x:Name="CountText" Foreground="#BFC8D6" FontSize="11" Text="0" />
                     </Border>
                 </StackPanel>
-                <Button Grid.Column="1" Background="Transparent" BorderThickness="0" Foreground="#BFC8D6" Click="OnMoreClick" ToolTip="Ещё">
+                <Button Grid.Column="1" Background="Transparent" BorderThickness="0" Click="OnClearStackClick" ToolTip="Очистить ленту" AutomationProperties.Name="Очистить ленту">
+                    <Path Stretch="Uniform" Width="12" Height="13" Stroke="#BFC8D6" StrokeThickness="1.4" StrokeLineJoin="Round" Data="M1,3 L13,3 M5.5,3 L5.5,1.5 L8.5,1.5 L8.5,3 M2.6,3 L3.4,13 L10.6,13 L11.4,3" />
+                </Button>
+                <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Foreground="#BFC8D6" Click="OnMoreClick" ToolTip="Ещё">
                     <Path Width="14" Height="3" Fill="#BFC8D6" Data="M1,1.5 A1.5,1.5 0 1 0 4,1.5 A1.5,1.5 0 1 0 1,1.5 M6,1.5 A1.5,1.5 0 1 0 9,1.5 A1.5,1.5 0 1 0 6,1.5 M11,1.5 A1.5,1.5 0 1 0 14,1.5 A1.5,1.5 0 1 0 11,1.5" />
                 </Button>
-                <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Click="OnHideClick" ToolTip="Свернуть в трей" AutomationProperties.Name="Свернуть в трей">
+                <Button Grid.Column="3" Background="Transparent" BorderThickness="0" Click="OnHideClick" ToolTip="Свернуть в трей" AutomationProperties.Name="Свернуть в трей">
                     <Path Stretch="Uniform" Width="10" Height="10" Stroke="#BFC8D6" StrokeThickness="1.5" Data="M0,0 L10,10 M10,0 L0,10" />
                 </Button>
             </Grid>
@@ -127,8 +130,12 @@
                                             <Image Source="{Binding Image}" Stretch="UniformToFill" Opacity="0.86" />
                                             <Border VerticalAlignment="Bottom" Height="26" Background="#E6171A20">
                                                 <StackPanel Orientation="Horizontal" Margin="7,0" VerticalAlignment="Center">
-                                                    <Border Width="20" Height="20" CornerRadius="10" Background="#2F8CFF">
-                                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="11" FontWeight="Bold" Text="{Binding DisplayLabel}" />
+                                                    <Border x:Name="LabelBadge" Width="20" Height="20" CornerRadius="10" Background="#2F8CFF">
+                                                        <Grid>
+                                                            <TextBlock x:Name="LabelText" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="11" FontWeight="Bold" Text="{Binding DisplayLabel}" />
+                                                            <Path x:Name="SentMark" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Width="11" Height="8" Stretch="Uniform"
+                                                                  Stroke="White" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M1,4.5 L4,7.5 L10,1.5" />
+                                                        </Grid>
                                                     </Border>
                                                     <Path Width="10" Height="10" Margin="7,0,4,0" Stroke="#AEB8C7" StrokeThickness="1.2" StrokeLineJoin="Round" Data="M1,1 L9,1 L9,7 L5,7 L2,9 L2,7 L1,7 Z" />
                                                     <TextBlock Foreground="#DCE3ED" FontSize="11" Text="{Binding NoteCount}" />
@@ -142,6 +149,15 @@
                                 </Grid>
                             </Border>
                             <DataTemplate.Triggers>
+                                <!-- Sent captures stay in the strip, dimmed and with a check instead of a letter; hover and
+                                     selection are declared after this trigger so they still light the card up. -->
+                                <DataTrigger Binding="{Binding IsSent}" Value="True">
+                                    <Setter TargetName="ThumbCard" Property="Opacity" Value="0.45" />
+                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#333C49" />
+                                    <Setter TargetName="LabelBadge" Property="Background" Value="#4A5563" />
+                                    <Setter TargetName="LabelText" Property="Visibility" Value="Collapsed" />
+                                    <Setter TargetName="SentMark" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
                                 <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True">
                                     <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#718096" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />

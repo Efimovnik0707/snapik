@@ -13,6 +13,9 @@ public sealed record CaptureItem(
     string Note,
     ImmutableArray<AnnotationItem> Annotations)
 {
+    /// <summary>The capture was already pasted as part of a package; it stays in the strip, but out of the next one.</summary>
+    public bool Sent { get; init; }
+
     public static CaptureItem Create(
         string sourceImagePath,
         int pixelWidth,
