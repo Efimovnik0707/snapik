@@ -311,7 +311,7 @@ public partial class CapturePreviewWindow : Window
 
     private bool MarkupRequested { get; set; }
 
-    internal static void RunPreviewProbe(CaptureItem source)
+    internal static CapturePreviewWindow RunPreviewProbe(CaptureItem source)
     {
         var capture = new CaptureItem
         {
@@ -362,6 +362,7 @@ public partial class CapturePreviewWindow : Window
         if (bounds.Left < workArea.Left || bounds.Top < workArea.Top || bounds.Right > workArea.Right || bounds.Bottom > workArea.Bottom)
             throw new InvalidOperationException("Preview bounds escaped the stack monitor working area.");
         window._saveTimer.Stop();
+        return window;
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject

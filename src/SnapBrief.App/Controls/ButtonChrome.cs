@@ -10,9 +10,9 @@ namespace SnapBrief.App.Controls;
 public static class ButtonChrome
 {
     public static readonly DependencyProperty HoverBackgroundProperty =
-        DependencyProperty.RegisterAttached("HoverBackground", typeof(Brush), typeof(ButtonChrome), new PropertyMetadata(null));
+        DependencyProperty.RegisterAttached("HoverBackground", typeof(Brush), typeof(ButtonChrome), new PropertyMetadata(Brushes.Transparent));
     public static readonly DependencyProperty PressedBackgroundProperty =
-        DependencyProperty.RegisterAttached("PressedBackground", typeof(Brush), typeof(ButtonChrome), new PropertyMetadata(null));
+        DependencyProperty.RegisterAttached("PressedBackground", typeof(Brush), typeof(ButtonChrome), new PropertyMetadata(Brushes.Transparent));
 
     public static Brush? GetHoverBackground(DependencyObject element) => (Brush?)element.GetValue(HoverBackgroundProperty);
     public static void SetHoverBackground(DependencyObject element, Brush? value) => element.SetValue(HoverBackgroundProperty, value);

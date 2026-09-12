@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -56,11 +57,20 @@ public static class SmokeTestRunner
         if (!HotkeySettings.TryLoad(Path.Combine(root, "missing-settings-smoke.json"), out var missingSettings) ||
             missingSettings != HotkeySettings.Default)
             throw new InvalidOperationException("A missing settings file must load the defaults and stay writable.");
-        var settingsWindow = new HotkeySettingsWindow(restoredSettings);
-        UiLanguage.Apply(settingsWindow, "en");
-        settingsWindow.Measure(new Size(530, 480));
-        settingsWindow.Arrange(new Rect(0, 0, 530, 480));
-        UiLanguage.Apply(settingsWindow, "ru");
+        var settingsWindow = WithoutBindingErrors("The settings window", () =>
+        {
+            var window = new HotkeySettingsWindow(restoredSettings);
+            window.ApplyLanguage("en");
+            if (!window.QualityLabel.Text.StartsWith("JPEG quality", StringComparison.Ordinal))
+                throw new InvalidOperationException("The JPEG quality caption must follow the language applied to the window.");
+            window.Measure(new Size(530, 480));
+            window.Arrange(new Rect(0, 0, 530, 480));
+            ResolveTriggerBindings(window);
+            window.ApplyLanguage("ru");
+            if (!window.QualityLabel.Text.StartsWith("Качество JPEG", StringComparison.Ordinal))
+                throw new InvalidOperationException("The JPEG quality caption must follow the language applied to the window.");
+            return window;
+        });
         if (settingsWindow.QualitySlider.Visibility != Visibility.Visible)
             throw new InvalidOperationException("JPEG quality must be visible while the JPEG format is selected.");
         settingsWindow.FormatBox.SelectedIndex = 0;
@@ -115,7 +125,7 @@ public static class SmokeTestRunner
 
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
-        CapturePreviewWindow.RunPreviewProbe(captures[0]);
+        WithoutBindingErrors("The preview window", () => ResolveTriggerBindings(CapturePreviewWindow.RunPreviewProbe(captures[0])));
         foreach (var format in new[] { "png", "jpeg" })
         {
             var imagePath = Path.Combine(root, "local-save." + (format == "jpeg" ? "jpg" : "png"));
@@ -189,6 +199,63 @@ public static class SmokeTestRunner
         Directory.CreateDirectory(root);
         await File.WriteAllTextAsync(Path.Combine(root, "smoke-test-result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         return success;
+    }
+
+    // A binding that cannot resolve its path is not an exception: WPF writes it to the trace and
+    // leaves the control unstyled, so the smoke run listens for those records and fails on them.
+    private static void WithoutBindingErrors(string what, Action action) => WithoutBindingErrors(what, () => { action(); return true; });
+
+    private static T WithoutBindingErrors<T>(string what, Func<T> action)
+    {
+        T result;
+        PresentationTraceSources.Refresh();
+        var source = PresentationTraceSources.DataBindingSource;
+        var listener = new BindingErrorListener();
+        var previousLevel = source.Switch.Level;
+        source.Switch.Level = SourceLevels.Error;
+        source.Listeners.Add(listener);
+        try { result = action(); }
+        finally
+        {
+            source.Listeners.Remove(listener);
+            source.Switch.Level = previousLevel;
+        }
+        if (listener.Errors.Count > 0)
+            throw new InvalidOperationException($"{what} reported a binding error: {listener.Errors[0]}");
+        return result;
+    }
+
+    // A binding inside a template trigger is evaluated only while the trigger is active, and a smoke
+    // run has no mouse pointer: the same paths are resolved here against the button itself, so a path
+    // that leads nowhere is written to the trace exactly as it would be on hover.
+    private static void ResolveTriggerBindings(DependencyObject root)
+    {
+        if (root is System.Windows.Controls.Control { Template: { } template } control)
+        {
+            foreach (var setter in template.Triggers.OfType<Trigger>().SelectMany(trigger => trigger.Setters).OfType<Setter>())
+                if (setter.Value is System.Windows.Data.Binding { RelativeSource.Mode: System.Windows.Data.RelativeSourceMode.TemplatedParent } binding)
+                {
+                    var probe = new System.Windows.Controls.Border();
+                    System.Windows.Data.BindingOperations.SetBinding(probe, System.Windows.Controls.Border.BackgroundProperty,
+                        new System.Windows.Data.Binding { Path = binding.Path, Source = control });
+                    System.Windows.Data.BindingOperations.ClearBinding(probe, System.Windows.Controls.Border.BackgroundProperty);
+                }
+        }
+        foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(root))
+            if (child is DependencyObject dependency) ResolveTriggerBindings(dependency);
+    }
+
+    private sealed class BindingErrorListener : TraceListener
+    {
+        private readonly System.Text.StringBuilder _pending = new();
+        public List<string> Errors { get; } = [];
+        public override void Write(string? message) => _pending.Append(message);
+        public override void WriteLine(string? message)
+        {
+            _pending.Append(message);
+            Errors.Add(_pending.ToString());
+            _pending.Clear();
+        }
     }
 
     private static System.Windows.Media.Imaging.BitmapSource CreatePrivacyBitmap(int width, int height)

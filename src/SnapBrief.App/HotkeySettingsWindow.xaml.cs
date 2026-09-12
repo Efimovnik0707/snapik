@@ -95,6 +95,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
 public partial class HotkeySettingsWindow : Window
 {
     private readonly HotkeySettings _original;
+    private string _language;
     private string _captureId;
     private string _fullscreenId;
     private System.Windows.Controls.TextBox? _recordingBox;
@@ -104,6 +105,7 @@ public partial class HotkeySettingsWindow : Window
     public HotkeySettingsWindow(HotkeySettings settings, bool showPasteSettings = false)
     {
         _original = settings;
+        _language = settings.Language;
         _captureId = settings.CaptureId;
         _fullscreenId = settings.FullscreenSaveId;
         InitializeComponent();
@@ -123,13 +125,21 @@ public partial class HotkeySettingsWindow : Window
         QualitySlider.ValueChanged += (_, _) => UpdateQuality();
         FormatBox.SelectionChanged += (_, _) => UpdateQuality();
         UpdateQuality();
-        Loaded += (_, _) => UiLanguage.Apply(this, settings.Language);
+        Loaded += (_, _) => ApplyLanguage(settings.Language);
+    }
+
+    // The quality caption is built in code, so it has to be rebuilt every time the window is translated.
+    internal void ApplyLanguage(string language)
+    {
+        _language = language;
+        UiLanguage.Apply(this, language);
+        UpdateQuality();
     }
 
     private void UpdateQuality()
     {
         QualityLabel.Visibility = QualitySlider.Visibility = FormatBox.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-        QualityLabel.Text = string.Format(UiLanguage.Text("Качество JPEG: {0} % (меньше, легче файл)", _original.Language), (int)QualitySlider.Value);
+        QualityLabel.Text = string.Format(UiLanguage.Text("Качество JPEG: {0} % (меньше, легче файл)", _language), (int)QualitySlider.Value);
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
@@ -137,7 +147,7 @@ public partial class HotkeySettingsWindow : Window
     private void BeginRecording(System.Windows.Controls.TextBox box)
     {
         _recordingBox = box;
-        box.Text = UiLanguage.Text("Нажмите клавишу…", _original.Language);
+        box.Text = UiLanguage.Text("Нажмите клавишу…", _language);
         ErrorText.Visibility = Visibility.Collapsed;
     }
     private void OnBeginRecording(object sender, KeyboardFocusChangedEventArgs e) => BeginRecording((System.Windows.Controls.TextBox)sender);
@@ -183,7 +193,7 @@ public partial class HotkeySettingsWindow : Window
         try
         {
             if (string.IsNullOrWhiteSpace(DirectoryBox.Text))
-                throw new InvalidOperationException(UiLanguage.Text("Укажите папку сохранения.", _original.Language));
+                throw new InvalidOperationException(UiLanguage.Text("Укажите папку сохранения.", _language));
             var directory = Path.GetFullPath(DirectoryBox.Text);
             Result = _original with
             {
@@ -202,6 +212,6 @@ public partial class HotkeySettingsWindow : Window
             if (error is not null) throw new InvalidOperationException(error);
             DialogResult = true;
         }
-        catch (Exception ex) { ErrorText.Text = UiLanguage.Text(ex.Message, _original.Language); ErrorText.Visibility = Visibility.Visible; Result = null; }
+        catch (Exception ex) { ErrorText.Text = UiLanguage.Text(ex.Message, _language); ErrorText.Visibility = Visibility.Visible; Result = null; }
     }
 }
