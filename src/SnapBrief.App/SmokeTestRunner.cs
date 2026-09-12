@@ -173,6 +173,7 @@ public static class SmokeTestRunner
             ("Показывать курсор мыши на скриншоте", "Show the mouse pointer in the screenshot"), ("Звуки", "Sounds"),
             ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close"), ("Громкость", "Volume"),
             ("Все снимки уже отправлены. Сделайте новый снимок.", "Every capture was already sent. Take a new one."),
+            ("Все поддерживаемые", "All supported"), ("Выберите PNG или JPEG.", "Choose PNG or JPEG."),
             ("Как пользоваться", "How it works"), ("Шаг {0} из {1}", "Step {0} of {1}"), ("Начать", "Get started"),
             ("Нажми на поле и введи своё сочетание", "Click the field and press your own shortcut"),
             ("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.", "This shortcut is already taken. Free it in the other application or pick another one.")

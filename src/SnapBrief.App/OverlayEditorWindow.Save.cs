@@ -22,8 +22,11 @@ public partial class OverlayEditorWindow
             var dialog = new SaveFileDialog
             {
                 Title = UiLanguage.Text("Сохранить на компьютер"),
-                Filter = "PNG (*.png)|*.png|JPEG (*.jpg;*.jpeg)|*.jpg;*.jpeg",
-                FilterIndex = settings.SaveFormat == "jpeg" ? 2 : 1,
+                // "All supported" first, so saving does not start with a choice of format; the
+                // extension the dialog appends still follows the preferred one. WebP is not offered:
+                // neither WPF nor System.Drawing has an encoder for it.
+                Filter = $"{UiLanguage.Text("Все поддерживаемые")} (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg|PNG (*.png)|*.png|JPEG (*.jpg;*.jpeg)|*.jpg;*.jpeg",
+                FilterIndex = 1,
                 DefaultExt = settings.SaveFormat == "jpeg" ? ".jpg" : ".png",
                 FileName = Path.GetFileNameWithoutExtension(LocalImageSave.NewPath(settings)),
                 InitialDirectory = Directory.Exists(settings.SaveDirectory) ? settings.SaveDirectory : Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
@@ -32,8 +35,10 @@ public partial class OverlayEditorWindow
             Topmost = false;
             if (dialog.ShowDialog(this) != true) return;
             var extension = Path.GetExtension(dialog.FileName).ToLowerInvariant();
+            // The format comes from the extension of the chosen file, so the JPEG quality of the
+            // settings reaches the encoder only when a JPEG is really being written.
             var format = extension is ".jpg" or ".jpeg" ? "jpeg" : "png";
-            if (extension is not (".png" or ".jpg" or ".jpeg")) throw new InvalidOperationException("Выберите PNG или JPEG.");
+            if (extension is not (".png" or ".jpg" or ".jpeg")) throw new InvalidOperationException(UiLanguage.Text("Выберите PNG или JPEG."));
             await LocalImageSave.WriteAsync(Surface.RenderAnnotated(), dialog.FileName, format, settings.JpegQuality, true);
             RememberCurrentRegion();
             if (Application.Current.MainWindow is EdgeStackWindow stack) stack.NotifySaved();
