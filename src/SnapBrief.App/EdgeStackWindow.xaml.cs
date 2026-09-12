@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -159,6 +159,7 @@ public partial class EdgeStackWindow : Window
     {
         if (_loadedOnce) return;
         _loadedOnce = true;
+        Topmost = _settings.StackTopmost;
         Hide();
         Opacity = 1;
         StartupTrace.Write(_options, "EdgeStack.Loaded entered");
@@ -619,6 +620,10 @@ public partial class EdgeStackWindow : Window
     private void OnMoreClick(object sender, RoutedEventArgs e)
     {
         var menu = new ContextMenu();
+        var topmostItem = new MenuItem { Header = "Поверх других окон", IsCheckable = true, IsChecked = _settings.StackTopmost };
+        topmostItem.Click += (_, _) => ToggleTopmost();
+        menu.Items.Add(topmostItem);
+        menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("Импортировать файл…", async () => await ImportFileAsync()));
         menu.Items.Add(MenuItem("Вставить изображение из буфера", async () => await ImportClipboardAsync()));
         if (_removed.Count > 0) menu.Items.Add(MenuItem("Вернуть удалённый снимок", RestoreRemoved));
@@ -632,6 +637,26 @@ public partial class EdgeStackWindow : Window
         menu.PlacementTarget = (UIElement)sender;
         UiLanguage.Apply(menu);
         menu.IsOpen = true;
+    }
+
+    private void ToggleTopmost()
+    {
+        _settings = _settings with { StackTopmost = !_settings.StackTopmost };
+        Topmost = _settings.StackTopmost;
+        try { _settings.Save(_settingsPath); }
+        catch (Exception ex) { SetStatus($"Не удалось сохранить настройки: {ex.Message}", true); }
+    }
+
+    // Modal dialogs owned by the strip would otherwise open behind a topmost strip.
+    private IDisposable SuspendTopmost()
+    {
+        Topmost = false;
+        return new TopmostSuspension(this);
+    }
+
+    private sealed class TopmostSuspension(EdgeStackWindow owner) : IDisposable
+    {
+        public void Dispose() => owner.Topmost = owner._settings.StackTopmost;
     }
 
     private void OnTargetClick(object sender, RoutedEventArgs e)
@@ -686,7 +711,9 @@ public partial class EdgeStackWindow : Window
         await _pasteIntentTransition;
         var filter = $"{UiLanguage.Text("Изображения")}|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif;*.tif;*.tiff|{UiLanguage.Text("Все файлы")}|*.*";
         var dialog = new OpenFileDialog { Filter = filter, Multiselect = true };
-        if (dialog.ShowDialog(this) != true) return;
+        bool? picked;
+        using (SuspendTopmost()) picked = dialog.ShowDialog(this);
+        if (picked != true) return;
         var imported = 0;
         var failures = new List<string>();
         foreach (var path in dialog.FileNames)
@@ -738,7 +765,9 @@ public partial class EdgeStackWindow : Window
         if (_prepared is null && !await PrepareAsync()) return;
         if (_prepared is null) return;
         using var dialog = new WinForms.FolderBrowserDialog { Description = "Папка для пакета SnapBrief", UseDescriptionForTitle = true };
-        if (dialog.ShowDialog() != WinForms.DialogResult.OK) return;
+        WinForms.DialogResult picked;
+        using (SuspendTopmost()) picked = dialog.ShowDialog();
+        if (picked != WinForms.DialogResult.OK) return;
         var destination = Path.Combine(dialog.SelectedPath, $"SnapBrief-{DateTime.Now:yyyyMMdd-HHmmss}");
         Directory.CreateDirectory(destination);
         foreach (var path in Directory.EnumerateFiles(_prepared.RootDirectory)) File.Copy(path, Path.Combine(destination, Path.GetFileName(path)));
@@ -780,7 +809,9 @@ public partial class EdgeStackWindow : Window
                     }
                 }
             };
-            if (dialog.ShowDialog() == true) SetStatus(string.Empty);
+            bool? saved;
+            using (SuspendTopmost()) saved = dialog.ShowDialog();
+            if (saved == true) SetStatus(string.Empty);
         }
         finally
         {
@@ -998,7 +1029,7 @@ public partial class EdgeStackWindow : Window
         else Hide();
     }
 
-    // Raise a normal window once without activation; never pin it above other applications.
+    // Raise the strip without activating it; whether it stays above other applications is the StackTopmost setting.
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);

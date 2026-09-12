@@ -45,7 +45,8 @@ internal static class UiLanguage
         ["Пакет вытеснен другим приложением. Сессия сохранена."] = "Another app replaced the package. The session was saved.",
         ["Изображения"] = "Images", ["Все файлы"] = "All files", ["Добавлено снимков: {0}"] = "Captures added: {0}",
         ["Изображение добавлено."] = "Image added.", ["В буфере нет изображения."] = "There is no image on the clipboard.",
-        ["Не удалось добавить"] = "Could not add", ["Формат не поддерживается системой"] = "The system does not support this format"
+        ["Не удалось добавить"] = "Could not add", ["Формат не поддерживается системой"] = "The system does not support this format",
+        ["Поверх других окон"] = "Always on top"
     };
     internal static string Text(string value, string? language = null) => (language ?? Current) == "en" ? (English.TryGetValue(value, out var translated) ? translated : value) : (English.FirstOrDefault(pair => pair.Value == value).Key ?? value);
     internal static void Apply(DependencyObject root, string? language = null)

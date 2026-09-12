@@ -21,6 +21,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public bool CaptureCursor { get; init; }
     public bool AutoSaveCaptures { get; init; }
     public bool PlaySounds { get; init; } = true;
+    public bool StackTopmost { get; init; } = true;
     public string SaveFormat { get; init; } = "png";
     public int JpegQuality { get; init; } = 90;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "SnapBrief");

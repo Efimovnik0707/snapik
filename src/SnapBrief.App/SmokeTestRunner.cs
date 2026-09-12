@@ -28,7 +28,7 @@ public static class SmokeTestRunner
         {
             AutoSaveCaptures = true, PlaySounds = false,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
-            RememberRegion = true, CaptureCursor = true, ShowNotifications = false,
+            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false,
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en"
         };
         customSettings.Save(customSettingsPath);
