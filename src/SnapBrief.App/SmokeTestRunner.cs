@@ -176,7 +176,9 @@ public static class SmokeTestRunner
             ("Все поддерживаемые", "All supported"), ("Выберите PNG или JPEG.", "Choose PNG or JPEG."),
             ("Как пользоваться", "How it works"), ("Шаг {0} из {1}", "Step {0} of {1}"), ("Начать", "Get started"),
             ("Нажми на поле и введи своё сочетание", "Click the field and press your own shortcut"),
-            ("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.", "This shortcut is already taken. Free it in the other application or pick another one.")
+            ("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.", "This shortcut is already taken. Free it in the other application or pick another one."),
+            ("Показать ленту", "Show the strip"), ("Очистить ленту", "Clear the strip"),
+            ("SnapBrief — Лента снимков", "SnapBrief — Capture strip")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");

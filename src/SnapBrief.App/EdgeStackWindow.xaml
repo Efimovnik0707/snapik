@@ -1,7 +1,8 @@
 <Window x:Class="SnapBrief.App.EdgeStackWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="SnapBrief — Стопка снимков" AutomationProperties.Name="SnapBrief — Стопка снимков"
+        xmlns:local="clr-namespace:SnapBrief.App"
+        Title="{local:UiText SnapBrief — Лента снимков}" AutomationProperties.Name="{local:UiText SnapBrief — Лента снимков}"
         Width="208" MinHeight="128" MaxHeight="620" SizeToContent="Height"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
         BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="False" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">

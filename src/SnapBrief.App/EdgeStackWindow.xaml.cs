@@ -127,7 +127,7 @@ public partial class EdgeStackWindow : Window
             Visible = true,
             ContextMenuStrip = new WinForms.ContextMenuStrip()
         };
-        _trayIcon.ContextMenuStrip.Items.Add("Показать стопку", null, (_, _) => Dispatcher.Invoke(ShowStackWithoutActivation));
+        _trayIcon.ContextMenuStrip.Items.Add("Показать ленту", null, (_, _) => Dispatcher.Invoke(ShowStackWithoutActivation));
         _trayIcon.ContextMenuStrip.Items.Add("Настройки", null, (_, _) => Dispatcher.Invoke(() => { ShowStackWithoutActivation(); OpenSettings(); }));
         _trayIcon.ContextMenuStrip.Items.Add("Как пользоваться", null, (_, _) => Dispatcher.Invoke(ShowOnboarding));
         _trayIcon.ContextMenuStrip.Items.Add("Новый снимок", null, (_, _) => Dispatcher.InvokeAsync(CaptureLoopAsync));
