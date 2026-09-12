@@ -67,6 +67,7 @@ public partial class OverlayEditorWindow : Window
         }
         InitializeComponent();
         InitializeCaptureHandles();
+        ApplyShortcutHints();
         DesktopImage.Source = frame.Image;
         var shadeGeometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
         shadeGeometry.Children.Add(_shadeOuter);
@@ -105,6 +106,60 @@ public partial class OverlayEditorWindow : Window
         if (active?._capture is null || active._busyCrop || active._captureResizeCorner >= 0 || active.Surface.IsMouseCaptured) return false;
         active.Dispatcher.BeginInvoke(() => active.Complete(true), DispatcherPriority.Input);
         return true;
+    }
+
+    // The panel is built from EditorShortcuts and translated by UiLanguage: in English nothing
+    // written on it (tooltip, caption, cheat sheet row) may stay Russian.
+    internal static void RunShortcutHintProbe(CaptureItem source)
+    {
+        var capture = source.DeepClone();
+        var workspace = new SessionWorkspace(Path.Combine(Path.GetTempPath(), "SnapBrief", $"hint-probe-{Guid.NewGuid():N}"));
+        var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
+        var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
+        window.Measure(new Size(1280, 720));
+        window.Arrange(new Rect(0, 0, 1280, 720));
+        window._cropRect = new Rect(120, 90, 900, 506);
+        window.SetupEditor();
+        var language = UiLanguage.Current;
+        try
+        {
+            // Both are needed: Apply translates what the panel carries, SyncAppearance rebuilds the
+            // captions the code composes (the caption of the "•••" button among them).
+            UiLanguage.Current = "en";
+            UiLanguage.Apply(window, "en");
+            window.SelectToolMode(EditorTool.Pen);
+            window.SyncAppearance();
+            var cyrillic = new System.Text.RegularExpressions.Regex("[А-Яа-яЁё]");
+            foreach (var text in PanelStrings(window.Toolbar))
+                if (cyrillic.IsMatch(text))
+                    throw new InvalidOperationException($"The English markup panel still shows Russian text: \"{text}\".");
+            if (EditorShortcuts.Caption(EditorTool.Pen) != "Pen (P)" || (string?)window.SelectTool.ToolTip != "Select" ||
+                EditorShortcuts.GetShortcutKey(window.SelectTool) != "V")
+                throw new InvalidOperationException("The panel must show the translated name and the key from EditorShortcuts.");
+        }
+        finally
+        {
+            UiLanguage.Current = language;
+            UiLanguage.Apply(window, language);
+        }
+    }
+
+    private static IEnumerable<string> PanelStrings(DependencyObject root)
+    {
+        var visited = new HashSet<DependencyObject>();
+        var found = new List<string>();
+        void Walk(DependencyObject item)
+        {
+            if (!visited.Add(item)) return;
+            if (item is FrameworkElement { ToolTip: string tip }) found.Add(tip);
+            if (item is ContentControl { Content: string caption }) found.Add(caption);
+            if (item is TextBlock text) found.Add(text.Text);
+            foreach (var child in LogicalTreeHelper.GetChildren(item)) if (child is DependencyObject dependency) Walk(dependency);
+            if (item is Visual)
+                for (var i = 0; i < VisualTreeHelper.GetChildrenCount(item); i++) Walk(VisualTreeHelper.GetChild(item, i));
+        }
+        Walk(root);
+        return found;
     }
 
     internal static CaptureItem RunNoteAffordanceProbe(CaptureItem source)
@@ -351,13 +406,59 @@ public partial class OverlayEditorWindow : Window
         _shadeHole.Rect = _cropRect.Width > 0 && _cropRect.Height > 0 ? _cropRect : Rect.Empty;
     }
 
+    private System.Windows.Controls.Primitives.ToggleButton[] ToolButtons =>
+        [SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, ConcealTool, BlurTool, CropTool];
+
+    // Every letter on the panel comes from EditorShortcuts: the name goes to the tooltip (and is
+    // translated with the rest of the window), the key goes to the capsule of the tooltip template.
+    private void ApplyShortcutHints()
+    {
+        foreach (var button in ToolButtons)
+            if (Enum.TryParse<EditorTool>(button.Tag?.ToString(), out var tool) && EditorShortcuts.Find(tool) is { } shortcut)
+                Hint(button, shortcut.Name, shortcut.Caption);
+        if (EditorShortcuts.Find(EditorTool.Comment) is { } comment) Hint(CommentToolButton, comment.Name, comment.Caption);
+        foreach (var (element, name) in new (FrameworkElement Element, string Name)[]
+                 { (UndoButton, "Отменить"), (RedoButton, "Повторить"), (SaveImageButton, "Сохранить на компьютер"), (DoneButton, "Готово") })
+            Hint(element, name, EditorShortcuts.Actions.First(action => action.Name == name).Caption);
+        foreach (var shortcut in EditorShortcuts.Tools) SheetTools.Children.Add(SheetRow(shortcut.Name, shortcut.Caption));
+        foreach (var (caption, name) in EditorShortcuts.Actions) SheetActions.Children.Add(SheetRow(name, caption));
+
+        static void Hint(FrameworkElement element, string name, string key)
+        {
+            element.ToolTip = name;
+            EditorShortcuts.SetShortcutKey(element, key);
+        }
+    }
+
+    private static Grid SheetRow(string name, string key)
+    {
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var title = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) };
+        var capsule = new Border
+        {
+            Padding = new Thickness(6, 1, 6, 1), CornerRadius = new CornerRadius(5),
+            Background = new SolidColorBrush(Color.FromRgb(37, 44, 54)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(70, 83, 102)), BorderThickness = new Thickness(1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock { Text = key, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(185, 195, 209)) }
+        };
+        Grid.SetColumn(capsule, 1);
+        row.Children.Add(title);
+        row.Children.Add(capsule);
+        return row;
+    }
+
+    private void OnShortcutSheetClick(object sender, RoutedEventArgs e) => ShortcutSheetPopup.IsOpen = !ShortcutSheetPopup.IsOpen;
+
     private void OnToolClick(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Primitives.ToggleButton selected || !Enum.TryParse<EditorTool>(selected.Tag?.ToString(), out var tool)) return;
         Surface.SelectAnnotation(null);
         Surface.Tool = tool;
         SyncAppearance();
-        foreach (var button in new[] { SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, ConcealTool, BlurTool, CropTool })
+        foreach (var button in ToolButtons)
             button.IsChecked = ReferenceEquals(button, selected);
     }
 
@@ -375,13 +476,12 @@ public partial class OverlayEditorWindow : Window
             BorderThickness = new Thickness(1),
             Padding = new Thickness(5)
         };
-        AddTool("Перо    P", EditorTool.Pen);
-        AddTool("Маркер    H", EditorTool.Highlight);
-
-        AddTool("Скрыть сплошным    X", EditorTool.Conceal);
+        AddTool(EditorTool.Pen);
+        AddTool(EditorTool.Highlight);
+        AddTool(EditorTool.Conceal);
         menu.IsOpen = true;
 
-        void AddTool(string title, EditorTool tool) { var item = ActionItem(title, () => SelectToolMode(tool)); item.IsChecked = Surface.Tool == tool; menu.Items.Add(item); }
+        void AddTool(EditorTool tool) { var item = ActionItem(EditorShortcuts.Caption(tool), () => SelectToolMode(tool)); item.IsChecked = Surface.Tool == tool; menu.Items.Add(item); }
         static MenuItem ActionItem(string title, Action action)
         {
             var item = new MenuItem { Header = title, Foreground = Brushes.White, Background = Brushes.Transparent, Padding = new Thickness(10, 7, 10, 7) };
@@ -395,7 +495,7 @@ public partial class OverlayEditorWindow : Window
         Surface.SelectAnnotation(null);
         Surface.Tool = tool;
         SyncAppearance();
-        foreach (var button in new[] { SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, ConcealTool, BlurTool, CropTool })
+        foreach (var button in ToolButtons)
             button.IsChecked = string.Equals(button.Tag?.ToString(), tool.ToString(), StringComparison.Ordinal);
         Surface.Focus();
     }
@@ -845,6 +945,7 @@ public partial class OverlayEditorWindow : Window
             if (e.Key == Key.Escape) { Surface.Focus(); e.Handled = true; }
             return;
         }
+        if (e.Key == Key.Escape && ShortcutSheetPopup.IsOpen) { ShortcutSheetPopup.IsOpen = false; e.Handled = true; return; }
         if (e.Key == Key.Escape)
         {
             CancelEdit();
@@ -857,20 +958,7 @@ public partial class OverlayEditorWindow : Window
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C && _capture is not null) { e.Handled = true; Complete(false); }
         else if (Keyboard.Modifiers == ModifierKeys.None)
         {
-            var tool = e.Key switch
-            {
-                Key.V => EditorTool.Select,
-                Key.R => EditorTool.Rectangle,
-                Key.A => EditorTool.Arrow,
-                Key.B => EditorTool.Blur,
-                Key.C => EditorTool.Crop,
-                Key.P => EditorTool.Pen,
-                Key.H => EditorTool.Highlight,
-                Key.T => EditorTool.Text,
-                Key.N => EditorTool.Comment,
-                Key.X => EditorTool.Conceal,
-                _ => (EditorTool?)null
-            };
+            var tool = EditorShortcuts.ToolFor(e.Key);
             if (tool == EditorTool.Comment) { OnCommentClick(this, e); e.Handled = true; }
             else if (tool is not null) { SelectToolMode(tool.Value); e.Handled = true; }
         }

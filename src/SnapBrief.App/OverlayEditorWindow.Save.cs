@@ -21,7 +21,7 @@ public partial class OverlayEditorWindow
             var settings = _workspace.Preferences;
             var dialog = new SaveFileDialog
             {
-                Title = UiLanguage.Text("Сохранить на компьютер (Ctrl+S)"),
+                Title = UiLanguage.Text("Сохранить на компьютер"),
                 Filter = "PNG (*.png)|*.png|JPEG (*.jpg;*.jpeg)|*.jpg;*.jpeg",
                 FilterIndex = settings.SaveFormat == "jpeg" ? 2 : 1,
                 DefaultExt = settings.SaveFormat == "jpeg" ? ".jpg" : ".png",

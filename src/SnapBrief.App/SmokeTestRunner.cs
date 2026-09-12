@@ -158,6 +158,7 @@ public static class SmokeTestRunner
         var prepared = await workspace.PrepareAsync(captures, "Сохранить цвета", SnapBrief.Windows.TargetProfiles.CodexDesktop.Id);
         await OverlayEditorWindow.RunCaptureResizeProbeAsync(workspace, captures[0]);
         await OverlayEditorWindow.RunCaptureResizeProbeAsync(workspace, captures[2]);
+        OverlayEditorWindow.RunShortcutHintProbe(captures[0]);
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
         var noteProbeCore = noteProbe.ToCore();
         var noteProbeLabel = SnapBrief.Core.Exporting.CaptureLabels.ForNotedAnnotations("A", noteProbeCore).SingleOrDefault();
