@@ -91,6 +91,12 @@ public static class SmokeTestRunner
         settingsWindow.FormatBox.SelectedIndex = 0;
         if (settingsWindow.QualitySlider.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("JPEG quality must be hidden while the PNG format is selected.");
+        // The field owns the hotkey now: what is written into it comes back, and the label is shown
+        // as one capsule per key.
+        settingsWindow.CaptureField.HotkeyId = "custom:2:65";
+        if (settingsWindow.CaptureField.HotkeyId != "custom:2:65" || settingsWindow.CaptureField.KeyCaps.Children.Count != 2 ||
+            settingsWindow.FullscreenField.KeyCaps.Children.Count != HotkeySettings.Find(restoredSettings.FullscreenSaveId).Label.Split(" + ").Length)
+            throw new InvalidOperationException("The hotkey field must keep the id it is given and show one capsule per key.");
         if ((Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentHoverBrush")).Color ||
             (Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentPressedBrush")).Color)
             throw new InvalidOperationException("The primary button must keep the accent while hovered and pressed.");

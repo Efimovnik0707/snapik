@@ -106,9 +106,6 @@ public partial class HotkeySettingsWindow : Window
 {
     private readonly HotkeySettings _original;
     private string _language;
-    private string _captureId;
-    private string _fullscreenId;
-    private System.Windows.Controls.TextBox? _recordingBox;
     public Func<HotkeySettings, string?>? TryApply { get; init; }
     public HotkeySettings? Result { get; private set; }
 
@@ -116,11 +113,9 @@ public partial class HotkeySettingsWindow : Window
     {
         _original = settings;
         _language = settings.Language;
-        _captureId = settings.CaptureId;
-        _fullscreenId = settings.FullscreenSaveId;
         InitializeComponent();
-        CaptureBox.Text = HotkeySettings.Find(_captureId).Label;
-        FullscreenBox.Text = HotkeySettings.Find(_fullscreenId).Label;
+        CaptureField.HotkeyId = settings.CaptureId;
+        FullscreenField.HotkeyId = settings.FullscreenSaveId;
         CaptureEnabledBox.IsChecked = settings.CaptureEnabled;
         FullscreenEnabledBox.IsChecked = settings.FullscreenSaveEnabled;
         NotificationsBox.IsChecked = settings.ShowNotifications;
@@ -146,6 +141,8 @@ public partial class HotkeySettingsWindow : Window
     {
         _language = language;
         UiLanguage.Apply(this, language);
+        CaptureField.ApplyLanguage(language);
+        FullscreenField.ApplyLanguage(language);
         UpdateQuality();
     }
 
@@ -157,42 +154,11 @@ public partial class HotkeySettingsWindow : Window
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
-    private void BeginRecording(System.Windows.Controls.TextBox box)
+    // The field records the key itself; the window only clears the error it may still show and
+    // moves the focus off the field, so tabbing back into it is what starts the next recording.
+    private void OnHotkeyChanged(object? sender, EventArgs e)
     {
-        _recordingBox = box;
-        box.Text = UiLanguage.Text("Нажмите клавишу…", _language);
         ErrorText.Visibility = Visibility.Collapsed;
-    }
-    private void OnBeginRecording(object sender, KeyboardFocusChangedEventArgs e) => BeginRecording((System.Windows.Controls.TextBox)sender);
-    private void OnBeginRecordingClick(object sender, MouseButtonEventArgs e) => BeginRecording((System.Windows.Controls.TextBox)sender);
-    private static bool IsModifier(Key key) => key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin;
-    private void OnCaptureKeyUp(object sender, KeyEventArgs e)
-    {
-        if (_recordingBox is null) return;
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        e.Handled = true;
-        if (key is Key.Pause or Key.Snapshot || IsModifier(key)) RecordKey(key);
-    }
-    private void OnCaptureKeyDown(object sender, KeyEventArgs e)
-    {
-        if (_recordingBox is null) return;
-        e.Handled = true;
-        var key = e.Key == Key.System ? e.SystemKey : e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key;
-        if (!IsModifier(key)) RecordKey(key);
-    }
-    private void RecordKey(Key key)
-    {
-        var vk = KeyInterop.VirtualKeyFromKey(key);
-        if (vk is <= 0 or >= 255 || _recordingBox is null) return;
-        uint modifiers = 0;
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) modifiers |= (uint)HotkeyModifiers.Control;
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)) modifiers |= (uint)HotkeyModifiers.Alt;
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) modifiers |= (uint)HotkeyModifiers.Shift;
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Windows)) modifiers |= (uint)HotkeyModifiers.Windows;
-        var id = $"custom:{modifiers}:{vk}";
-        if (ReferenceEquals(_recordingBox, CaptureBox)) _captureId = id; else _fullscreenId = id;
-        _recordingBox.Text = HotkeySettings.Find(id).Label;
-        _recordingBox = null;
         SaveButton.Focus();
     }
     private void OnBrowseDirectory(object sender, RoutedEventArgs e)
@@ -210,7 +176,7 @@ public partial class HotkeySettingsWindow : Window
             var directory = Path.GetFullPath(DirectoryBox.Text);
             Result = _original with
             {
-                CaptureId = _captureId, FullscreenSaveId = _fullscreenId,
+                CaptureId = CaptureField.HotkeyId, FullscreenSaveId = FullscreenField.HotkeyId,
                 CaptureEnabled = CaptureEnabledBox.IsChecked == true,
                 FullscreenSaveEnabled = FullscreenEnabledBox.IsChecked == true,
                 ShowNotifications = NotificationsBox.IsChecked == true,

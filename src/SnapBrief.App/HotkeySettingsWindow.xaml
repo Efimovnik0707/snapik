@@ -28,9 +28,9 @@
    </StackPanel></TabItem>
    <TabItem Header="Клавиши"><StackPanel Margin="0,10,0,0">
     <CheckBox x:Name="CaptureEnabledBox" Content="Сделать скриншот" Margin="0,0,0,7"/>
-    <TextBox x:Name="CaptureBox" IsReadOnly="True" Margin="0,0,0,20" GotKeyboardFocus="OnBeginRecording" PreviewMouseLeftButtonDown="OnBeginRecordingClick" PreviewKeyDown="OnCaptureKeyDown" PreviewKeyUp="OnCaptureKeyUp" ToolTip="Нажмите своё сочетание клавиш"/>
+    <controls:HotkeyField x:Name="CaptureField" Margin="0,0,0,20" HotkeyChanged="OnHotkeyChanged"/>
     <CheckBox x:Name="FullscreenEnabledBox" Content="Скриншот всего экрана в папку" Margin="0,0,0,7"/>
-    <TextBox x:Name="FullscreenBox" IsReadOnly="True" GotKeyboardFocus="OnBeginRecording" PreviewMouseLeftButtonDown="OnBeginRecordingClick" PreviewKeyDown="OnCaptureKeyDown" PreviewKeyUp="OnCaptureKeyUp" ToolTip="Нажмите своё сочетание клавиш"/>
+    <controls:HotkeyField x:Name="FullscreenField" HotkeyChanged="OnHotkeyChanged"/>
    </StackPanel></TabItem>
    <TabItem Header="Сохранение"><StackPanel Margin="0,10,0,0">
     <CheckBox x:Name="AutoSaveBox" Content="{local:UiText Автоматически сохранять готовые снимки}" Margin="0,0,0,16"/>

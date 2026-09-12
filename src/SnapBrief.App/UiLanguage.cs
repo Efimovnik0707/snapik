@@ -23,7 +23,7 @@ internal static class UiLanguage
         ["Формат"] = "Format", ["Папка сохранения"] = "Save folder", ["Выбрать папку"] = "Choose folder",
         ["Качество JPEG: {0} % (меньше, легче файл)"] = "JPEG quality: {0} % (lower means a smaller file)",
         ["Сохранить"] = "Save", ["Отмена"] = "Cancel", ["Закрыть"] = "Close", ["Нажмите клавишу…"] = "Press a key…",
-        ["Нажмите своё сочетание клавиш"] = "Press your shortcut", ["Новый снимок"] = "New capture", ["+ Снимок"] = "+ Capture",
+        ["Нажмите своё сочетание клавиш"] = "Press your shortcut", ["Нажми, чтобы изменить"] = "Click to change", ["Новый снимок"] = "New capture", ["+ Снимок"] = "+ Capture",
         ["Готово"] = "Done", ["Выбор"] = "Select", ["Область"] = "Region", ["Стрелка"] = "Arrow", ["Перо"] = "Pen",
         ["Маркер"] = "Highlight", ["Текст"] = "Text", ["Скрыть сплошным"] = "Conceal", ["Размыть"] = "Blur", ["Обрезать"] = "Crop",
         ["Цвет и толщина"] = "Color and thickness", ["Сочетания клавиш"] = "Keyboard shortcuts", ["Инструменты"] = "Tools", ["Действия"] = "Actions",
