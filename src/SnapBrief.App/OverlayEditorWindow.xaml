@@ -5,7 +5,7 @@
         xmlns:local="clr-namespace:SnapBrief.App"
         Title="SnapBrief — Захват и разметка" AutomationProperties.Name="SnapBrief — Захват и разметка"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="False" Background="#0A0D12"
-        ShowInTaskbar="False" Topmost="True" Cursor="Cross"
+        ShowInTaskbar="False" Topmost="True"
         KeyDown="OnWindowKeyDown" MouseLeftButtonDown="OnWindowMouseDown"
         MouseMove="OnWindowMouseMove" MouseLeftButtonUp="OnWindowMouseUp">
     <Window.Resources>

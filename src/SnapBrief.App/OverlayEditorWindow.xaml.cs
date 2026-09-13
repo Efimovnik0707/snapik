@@ -80,6 +80,9 @@ public partial class OverlayEditorWindow : Window
             _capture.Note = string.Empty;
         }
         InitializeComponent();
+        // The crosshair belongs to the phase where an area is being selected; once there is a
+        // capture to mark up, the pointer says what it will do where it stands.
+        Cursor = existing is null ? Cursors.Cross : Cursors.Arrow;
         InitializeCaptureHandles();
         InitializeNoteButton();
         BuildColorDots();
@@ -301,6 +304,28 @@ public partial class OverlayEditorWindow : Window
         window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
         window.OnFillClick(window.FillNoneSegment, new RoutedEventArgs());
 
+        // A colour reaches a mark only while it is selected; with nothing selected it belongs to the
+        // next one and leaves what is already drawn alone.
+        if (window._capture!.Annotations.FirstOrDefault(annotation => annotation.Kind == EditorTool.Arrow) is { } drawn)
+        {
+            window.Surface.SelectAnnotation(drawn.Id);
+            window.ApplyPickedColor(Colors.Lime);
+            window.Surface.SelectAnnotation(null);
+            window.ApplyPickedColor(Colors.Magenta);
+            if (drawn.Color != Colors.Lime || window.Surface.ActiveColor != Colors.Magenta)
+                throw new InvalidOperationException("A colour picked with nothing selected must belong to the next mark only.");
+
+            // Escape gives up one thing at a time, and the capture is the last of them. The step
+            // before these two, an open popover, cannot be reached here: a window that was never
+            // shown has no surface for a popup to open on.
+            window.Surface.SelectAnnotation(drawn.Id);
+            if (window.NextEscapeStep() != EscapeStep.Selection)
+                throw new InvalidOperationException("Escape must drop the selection instead of cancelling the capture.");
+            window.Surface.SelectAnnotation(null);
+            if (window.NextEscapeStep() != EscapeStep.Capture)
+                throw new InvalidOperationException("With nothing selected and nothing open, Escape must cancel the capture.");
+        }
+
         // The panel keeps its width whatever tool is armed: the thickness button never blanks its
         // caption, and it and the colour circle are both a fixed size.
         var widths = new List<double>();
@@ -492,10 +517,14 @@ public partial class OverlayEditorWindow : Window
     {
         if (_selectionStart is null)
         {
+            // A click beside the capture no longer finishes the shot: it drops the selection and
+            // closes whatever is open, the same as a click on an empty part of the capture. The
+            // shot is finished by "Done", by Ctrl+C and by the capture hotkey.
             if (_capture is not null && e.OriginalSource is Image && !_busyCrop && !_cropRect.Contains(e.GetPosition(this)))
             {
                 e.Handled = true;
-                Complete(false);
+                ClosePopovers();
+                Surface.SelectAnnotation(null);
             }
             return;
         }
@@ -536,6 +565,7 @@ public partial class OverlayEditorWindow : Window
     {
         if (_capture is null) return;
         _settingUp = true;
+        Cursor = Cursors.Arrow;
         CropBorder.Visibility = Visibility.Visible;
         Canvas.SetLeft(CropBorder, _cropRect.Left);
         Canvas.SetTop(CropBorder, _cropRect.Top);
@@ -1261,7 +1291,18 @@ public partial class OverlayEditorWindow : Window
             if (e.Key == Key.Escape) { Surface.Focus(); e.Handled = true; }
             return;
         }
-        if (e.Key == Key.Escape && ShortcutSheetPopup.IsOpen) { ShortcutSheetPopup.IsOpen = false; e.Handled = true; return; }
+        if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Popover)
+        {
+            ClosePopovers();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Selection)
+        {
+            Surface.SelectAnnotation(null);
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape)
         {
             CancelEdit();

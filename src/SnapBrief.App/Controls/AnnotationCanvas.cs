@@ -83,7 +83,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     public AnnotationCanvas()
     {
         Focusable = true;
-        Cursor = Cursors.Cross;
+        // The crosshair is not the cursor of the whole surface any more: it appears over the capture
+        // while a drawing tool is armed, and nowhere else.
+        Cursor = Cursors.Arrow;
         ClipToBounds = true;
     }
 
@@ -124,12 +126,19 @@ public sealed class AnnotationCanvas : FrameworkElement
         base.OnMouseLeftButtonDown(e);
         Focus();
         if (Image is null) return;
-        var point = e.GetPosition(this);
+        BeginGesture(e.GetPosition(this), e.ClickCount);
+    }
+
+    // The three halves of a gesture, apart from the mouse that usually drives them: a smoke run
+    // presses, drags and lets go through these without a pointer on screen.
+    internal void BeginGesture(Point point, int clickCount = 1)
+    {
+        if (Image is null) return;
         if (!_imageRect.Contains(point)) return;
 
         // A double click opens the note of whatever it lands on: the text editor for a text mark,
         // the note pill for everything else. The editor window listens for it.
-        if (e.ClickCount == 2 && HitTestAnnotation(ToImage(point)) is { } activated)
+        if (clickCount == 2 && HitTestAnnotation(ToImage(point)) is { } activated)
         {
             Select(activated);
             AnnotationActivated?.Invoke(this, activated);
@@ -157,6 +166,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             return;
         }
 
+        // A press with a drawing tool armed drops the selection at once: whatever the hand does
+        // next, the colour and the thickness on the panel belong to the next mark from now on.
+        Select(null);
         _gestureStart = ToImage(point);
         _draft = new AnnotationItem
         {
@@ -180,9 +192,14 @@ public sealed class AnnotationCanvas : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (_manipulating && SelectedAnnotation is not null && _gestureStart is not null && _originalPoints is not null && e.LeftButton == MouseButtonState.Pressed)
+        UpdateGesture(e.GetPosition(this), e.LeftButton == MouseButtonState.Pressed);
+    }
+
+    internal void UpdateGesture(Point displayPoint, bool pressed)
+    {
+        if (_manipulating && SelectedAnnotation is not null && _gestureStart is not null && _originalPoints is not null && pressed)
         {
-            var current = ClampToImage(ToImage(e.GetPosition(this)));
+            var current = ClampToImage(ToImage(displayPoint));
             if (_resizing)
             {
                 var resized = ResizeGeometry.Resize(_originalBounds, _resizeCorner, current,
@@ -208,16 +225,12 @@ public sealed class AnnotationCanvas : FrameworkElement
             _manipulationChanged = true;
             return;
         }
-        if (_draft is null || _gestureStart is null || e.LeftButton != MouseButtonState.Pressed)
+        if (_draft is null || _gestureStart is null || !pressed)
         {
-            var displayPoint = e.GetPosition(this);
-            var handle = FindResizeHandle(displayPoint);
-            var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
-            Cursor = handle.Corner < 0 ? (FindMoveHandle(displayPoint) is not null || movablePin ? Cursors.SizeAll : Tool == EditorTool.Select ? Cursors.Arrow : Cursors.Cross)
-                : handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW;
+            UpdateCursor(displayPoint);
             return;
         }
-        var point = ClampToImage(ToImage(e.GetPosition(this)));
+        var point = ClampToImage(ToImage(displayPoint));
         if (_draft.Kind is EditorTool.Pen or EditorTool.Highlight)
             _draft.Points.Add(point);
         else if (_draft.Points.Count > 1)
@@ -225,9 +238,29 @@ public sealed class AnnotationCanvas : FrameworkElement
         InvalidateVisual();
     }
 
+    // The pointer says what the next press will do: arrows on the corners of a selected mark, a hand
+    // where a mark can be grabbed, a crosshair over the capture with a drawing tool armed, and the
+    // ordinary arrow everywhere else.
+    private void UpdateCursor(Point displayPoint)
+    {
+        var handle = FindResizeHandle(displayPoint);
+        if (handle.Corner >= 0) { Cursor = handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW; return; }
+        var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
+        Cursor = FindMoveHandle(displayPoint) is not null || movablePin ? Cursors.Hand
+            : IsDrawingTool(Tool) && _imageRect.Contains(displayPoint) ? Cursors.Cross
+            : Cursors.Arrow;
+    }
+
+    private static bool IsDrawingTool(EditorTool tool) => tool != EditorTool.Select;
+
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        EndGesture();
+    }
+
+    internal void EndGesture()
+    {
         if (_manipulating)
         {
             ReleaseMouseCapture();
@@ -250,7 +283,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             {
                 _draft.Label = string.Empty;
                 Annotations?.Add(_draft);
-                Select(_draft);
+                // A stroke of the pen or the highlighter is not selected after the hand lets go: it
+                // is drawing, not an object to adjust. Everything else is selected, as before.
+                if (_draft.Kind is not (EditorTool.Pen or EditorTool.Highlight)) Select(_draft);
                 AnnotationCreated?.Invoke(this, _draft);
             }
         }
@@ -269,12 +304,19 @@ public sealed class AnnotationCanvas : FrameworkElement
             AnnotationChanged?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         }
+        // Escape gives up what is going on, one step at a time: the mark being drawn first, the
+        // selection after it. Only with neither of them does the window itself hear the key.
         else if (e.Key == Key.Escape && _draft is not null)
         {
             _draft = null;
             _gestureStart = null;
             ReleaseMouseCapture();
             InvalidateVisual();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && SelectedAnnotation is not null)
+        {
+            Select(null);
             e.Handled = true;
         }
         base.OnKeyDown(e);
@@ -471,12 +513,18 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     private static bool HasResizeHandles(AnnotationItem item) => item.Kind != EditorTool.Comment;
 
+    // "Press and drag" is measured on screen, not in the pixels of the capture: at the scale a
+    // 1920 px capture is shown with, three image pixels are under two pixels of hand tremor.
+    private const double GestureThreshold = 4;
+
     private bool GestureHasSize(AnnotationItem item)
     {
+        // A text mark and a comment pin are placed by a single click, as they always were.
         if (item.Kind is EditorTool.Comment or EditorTool.Text) return true;
         if (item.Points.Count < 2) return false;
         if (item.Kind is EditorTool.Pen or EditorTool.Highlight) return item.Points.Count > 2;
-        return (item.Points[1] - item.Points[0]).Length >= 3;
+        var scale = Image is null || _imageRect.Width <= 0 ? 1 : _imageRect.Width / Image.PixelWidth;
+        return (item.Points[1] - item.Points[0]).Length * scale >= GestureThreshold;
     }
 
     // Every mark can be grabbed and moved whatever tool is armed: a box by the band along its
@@ -631,6 +679,61 @@ public sealed class AnnotationCanvas : FrameworkElement
         var scale = Math.Min(availableWidth / imageWidth, availableHeight / imageHeight);
         var w = imageWidth * scale; var h = imageHeight * scale;
         return new Rect((width - w) / 2, (height - h) / 2, w, h);
+    }
+
+    // The rules of a gesture, driven without a mouse: a press that did not travel draws nothing and
+    // drops the selection, a real drag makes one mark, a stroke of the pen is not selected after it,
+    // and the pointer says what the next press will do wherever it stands.
+    internal static void VerifyGestureRules(BitmapSource source)
+    {
+        var annotations = new ObservableCollection<AnnotationItem>();
+        var canvas = new AnnotationCanvas { Image = source, Annotations = annotations, ImagePadding = 0, Width = 480, Height = 300 };
+        canvas.Measure(new Size(480, 300));
+        canvas.Arrange(new Rect(0, 0, 480, 300));
+        // The picture is laid out inside OnRender, and the rules below are measured against it.
+        new RenderTargetBitmap(480, 300, 96, 96, PixelFormats.Pbgra32).Render(canvas);
+
+        void Gesture(Point from, params Point[] path)
+        {
+            canvas.BeginGesture(from);
+            foreach (var point in path) canvas.UpdateGesture(point, pressed: true);
+            canvas.EndGesture();
+        }
+
+        canvas.Tool = EditorTool.Rectangle;
+        Gesture(new Point(100, 100));
+        if (annotations.Count != 0 || canvas.SelectedAnnotation is not null)
+            throw new InvalidOperationException("A click that did not travel must draw nothing and leave nothing selected.");
+        Gesture(new Point(100, 100), new Point(102, 100));
+        if (annotations.Count != 0)
+            throw new InvalidOperationException("Two pixels of tremor must not become a mark.");
+        Gesture(new Point(100, 100), new Point(160, 160));
+        if (annotations.Count != 1 || !ReferenceEquals(canvas.SelectedAnnotation, annotations[0]))
+            throw new InvalidOperationException("A gesture over the threshold must draw one mark and select it.");
+
+        canvas.Tool = EditorTool.Pen;
+        Gesture(new Point(200, 200), new Point(220, 215), new Point(250, 240));
+        if (annotations.Count != 2 || canvas.SelectedAnnotation is not null)
+            throw new InvalidOperationException("A stroke of the pen must be drawn and must not stay selected.");
+
+        // A click on an empty part of the capture drops the selection and draws nothing at all.
+        canvas.Tool = EditorTool.Rectangle;
+        canvas.SelectAnnotation(annotations[0].Id);
+        Gesture(new Point(430, 60));
+        if (canvas.SelectedAnnotation is not null || annotations.Count != 2)
+            throw new InvalidOperationException("A click on an empty part of the capture must only drop the selection.");
+
+        var bounds = canvas.GetDisplayBounds(annotations[0]);
+        canvas.UpdateGesture(new Point(bounds.Left, bounds.Top + bounds.Height / 2), pressed: false);
+        if (canvas.Cursor != Cursors.Hand) throw new InvalidOperationException("The edge of a mark must show the hand cursor.");
+        canvas.UpdateGesture(new Point(430, 60), pressed: false);
+        if (canvas.Cursor != Cursors.Cross) throw new InvalidOperationException("The capture with a drawing tool armed must show the crosshair.");
+        canvas.Tool = EditorTool.Select;
+        canvas.UpdateGesture(new Point(430, 60), pressed: false);
+        if (canvas.Cursor != Cursors.Arrow) throw new InvalidOperationException("The select tool must show the ordinary arrow over the capture.");
+        canvas.Tool = EditorTool.Rectangle;
+        canvas.UpdateGesture(new Point(240, 5), pressed: false);
+        if (canvas.Cursor != Cursors.Arrow) throw new InvalidOperationException("Outside the capture the pointer must be the ordinary arrow.");
     }
 
     internal static void VerifyHoverManipulation(BitmapSource source)

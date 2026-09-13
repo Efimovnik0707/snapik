@@ -294,6 +294,7 @@ public static class SmokeTestRunner
         VerifyLegacyRedactionReadsAsAFilledRegion();
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
+        Controls.AnnotationCanvas.VerifyGestureRules(captures[0].Image);
         var preview = WithoutBindingErrors("The preview window", () =>
         {
             var window = CapturePreviewWindow.RunPreviewProbe(captures[0]);

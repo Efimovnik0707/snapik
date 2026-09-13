@@ -295,6 +295,23 @@ public partial class OverlayEditorWindow
     private void OnAppearanceKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { AppearancePopup.IsOpen = false; e.Handled = true; } }
     private void OnThicknessKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { ThicknessPopup.IsOpen = false; e.Handled = true; } }
     private void OnCloseAppearance(object sender, RoutedEventArgs e) => AppearancePopup.IsOpen = false;
+
+    // What Escape gives up, in order: an open popover, then the selection, and only with nothing
+    // left to give up, the capture itself. The mark being drawn is taken by the canvas before the
+    // window is asked at all.
+    internal enum EscapeStep { Popover, Selection, Capture }
+
+    internal EscapeStep NextEscapeStep() =>
+        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen ? EscapeStep.Popover
+        : Surface.SelectedAnnotation is not null ? EscapeStep.Selection
+        : EscapeStep.Capture;
+
+    private void ClosePopovers()
+    {
+        AppearancePopup.IsOpen = false;
+        ThicknessPopup.IsOpen = false;
+        ShortcutSheetPopup.IsOpen = false;
+    }
     private void OnAppearanceClosed(object? sender, EventArgs e)
     {
         CommitAppearanceEdit();
