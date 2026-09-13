@@ -167,6 +167,11 @@
                         <DataTemplate>
                             <Border x:Name="ThumbCard" Margin="0,0,0,-48" Height="78" CornerRadius="11" Background="#242A33"
                                     BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True" MouseEnter="OnCaptureThumbMouseEnter">
+                                <!-- The shadow goes up (Direction 90), not down as a shadow usually does: the cards
+                                     overlap by 48 px, and the next card is drawn over this one, so a shadow cast
+                                     downwards would be covered by it. The visible seam is the top edge of the card
+                                     above, and that is where the stack has to be readable. -->
+                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="3" Opacity="0.5" Direction="90" /></Border.Effect>
                                 <Grid>
                                     <Button x:Name="ThumbContent" Padding="0" Background="Transparent" BorderThickness="0" Click="OnOpenCaptureClick" Tag="{Binding}" ToolTip="Открыть снимок">
                                         <Grid>
