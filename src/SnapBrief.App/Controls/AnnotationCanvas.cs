@@ -50,6 +50,10 @@ public sealed class AnnotationCanvas : FrameworkElement
     public AnnotationFill ActiveFill { get; set; } = AnnotationFill.None;
     public Color? ActiveFillColor { get; set; }
     public bool ActiveHasOutline { get; set; } = true;
+    public double ActiveFontSize { get; set; } = TextMarkMetrics.DefaultFontSize;
+    // The mark whose letters are being typed on the capture right now: the canvas leaves it to the
+    // text box standing over it, otherwise the caption is drawn twice.
+    public Guid? EditingTextId { get; set; }
     public double ImagePadding { get; set; } = 28;
 
     public event EventHandler<AnnotationItem>? AnnotationCreated;
@@ -234,6 +238,10 @@ public sealed class AnnotationCanvas : FrameworkElement
             HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
             Color = ActiveColor,
             Thickness = ActiveThickness,
+            // The word a new caption starts with comes from the table of the interface: an English
+            // window must not get a Russian one.
+            Text = Tool == EditorTool.Text ? UiLanguage.Text("Текст") : string.Empty,
+            FontSize = ActiveFontSize,
             Points = [_gestureStart.Value, _gestureStart.Value]
         };
         CaptureMouse();
@@ -352,6 +360,8 @@ public sealed class AnnotationCanvas : FrameworkElement
             else
             {
                 finished.Label = string.Empty;
+                // A caption owns the box its letters take, from the moment it is placed.
+                TextMarkMetrics.Fit(finished);
                 Annotations?.Add(finished);
                 // A stroke of the pen or the highlighter is not selected after the hand lets go: it
                 // is drawing, not an object to adjust. Everything else is selected, as before.
@@ -534,8 +544,11 @@ public sealed class AnnotationCanvas : FrameworkElement
                     dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(24, 47, 140, 255)), new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5) { DashStyle = DashStyles.Dash }, rect);
                     break;
                 case EditorTool.Text:
+                    // The mark being typed is drawn by the text box on top of it, not here.
+                    if (EditingTextId == item.Id) break;
                     var formatted = new FormattedText(item.Text, System.Globalization.CultureInfo.CurrentUICulture,
-                        FlowDirection.LeftToRight, new Typeface("Segoe UI Variable Text"), Math.Max(14, 18 * scale), brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+                        FlowDirection.LeftToRight, new Typeface(TextMarkMetrics.FamilyName),
+                        TextMarkMetrics.Clamp(item.FontSize) * scale, brush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
                     dc.DrawText(formatted, start);
                     break;
                 case EditorTool.Arrow:
@@ -649,7 +662,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale) =>
         DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), item.HasOutline ? pen : null, item.Shape, rect, scale);
 
-    private static bool HasResizeHandles(AnnotationItem item) => item.Kind != EditorTool.Comment;
+    // A caption is not stretched by its corners: the box around it is the letters, and their size
+    // is set by the button on the panel. It is moved and it is retyped, like a comment pin.
+    private static bool HasResizeHandles(AnnotationItem item) => item.Kind is not (EditorTool.Comment or EditorTool.Text);
 
     // "Press and drag" is measured on screen, not in the pixels of the capture: at the scale a
     // 1920 px capture is shown with, three image pixels are under two pixels of hand tremor.
@@ -898,6 +913,48 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (canvas.Cursor != Cursors.Arrow) throw new InvalidOperationException("Outside the capture the pointer must be the ordinary arrow.");
     }
 
+    // A caption is placed by one click, it carries the word of the interface and the size the panel
+    // holds, and from that moment its box is the letters: a double click into the middle of the word
+    // opens the one that is there instead of making a second one beside it.
+    internal static void VerifyTextMarkGeometry(BitmapSource source)
+    {
+        var annotations = new ObservableCollection<AnnotationItem>();
+        var canvas = new AnnotationCanvas
+        {
+            Image = source, Annotations = annotations, ImagePadding = 0, Width = 480, Height = 300,
+            Tool = EditorTool.Text, ActiveFontSize = 32
+        };
+        canvas.Measure(new Size(480, 300));
+        canvas.Arrange(new Rect(0, 0, 480, 300));
+        new RenderTargetBitmap(480, 300, 96, 96, PixelFormats.Pbgra32).Render(canvas);
+
+        AnnotationItem? activated = null;
+        canvas.AnnotationActivated += (_, item) => activated = item;
+        canvas.BeginGesture(new Point(100, 100));
+        canvas.EndGesture();
+        if (annotations.Count != 1 || annotations[0].Kind != EditorTool.Text ||
+            annotations[0].Text != UiLanguage.Text("Текст") || annotations[0].FontSize != 32)
+            throw new InvalidOperationException("One click with the text tool must place one caption with the word and the size of the panel.");
+        var caption = annotations[0];
+        // Measured in the pixels of the capture: on screen the same box is as small as the capture
+        // is scaled down to fit the canvas.
+        if (caption.Points.Count != 2 || caption.Points[1].X - caption.Points[0].X < caption.FontSize ||
+            caption.Points[1].Y - caption.Points[0].Y < caption.FontSize)
+            throw new InvalidOperationException("The box of a caption must be the letters it is made of.");
+        var box = canvas.GetDisplayBounds(caption);
+
+        canvas.BeginGesture(new Point(box.Left + box.Width / 2, box.Top + box.Height / 2), clickCount: 2);
+        canvas.EndGesture();
+        if (annotations.Count != 1 || !ReferenceEquals(activated, caption))
+            throw new InvalidOperationException("A double click into a caption must open it instead of placing a second one.");
+        // Longer letters take a wider box, and the anchor of the mark does not move with them.
+        var anchor = caption.Points[0];
+        caption.Text = "Привет, мир";
+        TextMarkMetrics.Fit(caption);
+        if (caption.Points[0] != anchor || canvas.GetDisplayBounds(caption).Width <= box.Width)
+            throw new InvalidOperationException("A longer caption must take a wider box without moving its anchor.");
+    }
+
     internal static void VerifyHoverManipulation(BitmapSource source)
     {
         Point At(double x, double y) => new(source.PixelWidth * x, source.PixelHeight * y);
@@ -912,11 +969,20 @@ public sealed class AnnotationCanvas : FrameworkElement
         var rendered = new RenderTargetBitmap(480, 300, 96, 96, PixelFormats.Pbgra32);
         rendered.Render(canvas);
 
-        // An empty frame keeps its interior free for the next drawing; a blur is opaque and a text
-        // mark is the letters themselves, so both are grabbed anywhere within.
+        // An empty frame keeps its interior free for the next drawing; a blur is opaque, so it is
+        // grabbed anywhere within.
         Verify(rectangle, EditorTool.Blur, interiorGrabs: false);
         Verify(blur, EditorTool.Rectangle, interiorGrabs: true);
-        Verify(text, EditorTool.Arrow, interiorGrabs: true);
+        // A caption is the letters themselves: grabbed anywhere within, resized by nothing.
+        canvas.Tool = EditorTool.Arrow;
+        var textBounds = canvas.GetDisplayBounds(text);
+        if (!ReferenceEquals(canvas.FindMoveHandle(new Point(textBounds.Left + textBounds.Width / 2, textBounds.Top + textBounds.Height / 2)), text))
+            throw new InvalidOperationException("A caption must be movable by the letters themselves.");
+        canvas.SelectAnnotation(text.Id);
+        foreach (var corner in ResizeGeometry.Corners(textBounds))
+            if (canvas.FindResizeHandle(corner).Annotation is not null)
+                throw new InvalidOperationException("A caption exposed geometry resize handles.");
+        canvas.SelectAnnotation(null);
 
         // An arrow is grabbed by its line, not by the rectangle its two ends span.
         canvas.Tool = EditorTool.Rectangle;

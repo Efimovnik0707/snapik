@@ -61,6 +61,11 @@ public sealed record AnnotationItem(
     // Whether the outline of the box is drawn at all. A solid fill without an outline is how a mark
     // conceals; absent means the outline is drawn, exactly as it always was.
     public bool HasOutline { get; init; } = true;
+
+    // The size a text mark is typed in, in the pixels of the capture, so the screen and the export
+    // show the same letters. Absent means 20, which is what a mark written before the field gets;
+    // the thickness of a text mark does not stand for its size any more.
+    public double FontSize { get; init; } = 20;
     public ImmutableArray<ImmutableArray<NormalizedPoint>> PathSegments { get; init; } = [];
 
     public ImmutableArray<ImmutableArray<NormalizedPoint>> GetPathSegments() =>

@@ -34,7 +34,7 @@ public enum EditorTool
 public sealed class AnnotationItem : INotifyPropertyChanged
 {
     private string _note = string.Empty;
-    private string _text = "Текст";
+    private string _text = string.Empty;
     private bool _isSelected;
 
     public Guid Id { get; init; } = Guid.NewGuid();
@@ -61,6 +61,9 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     // A frame without an outline: a solid fill and no outline is what the conceal tool used to draw.
     public bool HasOutline { get; set; } = true;
 
+    // The size a text mark is typed in, in the pixels of the capture.
+    public double FontSize { get; set; } = TextMarkMetrics.DefaultFontSize;
+
     public string Note
     {
         get => _note;
@@ -84,7 +87,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Id = Id,
         Kind = Kind,
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle, NoteOffset = NoteOffset,
-        Shape = Shape, Fill = Fill, FillColor = FillColor, HasOutline = HasOutline,
+        Shape = Shape, Fill = Fill, FillColor = FillColor, HasOutline = HasOutline, FontSize = FontSize,
         Points = [.. Points],
         AdditionalPathSegments = AdditionalPathSegments.Select(segment => segment.ToList()).ToList(),
         Color = Color,
@@ -118,7 +121,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     {
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
         NoteOffset = NoteOffset is { } offset ? new NormalizedPoint(offset.X / imageWidth, offset.Y / imageHeight) : null,
-        Shape = Shape, Fill = Fill, HasOutline = HasOutline,
+        Shape = Shape, Fill = Fill, HasOutline = HasOutline, FontSize = FontSize,
         FillColor = FillColor is { } fillColor ? $"#{fillColor.A:X2}{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : null,
         PathSegments = AdditionalPathSegments.Count == 0 ? [] : new[] { Points }.Concat(AdditionalPathSegments)
             .Select(segment => segment.Select(p => new NormalizedPoint(Math.Clamp(p.X / imageWidth, 0, 1), Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray())
@@ -142,6 +145,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Fill = redaction ? AnnotationFill.Solid : item.Fill,
         FillColor = redaction ? Colors.Black : ParseFillColor(item.FillColor),
         HasOutline = !redaction && item.HasOutline,
+        FontSize = item.FontSize,
         Kind = item.Kind switch
         {
             AnnotationKind.Comment => EditorTool.Comment,

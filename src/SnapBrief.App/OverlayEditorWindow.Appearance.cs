@@ -32,6 +32,8 @@ public partial class OverlayEditorWindow
     // inside the frame belongs to the region alone, a blur has its own picture inside it.
     private static bool HasShape(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Blur;
     private static bool HasFill(EditorTool tool) => tool == EditorTool.Rectangle;
+    // The size of the letters belongs to a caption, and to nothing else on the panel.
+    private static bool HasFontSize(EditorTool tool) => tool == EditorTool.Text;
 
     // A palette is twelve colours plus the five of them that sit on the panel, one click away. The
     // sets are picked in the popover and remembered between captures; replacing the colours of a set
@@ -96,6 +98,16 @@ public partial class OverlayEditorWindow
         BuildColorPalette();
         SyncAppearance();
         AppearancePopup.IsOpen = true;
+    }
+
+    private void OpenFontSize()
+    {
+        if (FontSizePopup.IsOpen) { FontSizePopup.IsOpen = false; return; }
+        if (_capture is null) return;
+        _appearanceBefore = SnapshotState();
+        _appearanceChanged = false;
+        SyncAppearance();
+        FontSizePopup.IsOpen = true;
     }
 
     private void OpenFill()
@@ -246,6 +258,20 @@ public partial class OverlayEditorWindow
             ((Ellipse)dot.Content).Stroke = (Color)dot.Tag == mainColor
                 ? Brushes.White
                 : new SolidColorBrush(Color.FromRgb(120, 130, 146));
+        // The size of a caption: the button carries it, the popover shows it, and the canvas takes
+        // it for the next one.
+        var fontSize = selected?.FontSize ?? _activeFontSize;
+        Surface.ActiveFontSize = _activeFontSize;
+        FontSizeButton.IsEnabled = HasFontSize(tool);
+        FontSizeButton.Content = $"{(HasFontSize(tool) ? fontSize : _activeFontSize):0} px";
+        FontSizeValue.Text = $"{fontSize:0} px";
+        FontSizeSlider.Value = TextMarkMetrics.Clamp(fontSize);
+        FontSizePreview.FontSize = Math.Min(44, TextMarkMetrics.Clamp(fontSize));
+        FontSizePreview.Foreground = new SolidColorBrush(color);
+        foreach (System.Windows.Controls.Primitives.ToggleButton preset in FontSizePresetRow.Children)
+            preset.IsChecked = preset.Tag is string sizeTag &&
+                double.TryParse(sizeTag, System.Globalization.CultureInfo.InvariantCulture, out var presetSize) &&
+                Math.Abs(presetSize - fontSize) < 0.001;
         var fill = selected?.Fill ?? Surface.ActiveFill;
         FillRow.IsEnabled = HasFill(tool);
         FillNoneSegment.IsChecked = fill == AnnotationFill.None;
@@ -269,7 +295,7 @@ public partial class OverlayEditorWindow
     }
 
     private void ApplyAppearance(Color? color, double? thickness, AnnotationShape? shape = null, AnnotationFill? fill = null,
-        string? arrowStyle = null, Color? fillColor = null, bool? hasOutline = null)
+        string? arrowStyle = null, Color? fillColor = null, bool? hasOutline = null, double? fontSize = null)
     {
         var selected = Surface.SelectedAnnotation;
         var tool = selected?.Kind ?? Surface.Tool;
@@ -280,6 +306,21 @@ public partial class OverlayEditorWindow
         if (fillColor is { } fc && HasFill(tool)) { _appearanceDefaultsChanged |= fc != _activeFillColor; _activeFillColor = fc; Surface.ActiveFillColor = fc; if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; } }
         if (hasOutline is { } outline && HasFill(tool)) { _appearanceDefaultsChanged |= outline != _activeHasOutline; _activeHasOutline = outline; Surface.ActiveHasOutline = outline; if (selected is not null) { selected.HasOutline = outline; _appearanceChanged = true; } }
         if (arrowStyle is { } style && tool == EditorTool.Arrow) { Surface.ActiveArrowStyle = style; if (selected is not null) { selected.ArrowStyle = style; _appearanceChanged = true; } }
+        if (fontSize is { } size && HasFontSize(tool))
+        {
+            size = TextMarkMetrics.Clamp(size);
+            _appearanceDefaultsChanged |= size != _activeFontSize;
+            _activeFontSize = size;
+            Surface.ActiveFontSize = size;
+            if (selected is not null)
+            {
+                selected.FontSize = size;
+                // The box of a caption is its letters, and they just changed size.
+                TextMarkMetrics.Fit(selected);
+                _appearanceChanged = true;
+            }
+            ResizeTextEditor();
+        }
         Surface.InvalidateVisual();
         SyncAppearance();
     }
@@ -313,6 +354,20 @@ public partial class OverlayEditorWindow
         AnnotationFill.Blur => "Заливка размытием",
         _ => "Контур"
     };
+
+    private void OnFontSizeClick(object sender, RoutedEventArgs e) => OpenFontSize();
+
+    private void OnFontSizePresetClick(object sender, RoutedEventArgs e)
+    {
+        if (_syncingAppearance || sender is not System.Windows.Controls.Primitives.ToggleButton { Tag: string tag } ||
+            !double.TryParse(tag, System.Globalization.CultureInfo.InvariantCulture, out var size)) return;
+        ApplyAppearance(null, null, fontSize: size);
+    }
+
+    private void OnFontSizeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_syncingAppearance && FontSizePopup?.IsOpen == true) ApplyAppearance(null, null, fontSize: Math.Round(e.NewValue));
+    }
 
     private void OnFillButtonClick(object sender, RoutedEventArgs e)
     {
@@ -377,6 +432,7 @@ public partial class OverlayEditorWindow
     private void OnAppearanceKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { AppearancePopup.IsOpen = false; e.Handled = true; } }
     private void OnThicknessKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { ThicknessPopup.IsOpen = false; e.Handled = true; } }
     private void OnFillKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { FillPopup.IsOpen = false; e.Handled = true; } }
+    private void OnFontSizeKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { FontSizePopup.IsOpen = false; e.Handled = true; } }
     private void OnCloseAppearance(object sender, RoutedEventArgs e) => AppearancePopup.IsOpen = false;
 
     // What Escape gives up, in order: an open popover, then the selection, and only with nothing
@@ -385,7 +441,7 @@ public partial class OverlayEditorWindow
     internal enum EscapeStep { Popover, Selection, Capture }
 
     internal EscapeStep NextEscapeStep() =>
-        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || FillPopup.IsOpen ? EscapeStep.Popover
+        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || FillPopup.IsOpen || FontSizePopup.IsOpen ? EscapeStep.Popover
         : Surface.SelectedAnnotation is not null ? EscapeStep.Selection
         : EscapeStep.Capture;
 
@@ -394,6 +450,7 @@ public partial class OverlayEditorWindow
         AppearancePopup.IsOpen = false;
         ThicknessPopup.IsOpen = false;
         FillPopup.IsOpen = false;
+        FontSizePopup.IsOpen = false;
         ShortcutSheetPopup.IsOpen = false;
     }
     private void OnAppearanceClosed(object? sender, EventArgs e)
@@ -437,6 +494,7 @@ public partial class OverlayEditorWindow
                 AnnotationColor = $"#{_activeColor.R:X2}{_activeColor.G:X2}{_activeColor.B:X2}",
                 AnnotationThickness = Math.Clamp(_activeThickness, 1, 16),
                 AnnotationHighlightThickness = Math.Clamp(_activeHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness),
+                AnnotationFontSize = TextMarkMetrics.Clamp(_activeFontSize),
                 AnnotationShape = _activeShape.ToString().ToLowerInvariant(),
                 AnnotationFill = _activeFill.ToString().ToLowerInvariant(),
                 AnnotationFillColor = _activeFillColor is { } fillColor ? $"#{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : string.Empty,

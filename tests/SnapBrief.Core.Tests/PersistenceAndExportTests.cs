@@ -84,6 +84,49 @@ public sealed class PersistenceAndExportTests : IDisposable
     }
 
     [Fact]
+    public async Task Json_store_round_trips_the_size_a_caption_was_typed_in()
+    {
+        var store = new JsonSessionStore(Path.Combine(_root, "sessions"));
+        var caption = AnnotationItem.Create(AnnotationKind.Text, [new(0.1, 0.1), new(0.4, 0.2)], text: "Привет") with
+        {
+            FontSize = 32
+        };
+        var capture = CaptureItem.Create("source/capture.png", 800, 600) with { Annotations = [caption] };
+        var session = SessionOperations.AddCapture(SnapBriefSession.Create(Start), capture, Start);
+
+        await store.SaveAsync(session);
+        var restored = await store.LoadAsync(session.Id);
+
+        // The name in the file matters as much as the value: the Mac port reads the same key.
+        Assert.Contains("\"fontSize\": 32", JsonSerializer.Serialize(session, SnapBriefJson.Options), StringComparison.Ordinal);
+        var restoredCaption = restored!.Captures[0].Annotations[0];
+        Assert.Equal(32, restoredCaption.FontSize);
+        Assert.Equal("Привет", restoredCaption.Text);
+        SessionValidation.Validate(restored);
+    }
+
+    [Fact]
+    public async Task Json_store_reads_a_caption_written_before_the_size_existed()
+    {
+        var sessionsRoot = Path.Combine(_root, "sessions");
+        var store = new JsonSessionStore(sessionsRoot);
+        var caption = AnnotationItem.Create(AnnotationKind.Text, [new(0.1, 0.1), new(0.4, 0.2)], text: "Старая надпись");
+        var capture = CaptureItem.Create("source/capture.png", 800, 600) with { Annotations = [caption] };
+        var session = SessionOperations.AddCapture(SnapBriefSession.Create(Start), capture, Start);
+        var json = JsonNode.Parse(JsonSerializer.Serialize(session, SnapBriefJson.Options))!.AsObject();
+        Assert.True(json["captures"]!.AsArray()[0]!["annotations"]!.AsArray()[0]!.AsObject().Remove("fontSize"));
+        var directory = store.GetSessionDirectory(session.Id);
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "session.json"), json.ToJsonString(SnapBriefJson.Options));
+
+        var restored = await store.LoadAsync(session.Id);
+
+        var restoredCaption = Assert.Single(Assert.Single(restored!.Captures).Annotations);
+        Assert.Equal(20, restoredCaption.FontSize);
+        SessionValidation.Validate(restored);
+    }
+
+    [Fact]
     public async Task Json_store_round_trips_the_fill_colour_the_outline_flag_and_the_blur_fill()
     {
         var store = new JsonSessionStore(Path.Combine(_root, "sessions"));

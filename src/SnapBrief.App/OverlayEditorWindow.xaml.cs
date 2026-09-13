@@ -46,6 +46,7 @@ public partial class OverlayEditorWindow : Window
     private Color _activeColor = DefaultAnnotationColor;
     private double _activeThickness = DefaultAnnotationThickness;
     private double _activeHighlightThickness = DefaultHighlightThickness;
+    private double _activeFontSize = TextMarkMetrics.DefaultFontSize;
     private SnapBrief.Core.Models.AnnotationShape _activeShape = SnapBrief.Core.Models.AnnotationShape.Rectangle;
     private SnapBrief.Core.Models.AnnotationFill _activeFill = SnapBrief.Core.Models.AnnotationFill.None;
     private Color? _activeFillColor;
@@ -74,6 +75,7 @@ public partial class OverlayEditorWindow : Window
         _activeColor = ParseAnnotationColor(preferences.AnnotationColor);
         _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
         _activeHighlightThickness = Math.Clamp(preferences.AnnotationHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness);
+        _activeFontSize = TextMarkMetrics.Clamp(preferences.AnnotationFontSize);
         _activeShape = ParseAnnotationShape(preferences.AnnotationShape);
         _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
         _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
@@ -98,6 +100,7 @@ public partial class OverlayEditorWindow : Window
         Cursor = existing is null ? Cursors.Cross : Cursors.Arrow;
         InitializeCaptureHandles();
         InitializeNoteButton();
+        InitializeTextEditor();
         BuildColorDots();
         AttachLongPress(RectangleTool, () => BuildShapeMenu(RectangleTool));
         AttachLongPress(ArrowTool, () => BuildArrowMenu(ArrowTool));
@@ -552,6 +555,95 @@ public partial class OverlayEditorWindow : Window
             throw new InvalidOperationException("The comments panel truncated a large capture.");
     }
 
+    // A caption on the capture: placed by one click with the word of the interface selected whole,
+    // typed over, finished, given up on, retyped by a double click and sized by the panel. The pill
+    // of a comment has nothing to do with it any more.
+    internal static void RunTextMarkProbe(CaptureItem source)
+    {
+        var capture = source.DeepClone();
+        capture.Annotations.Clear();
+        var root = Path.Combine(Path.GetTempPath(), "SnapBrief", $"text-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
+        var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
+        var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
+        window.Measure(new Size(1280, 720));
+        window.Arrange(new Rect(0, 0, 1280, 720));
+        window._cropRect = new Rect(120, 90, 900, 506);
+        window.SetupEditor();
+        try { TextMarkChecks(window); }
+        finally
+        {
+            window.FontSizePopup.IsOpen = false;
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void TextMarkChecks(OverlayEditorWindow window)
+    {
+        var capture = window._capture!;
+        var word = UiLanguage.Text("Текст");
+        AnnotationItem Place(double x, double y)
+        {
+            var mark = new AnnotationItem { Kind = EditorTool.Text, Points = [new Point(x, y)], Text = word, FontSize = 20 };
+            TextMarkMetrics.Fit(mark);
+            capture.Annotations.Add(mark);
+            window.OnAnnotationCreated(window, mark);
+            return mark;
+        }
+
+        window.SelectToolMode(EditorTool.Text);
+        if (!window.FontSizeButton.IsEnabled || string.IsNullOrWhiteSpace((string?)window.FontSizeButton.Content))
+            throw new InvalidOperationException("The size of the letters must be offered while the text tool is armed.");
+        var caption = Place(100, 100);
+        if (!window.IsEditingText || window._textEditor.Visibility != Visibility.Visible || window._textEditor.SelectedText != word)
+            throw new InvalidOperationException("Placing a caption must open a text box on the capture with the word selected whole.");
+        if (window.ChipLayer.Children.Count != 0)
+            throw new InvalidOperationException("A caption must be typed on the capture, not in the pill of a comment.");
+        window._textEditor.Text = "Привет";
+        if (caption.Text != "Привет" || caption.Points[1].X - caption.Points[0].X < 10)
+            throw new InvalidOperationException("What is typed must reach the mark and the box its letters take.");
+        window.CommitTextEdit();
+        if (window.IsEditingText || !capture.Annotations.Contains(caption) || window.Surface.EditingTextId is not null)
+            throw new InvalidOperationException("Finishing a caption must close the text box and leave the words on the capture.");
+
+        // The size comes from the panel, and the box of the mark follows it.
+        window.Surface.SelectAnnotation(caption.Id);
+        var height = caption.Points[1].Y - caption.Points[0].Y;
+        window.OnFontSizePresetClick(window.FontSize5Segment, new RoutedEventArgs());
+        if (caption.FontSize != 32 || caption.Points[1].Y - caption.Points[0].Y <= height ||
+            (string?)window.FontSizeButton.Content != "32 px")
+            throw new InvalidOperationException("A size picked on the panel must reach the caption and the box it takes.");
+        window.Surface.SelectAnnotation(null);
+
+        // A caption given up on leaves nothing behind: neither the mark nor an entry in the history.
+        var undoDepth = window._undo.Count;
+        var abandoned = Place(300, 200);
+        window.CancelTextEdit();
+        if (window.IsEditingText || capture.Annotations.Contains(abandoned) || window._undo.Count != undoDepth)
+            throw new InvalidOperationException("Escape on a fresh caption must take the mark and its history entry with it.");
+        // And neither does one finished with nothing in it.
+        var blank = Place(320, 240);
+        window._textEditor.Text = "   ";
+        window.CommitTextEdit();
+        if (capture.Annotations.Contains(blank) || window._undo.Count != undoDepth)
+            throw new InvalidOperationException("A caption finished with nothing in it must not stay on the capture.");
+
+        // A capture reopened from the strip: the caption carries its words without a pill, and a
+        // double click on the letters opens it for retyping instead of placing a second one.
+        window.RebuildChips();
+        if (window.ChipLayer.Children.Count != 0 || capture.Annotations.Single().Text != "Привет")
+            throw new InvalidOperationException("A caption read back must keep its words and claim no pill.");
+        window.OnAnnotationActivated(window, caption);
+        if (!window.IsEditingText || window._textEditor.Text != "Привет" || window._textEditor.SelectedText.Length != 0)
+            throw new InvalidOperationException("A double click on a caption must open it with the caret in it, not over the whole word.");
+        window.CommitTextEdit();
+
+        window.SelectToolMode(EditorTool.Rectangle);
+        if (window.FontSizeButton.IsEnabled || string.IsNullOrWhiteSpace((string?)window.FontSizeButton.Content))
+            throw new InvalidOperationException("The size of the letters belongs to captions alone, and its caption never blanks.");
+    }
+
     internal static CaptureItem RunNoteAffordanceProbe(CaptureItem source)
     {
         var capture = source.DeepClone();
@@ -663,14 +755,6 @@ public partial class OverlayEditorWindow : Window
         if (!window._capture.Annotations.Contains(blankRectangle) || window.ChipLayer.Children.OfType<Border>().Any(border => border.Tag is Guid id && id == blankRectangle.Id))
             throw new InvalidOperationException("Leaving an optional rectangle note blank did not remove only its extra chip.");
 
-        var textAnnotation = new AnnotationItem { Kind = EditorTool.Text, Points = [new Point(100, 100), new Point(220, 160)] };
-        window._capture.Annotations.Add(textAnnotation);
-        window.OnAnnotationCreated(window, textAnnotation);
-        var textChip = window.ChipLayer.Children.OfType<Border>().Single(b => b.Tag is Guid id && id == textAnnotation.Id);
-        var textInput = ((Grid)textChip.Child).Children.OfType<TextBox>().Single();
-        textInput.Text = "Проверка текста";
-        if (textAnnotation.Text != textInput.Text || !string.IsNullOrEmpty(textAnnotation.Note))
-            throw new InvalidOperationException("Text tool input must update rendered text, not an annotation note.");
         var result = window._capture.DeepClone();
         if (result.Annotations.Count(item => item.Kind == EditorTool.Comment && !string.IsNullOrWhiteSpace(item.Note)) != 1)
             throw new InvalidOperationException("The comment probe left an unintended extra comment.");
@@ -724,7 +808,9 @@ public partial class OverlayEditorWindow : Window
     // the release that follows it must not close the editor on top of it.
     internal void PressBesideEditors(DependencyObject? source)
     {
-        _outsideClickConsumed = _expandedChipId is not null && !IsInsideChipLayer(source);
+        _outsideClickConsumed = (_expandedChipId is not null || IsEditingText) &&
+            !IsInsideChipLayer(source) && !IsInside(source, _textEditor);
+        CommitTextEditIfOutside(source);
         FinishExpandedChipIfOutside(source);
     }
 
@@ -818,6 +904,10 @@ public partial class OverlayEditorWindow : Window
         Surface.ActiveFill = _activeFill;
         Surface.ActiveFillColor = _activeFillColor;
         Surface.ActiveHasOutline = _activeHasOutline;
+        Surface.ActiveFontSize = _activeFontSize;
+        // A caption read out of a session carries the anchor and the size, and the box it takes is
+        // measured from them here, once, before anything asks what it covers.
+        foreach (var annotation in _capture.Annotations) TextMarkMetrics.Fit(annotation);
         SyncAppearance();
         Hint.Visibility = Visibility.Collapsed;
         Toolbar.Visibility = Visibility.Visible;
@@ -834,7 +924,7 @@ public partial class OverlayEditorWindow : Window
         PositionCommentsPanel();
         SyncCommentsPanel();
         _settingUp = false;
-        Dispatcher.BeginInvoke(() => { PositionCommentsPanel(); PositionToolbar(); PositionShotNote(); RepositionChips(); }, DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(() => { PositionCommentsPanel(); PositionToolbar(); PositionShotNote(); RepositionChips(); ResizeTextEditor(); }, DispatcherPriority.Loaded);
     }
 
     private void UpdateCropVisual()
@@ -961,7 +1051,9 @@ public partial class OverlayEditorWindow : Window
         PushHistory();
         annotation.PropertyChanged += OnAnnotationPropertyChanged;
         RefreshLabels();
-        if (annotation.Kind is EditorTool.Rectangle or EditorTool.Text or EditorTool.Comment)
+        // A caption is typed on the capture itself; everything else that carries a note opens a pill.
+        if (annotation.Kind == EditorTool.Text) BeginTextEdit(annotation, selectAll: true, isNew: true);
+        else if (annotation.Kind is EditorTool.Rectangle or EditorTool.Comment)
         {
             _visibleChipIds.Add(annotation.Id);
             AddChip(annotation, focus: true);
@@ -977,7 +1069,13 @@ public partial class OverlayEditorWindow : Window
         RepositionChips();
     }
 
-    private void OnAnnotationActivated(object sender, AnnotationItem annotation) => OpenAnnotationNote(annotation);
+    // A double click on a caption opens it for retyping, with the caret where the word already is
+    // rather than over the whole of it: it is being corrected, not replaced.
+    private void OnAnnotationActivated(object sender, AnnotationItem annotation)
+    {
+        if (annotation.Kind == EditorTool.Text) BeginTextEdit(annotation, selectAll: false, isNew: false);
+        else OpenAnnotationNote(annotation);
+    }
 
     // One double click too many opens the note of a mark: the text editor of a text mark, the note
     // pill of anything else. The compact "+" beside a selected mark takes the same path.
@@ -1112,15 +1210,14 @@ public partial class OverlayEditorWindow : Window
         var badgeHost = new Border { Width = 25, Height = 25, CornerRadius = new CornerRadius(13), Background = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Child = badge, VerticalAlignment = VerticalAlignment.Center };
         var note = new TextBox
         {
-            MinHeight = 32, MaxHeight = 78, Text = annotation.Kind == EditorTool.Text ? annotation.Text : annotation.Note, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
+            MinHeight = 32, MaxHeight = 78, Text = annotation.Note, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
             Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), CaretBrush = Brushes.White,
             SelectionBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Padding = new Thickness(7, 5, 7, 5), Tag = annotation
         };
         note.TextChanged += (_, _) =>
         {
             if (_settingUp) return;
-            if (annotation.Kind == EditorTool.Text) annotation.Text = note.Text;
-            else annotation.Note = note.Text;
+            annotation.Note = note.Text;
             RefreshLabels();
         };
         note.GotKeyboardFocus += (_, _) => Surface.SelectAnnotation(annotation.Id);
@@ -1133,7 +1230,7 @@ public partial class OverlayEditorWindow : Window
         var close = new Button
         {
             Width = 27, Height = 27, Padding = new Thickness(7), Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0), Content = closePath, ToolTip = UiLanguage.Text(annotation.Kind == EditorTool.Text ? "Закрыть ввод текста" : "Удалить комментарий"), Tag = annotation
+            BorderThickness = new Thickness(0), Content = closePath, ToolTip = UiLanguage.Text("Удалить комментарий"), Tag = annotation
         };
         close.Click += OnDeleteAnnotationNoteClick;
         var grid = new Grid();
@@ -1157,7 +1254,7 @@ public partial class OverlayEditorWindow : Window
                 _expandedChipId = annotation.Id;
             }
             else if (_expandedChipId == annotation.Id) _expandedChipId = null;
-            border.Visibility = !expanded && annotation.Kind == EditorTool.Text ? Visibility.Collapsed : Visibility.Visible;
+            border.Visibility = Visibility.Visible;
             border.Width = expanded ? 270 : 43;
             note.Visibility = close.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
             grid.ColumnDefinitions[2].Width = new GridLength(expanded ? 29 : 0);
@@ -1167,7 +1264,7 @@ public partial class OverlayEditorWindow : Window
         }
         void Finish()
         {
-            if (annotation.Kind != EditorTool.Text && string.IsNullOrWhiteSpace(annotation.Note))
+            if (string.IsNullOrWhiteSpace(annotation.Note))
             {
                 _visibleChipIds.Remove(annotation.Id);
                 _chipLabels.Remove(annotation.Id);
@@ -1243,7 +1340,7 @@ public partial class OverlayEditorWindow : Window
             annotation.Label = labels.GetValueOrDefault(annotation.Id) ?? string.Empty;
             if (_chipLabels.TryGetValue(annotation.Id, out var text))
             {
-                text.Text = string.IsNullOrEmpty(annotation.Label) ? (annotation.Kind == EditorTool.Text ? "T" : "+") : annotation.Label;
+                text.Text = string.IsNullOrEmpty(annotation.Label) ? "+" : annotation.Label;
             }
         }
         SyncCommentsPanel();
@@ -1350,7 +1447,7 @@ public partial class OverlayEditorWindow : Window
         if (!string.IsNullOrEmpty(annotation.Note)) _undo.Push(SnapshotState());
         _redo.Clear();
         if (annotation.Kind == EditorTool.Comment) _capture.Annotations.Remove(annotation);
-        else if (annotation.Kind != EditorTool.Text) annotation.Note = string.Empty;
+        else annotation.Note = string.Empty;
         _lastSnapshot = SnapshotState();
         _visibleChipIds.Remove(annotation.Id);
         _chipBorders.Remove(annotation.Id);
@@ -1434,6 +1531,8 @@ public partial class OverlayEditorWindow : Window
     private void RestoreState(OverlaySnapshot state)
     {
         if (_capture is null) return;
+        // The marks are replaced wholesale, so the caption being typed is not among them any more.
+        CloseTextEditor();
         _capture.Restore(state.Capture);
         _cropRect = state.CropRect;
         _visibleChipIds.Clear();
@@ -1508,6 +1607,7 @@ public partial class OverlayEditorWindow : Window
     private void Complete(bool addNext)
     {
         if (_capture is null || _busyCrop || _captureResizeCorner >= 0 || Surface.IsMouseCaptured) return;
+        CommitTextEdit();
         RememberCurrentRegion();
         _capture.Note = ShotNoteBox.Text;
         DeleteCreatedSourcesExcept(_capture.SourcePath);

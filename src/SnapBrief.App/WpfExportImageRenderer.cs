@@ -122,7 +122,11 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
                         item.HasOutline ? pen : null, item.Shape, rect, 1);
                     break;
                 case AnnotationKind.Redaction: dc.DrawRectangle(Brushes.Black, null, rect); break;
-                case AnnotationKind.Text: DrawText(dc, item.Text, Math.Max(16, item.Thickness * 4.5), FontWeights.SemiBold, brush, start); break;
+                // The size the caption was typed in, in the pixels of the capture, and the same
+                // family the editor draws with: the letters in the PNG are the letters on screen.
+                case AnnotationKind.Text:
+                    DrawText(dc, item.Text, TextMarkMetrics.Clamp(item.FontSize), FontWeights.Normal, brush, start, TextMarkMetrics.FamilyName);
+                    break;
                 case AnnotationKind.Arrow:
                     SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, item.Thickness, item.ArrowStyle);
                     break;
@@ -168,10 +172,10 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
         return NoteBadgeGeometry.Export(anchor, displayLabel, offset, HeaderHeight + 2);
     }
 
-    private static void DrawText(DrawingContext dc, string text, double size, FontWeight weight, Brush brush, Point point)
+    private static void DrawText(DrawingContext dc, string text, double size, FontWeight weight, Brush brush, Point point, string family = "Segoe UI")
     {
         var formatted = new FormattedText(text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-            new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, weight, FontStretches.Normal), size, brush, 1);
+            new Typeface(new FontFamily(family), FontStyles.Normal, weight, FontStretches.Normal), size, brush, 1);
         dc.DrawText(formatted, point);
     }
 }

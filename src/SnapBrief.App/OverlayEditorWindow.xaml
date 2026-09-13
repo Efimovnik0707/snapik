@@ -149,6 +149,9 @@
             </Border>
         </Canvas>
         <Canvas x:Name="CaptureHandleLayer" />
+        <!-- Where a caption is typed: a text box standing over the capture, at the point that was
+             clicked and in the size of the mark, so what is typed is what will be drawn. -->
+        <Canvas x:Name="TextLayer" />
         <Canvas x:Name="ChipLayer" IsHitTestVisible="True" />
 
         <Border x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" Padding="13,8"
@@ -236,6 +239,8 @@
                         <TextBlock x:Name="FillButtonLabel" Text="Заливка" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
+                <!-- The size of a caption, in the same shape as the thickness beside it. -->
+                <Button x:Name="FontSizeButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnFontSizeClick" ToolTip="Размер" AutomationProperties.Name="{local:UiText Размер}" Content="20 px" />
                 <Button x:Name="CommentToolButton" Style="{StaticResource OverlayButton}" Click="OnCommentClick">
                     <Path Width="16" Height="16" Stroke="#D9DEE8" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z" />
                 </Button>
@@ -312,6 +317,29 @@
                     </Border>
                     <Slider x:Name="StrokeSlider" Margin="0,12,0,0" Style="{StaticResource StrokeSliderStyle}" Minimum="1" Maximum="16" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" ValueChanged="OnStrokeChanged" AutomationProperties.Name="{local:UiText Толщина линии}"/>
                     <Border Background="#222933" CornerRadius="7" Height="36" Margin="0,12,0,0"><Line x:Name="StrokePreview" X1="15" Y1="18" X2="201" Y2="18" Stroke="#FF3B30" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/></Border>
+                </StackPanel>
+            </Border>
+        </Popup>
+        <!-- The size a caption is typed in: presets, a slider and a preview, the way the thickness
+             popover is built. The size belongs to the mark and travels into session.json with it. -->
+        <Popup x:Name="FontSizePopup" PlacementTarget="{Binding ElementName=FontSizeButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" Closed="OnAppearanceClosed">
+            <Border Width="276" Padding="18" Background="#171A20" BorderBrush="#394352" BorderThickness="1" CornerRadius="14" TextElement.Foreground="#EEF2F8" Cursor="Arrow" PreviewKeyDown="OnFontSizeKeyDown">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12"><TextBlock Text="Размер" FontWeight="SemiBold"/><TextBlock x:Name="FontSizeValue" HorizontalAlignment="Right"/></Grid>
+                    <Border Background="#222933" CornerRadius="8" Padding="3">
+                        <UniformGrid x:Name="FontSizePresetRow" Columns="6">
+                            <ToggleButton x:Name="FontSize1Segment" Style="{StaticResource SegmentButton}" Tag="12" Click="OnFontSizePresetClick" ToolTip="12 px" AutomationProperties.Name="12 px"><TextBlock Text="12" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize2Segment" Style="{StaticResource SegmentButton}" Tag="16" Click="OnFontSizePresetClick" ToolTip="16 px" AutomationProperties.Name="16 px"><TextBlock Text="16" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize3Segment" Style="{StaticResource SegmentButton}" Tag="20" Click="OnFontSizePresetClick" ToolTip="20 px" AutomationProperties.Name="20 px"><TextBlock Text="20" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize4Segment" Style="{StaticResource SegmentButton}" Tag="24" Click="OnFontSizePresetClick" ToolTip="24 px" AutomationProperties.Name="24 px"><TextBlock Text="24" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize5Segment" Style="{StaticResource SegmentButton}" Tag="32" Click="OnFontSizePresetClick" ToolTip="32 px" AutomationProperties.Name="32 px"><TextBlock Text="32" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize6Segment" Style="{StaticResource SegmentButton}" Tag="48" Click="OnFontSizePresetClick" ToolTip="48 px" AutomationProperties.Name="48 px"><TextBlock Text="48" FontSize="12" /></ToggleButton>
+                        </UniformGrid>
+                    </Border>
+                    <Slider x:Name="FontSizeSlider" Margin="0,12,0,0" Style="{StaticResource StrokeSliderStyle}" Minimum="8" Maximum="96" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" ValueChanged="OnFontSizeChanged" AutomationProperties.Name="{local:UiText Размер шрифта}"/>
+                    <Border Background="#222933" CornerRadius="7" Height="66" Margin="0,12,0,0">
+                        <TextBlock x:Name="FontSizePreview" Text="Ag" FontFamily="Segoe UI Variable Text" Foreground="#FF3B30" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
                 </StackPanel>
             </Border>
         </Popup>

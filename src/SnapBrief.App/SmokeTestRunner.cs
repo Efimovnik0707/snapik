@@ -31,7 +31,8 @@ public static class SmokeTestRunner
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
             ConfirmSessionDiscard = false, StackHeight = 300,
-            AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationShape = "ellipse", AnnotationFill = "translucent",
+            AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationFontSize = 28,
+            AnnotationShape = "ellipse", AnnotationFill = "translucent",
             AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "neon", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
@@ -101,6 +102,13 @@ public static class SmokeTestRunner
             !OverlayEditorWindow.Palettes[0].Colors.Contains(HotkeySettings.Default.AnnotationColor) ||
             OverlayEditorWindow.ParseAnnotationColor(HotkeySettings.Default.AnnotationColor) != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("The stored palette must be read back, and the default colour must belong to the standard palette.");
+        // The size a caption is typed in is remembered next to the colour and the widths.
+        if (restoredSettings.AnnotationFontSize != 28 ||
+            HotkeySettings.Default.AnnotationFontSize != TextMarkMetrics.DefaultFontSize ||
+            TextMarkMetrics.Clamp(0) != TextMarkMetrics.MinimumFontSize ||
+            TextMarkMetrics.Clamp(400) != TextMarkMetrics.MaximumFontSize ||
+            TextMarkMetrics.Clamp(double.NaN) != TextMarkMetrics.DefaultFontSize)
+            throw new InvalidOperationException("The size of a caption must be stored, and a size nobody can draw must be brought back into range.");
         // The highlighter carries a width of its own, next to the one every other stroke shares.
         if (restoredSettings.AnnotationHighlightThickness != 22 ||
             HotkeySettings.Default.AnnotationHighlightThickness != OverlayEditorWindow.DefaultHighlightThickness ||
@@ -337,7 +345,9 @@ public static class SmokeTestRunner
         Controls.AnnotationCanvas.VerifyBlurCache(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
         Controls.AnnotationCanvas.VerifyGestureRules(captures[0].Image);
+        Controls.AnnotationCanvas.VerifyTextMarkGeometry(captures[0].Image);
         await VerifyHighlighterStaysOneTone(root);
+        await VerifyCaptionIsTheSameSizeOnScreenAndInExport(root);
         foreach (var format in new[] { "png", "jpeg" })
         {
             var imagePath = Path.Combine(root, "local-save." + (format == "jpeg" ? "jpg" : "png"));
@@ -359,6 +369,7 @@ public static class SmokeTestRunner
         WithoutBindingErrors("The colour and thickness panel", () => OverlayEditorWindow.RunPanelProbe(captures[0]));
         WithoutBindingErrors("The comments panel", () => OverlayEditorWindow.RunCommentsPanelProbe(captures[0]));
         WithoutBindingErrors("The click beside the capture", () => OverlayEditorWindow.RunOutsideClickProbe(captures[0]));
+        WithoutBindingErrors("The text tool", () => OverlayEditorWindow.RunTextMarkProbe(captures[0]));
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
         var noteProbeCore = noteProbe.ToCore();
         var noteProbeLabel = SnapBrief.Core.Exporting.CaptureLabels.ForNotedAnnotations("A", noteProbeCore).SingleOrDefault();
@@ -548,6 +559,81 @@ public static class SmokeTestRunner
         if (pencil[0] != 48 || pencil[1] != 59 || pencil[2] != 255)
             throw new InvalidOperationException("The pencil must draw the colour of the mark, whole.");
         Directory.Delete(probeRoot, true);
+    }
+
+    // The letters of a caption are the same size on screen and in the exported PNG: the editor draws
+    // them at the size of the mark scaled by the capture, the export at the size of the mark, and the
+    // ink both of them leave is measured here against the same yardstick.
+    private static async Task VerifyCaptionIsTheSameSizeOnScreenAndInExport(string root)
+    {
+        var probeRoot = Path.Combine(root, "caption-probe");
+        Directory.CreateDirectory(probeRoot);
+        var stride = 400 * 4;
+        var pixels = new byte[stride * 200];
+        Array.Fill(pixels, (byte)255);
+        var white = System.Windows.Media.Imaging.BitmapSource.Create(400, 200, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+        white.Freeze();
+        var imagePath = Path.Combine(probeRoot, "white.png");
+        await LocalImageSave.WriteAsync(white, imagePath, "png", 92, false);
+
+        const string words = "Привет";
+        const double fontSize = 32;
+        var editorMark = new AnnotationItem
+        {
+            Kind = EditorTool.Text, Points = [new Point(40, 60)], Text = words, FontSize = fontSize,
+            Color = Color.FromRgb(255, 59, 48)
+        };
+        TextMarkMetrics.Fit(editorMark);
+        var canvas = new Controls.AnnotationCanvas
+        {
+            Image = white, Annotations = [editorMark], ImagePadding = 0, Width = 400, Height = 200
+        };
+        canvas.Measure(new Size(400, 200));
+        canvas.Arrange(new Rect(0, 0, 400, 200));
+        var onScreen = InkBounds(canvas.RenderAnnotated(), 0);
+
+        var capture = SnapBrief.Core.Models.CaptureItem.Create("source/white.png", 400, 200) with
+        {
+            Annotations = [editorMark.ToCore(400, 200)]
+        };
+        await using var png = new MemoryStream();
+        await new WpfExportImageRenderer().RenderAsync(capture,
+            new SnapBrief.Core.Exporting.ExportImageContext("A", 0, imagePath), png, default);
+        png.Position = 0;
+        var exported = System.Windows.Media.Imaging.BitmapFrame.Create(png,
+            System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+        var inExport = InkBounds(exported, 48);
+
+        var measured = TextMarkMetrics.Measure(words, fontSize);
+        if (Math.Abs(onScreen.Width - inExport.Width) > 2 || Math.Abs(onScreen.Height - inExport.Height) > 2)
+            throw new InvalidOperationException($"A caption came out {onScreen.Width}x{onScreen.Height} on screen and {inExport.Width}x{inExport.Height} in the export.");
+        if (inExport.Width > measured.Width + 2 || inExport.Height > measured.Height + 2 || inExport.Height < fontSize / 2)
+            throw new InvalidOperationException("The letters of a caption must fill the box the mark claims for them.");
+        Directory.Delete(probeRoot, true);
+    }
+
+    // The box the ink of the picture takes, in pixels, below the header of the export.
+    private static Rect InkBounds(System.Windows.Media.Imaging.BitmapSource bitmap, int offsetY)
+    {
+        var converted = new System.Windows.Media.Imaging.FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+        var width = converted.PixelWidth;
+        var height = converted.PixelHeight - offsetY;
+        var stride = width * 4;
+        var pixels = new byte[stride * height];
+        converted.CopyPixels(new Int32Rect(0, offsetY, width, height), pixels, stride, 0);
+        int left = width, top = height, right = -1, bottom = -1;
+        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
+        {
+            var offset = y * stride + x * 4;
+            if (pixels[offset] > 240 && pixels[offset + 1] > 240 && pixels[offset + 2] > 240) continue;
+            if (x < left) left = x;
+            if (x > right) right = x;
+            if (y < top) top = y;
+            if (y > bottom) bottom = y;
+        }
+        if (right < 0) throw new InvalidOperationException("The caption left no ink on the picture at all.");
+        return new Rect(left, top, right - left + 1, bottom - top + 1);
     }
 
     // The start of a run takes every session the previous run left in the root, together with the
