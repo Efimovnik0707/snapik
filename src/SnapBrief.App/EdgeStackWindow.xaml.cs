@@ -131,7 +131,7 @@ public partial class EdgeStackWindow : Window
         };
         _trayIcon.ContextMenuStrip.Items.Add("Показать ленту", null, (_, _) => Dispatcher.Invoke(ShowStackWithoutActivation));
         _trayIcon.ContextMenuStrip.Items.Add("Настройки", null, (_, _) => Dispatcher.Invoke(() => { ShowStackWithoutActivation(); OpenSettings(); }));
-        _trayIcon.ContextMenuStrip.Items.Add("Как пользоваться", null, (_, _) => Dispatcher.Invoke(ShowOnboarding));
+        _trayIcon.ContextMenuStrip.Items.Add("Как пользоваться", null, (_, _) => Dispatcher.Invoke(() => ShowOnboarding(howToOnly: true)));
         _trayIcon.ContextMenuStrip.Items.Add("Новый снимок", null, (_, _) => Dispatcher.InvokeAsync(CaptureLoopAsync));
         _trayIcon.ContextMenuStrip.Items.Add(new WinForms.ToolStripSeparator());
         _trayIcon.ContextMenuStrip.Items.Add("Выйти", null, (_, _) => Dispatcher.Invoke(() => { _exiting = true; Close(); }));
@@ -986,9 +986,22 @@ public partial class EdgeStackWindow : Window
     // The wizard of the first run, and the tray item that opens it again. Its shortcut field goes
     // through the same registration as the settings dialog, so a taken shortcut is reported inside
     // the wizard and the user cannot leave that step with it.
-    private void ShowOnboarding()
+    private void ShowOnboarding(bool howToOnly = false)
     {
-        StartupTrace.Write(_options, $"Onboarding opens: hotkeys={_hotkeys is not null}");
+        StartupTrace.Write(_options, $"Onboarding opens: hotkeys={_hotkeys is not null}, howToOnly={howToOnly}");
+        // The how-to slides opened from the tray have no shortcut field, so the registered
+        // shortcuts stay as they are for the whole time the slides are on screen.
+        if (howToOnly)
+        {
+            var readableHowTo = HotkeySettings.TryLoad(_settingsPath, out var currentHowTo);
+            if (!readableHowTo) currentHowTo = HotkeySettings.Default;
+            var slides = new OnboardingWindow(currentHowTo, howToOnly: true)
+            {
+                Trace = message => StartupTrace.Write(_options, message)
+            };
+            using (SuspendTopmost()) slides.ShowDialog();
+            return;
+        }
         _hotkeys?.Unregister("capture");
         _hotkeys?.Unregister("fullscreen-save");
         try
