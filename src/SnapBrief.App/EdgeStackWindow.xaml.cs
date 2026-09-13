@@ -493,8 +493,10 @@ public partial class EdgeStackWindow : Window
                 Captures.Add(result.Capture);
                 Renumber();
                 InvalidatePrepared();
-                var copied = await SaveAndCopyCommittedPackageAsync();
+                // The shutter belongs to the moment of the capture, so it plays before the package
+                // travels to the clipboard and not after that wait.
                 UiSoundService.Capture(_settings);
+                var copied = await SaveAndCopyCommittedPackageAsync();
                 await AutoSaveCaptureAsync(result.Capture);
                 addNext = copied && result.AddNext;
             }
@@ -867,6 +869,7 @@ public partial class EdgeStackWindow : Window
             SetPublished(Published(package));
             // The next capture rebuilds the package from the captures that are still waiting anyway.
             _prepared = package;
+            UiSoundService.Copied(_settings);
             NotifyCopied();
             // The advice about the paste button only makes sense while that button is enabled, and it
             // is enabled by the captures that are still waiting.

@@ -8,11 +8,9 @@ namespace SnapBrief.App;
 public partial class EdgeStackWindow
 {
     internal void NotifySaved() => Notify("Снимок сохранён");
-    private void NotifyCopied()
-    {
-        UiSoundService.Copied(_settings);
-        Notify("Снимки скопированы");
-    }
+    // The balloon travels with every clipboard refresh, the sound does not: it belongs to the
+    // explicit "Copy package" command only, see CopyPackageAsync.
+    private void NotifyCopied() => Notify("Снимки скопированы");
     private void Notify(string message)
     {
         if (_settings.ShowNotifications) _trayIcon.ShowBalloonTip(2000, "SnapBrief", UiLanguage.Text(message), ToolTipIcon.Info);
