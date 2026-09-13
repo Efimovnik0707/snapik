@@ -258,11 +258,32 @@ public partial class EdgeStackWindow : Window
         return conflicts.Count == 0;
     }
 
+    // A shortcut is delivered through the dispatcher, and the dispatcher runs inside the modal loop
+    // of a dialog as well, so a capture can start while the wizard or the settings are waiting for
+    // an answer. It must not: see CaptureIsBlockedByADialog.
     private void OnHotkey(object? sender, GlobalHotkeyPressed e) => Dispatcher.InvokeAsync(async () =>
     {
+        if (CaptureIsBlockedByADialog($"hotkey {e.Id}")) return;
         if (e.Id == "capture" && !OverlayEditorWindow.TryCommitAndRequestNext()) await CaptureLoopAsync();
         else if (e.Id == "fullscreen-save") await SaveFullscreenAsync();
     });
+
+    // Every modal window the application opens goes through SuspendTopmost, so the number of
+    // suspensions is the number of dialogs waiting for an answer.
+    private bool ADialogIsOnScreen => _topmostSuspensions > 0;
+
+    // True when the capture is refused, with the reason in the log. A capture hides every window of
+    // the application, and a dialog hidden that way never comes back: the strip returns alone, while
+    // the modal loop of the dialog goes on running behind nothing at all. That is how the wizard
+    // disappeared when a shortcut fired a capture on its slides. Hiding the dialog and bringing it
+    // back would be worse: a topmost wizard would return on top of the editor of the new capture and
+    // block it. So a capture asked for over a dialog simply does not happen.
+    private bool CaptureIsBlockedByADialog(string source)
+    {
+        if (!ADialogIsOnScreen) return false;
+        StartupTrace.Write(_options, $"Capture refused ({source}): a dialog of the application is on screen.");
+        return true;
+    }
 
     private void OnPasteIntentObserved(object? sender, PasteIntentObserved e)
     {
@@ -489,6 +510,9 @@ public partial class EdgeStackWindow : Window
     private async Task CaptureLoopAsync()
     {
         await _pasteIntentTransition;
+        // Checked again after the wait, and for the tray item and the button of the strip as well:
+        // a dialog may have opened while this was waiting.
+        if (CaptureIsBlockedByADialog("capture loop")) return;
         if (_busy) return;
         _busy = true;
         try

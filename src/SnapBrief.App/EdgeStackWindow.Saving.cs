@@ -39,6 +39,8 @@ public partial class EdgeStackWindow
     private async Task SaveFullscreenAsync()
     {
         await _pasteIntentTransition;
+        // This hides every window too, so the rule of the capture holds for it word for word.
+        if (CaptureIsBlockedByADialog("fullscreen save")) return;
         if (_busy) return;
         _busy = true;
         var wasVisible = IsVisible;
