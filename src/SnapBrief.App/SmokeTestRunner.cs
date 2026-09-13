@@ -238,14 +238,6 @@ public static class SmokeTestRunner
 
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
-        var preview = WithoutBindingErrors("The preview window", () =>
-        {
-            var window = CapturePreviewWindow.RunPreviewProbe(captures[0]);
-            ResolveTriggerBindings(window);
-            return window;
-        });
-        // The probe returns the window because its own checks read it; nothing reads it here.
-        preview.Close();
         foreach (var format in new[] { "png", "jpeg" })
         {
             var imagePath = Path.Combine(root, "local-save." + (format == "jpeg" ? "jpg" : "png"));

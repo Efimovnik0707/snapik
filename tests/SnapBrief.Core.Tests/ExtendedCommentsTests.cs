@@ -73,6 +73,26 @@ public sealed class ExtendedCommentsTests
         SessionValidation.Validate(beforeTheFields);
     }
 
+    // The preview window checked these two rules on its own list of comments. The window is gone,
+    // so the rules are checked here, on the labels the export itself hands out.
+    [Fact]
+    public void An_empty_note_claims_no_label_and_numbering_closes_the_gap_after_a_deletion()
+    {
+        var first = AnnotationItem.Create(AnnotationKind.Rectangle, [new(.1, .1), new(.2, .2)], note: "Первый");
+        var blank = AnnotationItem.Create(AnnotationKind.Comment, [new(.3, .3), new(.31, .31)]);
+        var second = AnnotationItem.Create(AnnotationKind.Comment, [new(.4, .4), new(.41, .41)], note: "Второй");
+        var capture = CaptureItem.Create("source/a.png", 1000, 1000) with { Annotations = [first, blank, second] };
+
+        var labels = CaptureLabels.ForNotedAnnotations("A", capture).ToArray();
+        Assert.Equal(["A1", "A2"], labels.Select(item => item.DisplayLabel));
+        Assert.DoesNotContain(blank.Id, labels.Select(item => item.Annotation.Id));
+
+        var afterDeletion = capture with { Annotations = capture.Annotations.Remove(first) };
+        var remaining = CaptureLabels.ForNotedAnnotations("A", afterDeletion).ToArray();
+        Assert.Equal(["A1"], remaining.Select(item => item.DisplayLabel));
+        Assert.Equal(second.Id, remaining.Single().Annotation.Id);
+    }
+
     [Fact]
     public void Cropping_keeps_comment_but_clears_a_removed_parent_link()
     {

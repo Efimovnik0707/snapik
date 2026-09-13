@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Markup;
 using System.Windows.Media;
 
 namespace SnapBrief.App;
@@ -34,8 +36,6 @@ internal static class UiLanguage
         ["Цвет"] = "Color", ["Цвет HEX"] = "HEX color", ["Толщина линии"] = "Line thickness",
         ["Выделите область · Esc отменяет"] = "Select an area · Esc cancels", ["СНИМОК {0}"] = "CAPTURE {0}",
         ["Добавить комментарий"] = "Add comment", ["Удалить комментарий"] = "Remove comment", ["Переместить заметку"] = "Move the note", ["Отменить"] = "Undo", ["Повторить"] = "Redo",
-        ["Просмотр снимка"] = "Capture preview", ["По размеру окна"] = "Fit to window", ["Увеличить"] = "Zoom in", ["Уменьшить"] = "Zoom out",
-        ["На весь экран"] = "Full screen", ["Вернуть размер"] = "Restore size", ["Разметка"] = "Mark up", ["Закрыть просмотр"] = "Close preview",
         ["Комментарии"] = "Comments", ["Нет комментариев"] = "No comments yet", ["Комментарий к снимку"] = "Capture comment",
         ["К снимку"] = "To capture", ["К отметке"] = "To annotation",
         ["Прямая стрелка"] = "Straight arrow", ["Изогнутая стрелка"] = "Curved arrow", ["Толстая стрелка"] = "Bold arrow", ["Широкая стрелка"] = "Wide arrow",
@@ -127,4 +127,12 @@ internal static class UiLanguage
         }
         Walk(root);
     }
+}
+
+// {local:UiText ...} in every XAML of the application goes through this extension, so it lives
+// next to the table it reads and not inside a window that may be removed.
+[MarkupExtensionReturnType(typeof(string))]
+public sealed class UiTextExtension(string key) : MarkupExtension
+{
+    public override object ProvideValue(IServiceProvider serviceProvider) => UiLanguage.Text(key);
 }

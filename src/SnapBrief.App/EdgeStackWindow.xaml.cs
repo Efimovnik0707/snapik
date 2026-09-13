@@ -1397,6 +1397,53 @@ public partial class EdgeStackWindow : Window
 
     private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
 
+    private void OnCaptureThumbMouseEnter(object sender, MouseEventArgs e) => UiSoundService.Tick(_settings);
+
+    private void OnCaptureListMouseWheel(object sender, MouseWheelEventArgs e) => UiSoundService.Tick(_settings);
+
+    // A click on a card goes straight to the editor: the capture opens with every annotation it
+    // already carries, and the strip stays hidden while the full-screen editor is up.
+    private async void OnOpenCaptureClick(object sender, RoutedEventArgs e)
+    {
+        await _pasteIntentTransition;
+        if (_busy || sender is not Button { Tag: CaptureItem capture }) return;
+
+        _busy = true;
+        capture.IsSelected = true;
+        CaptureList.Items.Refresh();
+        var stackHidden = false;
+        var requestNext = false;
+        try
+        {
+            HideForCapture();
+            stackHidden = true;
+            var index = Captures.IndexOf(capture);
+            if (index < 0) return;
+            // The editor labels the capture by its place among the captures that were not sent yet.
+            var labelIndex = Captures.Take(index).Count(other => !other.IsSent);
+            var result = await OverlayEditorWindow.EditExistingAsync(_workspace, capture, labelIndex);
+            if (!result.Cancelled && result.Capture is not null)
+            {
+                // An edited capture no longer matches what the receiver got, so it returns to the package
+                // even though the editor works on a copy that carries the sent flag over.
+                result.Capture.IsSent = false;
+                Captures[index] = result.Capture;
+                Renumber();
+                InvalidatePrepared();
+                requestNext = await SaveAndCopyCommittedPackageAsync() && result.AddNext;
+            }
+        }
+        catch (Exception ex) { SetStatus($"Не удалось открыть снимок: {ex.Message}", true); }
+        finally
+        {
+            capture.IsSelected = false;
+            CaptureList.Items.Refresh();
+            _busy = false;
+            if (stackHidden) ShowStackWithoutActivation();
+        }
+        if (requestNext) await CaptureLoopAsync();
+    }
+
     private void OnCaptureListMouseDown(object sender, MouseButtonEventArgs e)
     {
         _dragStart = e.GetPosition(CaptureList);
