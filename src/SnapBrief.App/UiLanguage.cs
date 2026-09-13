@@ -30,7 +30,7 @@ internal static class UiLanguage
         ["Маркер"] = "Highlight", ["Текст"] = "Text", ["Размыть"] = "Blur", ["Обрезать"] = "Crop",
         ["Цвет и заливка"] = "Color and fill", ["Сочетания клавиш"] = "Keyboard shortcuts", ["Инструменты"] = "Tools", ["Действия"] = "Actions",
         ["Отменить снимок"] = "Cancel the capture", ["Закончить заметку"] = "Finish the note", ["Новая строка в заметке"] = "New line in the note",
-        ["Цвет отметки"] = "Annotation color", ["Толщина"] = "Thickness", ["Ещё инструменты"] = "More tools",
+        ["Цвет отметки"] = "Annotation color", ["Толщина"] = "Thickness", ["Карандаш"] = "Pencil",
         ["Цвет"] = "Color", ["Цвет HEX"] = "HEX color", ["Толщина линии"] = "Line thickness",
         ["Стандартная"] = "Standard", ["Пастель"] = "Pastel", ["Неон"] = "Neon",
         ["Выделите область · Esc отменяет"] = "Select an area · Esc cancels", ["СНИМОК {0}"] = "CAPTURE {0}",

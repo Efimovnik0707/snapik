@@ -68,6 +68,26 @@ public partial class OverlayEditorWindow
 
     private void OnShapeMenuClick(object sender, RoutedEventArgs e) => OpenToolMenu(BuildShapeMenu((UIElement)sender));
 
+    // The other half of the pencil capsule: the pen and the highlighter, drawn with the same two
+    // geometries the button itself wears.
+    private ContextMenu BuildPencilMenu(UIElement target)
+    {
+        var menu = ToolMenu(target);
+        Add(EditorTool.Pen, "PenGlyph");
+        Add(EditorTool.Highlight, "HighlightGlyph");
+        return menu;
+
+        void Add(EditorTool tool, string glyph) => menu.Items.Add(MenuRow(
+            new Path
+            {
+                Width = 16, Height = 16, Stroke = Brushes.White, StrokeThickness = 1.7,
+                StrokeLineJoin = PenLineJoin.Round, Data = (Geometry)FindResource(glyph)
+            },
+            EditorShortcuts.Caption(tool), _activePencil == tool, () => SelectToolMode(tool)));
+    }
+
+    private void OnPencilMenuClick(object sender, RoutedEventArgs e) => OpenToolMenu(BuildPencilMenu((UIElement)sender));
+
     // A long press on the tool itself opens the same menu, for the hand that never finds the chevron.
     private void AttachLongPress(ButtonBase button, Func<ContextMenu> build)
     {

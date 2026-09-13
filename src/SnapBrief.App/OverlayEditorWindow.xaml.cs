@@ -50,6 +50,7 @@ public partial class OverlayEditorWindow : Window
     private Color? _activeFillColor;
     private bool _activeHasOutline = true;
     private PaletteSet _activePalette = Palettes[0];
+    private EditorTool _activePencil = EditorTool.Pen;
     private Guid? _commentParentId;
     private Guid? _expandedChipId;
     private AnnotationItem? _chipDragAnnotation;
@@ -72,6 +73,7 @@ public partial class OverlayEditorWindow : Window
         _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
         _activeHasOutline = preferences.AnnotationOutline;
         _activePalette = ParseAnnotationPalette(preferences.AnnotationPalette);
+        _activePencil = ParseAnnotationPencil(preferences.AnnotationPencil);
         _capture = existing?.DeepClone();
         _isNew = existing is null;
         if (_capture is not null && !string.IsNullOrWhiteSpace(_capture.Note))
@@ -88,6 +90,8 @@ public partial class OverlayEditorWindow : Window
         BuildColorDots();
         AttachLongPress(RectangleTool, () => BuildShapeMenu(RectangleTool));
         AttachLongPress(ArrowTool, () => BuildArrowMenu(ArrowTool));
+        AttachLongPress(PenTool, () => BuildPencilMenu(PenTool));
+        SetPencilMode(_activePencil);
         ApplyShortcutHints();
         DesktopImage.Source = frame.Image;
         var shadeGeometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
@@ -164,10 +168,11 @@ public partial class OverlayEditorWindow : Window
             var capsule = ShortcutCapsuleText(window, window.SelectTool);
             if (capsule != "V")
                 throw new InvalidOperationException($"The tooltip of the select tool must carry the capsule \"V\", it carried \"{capsule}\".");
-            // The menus of the two split buttons are built, read and used without a popup on screen.
+            // The menus of the three split buttons are built, read and used without a popup on screen.
             var shapeMenu = window.BuildShapeMenu(window.ShapeMenuButton);
             var arrowMenu = window.BuildArrowMenu(window.ArrowMenuButton);
-            foreach (var menu in new[] { shapeMenu, arrowMenu })
+            var pencilMenu = window.BuildPencilMenu(window.PenMenuButton);
+            foreach (var menu in new[] { shapeMenu, arrowMenu, pencilMenu })
                 foreach (var text in PanelStrings(menu))
                     if (cyrillic.IsMatch(text))
                         throw new InvalidOperationException($"The English split button menu still shows Russian text: \"{text}\".");
@@ -181,6 +186,15 @@ public partial class OverlayEditorWindow : Window
             // for a button of its own, and the conceal tool left the editor altogether.
             if (arrowMenu.Items.Count != 3 || EditorShortcuts.Tools.Any(shortcut => shortcut.Key == Key.X))
                 throw new InvalidOperationException("The arrow menu must hold three styles and no thickness, and the X key must be free.");
+            // The pencil capsule stands for both modes: the H key arms the highlighter, and the
+            // capsule starts carrying it, glyph, tag and all.
+            Row(pencilMenu, "Highlight (H)").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            if (window.Surface.Tool != EditorTool.Highlight || (string?)window.PenTool.Tag != "Highlight" ||
+                window.PencilGlyph.Data.ToString() != window.FindResource("HighlightGlyph").ToString() || window.PenTool.IsChecked != true)
+                throw new InvalidOperationException("A pick in the pencil menu must arm the mode and show it on the capsule.");
+            window.SelectToolMode(EditorTool.Pen);
+            if ((string?)window.PenTool.Tag != "Pen" || window.PencilGlyph.Data.ToString() != window.FindResource("PenGlyph").ToString())
+                throw new InvalidOperationException("The P key must put the capsule back on the pen.");
         }
         finally
         {
@@ -621,7 +635,7 @@ public partial class OverlayEditorWindow : Window
     }
 
     private System.Windows.Controls.Primitives.ToggleButton[] ToolButtons =>
-        [SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, BlurTool, CropTool];
+        [SelectTool, RectangleTool, ArrowTool, PenTool, TextTool, BlurTool, CropTool];
 
     // Every letter on the panel comes from EditorShortcuts: the name goes to the tooltip (and is
     // translated with the rest of the window), the key goes to the capsule of the tooltip template.
@@ -684,38 +698,30 @@ public partial class OverlayEditorWindow : Window
     private void OnColorClick(object sender, RoutedEventArgs e) => OpenAppearance();
     private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenThickness();
 
-    private void OnMoreToolsClick(object sender, RoutedEventArgs e)
-    {
-        var menu = new ContextMenu
-        {
-            PlacementTarget = (UIElement)sender,
-            Background = new SolidColorBrush(Color.FromArgb(248, 23, 26, 32)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(58, 66, 78)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(5)
-        };
-        AddTool(EditorTool.Pen);
-        AddTool(EditorTool.Highlight);
-        menu.IsOpen = true;
-
-        void AddTool(EditorTool tool) { var item = ActionItem(EditorShortcuts.Caption(tool), () => SelectToolMode(tool)); item.IsChecked = Surface.Tool == tool; menu.Items.Add(item); }
-        static MenuItem ActionItem(string title, Action action)
-        {
-            var item = new MenuItem { Header = title, Foreground = Brushes.White, Background = Brushes.Transparent, Padding = new Thickness(10, 7, 10, 7) };
-            item.Click += (_, _) => action();
-            return item;
-        }
-    }
-
     private void SelectToolMode(EditorTool tool)
     {
+        if (tool is EditorTool.Pen or EditorTool.Highlight) SetPencilMode(tool);
         Surface.SelectAnnotation(null);
         Surface.Tool = tool;
         SyncAppearance();
         foreach (var button in ToolButtons)
             button.IsChecked = string.Equals(button.Tag?.ToString(), tool.ToString(), StringComparison.Ordinal);
         Surface.Focus();
+    }
+
+    // The capsule carries the mode in its own Tag, so one button stands for both the pen and the
+    // highlighter: the tool click, the P and H keys and the menu all come through here.
+    private void SetPencilMode(EditorTool tool)
+    {
+        _appearanceDefaultsChanged |= tool != _activePencil;
+        _activePencil = tool;
+        PenTool.Tag = tool.ToString();
+        PencilGlyph.Data = (Geometry)FindResource(tool == EditorTool.Highlight ? "HighlightGlyph" : "PenGlyph");
+        if (EditorShortcuts.Find(tool) is { } shortcut)
+        {
+            PenTool.ToolTip = UiLanguage.Text(shortcut.Name);
+            PenTool.Uid = shortcut.Caption;
+        }
     }
 
     private void OnAnnotationCreated(object sender, AnnotationItem annotation)

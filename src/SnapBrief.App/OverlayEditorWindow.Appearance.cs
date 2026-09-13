@@ -178,6 +178,7 @@ public partial class OverlayEditorWindow
         var accent = (Brush)FindResource("AccentSoftBrush");
         ShapeMenuButton.Background = Surface.Tool == EditorTool.Rectangle ? accent : Brushes.Transparent;
         ArrowMenuButton.Background = Surface.Tool == EditorTool.Arrow ? accent : Brushes.Transparent;
+        PenMenuButton.Background = Surface.Tool is EditorTool.Pen or EditorTool.Highlight ? accent : Brushes.Transparent;
         ColorDots.IsEnabled = HasColor(tool);
         foreach (Button dot in ColorDots.Children)
             ((Ellipse)dot.Content).Stroke = (Color)dot.Tag == color
@@ -191,9 +192,6 @@ public partial class OverlayEditorWindow
         FillBlurSegment.IsChecked = fill == AnnotationFill.Blur;
         // A blurred region shows the picture under it: it has no colour of its own to pick.
         FillColorButton.IsEnabled = HasFill(tool) && fill is AnnotationFill.Solid or AnnotationFill.Translucent;
-        var extra = Surface.Tool is EditorTool.Pen or EditorTool.Highlight;
-        MoreToolsButton.Background = extra ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
-        MoreToolsButton.ToolTip = extra ? $"{UiLanguage.Text("Ещё инструменты")} · {EditorShortcuts.Caption(Surface.Tool)}" : UiLanguage.Text("Ещё инструменты");
         _syncingAppearance = false;
     }
 
@@ -356,7 +354,8 @@ public partial class OverlayEditorWindow
                 AnnotationFill = _activeFill.ToString().ToLowerInvariant(),
                 AnnotationFillColor = _activeFillColor is { } fillColor ? $"#{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : string.Empty,
                 AnnotationOutline = _activeHasOutline,
-                AnnotationPalette = _activePalette.Id
+                AnnotationPalette = _activePalette.Id,
+                AnnotationPencil = _activePencil == EditorTool.Highlight ? "highlight" : "pen"
             };
             settings.Save(path);
         }
@@ -388,6 +387,10 @@ public partial class OverlayEditorWindow
     internal static AnnotationFill ParseAnnotationFill(string? value) =>
         Enum.TryParse<AnnotationFill>(value, ignoreCase: true, out var fill) &&
         string.Equals(fill.ToString(), value, StringComparison.OrdinalIgnoreCase) ? fill : AnnotationFill.None;
+
+    // Anything but "highlight" leaves the capsule on the pen, the mode it has always started with.
+    internal static EditorTool ParseAnnotationPencil(string? value) =>
+        string.Equals(value, "highlight", StringComparison.OrdinalIgnoreCase) ? EditorTool.Highlight : EditorTool.Pen;
 
     // A palette written by hand, or by a build that knew other sets, falls back to the standard one.
     internal static PaletteSet ParseAnnotationPalette(string? value) =>

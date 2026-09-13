@@ -31,7 +31,7 @@ public static class SmokeTestRunner
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationShape = "ellipse", AnnotationFill = "translucent",
-            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "neon",
+            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "neon", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion
@@ -81,6 +81,12 @@ public static class SmokeTestRunner
             !OverlayEditorWindow.Palettes[0].Colors.Contains(HotkeySettings.Default.AnnotationColor) ||
             OverlayEditorWindow.ParseAnnotationColor(HotkeySettings.Default.AnnotationColor) != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("The stored palette must be read back, and the default colour must belong to the standard palette.");
+        // The half of the pencil capsule that was armed last comes back with the next capture.
+        if (OverlayEditorWindow.ParseAnnotationPencil(restoredSettings.AnnotationPencil) != EditorTool.Highlight ||
+            OverlayEditorWindow.ParseAnnotationPencil("marker") != EditorTool.Pen ||
+            OverlayEditorWindow.ParseAnnotationPencil(null) != EditorTool.Pen ||
+            HotkeySettings.Default.AnnotationPencil != "pen")
+            throw new InvalidOperationException("The stored pencil mode must be read back, with the pen by default.");
         // The strip and the editor write the same file: every write starts from the file on disk.
         var mergeSettingsPath = Path.Combine(root, "merge-settings-smoke.json");
         (HotkeySettings.Default with { AnnotationColor = "#FF0000", AnnotationThickness = 7 }).Save(mergeSettingsPath);

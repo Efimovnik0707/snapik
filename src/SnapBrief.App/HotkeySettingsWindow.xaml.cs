@@ -32,6 +32,8 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public string AnnotationColor { get; init; } = "#FF3B30";
     /// <summary>Which set of twelve colours the editor offers: standard, pastel or neon.</summary>
     public string AnnotationPalette { get; init; } = "standard";
+    /// <summary>Which half of the pencil capsule is armed: pen or highlight.</summary>
+    public string AnnotationPencil { get; init; } = "pen";
     public double AnnotationThickness { get; init; } = 4;
     /// <summary>The frame the editor draws by default: rectangle, rounded or ellipse.</summary>
     public string AnnotationShape { get; init; } = "rectangle";

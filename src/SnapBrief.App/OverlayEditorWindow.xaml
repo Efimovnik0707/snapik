@@ -9,6 +9,10 @@
         KeyDown="OnWindowKeyDown" MouseLeftButtonDown="OnWindowMouseDown"
         MouseMove="OnWindowMouseMove" MouseLeftButtonUp="OnWindowMouseUp">
     <Window.Resources>
+        <!-- The two faces of the pencil capsule: the button swaps the geometry of its own path by
+             the mode, and the menu of the capsule draws its rows from the same two. -->
+        <PathGeometry x:Key="PenGlyph" Figures="M2,14 C5,12 5,8 8,7 M8,7 L13,2 L15,4 L10,9 Z" />
+        <PathGeometry x:Key="HighlightGlyph" Figures="M2,11 L10,3 L14,7 L6,15 L2,15 Z" />
         <!-- Name plus a key capsule, in the dark of the popover. The letter is carried by Uid of the
              button, filled by the code out of EditorShortcuts, so the panel keeps no letters of its
              own. Uid and not an attached property of ours: a path with a prefix
@@ -176,12 +180,12 @@
                     <Path Width="17" Height="17" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M2,15 L15,2 M9,2 L15,2 L15,8" />
                 </ToggleButton>
                 <Button x:Name="ArrowMenuButton" Style="{StaticResource OverlayToolChevron}" Click="OnArrowOptionsClick" ToolTip="Стиль стрелки" AutomationProperties.Name="{local:UiText Стиль стрелки}" />
-                <ToggleButton x:Name="PenTool" Visibility="Collapsed" Style="{StaticResource OverlayTool}" Tag="Pen" Click="OnToolClick">
-                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M2,14 C5,12 5,8 8,7 M8,7 L13,2 L15,4 L10,9 Z" />
+                <!-- One capsule for the pen and the highlighter: the button draws the current mode
+                     and carries it in its own Tag, the chevron beside it offers the other one. -->
+                <ToggleButton x:Name="PenTool" Style="{StaticResource OverlayToolStart}" Tag="Pen" Click="OnToolClick">
+                    <Path x:Name="PencilGlyph" Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="{StaticResource PenGlyph}" />
                 </ToggleButton>
-                <ToggleButton x:Name="HighlightTool" Visibility="Collapsed" Style="{StaticResource OverlayTool}" Tag="Highlight" Click="OnToolClick">
-                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M2,11 L10,3 L14,7 L6,15 L2,15 Z" />
-                </ToggleButton>
+                <Button x:Name="PenMenuButton" Style="{StaticResource OverlayToolChevron}" Click="OnPencilMenuClick" ToolTip="Карандаш" AutomationProperties.Name="{local:UiText Карандаш}" />
                 <ToggleButton x:Name="TextTool" Style="{StaticResource OverlayTool}" Tag="Text" Click="OnToolClick">
                     <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" Data="M2,2 L14,2 M8,2 L8,14 M5,14 L11,14" />
                 </ToggleButton>
@@ -200,7 +204,6 @@
                 <!-- A fixed width and a value that is never blanked: the panel must not jump when a
                      tool without a stroke is armed. -->
                 <Button x:Name="ThicknessButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnThicknessClick" ToolTip="Толщина" AutomationProperties.Name="{local:UiText Толщина}" Content="4 px" />
-                <Button x:Name="MoreToolsButton" Style="{StaticResource OverlayButton}" Click="OnMoreToolsClick" ToolTip="Ещё инструменты" Content="•••" />
                 <Button x:Name="CommentToolButton" Style="{StaticResource OverlayButton}" Click="OnCommentClick">
                     <Path Width="16" Height="16" Stroke="#D9DEE8" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z" />
                 </Button>
