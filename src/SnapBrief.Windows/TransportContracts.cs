@@ -343,6 +343,18 @@ public sealed record CodexPasteCompletionResult(
 {
     public ClipboardWriteReceipt? CurrentClipboardReceipt => TextClipboardReceipt;
     public bool TextWasDispatched => Status == CodexPasteCompletionStatus.CompletedUnverified;
+
+    /// <summary>
+    /// Whether the package has to be written to the clipboard again after this completion. A
+    /// completion that staged the prompt text took the package off the clipboard and has to put it
+    /// back; a completion that wrote nothing (a package without notes, whose images the user's own
+    /// Ctrl+V already delivered) left the package where it was. Writing it again in that case
+    /// empties the clipboard and refills it format by format a few dozen milliseconds after the
+    /// user's key press, while the receiver is still reading it, and that read then comes back with
+    /// nothing: the first Ctrl+V pastes emptiness and only the next one works.
+    /// </summary>
+    public bool NeedsRepublish(bool packageIsStillCurrent) =>
+        TextClipboardReceipt is not null || !packageIsStillCurrent;
 }
 
 public interface ICodexDesktopPasteCompletionService

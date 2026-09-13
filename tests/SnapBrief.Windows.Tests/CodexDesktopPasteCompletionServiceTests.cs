@@ -443,6 +443,31 @@ public sealed class CodexDesktopPasteCompletionServiceTests
         Assert.Equal(new ClipboardWriteReceipt(43), result.CurrentClipboardReceipt);
     }
 
+    [Fact]
+    public async Task PhysicalCodexCtrlVOfAPackageWithoutText_LeavesTheClipboardAloneAfterTheCompletion()
+    {
+        // The first Ctrl+V after a capture: Codex Desktop is reading the package the strip
+        // published, and the completion has nothing to stage because the captures carry no notes.
+        // The package must be left on the clipboard exactly as the user's key press found it. A
+        // republish here empties and refills the clipboard tens of milliseconds after that press,
+        // the receiver reads a clipboard in the middle of being rebuilt, and the paste arrives
+        // empty; that is the "Ctrl+V works only the second time" the users saw in Codex Desktop.
+        var clipboard = new FakeClipboard(41);
+        var input = new FakeInput();
+        var service = Create(clipboard, new FakeTarget(Codex), input);
+
+        var completion = await service.CompleteAsync(Intent(41), new ClipboardWriteReceipt(41), string.Empty);
+
+        Assert.Equal(CodexPasteCompletionStatus.CompletedUnverified, completion.Status);
+        Assert.Empty(clipboard.Writes);
+        Assert.False(completion.NeedsRepublish(packageIsStillCurrent: true));
+        // The package is only written again when it is really gone: the completion staged the
+        // prompt text over it, or something else took the clipboard while the paste was running.
+        Assert.True(completion.NeedsRepublish(packageIsStillCurrent: false));
+        var staged = await service.CompleteAsync(Intent(41), new ClipboardWriteReceipt(41), "Снимок A.");
+        Assert.True(staged.NeedsRepublish(packageIsStillCurrent: true));
+    }
+
     private static CodexDesktopPasteCompletionService Create(FakeClipboard clipboard, FakeTarget target, FakeInput input) =>
         new(clipboard, target, input, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero);
 

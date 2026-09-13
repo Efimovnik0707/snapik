@@ -347,8 +347,11 @@ public partial class EdgeStackWindow : Window
                 // The pasted package stays on the clipboard so the same set can go into another
                 // application right away; the captures stay in the strip and only turn sent. The
                 // republish arms the echo watch first, and marking runs after it: only captures
-                // that are still waiting rebuild the clipboard and cancel that watch.
-                await RepublishPackageForReuseAsync(publishedAtIntent);
+                // that are still waiting rebuild the clipboard and cancel that watch. A completion
+                // that never wrote to the clipboard needs no republish at all: see NeedsRepublish.
+                var needsRepublish = completion.NeedsRepublish(
+                    await _clipboard.IsCurrentAsync(receiptAtIntent, CancellationToken.None));
+                await RepublishPackageForReuseAsync(publishedAtIntent, needsRepublish);
                 await MarkCapturesSentAsync(publishedAtIntent.CaptureIds);
                 return;
             }
@@ -403,7 +406,7 @@ public partial class EdgeStackWindow : Window
         }
     }
 
-    private async Task RepublishPackageForReuseAsync(PublishedPackage publishedAtIntent)
+    private async Task RepublishPackageForReuseAsync(PublishedPackage publishedAtIntent, bool needsRepublish = true)
     {
         if (_ownedClipboardReceipt is not { } current)
         {
@@ -412,10 +415,16 @@ public partial class EdgeStackWindow : Window
         }
         try
         {
-            var republished = await _clipboard.SetPackageGuardedAsync(publishedAtIntent.Paths, publishedAtIntent.Prompt, current.SequenceNumber, CancellationToken.None);
+            // The package is already on the clipboard and this completion never moved it: the write
+            // is skipped, and the toast and the echo watch below happen exactly as after a real
+            // republish. Writing it again would take it away from the receiver that is reading it
+            // right now, which is the whole reason for the check.
+            var republished = needsRepublish
+                ? await _clipboard.SetPackageGuardedAsync(publishedAtIntent.Paths, publishedAtIntent.Prompt, current.SequenceNumber, CancellationToken.None)
+                : current;
             _ownedClipboardReceipt = republished;
             SetPublished(publishedAtIntent);
-            StartupTrace.Write(_options, $"PasteIntent republished package: seq={republished.SequenceNumber}, images={publishedAtIntent.Paths.Length}");
+            StartupTrace.Write(_options, $"PasteIntent {(needsRepublish ? "republished" : "kept")} package: seq={republished.SequenceNumber}, images={publishedAtIntent.Paths.Length}");
             var template = UiLanguage.Text("Вставлено: {0} изображений · {1} заметок. Снимки помечены как отправленные");
             ShowToast(string.Format(template, publishedAtIntent.Paths.Length, publishedAtIntent.NoteCount));
             StartReceiverEchoWatch(publishedAtIntent);
