@@ -30,6 +30,7 @@ public static class SmokeTestRunner
             AutoSaveCaptures = true, PlaySounds = false, SoundVolume = 35,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
+            ConfirmSessionDiscard = false,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationShape = "ellipse", AnnotationFill = "translucent",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
@@ -148,6 +149,7 @@ public static class SmokeTestRunner
             HotkeySettings.Default.PackageDirectory() != HotkeySettings.Default.SaveDirectory)
             throw new InvalidOperationException("The package folder must be remembered, and fall back to the save folder.");
         WithoutBindingErrors("The save package window", () => SavePackageWindow.RunSavePackageProbe(restoredSettings));
+        WithoutBindingErrors("The discard session window", () => DiscardSessionWindow.RunDiscardProbe(restoredSettings));
         var onboarding = WithoutBindingErrors("The onboarding window", () =>
         {
             var window = OnboardingWindow.RunOnboardingProbe(restoredSettings);
@@ -185,6 +187,9 @@ public static class SmokeTestRunner
             ("Нажми на поле и введи своё сочетание", "Click the field and press your own shortcut"),
             ("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.", "This shortcut is already taken. Free it in the other application or pick another one."),
             ("Показать ленту", "Show the strip"), ("Очистить ленту", "Clear the strip"),
+            ("Удалить снимки сессии?", "Delete the captures of this session?"), ("Больше не спрашивать", "Do not ask again"),
+            ("Снимки этой сессии будут удалены. Чтобы сохранить, нажмите «Сохранить пакет…» в меню •••",
+                "The captures of this session will be deleted. To keep them, use \"Save package…\" in the ••• menu."),
             ("SnapBrief — Лента снимков", "SnapBrief — Capture strip")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
@@ -350,6 +355,11 @@ public static class SmokeTestRunner
             && restartedWorkspace.RestoredProfileId is null
             && File.Exists(Path.Combine(previousSessionDirectory, "session.json"))
             && File.Exists(previousSourcePath);
+        // Rotation keeps the previous session on disk (the check right above); deleting is a call of
+        // its own, and these two cover the deletion and the cleanup at the start of a run. Both work
+        // in roots of their own, so they cannot touch the session this run is building.
+        await VerifySessionPurgeAsync(Path.Combine(root, "purge-probe"));
+        await VerifySessionDiscardAsync(Path.Combine(root, "discard-probe"));
         var success = paths.Count == 3
             && preparedFilesOnDisk
             && decoded.All(bitmap => bitmap.PixelWidth == 1920 && bitmap.PixelHeight == 1128)
@@ -381,6 +391,53 @@ public static class SmokeTestRunner
         Directory.CreateDirectory(root);
         await File.WriteAllTextAsync(Path.Combine(root, "smoke-test-result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         return success;
+    }
+
+    // The start of a run takes every session the previous run left in the root, together with the
+    // pointer at the last one, and leaves everything else in that root alone.
+    private static async Task VerifySessionPurgeAsync(string probeRoot)
+    {
+        Directory.CreateDirectory(probeRoot);
+        var stale = new[] { Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N") };
+        foreach (var name in stale)
+        {
+            Directory.CreateDirectory(Path.Combine(probeRoot, name, "source"));
+            await File.WriteAllTextAsync(Path.Combine(probeRoot, name, "session.json"), "{}");
+        }
+        await File.WriteAllTextAsync(Path.Combine(probeRoot, "current-session.txt"), stale[0]);
+        await File.WriteAllTextAsync(Path.Combine(probeRoot, "settings.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(probeRoot, "keep-me.txt"), "Это не сессия");
+        Directory.CreateDirectory(Path.Combine(probeRoot, "not-a-session"));
+
+        await new SessionWorkspace(probeRoot).PurgePreviousSessionsAsync();
+
+        if (stale.Any(name => Directory.Exists(Path.Combine(probeRoot, name))) ||
+            File.Exists(Path.Combine(probeRoot, "current-session.txt")))
+            throw new InvalidOperationException("A new run must remove every session the previous one left behind.");
+        if (!File.Exists(Path.Combine(probeRoot, "settings.json")) ||
+            !File.Exists(Path.Combine(probeRoot, "keep-me.txt")) ||
+            !Directory.Exists(Path.Combine(probeRoot, "not-a-session")))
+            throw new InvalidOperationException("The cleanup must leave everything in the sessions root that is not a session.");
+    }
+
+    // Clearing the strip and leaving the application delete the session directory with everything in
+    // it and start an empty session instead.
+    private static async Task VerifySessionDiscardAsync(string probeRoot)
+    {
+        var workspace = new SessionWorkspace(probeRoot);
+        var capture = await workspace.AddImageAsync(SessionWorkspace.CreateDemoBitmap(0, 400, 300));
+        await workspace.PrepareAsync([capture], string.Empty, null);
+        var directory = workspace.SessionDirectory;
+        var discardedId = workspace.SessionId;
+        if (!Directory.Exists(Path.Combine(directory, "exports")))
+            throw new InvalidOperationException("A prepared package must leave an exports directory for the deletion to take.");
+
+        await workspace.DiscardCurrentSessionAsync();
+
+        if (Directory.Exists(directory) || File.Exists(Path.Combine(probeRoot, "current-session.txt")))
+            throw new InvalidOperationException("Discarding a session must take its directory and the pointer with it.");
+        if (workspace.SessionId == discardedId || (await new SessionWorkspace(probeRoot).LoadCurrentAsync()).Count != 0)
+            throw new InvalidOperationException("A discarded session must be replaced by an empty one.");
     }
 
     // A binding that cannot resolve its path is not an exception: WPF writes it to the trace and

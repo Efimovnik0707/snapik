@@ -189,10 +189,9 @@ public partial class EdgeStackWindow : Window
                 await SeedDemoAsync();
             else
             {
-                foreach (var capture in await _workspace.LoadCurrentAsync()) Captures.Add(capture);
-                _legacyGlobalNote = _workspace.RestoredGlobalNote;
-                if (_workspace.RestoredProfileId is { } id) _selectedProfile = TargetProfiles.FirstOrDefault(p => p.Id == id) ?? _selectedProfile;
-                RefreshTargetCaption();
+                // A session lives for one run: the strip starts empty, and whatever the previous run
+                // left on disk (including a run that was killed) goes before this one writes anything.
+                await _workspace.PurgePreviousSessionsAsync(message => StartupTrace.Write(_options, message));
             }
             Renumber();
             PositionAtEdge();
@@ -1178,7 +1177,10 @@ public partial class EdgeStackWindow : Window
         await _workspaceMutationGate.WaitAsync();
         try
         {
-            await _workspace.StartNewSessionAsync(Captures, _legacyGlobalNote, SelectedProfile?.Id);
+            // The clipboard goes back first: the published package is a list of paths into the
+            // session directory, and those files are about to be deleted.
+            await ReleaseOwnedClipboardCoreAsync();
+            await _workspace.DiscardCurrentSessionAsync(message => StartupTrace.Write(_options, message));
             _loading = true;
             Captures.Clear();
             _legacyGlobalNote = string.Empty;
@@ -1187,7 +1189,6 @@ public partial class EdgeStackWindow : Window
             // holds the capture it points at.
             HideToastNow();
             _prepared = null;
-            await ReleaseOwnedClipboardCoreAsync();
             Renumber();
             SetStatus(string.Empty);
             ShowToast(UiLanguage.Text("Лента очищена"));
@@ -1228,7 +1229,24 @@ public partial class EdgeStackWindow : Window
     private async Task ClearStackFromUserAsync()
     {
         await _pasteIntentTransition;
+        if (!ConfirmSessionDiscard()) return;
         await ClearStackAsync();
+    }
+
+    // Clearing the strip and leaving the application delete the captures from the disk, so both ask
+    // first. An empty strip has nothing to lose and never asks, and the question carries the box
+    // that turns it off; the automatic "clear after pasting" is not a user decision and stays silent.
+    private bool ConfirmSessionDiscard()
+    {
+        if (Captures.Count == 0 || !_settings.ConfirmSessionDiscard) return true;
+        var dialog = new DiscardSessionWindow(_settings) { Owner = this };
+        bool? confirmed;
+        using (SuspendTopmost()) confirmed = dialog.ShowDialog();
+        if (confirmed != true) return false;
+        // A settings file that cannot be written leaves its own error on screen and must not stop
+        // the deletion the user has just confirmed.
+        if (dialog.DoNotAskAgain) MutateSettings(stored => stored with { ConfirmSessionDiscard = false });
+        return true;
     }
 
     private async void OnClearStackClick(object sender, RoutedEventArgs e) => await ClearStackFromUserAsync();
@@ -1490,9 +1508,36 @@ public partial class EdgeStackWindow : Window
         e.Cancel = true;
         _saveTimer.Stop();
         HideToastNow();
-        if (!await SaveAsync()) { _exiting = false; ShowStackWithoutActivation(); return; }
-        if (_exiting) { _allowClose = true; Close(); }
-        else Hide();
+        if (_exiting)
+        {
+            // Leaving takes the captures of the session with it, so the question comes before
+            // anything is written or deleted, and a cancelled exit leaves the strip as it was.
+            if (!ConfirmSessionDiscard()) { _exiting = false; ShowStackWithoutActivation(); return; }
+            // SaveAsync is deliberately not called here: it would write session.json back into the
+            // directory that is about to go.
+            await DiscardSessionOnExitAsync();
+            _allowClose = true;
+            Close();
+            return;
+        }
+        // Hiding to the tray is not the end of the session: the strip keeps its captures, and a
+        // shutdown of the system leaves them to the next start to clean up.
+        if (!await SaveAsync()) { ShowStackWithoutActivation(); return; }
+        Hide();
+    }
+
+    private async Task DiscardSessionOnExitAsync()
+    {
+        try
+        {
+            // The package on the clipboard is a list of paths into the session directory: the
+            // clipboard is given back first, so a paste made after the exit is honestly empty
+            // instead of pointing at files that are no longer there.
+            await ReleaseOwnedClipboardCoreAsync();
+            await _workspace.DiscardCurrentSessionAsync(message => StartupTrace.Write(_options, message));
+        }
+        // Nothing can be shown to the user at this point, and the next start purges the root anyway.
+        catch (Exception ex) { StartupTrace.Write(_options, $"Exit: the session was not discarded: {ex}"); }
     }
 
     // Raise the strip without activating it; whether it stays above other applications is the StackTopmost setting.

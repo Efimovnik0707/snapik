@@ -29,6 +29,12 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// <summary>The width of the strip window in pixels; the visible card is 20 px narrower.</summary>
     public double StackWidth { get; init; } = Controls.StripResizeGeometry.DefaultWidth;
     public bool ClearStackAfterPaste { get; init; }
+    /// <summary>
+    /// Whether clearing the strip and leaving the application ask before the captures of the session
+    /// are deleted. Written only by the "Do not ask again" box of that dialog: the settings window
+    /// does not show it. A file written before this key gets the question, as every older file does.
+    /// </summary>
+    public bool ConfirmSessionDiscard { get; init; } = true;
     public string AnnotationColor { get; init; } = "#2F8CFF";
     public double AnnotationThickness { get; init; } = 4;
     /// <summary>The frame the editor draws by default: rectangle, rounded or ellipse.</summary>

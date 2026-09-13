@@ -75,6 +75,64 @@ public sealed class SessionWorkspace
         return result;
     }
 
+    /// <summary>
+    /// A session lives for one run, so whatever the previous run left in the sessions root goes
+    /// before this one starts: every subdirectory named as a GUID and the pointer at the last
+    /// session. Anything else in that root (settings.json, last-region.json, the startup log of a
+    /// run with --data-dir) belongs to the application, not to a session, and stays. A directory
+    /// another process still holds is skipped and traced; the next start tries again. This also
+    /// covers a run that was killed: nothing else has to clean up after it.
+    /// </summary>
+    public Task PurgePreviousSessionsAsync(Action<string>? trace = null, CancellationToken cancellationToken = default) => Task.Run(() =>
+    {
+        if (!Directory.Exists(_root)) return;
+        foreach (var directory in Directory.EnumerateDirectories(_root))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out _)) continue;
+            TryDeleteDirectory(directory, trace);
+        }
+        TryDeletePointer(trace);
+    }, cancellationToken);
+
+    /// <summary>
+    /// Removes the directory of the current session with everything in it (session.json, the
+    /// originals and every exports/revision-*) and starts a session of its own instead. Separate
+    /// from <see cref="StartNewSessionAsync"/> on purpose: rotating a session keeps the previous one
+    /// on disk, and only this call is meant to delete. The caller gives the clipboard back first:
+    /// the published package is a list of paths into the directory that goes here.
+    /// </summary>
+    public Task DiscardCurrentSessionAsync(Action<string>? trace = null, CancellationToken cancellationToken = default) => Task.Run(() =>
+    {
+        TryDeleteDirectory(SessionDirectory, trace);
+        TryDeletePointer(trace);
+        SessionId = Guid.NewGuid();
+        _revision = 0;
+        _createdAtUtc = DateTimeOffset.UtcNow;
+        RestoredGlobalNote = string.Empty;
+        RestoredProfileId = null;
+        PinnedExportDirectories = [];
+    }, cancellationToken);
+
+    private static void TryDeleteDirectory(string directory, Action<string>? trace)
+    {
+        if (!Directory.Exists(directory)) return;
+        try { Directory.Delete(directory, true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            trace?.Invoke($"Session cleanup: {Path.GetFileName(directory)} stayed on disk: {ex.Message}");
+        }
+    }
+
+    private void TryDeletePointer(Action<string>? trace)
+    {
+        try { File.Delete(_currentPointer); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            trace?.Invoke($"Session cleanup: the current-session pointer stayed on disk: {ex.Message}");
+        }
+    }
+
     public async Task<CaptureItem> AddImageAsync(BitmapSource source, CancellationToken cancellationToken = default)
     {
         source.Freeze();

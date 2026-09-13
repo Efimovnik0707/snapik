@@ -48,6 +48,10 @@ internal static class UiLanguage
         ["Запускать с Windows"] = "Start with Windows", ["Выйти"] = "Exit",
         ["SnapBrief — Лента снимков"] = "SnapBrief — Capture strip",
         ["Очистить ленту"] = "Clear the strip", ["Лента очищена"] = "Strip cleared",
+        ["Удалить снимки сессии?"] = "Delete the captures of this session?",
+        ["Снимки этой сессии будут удалены. Чтобы сохранить, нажмите «Сохранить пакет…» в меню •••"] =
+            "The captures of this session will be deleted. To keep them, use \"Save package…\" in the ••• menu.",
+        ["Больше не спрашивать"] = "Do not ask again",
         ["Очищать ленту после вставки"] = "Clear the strip after pasting",
         ["Копировать пакет"] = "Copy package", ["Сохранить пакет…"] = "Save package…", ["Импортировать файл…"] = "Import file…",
         ["Вставить изображение из буфера"] = "Paste image from clipboard", ["Вернуть удалённый снимок"] = "Restore deleted capture",
