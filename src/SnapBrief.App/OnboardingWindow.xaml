@@ -4,6 +4,40 @@
  WindowStartupLocation="CenterScreen" ShowInTaskbar="True" Topmost="True">
  <Window.Resources>
   <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#EEF2F8"/></Style>
+  <!-- One layout for every step: the same width, the same heading, the same buttons. The styles are
+       local to the wizard on purpose - the shared dictionary is the light theme, and this window is dark. -->
+  <Style x:Key="StepPanel" TargetType="StackPanel">
+   <Setter Property="Width" Value="360"/><Setter Property="HorizontalAlignment" Value="Center"/>
+   <Setter Property="VerticalAlignment" Value="Top"/><Setter Property="Margin" Value="0,4,0,0"/>
+  </Style>
+  <Style x:Key="StepTitle" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="21"/><Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,6"/>
+  </Style>
+  <Style x:Key="StepSubtitle" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#8F9AAA"/>
+   <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,20"/>
+  </Style>
+  <Style x:Key="StepBodyText" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#EEF2F8"/>
+   <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,10"/>
+  </Style>
+  <Style x:Key="WizardButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+   <Setter Property="Height" Value="34"/><Setter Property="MinHeight" Value="34"/><Setter Property="MinWidth" Value="96"/>
+   <Setter Property="Padding" Value="14,0"/><Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#EEF2F8"/>
+   <Setter Property="controls:ButtonChrome.HoverBackground" Value="#2A3240"/>
+   <Setter Property="controls:ButtonChrome.PressedBackground" Value="#20262F"/>
+  </Style>
+  <Style x:Key="WizardPrimaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+   <Setter Property="Height" Value="34"/><Setter Property="MinHeight" Value="34"/><Setter Property="MinWidth" Value="96"/>
+   <Setter Property="Padding" Value="14,0"/><Setter Property="FontSize" Value="13"/>
+  </Style>
+  <Style x:Key="WizardIconButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+   <Setter Property="Width" Value="28"/><Setter Property="Height" Value="28"/><Setter Property="MinWidth" Value="28"/>
+   <Setter Property="MinHeight" Value="28"/><Setter Property="Padding" Value="0"/>
+   <Setter Property="controls:ButtonChrome.HoverBackground" Value="#2A3240"/>
+   <Setter Property="controls:ButtonChrome.PressedBackground" Value="#20262F"/>
+  </Style>
   <!-- The language is already chosen when the wizard opens, so it is a small segmented switch in the
        corner and not a step of its own: the first screen is a welcome, the way every desktop app does it. -->
   <Style x:Key="LanguageSegment" TargetType="RadioButton">
@@ -81,16 +115,16 @@
        <RadioButton x:Name="EnglishSegment" Style="{StaticResource LanguageSegment}" GroupName="OnboardingLanguage" Content="English"/>
       </StackPanel>
      </Border>
-     <Button x:Name="SkipButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" Margin="8,0,0,0" VerticalAlignment="Center" Width="28" Height="28" MinHeight="28" Padding="0" Click="OnSkip" ToolTip="Пропустить" AutomationProperties.Name="{local:UiText Пропустить}">
+     <Button x:Name="SkipButton" Style="{StaticResource WizardIconButton}" Margin="8,0,0,0" VerticalAlignment="Center" Click="OnSkip" ToolTip="Пропустить" AutomationProperties.Name="{local:UiText Пропустить}">
       <Path Data="M0,0 L11,11 M11,0 L0,11" Stroke="#EEF2F8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
      </Button>
     </StackPanel>
    </Grid>
 
    <Grid Grid.Row="1">
-    <StackPanel x:Name="Step1">
-     <TextBlock Text="Добро пожаловать" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
-     <TextBlock Text="SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями." Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,0,0,18"/>
+    <StackPanel x:Name="Step1" Style="{StaticResource StepPanel}">
+     <TextBlock Text="Добро пожаловать" Style="{StaticResource StepTitle}"/>
+     <TextBlock Text="SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями." Style="{StaticResource StepSubtitle}"/>
      <!-- The whole product in one static picture: a key, the capture it makes, the chat it lands in.
           Shapes only, no bitmaps and no text, so it needs no translation and no assets. -->
      <Viewbox Stretch="Uniform" Width="360" Height="115" HorizontalAlignment="Left">
@@ -117,27 +151,30 @@
      </Viewbox>
     </StackPanel>
 
-    <StackPanel x:Name="Step2" Visibility="Collapsed">
-     <TextBlock Text="Клавиша для снимка" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
-     <TextBlock Text="Нажми на поле и введи своё сочетание" Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,0,0,18"/>
+    <StackPanel x:Name="Step2" Style="{StaticResource StepPanel}" Visibility="Collapsed">
+     <TextBlock Text="Клавиша для снимка" Style="{StaticResource StepTitle}"/>
+     <TextBlock Text="Нажми на поле и введи своё сочетание" Style="{StaticResource StepSubtitle}"/>
      <controls:HotkeyField x:Name="CaptureField" Width="360" HorizontalAlignment="Left" AutomationProperties.Name="{local:UiText Клавиша для снимка}"/>
     </StackPanel>
 
-    <StackPanel x:Name="Step3" Visibility="Collapsed">
-     <TextBlock Text="Запуск и панель задач" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,14"/>
+    <StackPanel x:Name="Step3" Style="{StaticResource StepPanel}" Visibility="Collapsed">
+     <TextBlock Text="Запуск и панель задач" Style="{StaticResource StepTitle}"/>
      <CheckBox x:Name="StartupBox" Content="{local:UiText Запускать с Windows}" Margin="0,0,0,22"/>
      <!-- Shown only when the startup entry cannot be read or written: a checkbox that is grey for no
           visible reason looks like a bug. -->
-     <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" Foreground="#8F9AAA" TextWrapping="Wrap" Visibility="Collapsed" Margin="24,-14,0,22"/>
-     <TextBlock Text="Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»" TextWrapping="Wrap" Margin="0,0,0,10"/>
-     <TextBlock Text="Повторный запуск ярлыка не открывает второе окно, а показывает ленту." Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,0,0,14"/>
+     <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" Style="{StaticResource StepSubtitle}" Visibility="Collapsed" Margin="24,-14,0,20"/>
+     <TextBlock Text="Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»" Style="{StaticResource StepBodyText}"/>
+     <TextBlock Text="Повторный запуск ярлыка не открывает второе окно, а показывает ленту." Style="{StaticResource StepSubtitle}"/>
      <Button x:Name="ShortcutButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" HorizontalAlignment="Left" Padding="0" Foreground="{DynamicResource AccentTextBrush}" Content="Показать ярлык" Click="OnShowShortcut"/>
     </StackPanel>
 
-    <StackPanel x:Name="Step4" Visibility="Collapsed">
-     <TextBlock Text="Как пользоваться" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
-     <Border Background="#12161D" BorderBrush="#2A3240" BorderThickness="1" CornerRadius="12" Height="212">
-      <Canvas x:Name="HintCanvas" Width="500" Height="200">
+    <StackPanel x:Name="Step4" Style="{StaticResource StepPanel}" Visibility="Collapsed">
+     <TextBlock Text="Как пользоваться" Style="{StaticResource StepTitle}"/>
+     <!-- No background of its own: the window is one colour from the first step to the last, and the
+          drawing keeps its own 500x200 grid inside a Viewbox instead of being laid out again. -->
+     <Border Background="Transparent" BorderBrush="#2A3240" BorderThickness="1" CornerRadius="12" Padding="8">
+      <Viewbox Stretch="Uniform" Height="144">
+       <Canvas x:Name="HintCanvas" Width="500" Height="200">
        <Border Canvas.Left="26" Canvas.Top="22" Width="230" Height="140" CornerRadius="8" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1"/>
        <Rectangle Canvas.Left="42" Canvas.Top="40" Width="90" Height="8" RadiusX="4" RadiusY="4" Fill="#2C3746"/>
        <Rectangle Canvas.Left="42" Canvas.Top="56" Width="150" Height="8" RadiusX="4" RadiusY="4" Fill="#242E3B"/>
@@ -162,7 +199,8 @@
          <Rectangle Width="106" Height="6" RadiusX="3" RadiusY="3" Fill="#242E3B" HorizontalAlignment="Left"/>
         </StackPanel>
        </Border>
-      </Canvas>
+       </Canvas>
+      </Viewbox>
      </Border>
      <Grid Height="24" Margin="0,14,0,0">
       <TextBlock x:Name="HintCaption1" Text="Нажми клавишу" FontSize="14" HorizontalAlignment="Center"/>
@@ -177,9 +215,9 @@
    <Grid Grid.Row="3" Margin="0,16,0,0">
     <TextBlock x:Name="StepText" Foreground="#8F9AAA" VerticalAlignment="Center"/>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-     <Button x:Name="BackButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" Foreground="White" Margin="0,0,8,0" Content="Назад" Click="OnBack"/>
-     <Button x:Name="NextButton" Style="{StaticResource PrimaryButton}" Content="Далее" Click="OnNext"/>
-     <Button x:Name="StartButton" Style="{StaticResource PrimaryButton}" Visibility="Collapsed" Content="Начать" Click="OnStart"/>
+     <Button x:Name="BackButton" Style="{StaticResource WizardButton}" Margin="0,0,8,0" Content="Назад" Click="OnBack"/>
+     <Button x:Name="NextButton" Style="{StaticResource WizardPrimaryButton}" Content="Далее" Click="OnNext"/>
+     <Button x:Name="StartButton" Style="{StaticResource WizardPrimaryButton}" Visibility="Collapsed" Content="Начать" Click="OnStart"/>
     </StackPanel>
    </Grid>
   </Grid>
