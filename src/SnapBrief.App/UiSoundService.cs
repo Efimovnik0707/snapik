@@ -14,10 +14,12 @@ namespace SnapBrief.App;
 /// </summary>
 internal static class UiSoundService
 {
-    private const string ShutterFile = "shutter-2-050s.mp3";
+    private const string ShutterFile = "shutter-1-039s.mp3";
     private const string TickFile = "click-tiny-005s.mp3";
     private const string CopiedFile = "notify-soft-040.mp3";
-    private static readonly Sound Shutter = new(ShutterFile, 1.0);
+    // The shutter is mixed well below the other two: it fires on every capture, and the file that
+    // replaced the old one is hotter by about 6 dB, so the gain has to give that back and more.
+    private static readonly Sound Shutter = new(ShutterFile, 0.6);
     private static readonly Sound TickSound = new(TickFile, 0.25);
     private static readonly Sound CopiedSound = new(CopiedFile, 0.7);
     private static readonly SoundThrottle Throttle = new();

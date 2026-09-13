@@ -33,13 +33,16 @@ public static class SmokeTestRunner
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationShape = "ellipse", AnnotationFill = "translucent",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
-            Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion
+            Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion,
+            SettingsVersion = HotkeySettings.CurrentSettingsVersion
         };
         customSettings.Save(customSettingsPath);
         var restoredSettings = HotkeySettings.Load(customSettingsPath);
         if (restoredSettings != customSettings || restoredSettings.FullscreenSaveGesture.VirtualKey != 44 ||
-            restoredSettings.OnboardingVersion != OnboardingWindow.CurrentVersion)
+            restoredSettings.OnboardingVersion != OnboardingWindow.CurrentVersion ||
+            restoredSettings.SettingsVersion != HotkeySettings.CurrentSettingsVersion)
             throw new InvalidOperationException("Local capture preferences did not survive a settings round trip.");
+        VerifySoundDefaults(root);
         // The wizard is shown once per version: never seen (no file, or an older version) opens it,
         // the current version does not, and a demo run never does.
         if (!OnboardingWindow.ShouldShowOnboarding(false, HotkeySettings.Default, false) ||
@@ -395,6 +398,29 @@ public static class SmokeTestRunner
         Directory.CreateDirectory(root);
         await File.WriteAllTextAsync(Path.Combine(root, "smoke-test-result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         return success;
+    }
+
+    // One capture, one soft shutter: the quieter default and the file that goes with it. The volume
+    // of a file written before versions existed is moved once, and only if it is the old default.
+    private static void VerifySoundDefaults(string root)
+    {
+        if (HotkeySettings.Default.SoundVolume != 40)
+            throw new InvalidOperationException("A machine that has never chosen must get the quiet default volume.");
+        var loudPath = Path.Combine(root, "loud-settings-smoke.json");
+        (HotkeySettings.Default with { SoundVolume = 60, SettingsVersion = 0 }).Save(loudPath);
+        var migrated = HotkeySettings.Load(loudPath);
+        var kept = HotkeySettings.Load(loudPath);
+        var pickedPath = Path.Combine(root, "picked-settings-smoke.json");
+        (HotkeySettings.Default with { SoundVolume = 75, SettingsVersion = 0 }).Save(pickedPath);
+        var picked = HotkeySettings.Load(pickedPath);
+        if (migrated.SoundVolume != 40 || migrated.SettingsVersion != HotkeySettings.CurrentSettingsVersion ||
+            kept.SoundVolume != 40 || picked.SoundVolume != 75 ||
+            picked.SettingsVersion != HotkeySettings.CurrentSettingsVersion)
+            throw new InvalidOperationException("The volume migration must move the old default once and leave a chosen value alone.");
+        // The sound that was replaced must not survive next to the assembly, or the installer would
+        // ship both and the old shutter would still be the one on disk.
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "Audio", "shutter-2-050s.mp3")))
+            throw new InvalidOperationException("The shutter that was replaced is still shipped next to the assembly.");
     }
 
     // The tray opens the how-to slides on their own: the last step and nothing else, one button, and
