@@ -9,13 +9,16 @@ namespace SnapBrief.App.Controls;
 
 /// <summary>
 /// One hotkey as a row of key capsules with a hint beside them. Clicking it (or tabbing into it)
-/// starts recording, and the first non-modifier key writes a new hotkey id in the same
-/// "custom:{modifiers}:{virtualKey}" format the settings file has always used.
+/// starts recording, and the first non-modifier key held together with Ctrl, Alt, Shift or Win
+/// writes a new hotkey id in the same "custom:{modifiers}:{virtualKey}" format the settings file has
+/// always used. A key pressed alone is not a shortcut: it would be registered globally and taken
+/// away from every other application, which is what a bare arrow recorded by a stray Tab did.
 /// </summary>
 public partial class HotkeyField : UserControl
 {
     private const string IdleCaption = "Нажми, чтобы изменить";
     private const string RecordingCaption = "Нажмите своё сочетание клавиш";
+    private const string NeedsModifierCaption = "Добавь Ctrl, Alt или Shift";
     private static readonly Brush IdleBorder = new SolidColorBrush(Color.FromRgb(68, 80, 100));
     private bool _recording;
     private string _language = UiLanguage.Current;
@@ -96,18 +99,57 @@ public partial class HotkeyField : UserControl
         if (key == Key.Escape) { _recording = false; Refresh(); return; }
         if (!IsModifier(key)) RecordKey(key);
     }
-    private void RecordKey(Key key)
+    private void RecordKey(Key key) => RecordKey(key, PressedModifiers());
+
+    private static uint PressedModifiers()
     {
-        var vk = KeyInterop.VirtualKeyFromKey(key);
-        if (vk is <= 0 or >= 255 || !_recording) return;
         uint modifiers = 0;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) modifiers |= (uint)HotkeyModifiers.Control;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)) modifiers |= (uint)HotkeyModifiers.Alt;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) modifiers |= (uint)HotkeyModifiers.Shift;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Windows)) modifiers |= (uint)HotkeyModifiers.Windows;
+        return modifiers;
+    }
+
+    // The modifiers are an argument rather than a reading of the keyboard, so the smoke run can hold
+    // a combination the real keyboard is not holding. True means the shortcut was taken.
+    internal bool RecordKey(Key key, uint modifiers)
+    {
+        var vk = KeyInterop.VirtualKeyFromKey(key);
+        if (vk is <= 0 or >= 255 || !_recording) return false;
+        // Nothing is recorded and the recording goes on: the field asks for a modifier instead of
+        // taking a key that would then belong to SnapBrief everywhere on the machine.
+        if (modifiers == 0 && !HotkeyRules.IsShortcutOnItsOwn((ushort)vk))
+        {
+            Caption.Text = UiLanguage.Text(NeedsModifierCaption, _language);
+            return false;
+        }
         _recording = false;
         HotkeyId = $"custom:{modifiers}:{vk}";
         Refresh();
         HotkeyChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    // Smoke probe: a key pressed alone is refused and asked for a modifier, the same key with one is
+    // taken, and Print Screen stands on its own. Every capsule and caption is the real one, so the
+    // probe also fails on a template that cannot be built.
+    internal static void RunHotkeyFieldProbe(string language)
+    {
+        var field = new HotkeyField { HotkeyId = "ctrl-alt-s" };
+        field.ApplyLanguage(language);
+        field.Measure(new Size(360, 60));
+        field.Arrange(new Rect(0, 0, 360, 60));
+        field.BeginRecording();
+        if (field.RecordKey(Key.Left, 0) || field.HotkeyId != "ctrl-alt-s")
+            throw new InvalidOperationException("A bare key must not become a shortcut, and must leave the old one alone.");
+        if (field.Caption.Text != UiLanguage.Text(NeedsModifierCaption, language))
+            throw new InvalidOperationException("A bare key must be answered with a request for a modifier.");
+        if (!field.RecordKey(Key.Left, (uint)HotkeyModifiers.Control) ||
+            field.HotkeyId != $"custom:{(uint)HotkeyModifiers.Control}:{KeyInterop.VirtualKeyFromKey(Key.Left)}")
+            throw new InvalidOperationException("The same key with a modifier must be recorded as it was pressed.");
+        field.BeginRecording();
+        if (!field.RecordKey(Key.Snapshot, 0) || field.HotkeyId != $"custom:0:{KeyInterop.VirtualKeyFromKey(Key.Snapshot)}")
+            throw new InvalidOperationException("Print Screen is a shortcut on its own and must be taken without a modifier.");
     }
 }

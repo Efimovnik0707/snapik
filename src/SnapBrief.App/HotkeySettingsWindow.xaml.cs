@@ -225,10 +225,12 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     {
         var preset = Choices.FirstOrDefault(c => c.Id == id);
         if (preset is not null) return preset;
-        var parts = id.Split(':');
-        if (parts.Length == 3 && parts[0] == "custom" && uint.TryParse(parts[1], out var modifiers) &&
-            uint.TryParse(parts[2], out var key) && key is > 0 and < 255 &&
-            (modifiers & ~15u) == 0)
+        // A stored "custom:0:<key>" is nonsense for every key but the two that stand alone, and is
+        // answered with the default. Builds before this one let the field record a key pressed
+        // alone, and a settings file holding one would otherwise go on taking that key from the
+        // whole machine at every start. Nothing is written back here, reading never writes; the
+        // next save of the settings makes the default permanent.
+        if (HotkeyRules.TryParseCustom(id, out var modifiers, out var key))
         {
             var flags = (HotkeyModifiers)modifiers;
             var label = string.Empty;
@@ -236,8 +238,8 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
             if (flags.HasFlag(HotkeyModifiers.Alt)) label += "Alt + ";
             if (flags.HasFlag(HotkeyModifiers.Shift)) label += "Shift + ";
             if (flags.HasFlag(HotkeyModifiers.Windows)) label += "Win + ";
-            label += key == 0x13 ? "Pause / Break" : key == 0x2C ? "Print Screen" : KeyInterop.KeyFromVirtualKey((int)key).ToString();
-            return new HotkeyChoice(id, label, new HotkeyGesture(flags | HotkeyModifiers.NoRepeat, (ushort)key));
+            label += key == 0x13 ? "Pause / Break" : key == 0x2C ? "Print Screen" : KeyInterop.KeyFromVirtualKey(key).ToString();
+            return new HotkeyChoice(id, label, new HotkeyGesture(flags | HotkeyModifiers.NoRepeat, key));
         }
         return Choices[0];
     }

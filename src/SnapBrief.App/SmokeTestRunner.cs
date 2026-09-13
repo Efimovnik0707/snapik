@@ -221,6 +221,7 @@ public static class SmokeTestRunner
         WithoutBindingErrors("The how-to slides", Controls.HowToSlides.RunSlidesProbe);
         VerifyHowToOnlyWizard(restoredSettings);
         VerifySlideKeysStayInsideTheWizard(restoredSettings);
+        VerifyAShortcutNeedsAModifier(restoredSettings);
         var closedWithoutButtons = false;
         var skipped = new OnboardingWindow(restoredSettings) { MarkPassed = () => closedWithoutButtons = true };
         skipped.Close();
@@ -626,6 +627,35 @@ public static class SmokeTestRunner
             if (!titled)
                 throw new InvalidOperationException($"The slides-only wizard must open in the chosen language and say \"{caption}\" on its only button.");
         }
+    }
+
+    // A shortcut needs Ctrl, Alt, Shift or Win, and only Print Screen and Pause stand alone. The
+    // field refuses to record anything else, and a "custom:0:<key>" already sitting in a settings
+    // file (a bare arrow recorded by an older build) is read as the default instead of being
+    // registered globally once more.
+    private static void VerifyAShortcutNeedsAModifier(HotkeySettings settings)
+    {
+        const string bareLeftArrow = "custom:0:37";
+        if (HotkeySettings.Find(bareLeftArrow).Id != HotkeySettings.Choices[0].Id ||
+            HotkeySettings.Find("custom:0:83").Id != HotkeySettings.Choices[0].Id)
+            throw new InvalidOperationException("A stored shortcut without a modifier must be read as the default one.");
+        if (HotkeySettings.Find("custom:0:44").Gesture.VirtualKey != 0x2C ||
+            HotkeySettings.Find("custom:0:19").Gesture.VirtualKey != 0x13 ||
+            HotkeySettings.Find("custom:2:37").Id != "custom:2:37")
+            throw new InvalidOperationException("Print Screen, Pause and any combination with a modifier must survive the read.");
+        WithoutBindingErrors("The hotkey field", () => Controls.HotkeyField.RunHotkeyFieldProbe("ru"));
+        var wizard = WithoutBindingErrors("The wizard on a shortcut without a modifier", () =>
+        {
+            var window = new OnboardingWindow(settings with { CaptureId = bareLeftArrow });
+            window.Measure(new Size(620, 600));
+            window.Arrange(new Rect(0, 0, 620, 600));
+            window.UpdateLayout();
+            return window;
+        });
+        var label = wizard.HowTo.KeyLabel;
+        wizard.Close();
+        if (label != HotkeySettings.Choices[0].Label)
+            throw new InvalidOperationException("A wizard opened on a shortcut without a modifier must show the default one on its capsule.");
     }
 
     // The arrow keys of the slides: they move one slide, they are eaten so that nothing else reads
