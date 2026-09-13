@@ -29,7 +29,9 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// <summary>The width of the strip window in pixels; the visible card is 20 px narrower.</summary>
     public double StackWidth { get; init; } = Controls.StripResizeGeometry.DefaultWidth;
     public bool ClearStackAfterPaste { get; init; }
-    public string AnnotationColor { get; init; } = "#2F8CFF";
+    public string AnnotationColor { get; init; } = "#FF3B30";
+    /// <summary>Which set of twelve colours the editor offers: standard, pastel or neon.</summary>
+    public string AnnotationPalette { get; init; } = "standard";
     public double AnnotationThickness { get; init; } = 4;
     /// <summary>The frame the editor draws by default: rectangle, rounded or ellipse.</summary>
     public string AnnotationShape { get; init; } = "rectangle";

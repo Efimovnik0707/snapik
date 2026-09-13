@@ -49,6 +49,7 @@ public partial class OverlayEditorWindow : Window
     private SnapBrief.Core.Models.AnnotationFill _activeFill = SnapBrief.Core.Models.AnnotationFill.None;
     private Color? _activeFillColor;
     private bool _activeHasOutline = true;
+    private PaletteSet _activePalette = Palettes[0];
     private Guid? _commentParentId;
     private Guid? _expandedChipId;
     private AnnotationItem? _chipDragAnnotation;
@@ -70,6 +71,7 @@ public partial class OverlayEditorWindow : Window
         _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
         _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
         _activeHasOutline = preferences.AnnotationOutline;
+        _activePalette = ParseAnnotationPalette(preferences.AnnotationPalette);
         _capture = existing?.DeepClone();
         _isNew = existing is null;
         if (_capture is not null && !string.IsNullOrWhiteSpace(_capture.Note))
@@ -149,7 +151,7 @@ public partial class OverlayEditorWindow : Window
             var cyrillic = new System.Text.RegularExpressions.Regex("[А-Яа-яЁё]");
             // The panel, the palette popover and the cheat sheet: everything written in the dark of
             // the editor, including the two popups that are built but never opened in a smoke run.
-            foreach (var panel in new DependencyObject?[] { window.Toolbar, window.AppearancePopup.Child, window.ShortcutSheetPopup.Child })
+            foreach (var panel in new DependencyObject?[] { window.Toolbar, window.AppearancePopup.Child, window.ThicknessPopup.Child, window.ShortcutSheetPopup.Child })
                 foreach (var text in PanelStrings(panel))
                     if (cyrillic.IsMatch(text))
                         throw new InvalidOperationException($"The English markup panel still shows Russian text: \"{text}\".");
@@ -172,6 +174,10 @@ public partial class OverlayEditorWindow : Window
             Row(arrowMenu, "Curved arrow").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             if (window.Surface.ActiveShape != SnapBrief.Core.Models.AnnotationShape.Ellipse || window.Surface.ActiveArrowStyle != "curved")
                 throw new InvalidOperationException("A pick in a split button menu must reach the active shape and the active arrow style.");
+            // The arrow menu is about the style of the arrow and nothing else: the thickness left it
+            // for a button of its own, and the conceal tool left the editor altogether.
+            if (arrowMenu.Items.Count != 3 || EditorShortcuts.Tools.Any(shortcut => shortcut.Key == Key.X))
+                throw new InvalidOperationException("The arrow menu must hold three styles and no thickness, and the X key must be free.");
         }
         finally
         {
@@ -216,6 +222,84 @@ public partial class OverlayEditorWindow : Window
         }
         Walk(root);
         return found;
+    }
+
+    // The panel itself: the palettes and the five dots that follow them, the thickness button with
+    // its presets, and the four ways the inside of a region can be filled. Everything here is
+    // pressed the way a hand would press it, without a mouse.
+    internal static void RunPanelProbe(CaptureItem source)
+    {
+        var capture = source.DeepClone();
+        var root = Path.Combine(Path.GetTempPath(), "SnapBrief", $"panel-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
+        var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
+        var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
+        window.Measure(new Size(1280, 720));
+        window.Arrange(new Rect(0, 0, 1280, 720));
+        window._cropRect = new Rect(120, 90, 900, 506);
+        window.SetupEditor();
+        try { PanelChecks(window); }
+        finally
+        {
+            window.AppearancePopup.IsOpen = false;
+            window.ThicknessPopup.IsOpen = false;
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void PanelChecks(OverlayEditorWindow window)
+    {
+        window.SelectToolMode(EditorTool.Rectangle);
+        window.OpenAppearance();
+        Color Parse(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+        void CheckPalette(PaletteSet palette)
+        {
+            if (window.ColorPalette.Children.OfType<Button>().Select(swatch => (Color)swatch.Tag).SequenceEqual(palette.Colors.Select(Parse)) &&
+                window.ColorDots.Children.OfType<Button>().Select(dot => (Color)dot.Tag).SequenceEqual(palette.Quick.Select(Parse))) return;
+            throw new InvalidOperationException($"The swatches and the quick dots must both come from the \"{palette.Id}\" palette.");
+        }
+        // A clean workspace holds no settings file, so the panel starts on the standard palette, and
+        // the colour it starts with belongs to it.
+        if (window._activePalette.Id != "standard" || !Palettes[0].Colors.Contains($"#{window._activeColor.R:X2}{window._activeColor.G:X2}{window._activeColor.B:X2}"))
+            throw new InvalidOperationException("The editor must start on the standard palette with a colour that belongs to it.");
+        CheckPalette(Palettes[0]);
+        window.SelectPalette(ParseAnnotationPalette("neon"));
+        CheckPalette(Palettes.Single(palette => palette.Id == "neon"));
+        if (window.NeonPaletteSegment.IsChecked != true || window.StandardPaletteSegment.IsChecked != false)
+            throw new InvalidOperationException("The palette segments must show which set is in use.");
+        window.SelectPalette(Palettes[0]);
+
+        // The thickness lives on its own button now: a preset reaches the canvas and the button.
+        window.OnThicknessPresetClick(window.Thickness6Segment, new RoutedEventArgs());
+        if (window.Surface.ActiveThickness != 6 || (string?)window.ThicknessButton.Content != "6 px" || window.Thickness6Segment.IsChecked != true)
+            throw new InvalidOperationException("A thickness preset must reach the canvas and the button that opens it.");
+        if (!ThicknessPresets.SequenceEqual(window.ThicknessPresetRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>()
+                .Select(preset => double.Parse((string)preset.Tag, System.Globalization.CultureInfo.InvariantCulture))))
+            throw new InvalidOperationException("The thickness popover must offer the four presets.");
+
+        // The four fills, the colour of the fill and the switch that hides the outline.
+        window.OnFillClick(window.FillBlurSegment, new RoutedEventArgs());
+        if (window.Surface.ActiveFill != SnapBrief.Core.Models.AnnotationFill.Blur || window.FillColorButton.IsEnabled)
+            throw new InvalidOperationException("A region filled with blur must not offer a colour of its own.");
+        window.OnFillClick(window.FillSolidSegment, new RoutedEventArgs());
+        if (window.Surface.ActiveFill != SnapBrief.Core.Models.AnnotationFill.Solid || !window.FillColorButton.IsEnabled)
+            throw new InvalidOperationException("A region with a solid fill must offer the colour of that fill.");
+        var outlineColor = window.Surface.ActiveColor;
+        window.ApplyPickedColor(Colors.Black);
+        if (window.Surface.ActiveFillColor != Colors.Black || window.Surface.ActiveColor != outlineColor)
+            throw new InvalidOperationException("Picking a colour for the fill must leave the colour of the outline alone.");
+        window.OutlineSegment.IsChecked = false;
+        window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
+        if (window.Surface.ActiveHasOutline || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Black)
+            throw new InvalidOperationException("A region without an outline must show the colour of its fill on the panel.");
+        // One click on a panel dot now paints what is actually seen: the fill of a frame without an outline.
+        window.ApplyQuickColor(Colors.White);
+        if (window.Surface.ActiveFillColor != Colors.White || window.Surface.ActiveColor != outlineColor)
+            throw new InvalidOperationException("A dot on the panel must paint the colour the mark actually shows.");
+        window.OutlineSegment.IsChecked = true;
+        window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
+        window.OnFillClick(window.FillNoneSegment, new RoutedEventArgs());
     }
 
     internal static CaptureItem RunNoteAffordanceProbe(CaptureItem source)
@@ -490,7 +574,7 @@ public partial class OverlayEditorWindow : Window
     }
 
     private System.Windows.Controls.Primitives.ToggleButton[] ToolButtons =>
-        [SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, ConcealTool, BlurTool, CropTool];
+        [SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, BlurTool, CropTool];
 
     // Every letter on the panel comes from EditorShortcuts: the name goes to the tooltip (and is
     // translated with the rest of the window), the key goes to the capsule of the tooltip template.
@@ -551,7 +635,7 @@ public partial class OverlayEditorWindow : Window
     }
 
     private void OnColorClick(object sender, RoutedEventArgs e) => OpenAppearance();
-    private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenAppearance();
+    private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenThickness();
 
     private void OnMoreToolsClick(object sender, RoutedEventArgs e)
     {
@@ -566,7 +650,6 @@ public partial class OverlayEditorWindow : Window
         };
         AddTool(EditorTool.Pen);
         AddTool(EditorTool.Highlight);
-        AddTool(EditorTool.Conceal);
         menu.IsOpen = true;
 
         void AddTool(EditorTool tool) { var item = ActionItem(EditorShortcuts.Caption(tool), () => SelectToolMode(tool)); item.IsChecked = Surface.Tool == tool; menu.Items.Add(item); }

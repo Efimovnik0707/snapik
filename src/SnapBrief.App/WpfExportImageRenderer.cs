@@ -68,6 +68,8 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
     // The same two rules the editor canvas draws by: an opaque region goes over everything else, and
     // a blur is baked into the picture whether it came from the blur tool or from a region filled
     // with blur.
+    // The redaction kind is kept here on purpose: the editor turns one into a filled region as it
+    // reads it, but a mark that reached the renderer another way must still hide what is under it.
     private static bool HasOpaqueFill(SnapBrief.Core.Models.AnnotationItem item) =>
         item.Kind == AnnotationKind.Redaction || (item.Kind == AnnotationKind.Rectangle && item.Fill == AnnotationFill.Solid);
 

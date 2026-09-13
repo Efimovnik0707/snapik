@@ -31,7 +31,7 @@ public static class SmokeTestRunner
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationShape = "ellipse", AnnotationFill = "translucent",
-            AnnotationFillColor = "#101820", AnnotationOutline = false,
+            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "neon",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion
@@ -69,6 +69,18 @@ public static class SmokeTestRunner
             OverlayEditorWindow.ParseAnnotationFillColor("not a colour") is not null ||
             !HotkeySettings.Default.AnnotationOutline || HotkeySettings.Default.AnnotationFillColor != string.Empty)
             throw new InvalidOperationException("The stored fill colour and outline flag must be read back, with an outline and no own colour by default.");
+        // The palette is remembered by its name; a name nobody knows falls back to the standard set,
+        // and the colour the editor starts with has to belong to that set.
+        if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "neon" ||
+            OverlayEditorWindow.ParseAnnotationPalette("rainbow").Id != "standard" ||
+            OverlayEditorWindow.ParseAnnotationPalette("1").Id != "standard" ||
+            OverlayEditorWindow.ParseAnnotationPalette(null).Id != "standard" ||
+            HotkeySettings.Default.AnnotationPalette != "standard" ||
+            OverlayEditorWindow.Palettes.Length != 3 ||
+            OverlayEditorWindow.Palettes.Any(palette => palette.Colors.Length != 12 || palette.Quick.Length != 5) ||
+            !OverlayEditorWindow.Palettes[0].Colors.Contains(HotkeySettings.Default.AnnotationColor) ||
+            OverlayEditorWindow.ParseAnnotationColor(HotkeySettings.Default.AnnotationColor) != OverlayEditorWindow.DefaultAnnotationColor)
+            throw new InvalidOperationException("The stored palette must be read back, and the default colour must belong to the standard palette.");
         // The strip and the editor write the same file: every write starts from the file on disk.
         var mergeSettingsPath = Path.Combine(root, "merge-settings-smoke.json");
         (HotkeySettings.Default with { AnnotationColor = "#FF0000", AnnotationThickness = 7 }).Save(mergeSettingsPath);
@@ -212,14 +224,24 @@ public static class SmokeTestRunner
             var source = i == 2 ? CreatePrivacyBitmap(1920, 1080) : SessionWorkspace.CreateDemoBitmap(i, 1920, 1080, i == 0 ? 144 : 96);
             var capture = await workspace.AddImageAsync(source);
             capture.Note = i == 2 ? "Текст обрезается" : string.Empty;
-            capture.Annotations.Add(new AnnotationItem
-            {
-                Kind = i == 2 ? EditorTool.Conceal : i == 1 ? EditorTool.Rectangle : EditorTool.Arrow,
-                Points = [new Point(1050, 650), new Point(1520, 880)],
-                Note = annotationNotes[i],
-                Color = Color.FromRgb(49, 92, 245),
-                Thickness = 6
-            });
+            // The third capture carries a mark read out of the old format: a "redaction" written by
+            // a build that still had the conceal tool, migrated by the same code a stored session
+            // goes through. Its exported pixels are checked below, so the read path stays covered.
+            capture.Annotations.Add(i == 2
+                ? AnnotationItem.FromCore(
+                    SnapBrief.Core.Models.AnnotationItem.Create(
+                        SnapBrief.Core.Models.AnnotationKind.Redaction,
+                        [new SnapBrief.Core.Models.NormalizedPoint(1050d / 1920, 650d / 1080), new SnapBrief.Core.Models.NormalizedPoint(1520d / 1920, 880d / 1080)],
+                        "#FF315CF5", 6, note: annotationNotes[i]),
+                    1920, 1080)
+                : new AnnotationItem
+                {
+                    Kind = i == 1 ? EditorTool.Rectangle : EditorTool.Arrow,
+                    Points = [new Point(1050, 650), new Point(1520, 880)],
+                    Note = annotationNotes[i],
+                    Color = Color.FromRgb(49, 92, 245),
+                    Thickness = 6
+                });
             if (i == 2)
             {
                 // An oval blur: the mask follows the shape of the region in both renderers, so the
@@ -298,6 +320,7 @@ public static class SmokeTestRunner
         // The tooltip of the panel is built for real inside the probe, so the binding that fills its
         // key capsule is watched here like every other binding of the run.
         WithoutBindingErrors("The markup panel", () => OverlayEditorWindow.RunShortcutHintProbe(captures[0]));
+        WithoutBindingErrors("The colour and thickness panel", () => OverlayEditorWindow.RunPanelProbe(captures[0]));
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
         var noteProbeCore = noteProbe.ToCore();
         var noteProbeLabel = SnapBrief.Core.Exporting.CaptureLabels.ForNotedAnnotations("A", noteProbeCore).SingleOrDefault();

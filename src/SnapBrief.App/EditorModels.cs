@@ -102,7 +102,6 @@ public sealed class AnnotationItem : INotifyPropertyChanged
             EditorTool.Pen => AnnotationKind.Freehand,
             EditorTool.Highlight => AnnotationKind.Highlight,
             EditorTool.Text => AnnotationKind.Text,
-            EditorTool.Conceal => AnnotationKind.Redaction,
             EditorTool.Blur => AnnotationKind.Blur,
             _ => AnnotationKind.Rectangle
         },

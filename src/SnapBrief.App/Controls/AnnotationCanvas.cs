@@ -169,7 +169,7 @@ public sealed class AnnotationCanvas : FrameworkElement
             Fill = Tool == EditorTool.Rectangle ? ActiveFill : AnnotationFill.None,
             FillColor = Tool == EditorTool.Rectangle ? ActiveFillColor : null,
             HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
-            Color = Tool == EditorTool.Conceal ? Colors.Black : ActiveColor,
+            Color = ActiveColor,
             Thickness = ActiveThickness,
             Points = [_gestureStart.Value, _gestureStart.Value]
         };
@@ -382,9 +382,6 @@ public sealed class AnnotationCanvas : FrameworkElement
                 case EditorTool.Rectangle:
                     DrawBoxShape(dc, item, rect, pen, scale);
                     break;
-                case EditorTool.Conceal:
-                    dc.DrawRectangle(Brushes.Black, null, rect);
-                    break;
                 case EditorTool.Blur:
                     // The preview of a blur that is still being drawn shows the shape it will take.
                     DrawBoxShape(dc, new SolidColorBrush(Color.FromArgb(54, 255, 255, 255)),
@@ -467,7 +464,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     // An opaque fill is drawn after every other mark, because it hides whatever stands under it;
     // that is what the conceal tool used to do, and a solid region does the same.
     internal static bool HasOpaqueFill(AnnotationItem item) =>
-        item.Kind == EditorTool.Conceal || (item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Solid);
+        item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Solid;
 
     private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale) =>
         DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), item.HasOutline ? pen : null, item.Shape, rect, scale);
@@ -531,8 +528,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     // Opaque marks are grabbed anywhere inside, and so is a filled frame; the fill of any other
     // kind means nothing on screen, so its interior stays free for a new mark.
     private static bool HasInteriorGrab(AnnotationItem item) =>
-        item.Kind is EditorTool.Blur or EditorTool.Conceal ||
-        (item.Kind == EditorTool.Rectangle && item.Fill != AnnotationFill.None);
+        item.Kind is EditorTool.Blur || (item.Kind == EditorTool.Rectangle && item.Fill != AnnotationFill.None);
 
     private NoteBadge BadgeOf(AnnotationItem item, Rect target)
     {
