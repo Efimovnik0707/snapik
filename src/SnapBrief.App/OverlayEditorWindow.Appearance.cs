@@ -46,20 +46,15 @@ public partial class OverlayEditorWindow
             ["#FF1744", "#FFEA00", "#00E676", "#2979FF", "#FFFFFF"])
     ];
 
-    // Which of the two circles of the popover the palette and the HEX field paint.
-    private enum ColorTarget { Outline, Fill }
-    private ColorTarget _colorTarget = ColorTarget.Outline;
-
     // What one click on the panel changes: the outline while the mark has one, the fill otherwise,
     // so a click stays meaningful for a black concealing box as well.
-    private ColorTarget MainTarget
+    private bool PanelPaintsFill
     {
         get
         {
             var selected = Surface.SelectedAnnotation;
             var tool = selected?.Kind ?? Surface.Tool;
-            if (!HasFill(tool)) return ColorTarget.Outline;
-            return (selected?.HasOutline ?? _activeHasOutline) ? ColorTarget.Outline : ColorTarget.Fill;
+            return HasFill(tool) && !(selected?.HasOutline ?? _activeHasOutline);
         }
     }
 
@@ -69,10 +64,20 @@ public partial class OverlayEditorWindow
         if (_capture is null) return;
         _appearanceBefore = SnapshotState();
         _appearanceChanged = false;
-        _colorTarget = MainTarget;
         BuildColorPalette();
         SyncAppearance();
         AppearancePopup.IsOpen = true;
+    }
+
+    private void OpenFill()
+    {
+        if (FillPopup.IsOpen) { FillPopup.IsOpen = false; return; }
+        if (_capture is null) return;
+        _appearanceBefore = SnapshotState();
+        _appearanceChanged = false;
+        BuildFillPalette();
+        SyncAppearance();
+        FillPopup.IsOpen = true;
     }
 
     private void OpenThickness()
@@ -85,10 +90,15 @@ public partial class OverlayEditorWindow
         ThicknessPopup.IsOpen = true;
     }
 
-    // The twelve swatches of the active palette; rebuilt when another palette is picked.
-    private void BuildColorPalette()
+    // The twelve swatches of the active palette; rebuilt when another palette is picked. The colour
+    // popover paints the outline with them, the fill popover the inside of a region.
+    private void BuildColorPalette() => BuildSwatches(ColorPalette, ApplyPickedColor);
+
+    private void BuildFillPalette() => BuildSwatches(FillPalette, color => ApplyAppearance(null, null, fillColor: color));
+
+    private void BuildSwatches(System.Windows.Controls.Panel host, Action<Color> pick)
     {
-        ColorPalette.Children.Clear();
+        host.Children.Clear();
         foreach (var hex in _activePalette.Colors)
         {
             var color = (Color)ColorConverter.ConvertFromString(hex);
@@ -96,8 +106,8 @@ public partial class OverlayEditorWindow
                 Style = (Style)FindResource("OverlayButton"), ToolTip = hex,
                 Content = new Ellipse { Width = 22, Height = 22, Fill = new SolidColorBrush(color), Stroke = new SolidColorBrush(Color.FromRgb(120, 130, 146)), StrokeThickness = 1 } };
             System.Windows.Automation.AutomationProperties.SetName(swatch, hex);
-            swatch.Click += (_, _) => ApplyPickedColor(color);
-            ColorPalette.Children.Add(swatch);
+            swatch.Click += (_, _) => pick(color);
+            host.Children.Add(swatch);
         }
     }
 
@@ -142,15 +152,14 @@ public partial class OverlayEditorWindow
         var fillColor = (selected is not null ? selected.FillColor : _activeFillColor) ?? color;
         // The circle on the panel and the dots beside it work on the colour that is actually seen:
         // the outline while there is one, the fill of a frame without an outline.
-        var mainColor = MainTarget == ColorTarget.Fill ? fillColor : color;
-        var targetColor = _colorTarget == ColorTarget.Fill ? fillColor : color;
+        var mainColor = PanelPaintsFill ? fillColor : color;
         AppearanceButton.IsEnabled = HasColor(tool);
         ColorSwatch.Fill = new SolidColorBrush(mainColor);
         // A tool without a stroke leaves the last thickness on the button, dimmed by the disabled
         // state of the style: an empty caption is what used to make the panel jump.
         ThicknessButton.IsEnabled = HasStroke(tool);
         ThicknessButton.Content = $"{(HasStroke(tool) ? thickness : _activeThickness):0} px";
-        ColorHex.Text = $"#{targetColor.R:X2}{targetColor.G:X2}{targetColor.B:X2}";
+        ColorHex.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
         ColorHex.BorderBrush = new SolidColorBrush(Color.FromRgb(70, 83, 102));
         StrokeSlider.IsEnabled = HasStroke(tool);
         StrokeSlider.Value = Math.Clamp(thickness, 1, 16);
@@ -161,18 +170,14 @@ public partial class OverlayEditorWindow
         foreach (System.Windows.Controls.Primitives.ToggleButton preset in ThicknessPresetRow.Children)
             preset.IsChecked = preset.Tag is string tag && double.TryParse(tag, System.Globalization.CultureInfo.InvariantCulture, out var value) && Math.Abs(value - thickness) < 0.001;
         foreach (Button swatch in ColorPalette.Children)
-            swatch.BorderBrush = (Color)swatch.Tag == targetColor ? Brushes.White : Brushes.Transparent;
+            swatch.BorderBrush = (Color)swatch.Tag == color ? Brushes.White : Brushes.Transparent;
+        foreach (Button swatch in FillPalette.Children)
+            swatch.BorderBrush = (Color)swatch.Tag == fillColor ? Brushes.White : Brushes.Transparent;
         foreach (System.Windows.Controls.Primitives.ToggleButton segment in PaletteRow.Children)
             segment.IsChecked = (string)segment.Tag == _activePalette.Id;
-        // The outline and the fill of a frame: their colours, the switch that hides the outline and
-        // the four ways the inside of the frame can be filled.
+        // The switch that hides the outline of a frame; the fill of that frame lives on the panel now.
         OutlineRow.IsEnabled = HasFill(tool);
         OutlineSegment.IsChecked = outline;
-        OutlineSwatch.Fill = new SolidColorBrush(color);
-        FillSwatch.Fill = new SolidColorBrush(fillColor);
-        OutlineColorButton.BorderBrush = _colorTarget == ColorTarget.Outline ? Brushes.White : Brushes.Transparent;
-        FillColorButton.BorderBrush = _colorTarget == ColorTarget.Fill ? Brushes.White : Brushes.Transparent;
-        OutlineColorButton.IsEnabled = HasColor(tool);
         // The chevron half of a split button carries the state of its own tool, so the capsule
         // reads as one control.
         var accent = (Brush)FindResource("AccentSoftBrush");
@@ -194,7 +199,18 @@ public partial class OverlayEditorWindow
         FillTranslucentSegment.IsChecked = fill == AnnotationFill.Translucent;
         FillBlurSegment.IsChecked = fill == AnnotationFill.Blur;
         // A blurred region shows the picture under it: it has no colour of its own to pick.
-        FillColorButton.IsEnabled = HasFill(tool) && fill is AnnotationFill.Solid or AnnotationFill.Translucent;
+        FillPalette.IsEnabled = HasFill(tool) && fill is AnnotationFill.Solid or AnnotationFill.Translucent;
+        // The button of the fill is dimmed only while a mark that cannot be filled is selected: with
+        // another tool in the hand it arms the region itself, so it must stay pressable.
+        FillButton.IsEnabled = selected is null || HasFill(selected.Kind);
+        FillValue.Text = UiLanguage.Text(FillName(fill));
+        FillButtonPreview.Fill = fill switch
+        {
+            AnnotationFill.Solid => new SolidColorBrush(fillColor),
+            AnnotationFill.Translucent => new SolidColorBrush(Color.FromArgb(0x59, fillColor.R, fillColor.G, fillColor.B)),
+            AnnotationFill.Blur => (Brush)FindResource("BlurFillPreview"),
+            _ => Brushes.Transparent
+        };
         _syncingAppearance = false;
     }
 
@@ -224,26 +240,39 @@ public partial class OverlayEditorWindow
         if (pushEntry) { _lastSnapshot = SnapshotState(); SyncAppearance(); }
     }
 
-    // A colour picked in the popover paints whichever of the two circles is active; a colour picked
-    // on the panel paints the one that is actually seen.
-    private void ApplyPickedColor(Color color)
-    {
-        if (_colorTarget == ColorTarget.Fill) ApplyAppearance(null, null, fillColor: color);
-        else ApplyAppearance(color, null);
-    }
+    // A colour picked in the colour popover paints the outline of a mark; a colour picked on the
+    // panel paints the one that is actually seen, which is the fill of a frame without an outline.
+    private void ApplyPickedColor(Color color) => ApplyAppearance(color, null);
 
     private void ApplyQuickColor(Color color)
     {
-        if (MainTarget == ColorTarget.Fill) ApplyAppearanceNow(null, null, fillColor: color);
+        if (PanelPaintsFill) ApplyAppearanceNow(null, null, fillColor: color);
         else ApplyAppearanceNow(color, null);
+    }
+
+    // The name of a fill, for the value beside the title of the popover; the same four words the
+    // segments carry in their tooltips.
+    private static string FillName(AnnotationFill fill) => fill switch
+    {
+        AnnotationFill.Solid => "Сплошная заливка",
+        AnnotationFill.Translucent => "Полупрозрачная заливка",
+        AnnotationFill.Blur => "Заливка размытием",
+        _ => "Контур"
+    };
+
+    private void OnFillButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (_capture is null) return;
+        // The fill belongs to a region: with another tool in the hand and nothing selected the
+        // button arms the region first, the way a pick in the shape menu does.
+        if (Surface.SelectedAnnotation is null && !HasFill(Surface.Tool)) SelectToolMode(EditorTool.Rectangle);
+        OpenFill();
     }
 
     private void OnFillClick(object sender, RoutedEventArgs e)
     {
         if (_syncingAppearance || sender is not System.Windows.Controls.Primitives.ToggleButton { Tag: string tag } ||
             !Enum.TryParse<AnnotationFill>(tag, out var fill)) return;
-        // Picking a coloured fill moves the target to it: the next colour is the one the user came for.
-        _colorTarget = fill is AnnotationFill.Solid or AnnotationFill.Translucent ? ColorTarget.Fill : ColorTarget.Outline;
         ApplyAppearance(null, null, fill: fill);
     }
 
@@ -252,9 +281,6 @@ public partial class OverlayEditorWindow
         if (_syncingAppearance || sender is not System.Windows.Controls.Primitives.ToggleButton segment) return;
         ApplyAppearance(null, null, hasOutline: segment.IsChecked == true);
     }
-
-    private void OnOutlineTargetClick(object sender, RoutedEventArgs e) { _colorTarget = ColorTarget.Outline; SyncAppearance(); }
-    private void OnFillTargetClick(object sender, RoutedEventArgs e) { _colorTarget = ColorTarget.Fill; SyncAppearance(); }
 
     private void OnPaletteClick(object sender, RoutedEventArgs e)
     {
@@ -268,6 +294,7 @@ public partial class OverlayEditorWindow
         _activePalette = palette;
         _appearanceDefaultsChanged = true;
         BuildColorPalette();
+        BuildFillPalette();
         BuildColorDots();
         SyncAppearance();
     }
@@ -295,6 +322,7 @@ public partial class OverlayEditorWindow
     private void OnHexKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { ApplyHex(); e.Handled = true; } }
     private void OnAppearanceKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { AppearancePopup.IsOpen = false; e.Handled = true; } }
     private void OnThicknessKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { ThicknessPopup.IsOpen = false; e.Handled = true; } }
+    private void OnFillKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { FillPopup.IsOpen = false; e.Handled = true; } }
     private void OnCloseAppearance(object sender, RoutedEventArgs e) => AppearancePopup.IsOpen = false;
 
     // What Escape gives up, in order: an open popover, then the selection, and only with nothing
@@ -303,7 +331,7 @@ public partial class OverlayEditorWindow
     internal enum EscapeStep { Popover, Selection, Capture }
 
     internal EscapeStep NextEscapeStep() =>
-        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen ? EscapeStep.Popover
+        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || FillPopup.IsOpen ? EscapeStep.Popover
         : Surface.SelectedAnnotation is not null ? EscapeStep.Selection
         : EscapeStep.Capture;
 
@@ -311,6 +339,7 @@ public partial class OverlayEditorWindow
     {
         AppearancePopup.IsOpen = false;
         ThicknessPopup.IsOpen = false;
+        FillPopup.IsOpen = false;
         ShortcutSheetPopup.IsOpen = false;
     }
     private void OnAppearanceClosed(object? sender, EventArgs e)

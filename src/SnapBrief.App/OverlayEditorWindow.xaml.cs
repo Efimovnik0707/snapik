@@ -167,7 +167,7 @@ public partial class OverlayEditorWindow : Window
             var cyrillic = new System.Text.RegularExpressions.Regex("[А-Яа-яЁё]");
             // The panel, the palette popover and the cheat sheet: everything written in the dark of
             // the editor, including the two popups that are built but never opened in a smoke run.
-            foreach (var panel in new DependencyObject?[] { window.Toolbar, window.AppearancePopup.Child, window.ThicknessPopup.Child, window.ShortcutSheetPopup.Child })
+            foreach (var panel in new DependencyObject?[] { window.Toolbar, window.AppearancePopup.Child, window.ThicknessPopup.Child, window.FillPopup.Child, window.ShortcutSheetPopup.Child })
                 foreach (var text in PanelStrings(panel))
                     if (cyrillic.IsMatch(text))
                         throw new InvalidOperationException($"The English markup panel still shows Russian text: \"{text}\".");
@@ -275,6 +275,7 @@ public partial class OverlayEditorWindow : Window
         {
             window.AppearancePopup.IsOpen = false;
             window.ThicknessPopup.IsOpen = false;
+            window.FillPopup.IsOpen = false;
             window.Close();
             if (Directory.Exists(root)) Directory.Delete(root, true);
         }
@@ -310,17 +311,28 @@ public partial class OverlayEditorWindow : Window
                 .Select(preset => double.Parse((string)preset.Tag, System.Globalization.CultureInfo.InvariantCulture))))
             throw new InvalidOperationException("The thickness popover must offer the four presets.");
 
-        // The four fills, the colour of the fill and the switch that hides the outline.
+        // The fill has a button and a popover of its own now: the four fills, the twelve swatches of
+        // the fill colour, and the switch that hides the outline in the colour popover beside it.
+        window.SelectToolMode(EditorTool.Arrow);
+        window.OnFillButtonClick(window.FillButton, new RoutedEventArgs());
+        // The swatches of the fill are built as the popover opens, the way the colour popover builds
+        // its own: a window that was never shown has no surface for the popup itself to appear on.
+        if (window.Surface.Tool != EditorTool.Rectangle || window.FillPalette.Children.Count != 12)
+            throw new InvalidOperationException("The fill button must arm the region when the fill has nothing to belong to.");
         window.OnFillClick(window.FillBlurSegment, new RoutedEventArgs());
-        if (window.Surface.ActiveFill != SnapBrief.Core.Models.AnnotationFill.Blur || window.FillColorButton.IsEnabled)
+        if (window.Surface.ActiveFill != SnapBrief.Core.Models.AnnotationFill.Blur || window.FillPalette.IsEnabled)
             throw new InvalidOperationException("A region filled with blur must not offer a colour of its own.");
         window.OnFillClick(window.FillSolidSegment, new RoutedEventArgs());
-        if (window.Surface.ActiveFill != SnapBrief.Core.Models.AnnotationFill.Solid || !window.FillColorButton.IsEnabled)
+        if (window.Surface.ActiveFill != SnapBrief.Core.Models.AnnotationFill.Solid || !window.FillPalette.IsEnabled)
             throw new InvalidOperationException("A region with a solid fill must offer the colour of that fill.");
         var outlineColor = window.Surface.ActiveColor;
-        window.ApplyPickedColor(Colors.Black);
-        if (window.Surface.ActiveFillColor != Colors.Black || window.Surface.ActiveColor != outlineColor)
-            throw new InvalidOperationException("Picking a colour for the fill must leave the colour of the outline alone.");
+        var blackSwatch = window.FillPalette.Children.OfType<Button>().Single(swatch => (Color)swatch.Tag == Colors.Black);
+        blackSwatch.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        if (window.Surface.ActiveFillColor != Colors.Black || window.Surface.ActiveColor != outlineColor ||
+            blackSwatch.BorderBrush != Brushes.White)
+            throw new InvalidOperationException("A swatch of the fill popover must paint the fill and leave the outline alone.");
+        window.FillPopup.IsOpen = false;
+        window.OpenAppearance();
         window.OutlineSegment.IsChecked = false;
         window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
         if (window.Surface.ActiveHasOutline || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Black)
@@ -373,6 +385,9 @@ public partial class OverlayEditorWindow : Window
             window.SelectToolMode(tool);
             if (string.IsNullOrWhiteSpace((string?)window.ThicknessButton.Content))
                 throw new InvalidOperationException($"The thickness button showed nothing while the {tool} tool was armed.");
+            // The fill button carries a word of its own and never blanks either, whatever is armed.
+            if (string.IsNullOrWhiteSpace(window.FillButtonLabel.Text) || window.FillButton.Visibility != Visibility.Visible)
+                throw new InvalidOperationException($"The fill button showed nothing while the {tool} tool was armed.");
             // The width the panel asks for, not the width it was given: a window that was never
             // shown has no arranged size to read.
             window.Toolbar.InvalidateMeasure();
