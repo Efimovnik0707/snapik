@@ -1,0 +1,482 @@
+<UserControl x:Class="SnapBrief.App.Controls.HowToSlides"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:SnapBrief.App.Controls">
+ <UserControl.Resources>
+  <!-- The chevrons and the dots are the only buttons of the control; the wizard keeps its own copy
+       of this style, because a user control cannot reach the resources of the window it sits in. -->
+  <Style x:Key="SlideIconButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+   <Setter Property="Width" Value="28"/><Setter Property="Height" Value="28"/><Setter Property="MinWidth" Value="28"/>
+   <Setter Property="MinHeight" Value="28"/><Setter Property="Padding" Value="0"/><Setter Property="Background" Value="Transparent"/>
+   <Setter Property="controls:ButtonChrome.HoverBackground" Value="#2A3240"/>
+   <Setter Property="controls:ButtonChrome.PressedBackground" Value="#20262F"/>
+  </Style>
+  <Style x:Key="SlideDotButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+   <Setter Property="Width" Value="16"/><Setter Property="Height" Value="16"/><Setter Property="MinWidth" Value="16"/>
+   <Setter Property="MinHeight" Value="16"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="4,0"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="controls:ButtonChrome.HoverBackground" Value="#2A3240"/>
+   <Setter Property="controls:ButtonChrome.PressedBackground" Value="#20262F"/>
+  </Style>
+  <Style x:Key="SlideCaption" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="#EEF2F8"/>
+   <Setter Property="HorizontalAlignment" Value="Center"/><Setter Property="Opacity" Value="0"/>
+  </Style>
+
+  <!-- Every slide is four phases of 1.2 s, 4.8 s in all, and runs once: the control moves on to the
+       next slide when the clock reports it is done, so the four of them go round on their own. -->
+  <Storyboard x:Key="Slide1Loop" Duration="0:0:4.8">
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintKey" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.4"/><LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0.4"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintKeyScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="0.8"/><LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Width">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.1" Value="150"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Height">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.1" Value="66"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintNote" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.9" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintPaste" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintArrow" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.7" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintChat" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.35"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0.35"/><LinearDoubleKeyFrame KeyTime="0:0:4" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption1" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption3" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption4" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+  </Storyboard>
+
+  <!-- A capture, another capture, the strip fills up to ten, one Ctrl+V sends them all. -->
+  <Storyboard x:Key="Slide2Loop" Duration="0:0:4.8">
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackKey" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.4"/><LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:0.9" Value="0.4"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:1.4" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.1" Value="0.4"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:2.6" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.4" Value="0.4"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackKeyScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="0.8"/><LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardA" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:0.15" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardAMove" Storyboard.TargetProperty="X">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="-90"/><DiscreteDoubleKeyFrame KeyTime="0:0:0.15" Value="-90"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:0.5" Value="0"><EasingDoubleKeyFrame.EasingFunction><CubicEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardAMove" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="24"/><DiscreteDoubleKeyFrame KeyTime="0:0:0.15" Value="24"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:0.5" Value="0"><EasingDoubleKeyFrame.EasingFunction><CubicEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardB" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.35" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:1.7" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardBMove" Storyboard.TargetProperty="X">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="-90"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.35" Value="-90"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:1.7" Value="0"><EasingDoubleKeyFrame.EasingFunction><CubicEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardBMove" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="24"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.35" Value="24"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:1.7" Value="0"><EasingDoubleKeyFrame.EasingFunction><CubicEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardC" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.55" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.9" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardCMove" Storyboard.TargetProperty="X">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="-90"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.55" Value="-90"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:2.9" Value="0"><EasingDoubleKeyFrame.EasingFunction><CubicEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardD" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:3.35" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCardDMove" Storyboard.TargetProperty="X">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="-90"/><DiscreteDoubleKeyFrame KeyTime="0:0:3" Value="-90"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:3.35" Value="0"><EasingDoubleKeyFrame.EasingFunction><CubicEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCounter" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:3" Value="0.7"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackPaste" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.7" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackArrow" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.8" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4.2" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackChat" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.35"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0.35"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackSent" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:4" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4.4" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCards" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:4" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:4.4" Value="0.45"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCaption1" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCaption2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCaption3" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PackCaption4" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+  </Storyboard>
+
+  <!-- Frame the spot, drop a marker, write what is wrong, and the numbers travel into the chat. -->
+  <Storyboard x:Key="Slide3Loop" Duration="0:0:4.8">
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteFrame" Storyboard.TargetProperty="Width">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:0.6" Value="104"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteFrame" Storyboard.TargetProperty="Height">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:0.6" Value="46"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteBadge" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:1.45" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteBadgeScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.7"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0.7"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:1.5" Value="1"><EasingDoubleKeyFrame.EasingFunction><BackEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteBadgeScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.7"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0.7"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:1.5" Value="1"><EasingDoubleKeyFrame.EasingFunction><BackEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NotePill" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.6" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NotePill" Storyboard.TargetProperty="Width">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="24"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="24"/><LinearDoubleKeyFrame KeyTime="0:0:2.8" Value="150"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NotePillText" Storyboard.TargetProperty="Width">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.8" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:3.3" Value="96"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimation Storyboard.TargetName="NoteCaret" Storyboard.TargetProperty="Opacity"
+                    BeginTime="0:0:2.8" Duration="0:0:0.4" From="1" To="0" AutoReverse="True" RepeatBehavior="2x"/>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteChatLine1" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:3.9" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteChatLine2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.75" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4.05" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteCaption1" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteCaption2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteCaption3" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NoteCaption4" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+  </Storyboard>
+
+  <!-- The captures stay, the sent ones go quiet, a new one is bright again, "Clear" empties the strip. -->
+  <Storyboard x:Key="Slide4Loop" Duration="0:0:4.8">
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeSent" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeCard1" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.45"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeCard2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.45"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeNewCard" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.8" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeNewMove" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="-40"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="-40"/>
+    <EasingDoubleKeyFrame KeyTime="0:0:2.8" Value="0"><EasingDoubleKeyFrame.EasingFunction><CubicEase EasingMode="EaseOut"/></EasingDoubleKeyFrame.EasingFunction></EasingDoubleKeyFrame>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeTrashHot" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:3.8" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeTrashScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:3.85" Value="1.15"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeTrashScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:3.85" Value="1.15"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeTrashHotScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:3.85" Value="1.15"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeTrashHotScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:3.85" Value="1.15"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeCardsMove" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.9" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4.35" Value="-24"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeCards" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.9" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:4.35" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeCaption1" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeCaption2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeCaption3" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LifeCaption4" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+  </Storyboard>
+ </UserControl.Resources>
+
+ <StackPanel>
+  <Grid>
+   <!-- One frame for all four drawings: each of them keeps its own 500x200 grid inside the shared
+        Viewbox, so a slide can be drawn in round numbers and still fit the 360 of a wizard step. -->
+   <Border Background="Transparent" BorderBrush="#2A3240" BorderThickness="1" CornerRadius="12" Padding="8">
+    <Viewbox Stretch="Uniform" Height="144">
+     <Grid Width="500" Height="200">
+      <Canvas x:Name="SlideCanvas1" Width="500" Height="200">
+       <Border Canvas.Left="26" Canvas.Top="22" Width="230" Height="140" CornerRadius="8" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1"/>
+       <Rectangle Canvas.Left="42" Canvas.Top="40" Width="90" Height="8" RadiusX="4" RadiusY="4" Fill="#2C3746"/>
+       <Rectangle Canvas.Left="42" Canvas.Top="56" Width="150" Height="8" RadiusX="4" RadiusY="4" Fill="#242E3B"/>
+       <Rectangle x:Name="HintSelection" Canvas.Left="66" Canvas.Top="72" Width="0" Height="0" Opacity="0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeDashArray="4 3"/>
+       <Border x:Name="HintNote" Canvas.Left="120" Canvas.Top="146" Padding="8,4" CornerRadius="9" Opacity="0" Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
+        <StackPanel Orientation="Horizontal">
+         <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0" Fill="{DynamicResource AccentBrush}"/>
+         <Rectangle Width="46" Height="5" RadiusX="2" RadiusY="2" Fill="#8F9AAA" VerticalAlignment="Center"/>
+        </StackPanel>
+       </Border>
+       <Border x:Name="HintKey" Canvas.Left="26" Canvas.Top="172" Padding="9,4" CornerRadius="6" Opacity="0.4" Background="#252C36" BorderBrush="#465366" BorderThickness="1" RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform><ScaleTransform x:Name="HintKeyScale"/></Border.RenderTransform>
+        <TextBlock x:Name="HintKeyText" Text="Ctrl + Alt + S" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
+       </Border>
+       <Path x:Name="HintArrow" Canvas.Left="266" Canvas.Top="80" Opacity="0" Data="M0,12 L48,12 M38,5 L48,12 L38,19" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+       <Border x:Name="HintPaste" Canvas.Left="286" Canvas.Top="34" Padding="9,4" CornerRadius="6" Opacity="0" Background="#252C36" BorderBrush="#465366" BorderThickness="1">
+        <TextBlock Text="Ctrl + V" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
+       </Border>
+       <Border x:Name="HintChat" Canvas.Left="330" Canvas.Top="70" Width="144" Height="58" CornerRadius="10" Opacity="0.35" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
+        <StackPanel VerticalAlignment="Center" Margin="12,0,0,0">
+         <Rectangle Width="76" Height="6" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,7"/>
+         <Rectangle Width="106" Height="6" RadiusX="3" RadiusY="3" Fill="#242E3B" HorizontalAlignment="Left"/>
+        </StackPanel>
+       </Border>
+      </Canvas>
+
+      <Canvas x:Name="SlideCanvas2" Width="500" Height="200" Visibility="Collapsed">
+       <Border x:Name="PackChat" Canvas.Left="14" Canvas.Top="26" Width="230" Height="140" CornerRadius="8" Opacity="0.35" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
+        <StackPanel VerticalAlignment="Center" Margin="18,0,0,0">
+         <Rectangle Width="96" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,9"/>
+         <Rectangle Width="140" Height="7" RadiusX="3" RadiusY="3" Fill="#242E3B" HorizontalAlignment="Left"/>
+        </StackPanel>
+       </Border>
+       <Path x:Name="PackArrow" Canvas.Left="252" Canvas.Top="86" Opacity="0" Data="M66,8 L4,8 M12,2 L4,8 L12,14" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+       <Border x:Name="PackCounter" Canvas.Left="396" Canvas.Top="2" Padding="7,2" CornerRadius="8" Opacity="0" Background="#252C36" BorderBrush="#465366" BorderThickness="1">
+        <TextBlock Text="10" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
+       </Border>
+       <Canvas x:Name="PackCards" Width="500" Height="200">
+        <Border x:Name="PackCardA" Canvas.Left="340" Canvas.Top="30" Width="104" Height="44" CornerRadius="8" Opacity="0" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+         <Border.RenderTransform><TranslateTransform x:Name="PackCardAMove"/></Border.RenderTransform>
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="9,0,0,0">
+          <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+           <TextBlock Text="A" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <Rectangle Width="52" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="9,0,0,0"/>
+         </StackPanel>
+        </Border>
+        <Border x:Name="PackCardB" Canvas.Left="340" Canvas.Top="60" Width="104" Height="44" CornerRadius="8" Opacity="0" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+         <Border.RenderTransform><TranslateTransform x:Name="PackCardBMove"/></Border.RenderTransform>
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="9,0,0,0">
+          <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+           <TextBlock Text="B" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <Rectangle Width="52" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="9,0,0,0"/>
+         </StackPanel>
+        </Border>
+        <Border x:Name="PackCardC" Canvas.Left="340" Canvas.Top="90" Width="104" Height="44" CornerRadius="8" Opacity="0" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+         <Border.RenderTransform><TranslateTransform x:Name="PackCardCMove"/></Border.RenderTransform>
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="9,0,0,0">
+          <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+           <TextBlock Text="C" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <Rectangle Width="52" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="9,0,0,0"/>
+         </StackPanel>
+        </Border>
+        <Border x:Name="PackCardD" Canvas.Left="340" Canvas.Top="120" Width="104" Height="44" CornerRadius="8" Opacity="0" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+         <Border.RenderTransform><TranslateTransform x:Name="PackCardDMove"/></Border.RenderTransform>
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="9,0,0,0">
+          <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+           <TextBlock Text="D" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <Rectangle Width="52" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="9,0,0,0"/>
+         </StackPanel>
+        </Border>
+       </Canvas>
+       <Canvas x:Name="PackSent" Width="500" Height="200" Opacity="0">
+        <Path Canvas.Left="420" Canvas.Top="46" Data="M0,4 L4,8 L11,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+        <Path Canvas.Left="420" Canvas.Top="76" Data="M0,4 L4,8 L11,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+        <Path Canvas.Left="420" Canvas.Top="106" Data="M0,4 L4,8 L11,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+        <Path Canvas.Left="420" Canvas.Top="136" Data="M0,4 L4,8 L11,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+       </Canvas>
+       <Border x:Name="PackKey" Canvas.Left="14" Canvas.Top="172" Padding="9,4" CornerRadius="6" Opacity="0.4" Background="#252C36" BorderBrush="#465366" BorderThickness="1" RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform><ScaleTransform x:Name="PackKeyScale"/></Border.RenderTransform>
+        <TextBlock x:Name="PackKeyText" Text="Ctrl + Alt + S" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
+       </Border>
+       <Border x:Name="PackPaste" Canvas.Left="154" Canvas.Top="172" Padding="9,4" CornerRadius="6" Opacity="0" Background="#252C36" BorderBrush="#465366" BorderThickness="1">
+        <TextBlock Text="Ctrl + V" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
+       </Border>
+      </Canvas>
+
+      <Canvas x:Name="SlideCanvas3" Width="500" Height="200" Visibility="Collapsed">
+       <Border Canvas.Left="30" Canvas.Top="20" Width="300" Height="160" CornerRadius="8" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1"/>
+       <Rectangle Canvas.Left="50" Canvas.Top="38" Width="110" Height="8" RadiusX="4" RadiusY="4" Fill="#2C3746"/>
+       <Rectangle Canvas.Left="50" Canvas.Top="54" Width="180" Height="8" RadiusX="4" RadiusY="4" Fill="#242E3B"/>
+       <Rectangle x:Name="NoteFrame" Canvas.Left="60" Canvas.Top="76" Width="0" Height="0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeDashArray="4 3"/>
+       <Border x:Name="NoteBadge" Canvas.Left="154" Canvas.Top="66" Width="20" Height="20" CornerRadius="10" Opacity="0" Background="{DynamicResource AccentBrush}" RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform><ScaleTransform x:Name="NoteBadgeScale" ScaleX="0.7" ScaleY="0.7"/></Border.RenderTransform>
+        <TextBlock Text="1" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+       </Border>
+       <Border x:Name="NotePill" Canvas.Left="60" Canvas.Top="140" Width="24" Height="20" CornerRadius="10" Opacity="0" Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+         <Rectangle x:Name="NotePillText" Width="0" Height="6" RadiusX="3" RadiusY="3" Fill="#EEF2F8" VerticalAlignment="Center"/>
+         <Rectangle x:Name="NoteCaret" Width="1" Height="11" Fill="#EEF2F8" VerticalAlignment="Center" Margin="3,0,0,0" Opacity="0"/>
+        </StackPanel>
+       </Border>
+       <Border Canvas.Left="356" Canvas.Top="20" Width="126" Height="160" CornerRadius="10" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
+        <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
+         <StackPanel x:Name="NoteChatLine1" Orientation="Horizontal" Opacity="0" Margin="0,0,0,10">
+          <Ellipse Width="12" Height="12" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+          <Rectangle Width="70" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="8,0,0,0"/>
+         </StackPanel>
+         <StackPanel x:Name="NoteChatLine2" Orientation="Horizontal" Opacity="0">
+          <Ellipse Width="12" Height="12" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+          <Rectangle Width="52" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="8,0,0,0"/>
+         </StackPanel>
+        </StackPanel>
+       </Border>
+      </Canvas>
+
+      <Canvas x:Name="SlideCanvas4" Width="500" Height="200" Visibility="Collapsed">
+       <Path Canvas.Left="70" Canvas.Top="76" Width="34" Height="38" Stretch="Uniform" Stroke="#8F9AAA" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+             Data="M2,4 L18,4 M7.5,4 L7.5,1.5 L12.5,1.5 L12.5,4 M4,4 L4,18 L16,18 L16,4 M8,7.5 L8,14.5 M12,7.5 L12,14.5" RenderTransformOrigin="0.5,0.5">
+        <Path.RenderTransform><ScaleTransform x:Name="LifeTrashScale"/></Path.RenderTransform>
+       </Path>
+       <Path x:Name="LifeTrashHot" Canvas.Left="70" Canvas.Top="76" Width="34" Height="38" Stretch="Uniform" Opacity="0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+             Data="M2,4 L18,4 M7.5,4 L7.5,1.5 L12.5,1.5 L12.5,4 M4,4 L4,18 L16,18 L16,4 M8,7.5 L8,14.5 M12,7.5 L12,14.5" RenderTransformOrigin="0.5,0.5">
+        <Path.RenderTransform><ScaleTransform x:Name="LifeTrashHotScale"/></Path.RenderTransform>
+       </Path>
+       <Canvas x:Name="LifeCards" Width="500" Height="200">
+        <Canvas.RenderTransform><TranslateTransform x:Name="LifeCardsMove"/></Canvas.RenderTransform>
+        <Border x:Name="LifeCard1" Canvas.Left="180" Canvas.Top="24" Width="120" Height="48" CornerRadius="8" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+          <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+           <TextBlock Text="A" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <Rectangle Width="60" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="10,0,0,0"/>
+         </StackPanel>
+        </Border>
+        <Border x:Name="LifeCard2" Canvas.Left="180" Canvas.Top="58" Width="120" Height="48" CornerRadius="8" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+          <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+           <TextBlock Text="B" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <Rectangle Width="60" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="10,0,0,0"/>
+         </StackPanel>
+        </Border>
+        <Border Canvas.Left="180" Canvas.Top="92" Width="120" Height="48" CornerRadius="8" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+          <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+           <TextBlock Text="C" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <Rectangle Width="60" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="10,0,0,0"/>
+         </StackPanel>
+        </Border>
+        <Border x:Name="LifeNewCard" Canvas.Left="180" Canvas.Top="126" Width="120" Height="48" CornerRadius="8" Opacity="0" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+         <Border.RenderTransform><TranslateTransform x:Name="LifeNewMove" Y="-40"/></Border.RenderTransform>
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+          <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+           <TextBlock Text="D" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <Rectangle Width="60" Height="6" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center" Margin="10,0,0,0"/>
+         </StackPanel>
+        </Border>
+        <Canvas x:Name="LifeSent" Width="500" Height="200" Opacity="0">
+         <Path Canvas.Left="276" Canvas.Top="42" Data="M0,4 L4,8 L11,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+         <Path Canvas.Left="276" Canvas.Top="76" Data="M0,4 L4,8 L11,0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+        </Canvas>
+       </Canvas>
+       <Border Canvas.Left="356" Canvas.Top="60" Width="120" Height="80" CornerRadius="10" Opacity="0.5" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
+        <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
+         <Rectangle Width="66" Height="6" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+         <Rectangle Width="88" Height="6" RadiusX="3" RadiusY="3" Fill="#242E3B" HorizontalAlignment="Left"/>
+        </StackPanel>
+       </Border>
+      </Canvas>
+     </Grid>
+    </Viewbox>
+   </Border>
+   <Button x:Name="PreviousSlideButton" Style="{StaticResource SlideIconButton}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-34,0,0,0"
+           Click="OnPreviousSlide" ToolTip="Предыдущий слайд">
+    <Path Data="M6,1 L1,6 L6,11" Stroke="#EEF2F8" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+   </Button>
+   <Button x:Name="NextSlideButton" Style="{StaticResource SlideIconButton}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-34,0"
+           Click="OnNextSlide" ToolTip="Следующий слайд">
+    <Path Data="M1,1 L6,6 L1,11" Stroke="#EEF2F8" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+   </Button>
+  </Grid>
+
+  <Grid Height="24" Margin="0,14,0,0">
+   <Grid x:Name="SlideCaptions1">
+    <TextBlock x:Name="HintCaption1" Style="{StaticResource SlideCaption}" Text="Нажми клавишу" Opacity="1"/>
+    <TextBlock x:Name="HintCaption2" Style="{StaticResource SlideCaption}" Text="Выдели область"/>
+    <TextBlock x:Name="HintCaption3" Style="{StaticResource SlideCaption}" Text="Добавь комментарии"/>
+    <TextBlock x:Name="HintCaption4" Style="{StaticResource SlideCaption}" Text="Вставь в чат: Ctrl+V"/>
+   </Grid>
+   <Grid x:Name="SlideCaptions2" Visibility="Collapsed">
+    <TextBlock x:Name="PackCaption1" Style="{StaticResource SlideCaption}" Text="Первый снимок" Opacity="1"/>
+    <TextBlock x:Name="PackCaption2" Style="{StaticResource SlideCaption}" Text="Ещё снимок"/>
+    <TextBlock x:Name="PackCaption3" Style="{StaticResource SlideCaption}" Text="До 10 снимков в ленте"/>
+    <TextBlock x:Name="PackCaption4" Style="{StaticResource SlideCaption}" Text="Один Ctrl+V отправляет все"/>
+   </Grid>
+   <Grid x:Name="SlideCaptions3" Visibility="Collapsed">
+    <TextBlock x:Name="NoteCaption1" Style="{StaticResource SlideCaption}" Text="Обведи место" Opacity="1"/>
+    <TextBlock x:Name="NoteCaption2" Style="{StaticResource SlideCaption}" Text="Поставь отметку"/>
+    <TextBlock x:Name="NoteCaption3" Style="{StaticResource SlideCaption}" Text="Напиши, что не так"/>
+    <TextBlock x:Name="NoteCaption4" Style="{StaticResource SlideCaption}" Text="В чат уходит текст с номерами"/>
+   </Grid>
+   <Grid x:Name="SlideCaptions4" Visibility="Collapsed">
+    <TextBlock x:Name="LifeCaption1" Style="{StaticResource SlideCaption}" Text="Снимки остаются в ленте" Opacity="1"/>
+    <TextBlock x:Name="LifeCaption2" Style="{StaticResource SlideCaption}" Text="Отправленные помечены"/>
+    <TextBlock x:Name="LifeCaption3" Style="{StaticResource SlideCaption}" Text="Новый снимок снова яркий"/>
+    <TextBlock x:Name="LifeCaption4" Style="{StaticResource SlideCaption}" Text="«Очистить», когда закончил"/>
+   </Grid>
+  </Grid>
+
+  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+   <Button x:Name="Dot1" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark1" Width="7" Height="7" Fill="#46505E"/></Button>
+   <Button x:Name="Dot2" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark2" Width="7" Height="7" Fill="#46505E"/></Button>
+   <Button x:Name="Dot3" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark3" Width="7" Height="7" Fill="#46505E"/></Button>
+   <Button x:Name="Dot4" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark4" Width="7" Height="7" Fill="#46505E"/></Button>
+  </StackPanel>
+ </StackPanel>
+</UserControl>

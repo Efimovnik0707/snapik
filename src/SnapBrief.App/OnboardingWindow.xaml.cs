@@ -1,13 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 
 namespace SnapBrief.App;
 
@@ -20,14 +17,13 @@ namespace SnapBrief.App;
 public partial class OnboardingWindow : Window
 {
     /// <summary>Bumping this shows the wizard again to everyone who has already seen the older one.</summary>
-    internal const int CurrentVersion = 1;
+    internal const int CurrentVersion = 2;
     private const int StepCount = 4;
     private readonly HotkeySettings _settings;
-    private readonly Storyboard _hint;
+    // The tray opens the slides alone: no language, no shortcut, no steps, one "Done" button.
+    private readonly bool _howToOnly;
     private string _appliedCaptureId;
     private string _language;
-    private bool _hintRunning;
-    private bool _hintApplied;
     private int _step;
 
     /// <summary>
@@ -46,22 +42,21 @@ public partial class OnboardingWindow : Window
     /// <summary>Writes a line into the startup log; the wizard has no log of its own.</summary>
     public Action<string>? Trace { get; init; }
 
-    public OnboardingWindow(HotkeySettings settings)
+    public OnboardingWindow(HotkeySettings settings, bool howToOnly = false)
     {
         _settings = settings;
+        _howToOnly = howToOnly;
         _appliedCaptureId = settings.CaptureId;
         _language = SuggestedLanguage(settings);
         InitializeComponent();
-        _hint = (Storyboard)FindResource("HintLoop");
         CaptureField.HotkeyId = settings.CaptureId;
-        CaptureField.HotkeyChanged += (_, _) => { ErrorText.Visibility = Visibility.Collapsed; HintKeyText.Text = HotkeySettings.Find(CaptureField.HotkeyId).Label; };
-        HintKeyText.Text = HotkeySettings.Find(settings.CaptureId).Label;
-        RussianCard.IsChecked = _language == "ru";
-        EnglishCard.IsChecked = _language == "en";
-        RussianCard.Checked += (_, _) => SelectLanguage("ru");
-        EnglishCard.Checked += (_, _) => SelectLanguage("en");
+        CaptureField.HotkeyChanged += (_, _) => { ErrorText.Visibility = Visibility.Collapsed; HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label; };
+        HowTo.KeyLabel = HotkeySettings.Find(settings.CaptureId).Label;
+        RussianSegment.Checked += (_, _) => SelectLanguage("ru");
+        EnglishSegment.Checked += (_, _) => SelectLanguage("en");
         LoadStartupState();
-        ShowStep(0);
+        if (howToOnly) StartButton.Content = "Готово";
+        ShowStep(howToOnly ? StepCount - 1 : 0);
         ApplyLanguage(_language);
         // Shown while the strip is still hidden: without this the wizard can open behind the window
         // the user was working in.
@@ -73,13 +68,7 @@ public partial class OnboardingWindow : Window
     // stopping it is not enough, the clock it left on this window has to be removed as well.
     protected override void OnClosed(EventArgs e)
     {
-        if (_hintApplied)
-        {
-            _hint.Stop(this);
-            _hint.Remove(this);
-            _hintApplied = false;
-            _hintRunning = false;
-        }
+        HowTo.Stop();
         MarkPassed?.Invoke();
         base.OnClosed(e);
     }
@@ -91,9 +80,10 @@ public partial class OnboardingWindow : Window
     internal static bool ShouldShowOnboarding(bool settingsFileExists, HotkeySettings settings, bool demo) =>
         !demo && (!settingsFileExists || settings.OnboardingVersion < CurrentVersion);
 
-    /// <summary>The languages of the neighbouring alphabet suggest Russian, everything else English.</summary>
+    /// <summary>A Russian system gives Russian, every other locale gives English: the interface has
+    /// two languages, and a Ukrainian or Spanish user is not served by guessing Russian for them.</summary>
     internal static string LanguageForCulture(string twoLetterIsoLanguageName) =>
-        twoLetterIsoLanguageName is "ru" or "uk" or "be" ? "ru" : "en";
+        twoLetterIsoLanguageName == "ru" ? "ru" : "en";
 
     // A repeat run from the tray opens on what the user has chosen before; the first run guesses.
     private static string SuggestedLanguage(HotkeySettings settings) =>
@@ -104,12 +94,17 @@ public partial class OnboardingWindow : Window
     internal int Step => _step;
     internal string SelectedLanguage => _language;
 
-    // The step caption is built in code, so it is rebuilt every time the window is translated.
+    // The step caption is built in code, so it is rebuilt every time the window is translated. The
+    // switch in the header follows the language whoever calls this has chosen, including the guess
+    // made for the first run.
     internal void ApplyLanguage(string language)
     {
         _language = language;
+        RussianSegment.IsChecked = language == "ru";
+        EnglishSegment.IsChecked = language == "en";
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
+        HowTo.ApplyLanguage(language);
         RefreshStepCaption();
     }
 
@@ -134,9 +129,29 @@ public partial class OnboardingWindow : Window
         NextButton.IsDefault = !last;
         StartButton.IsDefault = last;
         RefreshStepCaption();
-        // The loop only runs while its step is on screen.
-        if (last && !_hintRunning) { _hint.Begin(this, true); _hintRunning = true; _hintApplied = true; }
-        else if (!last && _hintRunning) { _hint.Stop(this); _hintRunning = false; }
+        // The slides only run while their step is on screen.
+        if (last) HowTo.Start();
+        else HowTo.Stop();
+        if (!_howToOnly) return;
+        // Everything the tray does not need: the wizard is only the slides here, and its one button
+        // says "Done" instead of "Get started".
+        LanguageToggle.Visibility = Visibility.Collapsed;
+        BackButton.Visibility = Visibility.Collapsed;
+        NextButton.Visibility = Visibility.Collapsed;
+        StepText.Visibility = Visibility.Collapsed;
+    }
+
+    // Left and Right step through the slides while the last step is on screen; on the other steps
+    // they belong to whatever has the focus.
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (_step == StepCount - 1 && e.Key is Key.Left or Key.Right)
+        {
+            if (e.Key == Key.Left) HowTo.PreviousSlide();
+            else HowTo.NextSlide();
+            e.Handled = true;
+        }
+        base.OnPreviewKeyDown(e);
     }
 
     private void RefreshStepCaption() =>
@@ -199,7 +214,8 @@ public partial class OnboardingWindow : Window
 
     private void OnStart(object sender, RoutedEventArgs e)
     {
-        if (!Apply(CaptureField.HotkeyId) || !ApplyStartup()) return;
+        // Nothing was collected in the slides-only mode, so nothing is written back from it.
+        if (!_howToOnly && (!Apply(CaptureField.HotkeyId) || !ApplyStartup())) return;
         Close();
     }
 
@@ -208,43 +224,11 @@ public partial class OnboardingWindow : Window
     // user typed and left behind.
     private void OnSkip(object sender, RoutedEventArgs e)
     {
-        Apply(_appliedCaptureId);
+        if (!_howToOnly) Apply(_appliedCaptureId);
         Close();
     }
 
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
-
-    // Windows blocks pinning to the taskbar from an application, so the step explains the manual
-    // path and only opens the folder with the shortcut the user has to right-click.
-    private void OnShowShortcut(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{ShortcutPath()}\"") { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            ErrorText.Text = $"{UiLanguage.Text("Не удалось открыть папку с ярлыком", _language)}: {ex.Message}";
-            ErrorText.Visibility = Visibility.Visible;
-        }
-    }
-
-    // An installation for every user puts the shortcut into the common desktop and the common Start
-    // menu, so those are searched too; the executable itself is the last resort, and explorer selects
-    // it just as well.
-    internal static string ShortcutPath()
-    {
-        string[] candidates =
-        [
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "SnapBrief.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "SnapBrief", "SnapBrief.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "SnapBrief", "SnapBrief.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "SnapBrief.lnk")
-        ];
-        foreach (var candidate in candidates)
-            if (File.Exists(candidate)) return candidate;
-        return Environment.ProcessPath ?? candidates[0];
-    }
 
     // Smoke probe: the wizard is built, laid out, translated both ways and walked through every
     // step, so a broken template or a string without an English pair fails the run.
@@ -268,15 +252,15 @@ public partial class OnboardingWindow : Window
         return window;
     }
 
-    // The two language cards name the languages themselves and stay as they are in both languages,
-    // so they are the one part of the window the Cyrillic sweep skips.
+    // The two segments of the switch name the languages themselves and stay as they are in both
+    // languages, so they are the one part of the window the Cyrillic sweep skips.
     private static IEnumerable<string> WizardStrings(OnboardingWindow window)
     {
         var visited = new HashSet<DependencyObject>();
         var found = new List<string>();
         void Walk(DependencyObject item)
         {
-            if (ReferenceEquals(item, window.LanguageRow) || !visited.Add(item)) return;
+            if (ReferenceEquals(item, window.LanguageToggle) || !visited.Add(item)) return;
             if (item is FrameworkElement { ToolTip: string tip }) found.Add(tip);
             if (item is ContentControl { Content: string caption }) found.Add(caption);
             if (item is TextBlock text) found.Add(text.Text);

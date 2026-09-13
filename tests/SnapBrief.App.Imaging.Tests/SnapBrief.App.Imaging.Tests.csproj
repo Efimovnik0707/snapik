@@ -20,5 +20,6 @@
     <Compile Include="..\..\src\SnapBrief.App\PublishedPackage.cs" Link="PublishedPackage.cs" />
     <Compile Include="..\..\src\SnapBrief.App\SoundThrottle.cs" Link="SoundThrottle.cs" />
     <Compile Include="..\..\src\SnapBrief.App\SaveNaming.cs" Link="SaveNaming.cs" />
+    <Compile Include="..\..\src\SnapBrief.App\SettingsMigration.cs" Link="SettingsMigration.cs" />
   </ItemGroup>
 </Project>

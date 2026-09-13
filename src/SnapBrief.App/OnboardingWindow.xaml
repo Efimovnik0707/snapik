@@ -4,141 +4,173 @@
  WindowStartupLocation="CenterScreen" ShowInTaskbar="True" Topmost="True">
  <Window.Resources>
   <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#EEF2F8"/></Style>
-  <!-- Step 1 is a choice between two cards, not a combo box: it is the first thing a new user sees. -->
-  <Style x:Key="LanguageCard" TargetType="RadioButton">
-   <Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="Width" Value="250"/><Setter Property="Height" Value="104"/>
-   <Setter Property="Margin" Value="0,0,14,0"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+  <!-- One layout for every step: the same width, the same heading, the same buttons. The styles are
+       local to the wizard on purpose - the shared dictionary is the light theme, and this window is dark. -->
+  <Style x:Key="StepPanel" TargetType="StackPanel">
+   <Setter Property="Width" Value="360"/><Setter Property="HorizontalAlignment" Value="Center"/>
+   <Setter Property="VerticalAlignment" Value="Top"/><Setter Property="Margin" Value="0,4,0,0"/>
+  </Style>
+  <Style x:Key="StepTitle" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="21"/><Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,6"/>
+  </Style>
+  <Style x:Key="StepSubtitle" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#8F9AAA"/>
+   <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,20"/>
+  </Style>
+  <Style x:Key="StepBodyText" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#EEF2F8"/>
+   <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,10"/>
+  </Style>
+  <Style x:Key="WizardButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+   <Setter Property="Height" Value="34"/><Setter Property="MinHeight" Value="34"/><Setter Property="MinWidth" Value="96"/>
+   <Setter Property="Padding" Value="14,0"/><Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#EEF2F8"/>
+   <Setter Property="controls:ButtonChrome.HoverBackground" Value="#2A3240"/>
+   <Setter Property="controls:ButtonChrome.PressedBackground" Value="#20262F"/>
+  </Style>
+  <Style x:Key="WizardPrimaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+   <Setter Property="Height" Value="34"/><Setter Property="MinHeight" Value="34"/><Setter Property="MinWidth" Value="96"/>
+   <Setter Property="Padding" Value="14,0"/><Setter Property="FontSize" Value="13"/>
+  </Style>
+  <Style x:Key="WizardIconButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+   <Setter Property="Width" Value="28"/><Setter Property="Height" Value="28"/><Setter Property="MinWidth" Value="28"/>
+   <Setter Property="MinHeight" Value="28"/><Setter Property="Padding" Value="0"/>
+   <Setter Property="controls:ButtonChrome.HoverBackground" Value="#2A3240"/>
+   <Setter Property="controls:ButtonChrome.PressedBackground" Value="#20262F"/>
+  </Style>
+  <!-- The language is already chosen when the wizard opens, so it is a small segmented switch in the
+       corner and not a step of its own: the first screen is a welcome, the way every desktop app does it. -->
+  <Style x:Key="LanguageSegment" TargetType="RadioButton">
+   <Setter Property="Foreground" Value="#C6CEDA"/><Setter Property="Height" Value="26"/><Setter Property="MinWidth" Value="74"/>
+   <Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="12,0"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
-    <Border x:Name="Card" Background="#252B35" BorderBrush="#445064" BorderThickness="1" CornerRadius="12">
+    <Border x:Name="Seg" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
      <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
     </Border>
     <ControlTemplate.Triggers>
-     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#5C6879"/></Trigger>
-     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource FocusBrush}"/></Trigger>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Seg" Property="Background" Value="#2A3240"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Seg" Property="BorderBrush" Value="{DynamicResource FocusBrush}"/></Trigger>
      <Trigger Property="IsChecked" Value="True">
-      <Setter TargetName="Card" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
-      <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+      <Setter TargetName="Seg" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+      <Setter Property="Foreground" Value="#FFFFFF"/>
      </Trigger>
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
-  <!-- Four phases of 1.2 s over simple shapes: the key is pressed, the area is selected, a note
-       appears, the package goes into a chat. The captions under the drawing follow the same clock. -->
-  <Storyboard x:Key="HintLoop" RepeatBehavior="Forever" Duration="0:0:4.8">
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintKey" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.4"/><LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0.4"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintKeyScale" Storyboard.TargetProperty="ScaleY">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="0.8"/><LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Width">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.1" Value="150"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Height">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.1" Value="66"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintNote" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.9" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintPaste" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintArrow" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.7" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintChat" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.35"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0.35"/><LinearDoubleKeyFrame KeyTime="0:0:4" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption1" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption2" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption3" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption4" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-  </Storyboard>
  </Window.Resources>
  <Border Background="#171B22" BorderBrush="#354052" BorderThickness="1" CornerRadius="16" Padding="24">
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-   <Grid Margin="0,0,0,18" Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
-    <TextBlock Text="Знакомство со SnapBrief" FontSize="21" FontWeight="SemiBold" VerticalAlignment="Center"/>
-    <Button x:Name="SkipButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" HorizontalAlignment="Right" VerticalAlignment="Center" Width="28" Height="28" MinHeight="28" Padding="0" Click="OnSkip" ToolTip="Пропустить" AutomationProperties.Name="{local:UiText Пропустить}">
-     <Path Data="M0,0 L11,11 M11,0 L0,11" Stroke="#EEF2F8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-    </Button>
+   <!-- No window title of its own: the title of the step is the only heading of this size, and two of
+        them in one window compete. The header carries the language switch and the cross. -->
+   <Grid Height="28" Margin="0,0,0,18" Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+     <Border x:Name="LanguageToggle" CornerRadius="8" Background="#21262F" BorderBrush="#39424F" BorderThickness="1" Padding="2"
+             ToolTip="Язык интерфейса" AutomationProperties.Name="{local:UiText Язык интерфейса}">
+      <StackPanel Orientation="Horizontal">
+       <RadioButton x:Name="RussianSegment" Style="{StaticResource LanguageSegment}" GroupName="OnboardingLanguage" Content="Русский"/>
+       <RadioButton x:Name="EnglishSegment" Style="{StaticResource LanguageSegment}" GroupName="OnboardingLanguage" Content="English"/>
+      </StackPanel>
+     </Border>
+     <Button x:Name="SkipButton" Style="{StaticResource WizardIconButton}" Margin="8,0,0,0" VerticalAlignment="Center" Click="OnSkip" ToolTip="Пропустить" AutomationProperties.Name="{local:UiText Пропустить}">
+      <Path Data="M0,0 L11,11 M11,0 L0,11" Stroke="#EEF2F8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+     </Button>
+    </StackPanel>
    </Grid>
 
    <Grid Grid.Row="1">
-    <StackPanel x:Name="Step1">
-     <TextBlock Text="Выберите язык" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
-     <TextBlock Text="Интерфейс и подсказки будут на этом языке." Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,0,0,18"/>
-     <StackPanel x:Name="LanguageRow" Orientation="Horizontal">
-      <RadioButton x:Name="RussianCard" Style="{StaticResource LanguageCard}" GroupName="OnboardingLanguage" Content="Русский" FontSize="20"/>
-      <RadioButton x:Name="EnglishCard" Style="{StaticResource LanguageCard}" GroupName="OnboardingLanguage" Content="English" FontSize="20"/>
-     </StackPanel>
-    </StackPanel>
-
-    <StackPanel x:Name="Step2" Visibility="Collapsed">
-     <TextBlock Text="Клавиша для снимка" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
-     <TextBlock Text="Нажми на поле и введи своё сочетание" Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,0,0,18"/>
-     <controls:HotkeyField x:Name="CaptureField" Width="360" HorizontalAlignment="Left" AutomationProperties.Name="{local:UiText Клавиша для снимка}"/>
-    </StackPanel>
-
-    <StackPanel x:Name="Step3" Visibility="Collapsed">
-     <TextBlock Text="Запуск и панель задач" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,14"/>
-     <CheckBox x:Name="StartupBox" Content="{local:UiText Запускать с Windows}" Margin="0,0,0,22"/>
-     <!-- Shown only when the startup entry cannot be read or written: a checkbox that is grey for no
-          visible reason looks like a bug. -->
-     <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" Foreground="#8F9AAA" TextWrapping="Wrap" Visibility="Collapsed" Margin="24,-14,0,22"/>
-     <TextBlock Text="Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»" TextWrapping="Wrap" Margin="0,0,0,10"/>
-     <TextBlock Text="Повторный запуск ярлыка не открывает второе окно, а показывает ленту." Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,0,0,14"/>
-     <Button x:Name="ShortcutButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" HorizontalAlignment="Left" Padding="0" Foreground="{DynamicResource AccentTextBrush}" Content="Показать ярлык" Click="OnShowShortcut"/>
-    </StackPanel>
-
-    <StackPanel x:Name="Step4" Visibility="Collapsed">
-     <TextBlock Text="Как пользоваться" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
-     <Border Background="#12161D" BorderBrush="#2A3240" BorderThickness="1" CornerRadius="12" Height="212">
-      <Canvas x:Name="HintCanvas" Width="500" Height="200">
-       <Border Canvas.Left="26" Canvas.Top="22" Width="230" Height="140" CornerRadius="8" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1"/>
-       <Rectangle Canvas.Left="42" Canvas.Top="40" Width="90" Height="8" RadiusX="4" RadiusY="4" Fill="#2C3746"/>
-       <Rectangle Canvas.Left="42" Canvas.Top="56" Width="150" Height="8" RadiusX="4" RadiusY="4" Fill="#242E3B"/>
-       <Rectangle x:Name="HintSelection" Canvas.Left="66" Canvas.Top="72" Width="0" Height="0" Opacity="0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeDashArray="4 3"/>
-       <Border x:Name="HintNote" Canvas.Left="120" Canvas.Top="146" Padding="8,4" CornerRadius="9" Opacity="0" Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
-        <StackPanel Orientation="Horizontal">
-         <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0" Fill="{DynamicResource AccentBrush}"/>
-         <Rectangle Width="46" Height="5" RadiusX="2" RadiusY="2" Fill="#8F9AAA" VerticalAlignment="Center"/>
+    <StackPanel x:Name="Step1" Style="{StaticResource StepPanel}">
+     <TextBlock Text="Добро пожаловать" Style="{StaticResource StepTitle}"/>
+     <TextBlock Text="SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями." Style="{StaticResource StepSubtitle}"/>
+     <!-- The whole product in one static picture: a key, the capture it makes, the chat it lands in.
+          Shapes only, no bitmaps and no text, so it needs no translation and no assets. -->
+     <Viewbox Stretch="Uniform" Width="360" Height="115" HorizontalAlignment="Left">
+      <Canvas Width="500" Height="160">
+       <Border Canvas.Left="14" Canvas.Top="54" Width="96" Height="52" CornerRadius="10" Background="#252C36" BorderBrush="#465366" BorderThickness="1">
+        <Path Width="46" Height="30" Stretch="Uniform" Stroke="#9AA7B8" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+              Data="M1,2 L21,2 L21,15 L1,15 Z M4,5.5 L5,5.5 M8,5.5 L9,5.5 M12,5.5 L13,5.5 M16,5.5 L18,5.5 M4,9 L5,9 M8,9 L9,9 M12,9 L13,9 M16,9 L18,9 M7,12 L15,12"/>
+       </Border>
+       <Path Canvas.Left="124" Canvas.Top="72" Data="M0,8 L38,8 M30,2 L38,8 L30,14" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+       <Border Canvas.Left="178" Canvas.Top="34" Width="144" Height="92" CornerRadius="10" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
+        <StackPanel Margin="14,14,0,0">
+         <Rectangle Width="84" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+         <Rectangle Width="66" Height="26" RadiusX="4" RadiusY="4" HorizontalAlignment="Left" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeDashArray="4 3"/>
         </StackPanel>
        </Border>
-       <Border x:Name="HintKey" Canvas.Left="26" Canvas.Top="172" Padding="9,4" CornerRadius="6" Opacity="0.4" Background="#252C36" BorderBrush="#465366" BorderThickness="1" RenderTransformOrigin="0.5,0.5">
-        <Border.RenderTransform><ScaleTransform x:Name="HintKeyScale"/></Border.RenderTransform>
-        <TextBlock x:Name="HintKeyText" Text="Ctrl + Alt + S" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
-       </Border>
-       <Path x:Name="HintArrow" Canvas.Left="266" Canvas.Top="80" Opacity="0" Data="M0,12 L48,12 M38,5 L48,12 L38,19" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-       <Border x:Name="HintPaste" Canvas.Left="286" Canvas.Top="34" Padding="9,4" CornerRadius="6" Opacity="0" Background="#252C36" BorderBrush="#465366" BorderThickness="1">
-        <TextBlock Text="Ctrl + V" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
-       </Border>
-       <Border x:Name="HintChat" Canvas.Left="330" Canvas.Top="70" Width="144" Height="58" CornerRadius="10" Opacity="0.35" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
+       <Path Canvas.Left="336" Canvas.Top="72" Data="M0,8 L38,8 M30,2 L38,8 L30,14" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+       <Border Canvas.Left="390" Canvas.Top="44" Width="96" Height="72" CornerRadius="10" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
         <StackPanel VerticalAlignment="Center" Margin="12,0,0,0">
-         <Rectangle Width="76" Height="6" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,7"/>
-         <Rectangle Width="106" Height="6" RadiusX="3" RadiusY="3" Fill="#242E3B" HorizontalAlignment="Left"/>
+         <Rectangle Width="56" Height="6" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,7"/>
+         <Border Width="66" Height="20" CornerRadius="8" HorizontalAlignment="Left" Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"/>
         </StackPanel>
        </Border>
       </Canvas>
-     </Border>
-     <Grid Height="24" Margin="0,14,0,0">
-      <TextBlock x:Name="HintCaption1" Text="Нажми клавишу" FontSize="14" HorizontalAlignment="Center"/>
-      <TextBlock x:Name="HintCaption2" Text="Выдели область" FontSize="14" HorizontalAlignment="Center" Opacity="0"/>
-      <TextBlock x:Name="HintCaption3" Text="Добавь комментарии" FontSize="14" HorizontalAlignment="Center" Opacity="0"/>
-      <TextBlock x:Name="HintCaption4" Text="Вставь в чат: Ctrl+V" FontSize="14" HorizontalAlignment="Center" Opacity="0"/>
-     </Grid>
+     </Viewbox>
+    </StackPanel>
+
+    <StackPanel x:Name="Step2" Style="{StaticResource StepPanel}" Visibility="Collapsed">
+     <TextBlock Text="Клавиша для снимка" Style="{StaticResource StepTitle}"/>
+     <TextBlock Text="Нажми на поле и введи своё сочетание" Style="{StaticResource StepSubtitle}"/>
+     <controls:HotkeyField x:Name="CaptureField" Width="360" HorizontalAlignment="Left" AutomationProperties.Name="{local:UiText Клавиша для снимка}"/>
+    </StackPanel>
+
+    <StackPanel x:Name="Step3" Style="{StaticResource StepPanel}" Visibility="Collapsed">
+     <TextBlock Text="Запуск и панель задач" Style="{StaticResource StepTitle}"/>
+     <CheckBox x:Name="StartupBox" Content="{local:UiText Запускать с Windows}" Margin="0,0,0,22"/>
+     <!-- Shown only when the startup entry cannot be read or written: a checkbox that is grey for no
+          visible reason looks like a bug. -->
+     <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" Style="{StaticResource StepSubtitle}" Visibility="Collapsed" Margin="24,-14,0,20"/>
+     <!-- Windows does not let an application pin itself to the taskbar, so the step shows the manual
+          path instead of opening a folder: Start, right-click on SnapBrief, "Pin to taskbar". Shapes
+          only, no bitmaps, and no animation - the moving picture lives on the next step. -->
+     <Viewbox Stretch="Uniform" Width="360" Height="132" HorizontalAlignment="Left" Margin="0,0,0,16">
+      <Canvas Width="360" Height="132">
+       <Rectangle Canvas.Left="0" Canvas.Top="108" Width="360" Height="24" RadiusX="6" RadiusY="6" Fill="#1B212B"/>
+       <Rectangle Canvas.Left="118" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
+       <Rectangle Canvas.Left="140" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
+       <Rectangle Canvas.Left="162" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
+       <Rectangle Canvas.Left="14" Canvas.Top="113" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
+       <Rectangle Canvas.Left="24" Canvas.Top="113" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
+       <Rectangle Canvas.Left="14" Canvas.Top="123" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
+       <Rectangle Canvas.Left="24" Canvas.Top="123" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
+       <Border Canvas.Left="8" Canvas.Top="8" Width="176" Height="96" CornerRadius="10" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
+        <StackPanel Margin="12,10,0,0">
+         <Rectangle Width="96" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+         <Border Height="22" Width="148" CornerRadius="5" HorizontalAlignment="Left" Background="{DynamicResource AccentSoftBrush}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="7,0,0,0">
+           <Ellipse Width="10" Height="10" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+           <Rectangle Width="70" Height="7" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center"/>
+          </StackPanel>
+         </Border>
+         <Rectangle Width="82" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+        </StackPanel>
+       </Border>
+       <Border Canvas.Left="150" Canvas.Top="34" Width="184" Height="70" CornerRadius="8" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+        <StackPanel Margin="6,5,6,0">
+         <Rectangle Width="104" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="6,6,0,7"/>
+         <Border Height="20" CornerRadius="4" Background="#2E3A49">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
+           <Path Width="11" Height="13" Stretch="Uniform" Fill="#EEF2F8" VerticalAlignment="Center" Margin="0,0,6,0"
+                 Data="M3,0 L9,0 L8,1.6 L8,5 L11,7.6 L11,8.8 L6.6,8.8 L6.6,13 L5.4,13 L5.4,8.8 L1,8.8 L1,7.6 L4,5 L4,1.6 Z"/>
+           <TextBlock Text="Закрепить на панели задач" FontSize="10" Foreground="#EEF2F8" VerticalAlignment="Center"/>
+          </StackPanel>
+         </Border>
+         <Rectangle Width="88" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="6,7,0,0"/>
+        </StackPanel>
+       </Border>
+       <Ellipse Canvas.Left="146" Canvas.Top="56" Width="9" Height="9" Fill="{DynamicResource AccentBrush}" Opacity="0.9"/>
+       <Path Canvas.Left="142" Canvas.Top="52" Fill="#EEF2F8" Stroke="#171B22" StrokeThickness="1" Data="M0,0 L0,13 L3.2,10 L5.2,14 L7.2,13 L5.2,9.2 L9.4,9.2 Z"/>
+      </Canvas>
+     </Viewbox>
+     <TextBlock Text="Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»" Style="{StaticResource StepBodyText}"/>
+     <TextBlock Text="Повторный запуск ярлыка не открывает второе окно, а показывает ленту." Style="{StaticResource StepSubtitle}"/>
+    </StackPanel>
+
+    <StackPanel x:Name="Step4" Style="{StaticResource StepPanel}" Visibility="Collapsed">
+     <TextBlock Text="Как пользоваться" Style="{StaticResource StepTitle}"/>
+     <!-- Four slides, their dots and their chevrons live in a control of their own: the tray opens
+          the same slides without the rest of the wizard. -->
+     <controls:HowToSlides x:Name="HowTo"/>
     </StackPanel>
    </Grid>
 
@@ -146,9 +178,9 @@
    <Grid Grid.Row="3" Margin="0,16,0,0">
     <TextBlock x:Name="StepText" Foreground="#8F9AAA" VerticalAlignment="Center"/>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-     <Button x:Name="BackButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" Foreground="White" Margin="0,0,8,0" Content="Назад" Click="OnBack"/>
-     <Button x:Name="NextButton" Style="{StaticResource PrimaryButton}" Content="Далее" Click="OnNext"/>
-     <Button x:Name="StartButton" Style="{StaticResource PrimaryButton}" Visibility="Collapsed" Content="Начать" Click="OnStart"/>
+     <Button x:Name="BackButton" Style="{StaticResource WizardButton}" Margin="0,0,8,0" Content="Назад" Click="OnBack"/>
+     <Button x:Name="NextButton" Style="{StaticResource WizardPrimaryButton}" Content="Далее" Click="OnNext"/>
+     <Button x:Name="StartButton" Style="{StaticResource WizardPrimaryButton}" Visibility="Collapsed" Content="Начать" Click="OnStart"/>
     </StackPanel>
    </Grid>
   </Grid>

@@ -24,7 +24,9 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public bool AutoSaveCaptures { get; init; }
     public bool PlaySounds { get; init; } = true;
     /// <summary>How loud the interface sounds are, 0..100; each sound keeps its own gain on top.</summary>
-    public int SoundVolume { get; init; } = 60;
+    public int SoundVolume { get; init; } = SettingsMigration.DefaultSoundVolume;
+    /// <summary>The schema version of this file; 0 is a file written before versions existed.</summary>
+    public int SettingsVersion { get; init; }
     public bool StackTopmost { get; init; } = true;
     /// <summary>The width of the strip window in pixels; the visible card is 20 px narrower.</summary>
     public double StackWidth { get; init; } = Controls.StripResizeGeometry.DefaultWidth;
@@ -63,7 +65,26 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     // settings.json, and this one is a fallback, not a preference of its own.
     public string PackageDirectory() => string.IsNullOrWhiteSpace(PackageSaveDirectory) ? SaveDirectory : PackageSaveDirectory;
 
-    public static HotkeySettings Default { get; } = new("ctrl-alt-s", "ctrl-alt-v");
+    /// <summary>The version every file written by this build carries; see <see cref="Migrate"/>.</summary>
+    public const int CurrentSettingsVersion = SettingsMigration.CurrentVersion;
+
+    // The defaults are the source of every settings object the application builds, so they carry the
+    // current version: a file this build wrote is never migrated again.
+    public static HotkeySettings Default { get; } = new("ctrl-alt-s", "ctrl-alt-v") { SettingsVersion = CurrentSettingsVersion };
+
+    /// <summary>
+    /// Brings a file written by an older build up to the current version. Today it is one rule: the
+    /// volume that used to be the default becomes the new one, and anything the user picked is left
+    /// alone. Applied while loading, and written back once, so it cannot run on every start.
+    /// </summary>
+    internal static HotkeySettings Migrate(HotkeySettings stored) =>
+        SettingsMigration.NeedsMigration(stored.SettingsVersion)
+            ? stored with
+            {
+                SoundVolume = SettingsMigration.SoundVolume(stored.SettingsVersion, stored.SoundVolume),
+                SettingsVersion = CurrentSettingsVersion
+            }
+            : stored;
     public static IReadOnlyList<HotkeyChoice> Choices { get; } =
     [
         new("ctrl-alt-s", "Ctrl + Alt + S", new(HotkeyModifiers.Control | HotkeyModifiers.Alt | HotkeyModifiers.NoRepeat, 0x53)),
@@ -96,7 +117,12 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
             if (JsonSerializer.Deserialize<HotkeySettings>(content) is not { } stored) return false;
             // JSON without the hotkey ids builds a record with empty ones, and every Find over them would fail.
             if (string.IsNullOrEmpty(stored.CaptureId) || string.IsNullOrEmpty(stored.PasteId)) return false;
-            settings = stored;
+            settings = Migrate(stored);
+            if (settings != stored)
+            {
+                try { settings.Save(path); }
+                catch { /* A file that cannot be written is still a file that can be read from. */ }
+            }
             return true;
         }
         catch { return false; }

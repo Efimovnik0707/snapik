@@ -34,13 +34,16 @@ public static class SmokeTestRunner
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationShape = "ellipse", AnnotationFill = "translucent",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
-            Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion
+            Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion,
+            SettingsVersion = HotkeySettings.CurrentSettingsVersion
         };
         customSettings.Save(customSettingsPath);
         var restoredSettings = HotkeySettings.Load(customSettingsPath);
         if (restoredSettings != customSettings || restoredSettings.FullscreenSaveGesture.VirtualKey != 44 ||
-            restoredSettings.OnboardingVersion != OnboardingWindow.CurrentVersion)
+            restoredSettings.OnboardingVersion != OnboardingWindow.CurrentVersion ||
+            restoredSettings.SettingsVersion != HotkeySettings.CurrentSettingsVersion)
             throw new InvalidOperationException("Local capture preferences did not survive a settings round trip.");
+        VerifySoundDefaults(root);
         // The wizard is shown once per version: never seen (no file, or an older version) opens it,
         // the current version does not, and a demo run never does.
         if (!OnboardingWindow.ShouldShowOnboarding(false, HotkeySettings.Default, false) ||
@@ -48,8 +51,11 @@ public static class SmokeTestRunner
             OnboardingWindow.ShouldShowOnboarding(true, restoredSettings, false) ||
             OnboardingWindow.ShouldShowOnboarding(false, HotkeySettings.Default, true))
             throw new InvalidOperationException("The first run wizard is shown once per version, and never in a demo run.");
-        if (OnboardingWindow.LanguageForCulture("uk") != "ru" || OnboardingWindow.LanguageForCulture("be") != "ru" ||
-            OnboardingWindow.LanguageForCulture("ru") != "ru" || OnboardingWindow.LanguageForCulture("es") != "en")
+        // Two languages, one rule: Russian for a Russian system, English for every other locale. The
+        // neighbouring alphabets used to be sent to Russian, which is what a Ukrainian tester got.
+        if (OnboardingWindow.LanguageForCulture("ru") != "ru" || OnboardingWindow.LanguageForCulture("uk") != "en" ||
+            OnboardingWindow.LanguageForCulture("be") != "en" || OnboardingWindow.LanguageForCulture("es") != "en" ||
+            OnboardingWindow.LanguageForCulture("en") != "en")
             throw new InvalidOperationException("The suggested language must follow the system locale.");
         if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
             OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
@@ -159,7 +165,7 @@ public static class SmokeTestRunner
         if (onboarding.Step != 0 || onboarding.SelectedLanguage != "ru" ||
             onboarding.Step1.Visibility != Visibility.Visible || onboarding.Step4.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("The wizard must come back to its first step after the probe.");
-        if (onboarding.HintKeyText.Text != HotkeySettings.Find(restoredSettings.CaptureId).Label ||
+        if (onboarding.HowTo.KeyLabel != HotkeySettings.Find(restoredSettings.CaptureId).Label ||
             onboarding.CaptureField.HotkeyId != restoredSettings.CaptureId)
             throw new InvalidOperationException("The wizard must open on the shortcut the settings hold, and the hint must show it.");
         onboarding.GoToStep(3);
@@ -170,6 +176,8 @@ public static class SmokeTestRunner
         onboarding.Close();
         // Whatever closes the window (here: nothing but Close itself, as Alt+F4 or the taskbar would
         // do) has to leave the wizard marked as passed, or the first run comes back on every start.
+        WithoutBindingErrors("The how-to slides", Controls.HowToSlides.RunSlidesProbe);
+        VerifyHowToOnlyWizard(restoredSettings);
         var closedWithoutButtons = false;
         var skipped = new OnboardingWindow(restoredSettings) { MarkPassed = () => closedWithoutButtons = true };
         skipped.Close();
@@ -195,6 +203,7 @@ public static class SmokeTestRunner
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");
+        VerifyWizardTranslations();
         if (restoredSettings.CaptureGesture.VirtualKey != 75 ||
             restoredSettings.CaptureGesture.Modifiers != (SnapBrief.Windows.HotkeyModifiers.Control | SnapBrief.Windows.HotkeyModifiers.Shift | SnapBrief.Windows.HotkeyModifiers.NoRepeat) ||
             HotkeySettings.Find("print-screen").Gesture.VirtualKey != 0x2C ||
@@ -439,6 +448,72 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("Discarding a session must take its directory and the pointer with it.");
         if (workspace.SessionId == discardedId || (await new SessionWorkspace(probeRoot).LoadCurrentAsync()).Count != 0)
             throw new InvalidOperationException("A discarded session must be replaced by an empty one.");
+    }
+
+    // One capture, one soft shutter: the quieter default and the file that goes with it. The volume
+    // of a file written before versions existed is moved once, and only if it is the old default.
+    private static void VerifySoundDefaults(string root)
+    {
+        if (HotkeySettings.Default.SoundVolume != 40)
+            throw new InvalidOperationException("A machine that has never chosen must get the quiet default volume.");
+        var loudPath = Path.Combine(root, "loud-settings-smoke.json");
+        (HotkeySettings.Default with { SoundVolume = 60, SettingsVersion = 0 }).Save(loudPath);
+        var migrated = HotkeySettings.Load(loudPath);
+        var kept = HotkeySettings.Load(loudPath);
+        var pickedPath = Path.Combine(root, "picked-settings-smoke.json");
+        (HotkeySettings.Default with { SoundVolume = 75, SettingsVersion = 0 }).Save(pickedPath);
+        var picked = HotkeySettings.Load(pickedPath);
+        if (migrated.SoundVolume != 40 || migrated.SettingsVersion != HotkeySettings.CurrentSettingsVersion ||
+            kept.SoundVolume != 40 || picked.SoundVolume != 75 ||
+            picked.SettingsVersion != HotkeySettings.CurrentSettingsVersion)
+            throw new InvalidOperationException("The volume migration must move the old default once and leave a chosen value alone.");
+        // The sound that was replaced must not survive next to the assembly, or the installer would
+        // ship both and the old shutter would still be the one on disk.
+        if (File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "Audio", "shutter-2-050s.mp3")))
+            throw new InvalidOperationException("The shutter that was replaced is still shipped next to the assembly.");
+    }
+
+    // The tray opens the how-to slides on their own: the last step and nothing else, one button, and
+    // no language switch — the language lives in the settings by then.
+    private static void VerifyHowToOnlyWizard(HotkeySettings settings)
+    {
+        var wizard = WithoutBindingErrors("The how-to wizard", () =>
+        {
+            var window = new OnboardingWindow(settings, howToOnly: true);
+            window.Measure(new Size(620, 600));
+            window.Arrange(new Rect(0, 0, 620, 600));
+            window.UpdateLayout();
+            return window;
+        });
+        var hidden = wizard.Step1.Visibility != Visibility.Visible && wizard.Step2.Visibility != Visibility.Visible &&
+            wizard.Step3.Visibility != Visibility.Visible && wizard.LanguageToggle.Visibility != Visibility.Visible &&
+            wizard.BackButton.Visibility != Visibility.Visible && wizard.NextButton.Visibility != Visibility.Visible &&
+            wizard.StepText.Visibility != Visibility.Visible;
+        var shown = wizard.Step4.Visibility == Visibility.Visible && wizard.StartButton.Visibility == Visibility.Visible &&
+            wizard.HowTo.Slide == 0;
+        wizard.Close();
+        if (!hidden || !shown)
+            throw new InvalidOperationException("The slides-only wizard must show the last step and hide the steps, the switch and the buttons.");
+    }
+
+    // The strings of the welcome step, and the rule that lets any of them travel back: the way from
+    // English to Russian is a search by value, so two Russian keys sharing one English value would
+    // send the wrong Russian string back.
+    private static void VerifyWizardTranslations()
+    {
+        foreach (var (russian, english) in new[]
+        {
+            ("Добро пожаловать", "Welcome"), ("Язык интерфейса", "Interface language"),
+            ("Первый снимок", "The first capture"), ("Обведи место", "Frame the spot"),
+            ("Снимки остаются в ленте", "The captures stay in the strip"), ("Слайд {0} из {1}", "Slide {0} of {1}"),
+            ("SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями.",
+                "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.")
+        })
+            if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
+                throw new InvalidOperationException($"The wizard is not translated both ways for \"{russian}\".");
+        var duplicate = UiLanguage.EnglishValues.GroupBy(value => value, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+            throw new InvalidOperationException($"Two Russian strings share the English value \"{duplicate.Key}\", so one of them cannot come back.");
     }
 
     // A binding that cannot resolve its path is not an exception: WPF writes it to the trace and
