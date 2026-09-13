@@ -47,8 +47,11 @@ public static class SmokeTestRunner
             OnboardingWindow.ShouldShowOnboarding(true, restoredSettings, false) ||
             OnboardingWindow.ShouldShowOnboarding(false, HotkeySettings.Default, true))
             throw new InvalidOperationException("The first run wizard is shown once per version, and never in a demo run.");
-        if (OnboardingWindow.LanguageForCulture("uk") != "ru" || OnboardingWindow.LanguageForCulture("be") != "ru" ||
-            OnboardingWindow.LanguageForCulture("ru") != "ru" || OnboardingWindow.LanguageForCulture("es") != "en")
+        // Two languages, one rule: Russian for a Russian system, English for every other locale. The
+        // neighbouring alphabets used to be sent to Russian, which is what a Ukrainian tester got.
+        if (OnboardingWindow.LanguageForCulture("ru") != "ru" || OnboardingWindow.LanguageForCulture("uk") != "en" ||
+            OnboardingWindow.LanguageForCulture("be") != "en" || OnboardingWindow.LanguageForCulture("es") != "en" ||
+            OnboardingWindow.LanguageForCulture("en") != "en")
             throw new InvalidOperationException("The suggested language must follow the system locale.");
         if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
             OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
@@ -189,6 +192,7 @@ public static class SmokeTestRunner
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");
+        VerifyWizardTranslations();
         if (restoredSettings.CaptureGesture.VirtualKey != 75 ||
             restoredSettings.CaptureGesture.Modifiers != (SnapBrief.Windows.HotkeyModifiers.Control | SnapBrief.Windows.HotkeyModifiers.Shift | SnapBrief.Windows.HotkeyModifiers.NoRepeat) ||
             HotkeySettings.Find("print-screen").Gesture.VirtualKey != 0x2C ||
@@ -389,6 +393,24 @@ public static class SmokeTestRunner
         Directory.CreateDirectory(root);
         await File.WriteAllTextAsync(Path.Combine(root, "smoke-test-result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         return success;
+    }
+
+    // The strings of the welcome step, and the rule that lets any of them travel back: the way from
+    // English to Russian is a search by value, so two Russian keys sharing one English value would
+    // send the wrong Russian string back.
+    private static void VerifyWizardTranslations()
+    {
+        foreach (var (russian, english) in new[]
+        {
+            ("Добро пожаловать", "Welcome"), ("Язык интерфейса", "Interface language"),
+            ("SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями.",
+                "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.")
+        })
+            if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
+                throw new InvalidOperationException($"The wizard is not translated both ways for \"{russian}\".");
+        var duplicate = UiLanguage.EnglishValues.GroupBy(value => value, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+            throw new InvalidOperationException($"Two Russian strings share the English value \"{duplicate.Key}\", so one of them cannot come back.");
     }
 
     // A binding that cannot resolve its path is not an exception: WPF writes it to the trace and

@@ -56,10 +56,8 @@ public partial class OnboardingWindow : Window
         CaptureField.HotkeyId = settings.CaptureId;
         CaptureField.HotkeyChanged += (_, _) => { ErrorText.Visibility = Visibility.Collapsed; HintKeyText.Text = HotkeySettings.Find(CaptureField.HotkeyId).Label; };
         HintKeyText.Text = HotkeySettings.Find(settings.CaptureId).Label;
-        RussianCard.IsChecked = _language == "ru";
-        EnglishCard.IsChecked = _language == "en";
-        RussianCard.Checked += (_, _) => SelectLanguage("ru");
-        EnglishCard.Checked += (_, _) => SelectLanguage("en");
+        RussianSegment.Checked += (_, _) => SelectLanguage("ru");
+        EnglishSegment.Checked += (_, _) => SelectLanguage("en");
         LoadStartupState();
         ShowStep(0);
         ApplyLanguage(_language);
@@ -91,9 +89,10 @@ public partial class OnboardingWindow : Window
     internal static bool ShouldShowOnboarding(bool settingsFileExists, HotkeySettings settings, bool demo) =>
         !demo && (!settingsFileExists || settings.OnboardingVersion < CurrentVersion);
 
-    /// <summary>The languages of the neighbouring alphabet suggest Russian, everything else English.</summary>
+    /// <summary>A Russian system gives Russian, every other locale gives English: the interface has
+    /// two languages, and a Ukrainian or Spanish user is not served by guessing Russian for them.</summary>
     internal static string LanguageForCulture(string twoLetterIsoLanguageName) =>
-        twoLetterIsoLanguageName is "ru" or "uk" or "be" ? "ru" : "en";
+        twoLetterIsoLanguageName == "ru" ? "ru" : "en";
 
     // A repeat run from the tray opens on what the user has chosen before; the first run guesses.
     private static string SuggestedLanguage(HotkeySettings settings) =>
@@ -104,10 +103,14 @@ public partial class OnboardingWindow : Window
     internal int Step => _step;
     internal string SelectedLanguage => _language;
 
-    // The step caption is built in code, so it is rebuilt every time the window is translated.
+    // The step caption is built in code, so it is rebuilt every time the window is translated. The
+    // switch in the header follows the language whoever calls this has chosen, including the guess
+    // made for the first run.
     internal void ApplyLanguage(string language)
     {
         _language = language;
+        RussianSegment.IsChecked = language == "ru";
+        EnglishSegment.IsChecked = language == "en";
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
         RefreshStepCaption();
@@ -268,15 +271,15 @@ public partial class OnboardingWindow : Window
         return window;
     }
 
-    // The two language cards name the languages themselves and stay as they are in both languages,
-    // so they are the one part of the window the Cyrillic sweep skips.
+    // The two segments of the switch name the languages themselves and stay as they are in both
+    // languages, so they are the one part of the window the Cyrillic sweep skips.
     private static IEnumerable<string> WizardStrings(OnboardingWindow window)
     {
         var visited = new HashSet<DependencyObject>();
         var found = new List<string>();
         void Walk(DependencyObject item)
         {
-            if (ReferenceEquals(item, window.LanguageRow) || !visited.Add(item)) return;
+            if (ReferenceEquals(item, window.LanguageToggle) || !visited.Add(item)) return;
             if (item is FrameworkElement { ToolTip: string tip }) found.Add(tip);
             if (item is ContentControl { Content: string caption }) found.Add(caption);
             if (item is TextBlock text) found.Add(text.Text);

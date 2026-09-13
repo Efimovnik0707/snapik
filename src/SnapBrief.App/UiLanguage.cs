@@ -94,10 +94,11 @@ internal static class UiLanguage
         ["PNG и текст скопированы."] = "The PNG and the text were copied.",
         ["Не удалось сохранить"] = "Could not save", ["Не удалось очистить ленту"] = "Could not clear the strip",
         ["Буфер не обновлён"] = "The clipboard was not updated",
-        ["Знакомство со SnapBrief"] = "Welcome to SnapBrief", ["Шаг {0} из {1}"] = "Step {0} of {1}",
+        ["Шаг {0} из {1}"] = "Step {0} of {1}",
         ["Назад"] = "Back", ["Далее"] = "Next", ["Начать"] = "Get started", ["Пропустить"] = "Skip",
-        ["Выберите язык"] = "Choose your language",
-        ["Интерфейс и подсказки будут на этом языке."] = "The interface and the hints will be in this language.",
+        ["Добро пожаловать"] = "Welcome", ["Язык интерфейса"] = "Interface language",
+        ["SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями."] =
+            "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.",
         ["Клавиша для снимка"] = "The capture shortcut",
         ["Нажми на поле и введи своё сочетание"] = "Click the field and press your own shortcut",
         ["Запуск и панель задач"] = "Startup and the taskbar",
@@ -109,6 +110,9 @@ internal static class UiLanguage
         ["Как пользоваться"] = "How it works", ["Нажми клавишу"] = "Press the shortcut", ["Выдели область"] = "Select an area",
         ["Добавь комментарии"] = "Add comments", ["Вставь в чат: Ctrl+V"] = "Paste into the chat: Ctrl+V"
     };
+    /// <summary>Every English value, for the smoke check that no two Russian keys share one: the way
+    /// back (English to Russian) is a search by value, and a duplicate would answer with the wrong key.</summary>
+    internal static IEnumerable<string> EnglishValues => English.Values;
     internal static string Text(string value, string? language = null) => (language ?? Current) == "en" ? (English.TryGetValue(value, out var translated) ? translated : value) : (English.FirstOrDefault(pair => pair.Value == value).Key ?? value);
     internal static void Apply(DependencyObject root, string? language = null)
     {
