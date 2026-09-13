@@ -300,6 +300,23 @@ public partial class OverlayEditorWindow : Window
         window.OutlineSegment.IsChecked = true;
         window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
         window.OnFillClick(window.FillNoneSegment, new RoutedEventArgs());
+
+        // The panel keeps its width whatever tool is armed: the thickness button never blanks its
+        // caption, and it and the colour circle are both a fixed size.
+        var widths = new List<double>();
+        foreach (var tool in new[] { EditorTool.Rectangle, EditorTool.Text, EditorTool.Blur, EditorTool.Select, EditorTool.Arrow })
+        {
+            window.SelectToolMode(tool);
+            if (string.IsNullOrWhiteSpace((string?)window.ThicknessButton.Content))
+                throw new InvalidOperationException($"The thickness button showed nothing while the {tool} tool was armed.");
+            // The width the panel asks for, not the width it was given: a window that was never
+            // shown has no arranged size to read.
+            window.Toolbar.InvalidateMeasure();
+            window.Toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            widths.Add(window.Toolbar.DesiredSize.Width);
+        }
+        if (widths[0] < 100 || widths.Distinct().Count() != 1)
+            throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
     }
 
     internal static CaptureItem RunNoteAffordanceProbe(CaptureItem source)

@@ -146,8 +146,10 @@ public partial class OverlayEditorWindow
         var targetColor = _colorTarget == ColorTarget.Fill ? fillColor : color;
         AppearanceButton.IsEnabled = HasColor(tool);
         ColorSwatch.Fill = new SolidColorBrush(mainColor);
+        // A tool without a stroke leaves the last thickness on the button, dimmed by the disabled
+        // state of the style: an empty caption is what used to make the panel jump.
         ThicknessButton.IsEnabled = HasStroke(tool);
-        ThicknessButton.Content = $"{thickness:0} px";
+        ThicknessButton.Content = $"{(HasStroke(tool) ? thickness : _activeThickness):0} px";
         ColorHex.Text = $"#{targetColor.R:X2}{targetColor.G:X2}{targetColor.B:X2}";
         ColorHex.BorderBrush = new SolidColorBrush(Color.FromRgb(70, 83, 102));
         StrokeSlider.IsEnabled = HasStroke(tool);

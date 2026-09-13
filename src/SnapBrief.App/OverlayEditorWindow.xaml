@@ -194,10 +194,12 @@
                 <StackPanel x:Name="ColorDots" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,2,0" />
                 <!-- The colour button is a circle and nothing else: the thickness moved to its own
                      button beside it, so neither of them changes width with the tool. -->
-                <Button x:Name="AppearanceButton" Style="{StaticResource OverlayButton}" Click="OnColorClick" ToolTip="Цвет и заливка" AutomationProperties.Name="{local:UiText Цвет и заливка}">
+                <Button x:Name="AppearanceButton" Width="36" MinWidth="36" Padding="0" Style="{StaticResource OverlayButton}" Click="OnColorClick" ToolTip="Цвет и заливка" AutomationProperties.Name="{local:UiText Цвет и заливка}">
                     <Ellipse x:Name="ColorSwatch" Width="16" Height="16" Fill="#FF3B30" Stroke="#D9DEE8" StrokeThickness="1"/>
                 </Button>
-                <Button x:Name="ThicknessButton" Style="{StaticResource OverlayButton}" Click="OnThicknessClick" ToolTip="Толщина" AutomationProperties.Name="{local:UiText Толщина}" Content="4 px" />
+                <!-- A fixed width and a value that is never blanked: the panel must not jump when a
+                     tool without a stroke is armed. -->
+                <Button x:Name="ThicknessButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnThicknessClick" ToolTip="Толщина" AutomationProperties.Name="{local:UiText Толщина}" Content="4 px" />
                 <Button x:Name="MoreToolsButton" Style="{StaticResource OverlayButton}" Click="OnMoreToolsClick" ToolTip="Ещё инструменты" Content="•••" />
                 <Button x:Name="CommentToolButton" Style="{StaticResource OverlayButton}" Click="OnCommentClick">
                     <Path Width="16" Height="16" Stroke="#D9DEE8" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z" />
