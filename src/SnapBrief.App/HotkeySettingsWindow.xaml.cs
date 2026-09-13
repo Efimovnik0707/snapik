@@ -54,6 +54,10 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// <summary>Which half of the pencil capsule is armed: pen or highlight.</summary>
     public string AnnotationPencil { get; init; } = "pen";
     public double AnnotationThickness { get; init; } = 4;
+    /// <summary>The width of the highlighter stroke, in image pixels; it has a scale of its own.</summary>
+    public double AnnotationHighlightThickness { get; init; } = 16;
+    /// <summary>The size a caption is typed in, in image pixels; read back clamped to 8..96.</summary>
+    public double AnnotationFontSize { get; init; } = 20;
     /// <summary>The frame the editor draws by default: rectangle, rounded or ellipse.</summary>
     public string AnnotationShape { get; init; } = "rectangle";
     /// <summary>How that frame is filled by default: none, solid, translucent or blur.</summary>

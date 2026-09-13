@@ -97,6 +97,22 @@ public sealed class CaptureCropperTests
     }
 
     [Fact]
+    public void Crop_keeps_the_size_a_caption_was_typed_in()
+    {
+        var caption = AnnotationItem.Create(AnnotationKind.Text, [new(0.3, 0.3), new(0.6, 0.4)], text: "Привет") with
+        {
+            FontSize = 48
+        };
+        var source = CaptureItem.Create("source/original.png", 1000, 800) with { Annotations = [caption] };
+
+        var cropped = CaptureCropper.Crop(source, new(0.25, 0.25, 0.5, 0.5), "source/crop.png", 500, 400).CroppedCapture;
+
+        var annotation = Assert.Single(cropped.Annotations);
+        Assert.Equal(48, annotation.FontSize);
+        Assert.Equal("Привет", annotation.Text);
+    }
+
+    [Fact]
     public void Crop_rejects_invalid_bounds_without_mutating_the_source()
     {
         var source = CaptureItem.Create("source/original.png", 100, 100);

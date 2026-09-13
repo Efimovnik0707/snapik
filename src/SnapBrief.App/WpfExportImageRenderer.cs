@@ -101,13 +101,13 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
 
         if (drawShape && item.Kind is (AnnotationKind.Freehand or AnnotationKind.Highlight))
         {
-            var lineBrush = item.Kind == AnnotationKind.Highlight
-                ? new SolidColorBrush(Color.FromArgb(90, color.R, color.G, color.B))
-                : brush;
-            var linePen = new Pen(lineBrush, item.Kind == AnnotationKind.Highlight ? item.Thickness * 4 : item.Thickness)
-            { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-            foreach (var segment in item.GetPathSegments())
-                for (var i = 1; i < segment.Length; i++) dc.DrawLine(linePen, P(segment[i - 1]), P(segment[i]));
+            // The same geometry and the same transparency the editor draws with: one stroke, laid
+            // down once, so a joint is no darker than the middle of a segment.
+            var stroke = Controls.AnnotationCanvas.StrokeGeometry(
+                item.GetPathSegments().Select(segment => (IReadOnlyList<NormalizedPoint>)segment), P);
+            if (item.Kind == AnnotationKind.Highlight)
+                Controls.AnnotationCanvas.DrawHighlightStroke(dc, stroke, brush, item.Thickness);
+            else dc.DrawGeometry(null, pen, stroke);
         }
         else if (drawShape && item.Points.Length > 1)
         {
@@ -122,7 +122,11 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
                         item.HasOutline ? pen : null, item.Shape, rect, 1);
                     break;
                 case AnnotationKind.Redaction: dc.DrawRectangle(Brushes.Black, null, rect); break;
-                case AnnotationKind.Text: DrawText(dc, item.Text, Math.Max(16, item.Thickness * 4.5), FontWeights.SemiBold, brush, start); break;
+                // The size the caption was typed in, in the pixels of the capture, and the same
+                // family the editor draws with: the letters in the PNG are the letters on screen.
+                case AnnotationKind.Text:
+                    DrawText(dc, item.Text, TextMarkMetrics.Clamp(item.FontSize), FontWeights.Normal, brush, start, TextMarkMetrics.FamilyName);
+                    break;
                 case AnnotationKind.Arrow:
                     SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, item.Thickness, item.ArrowStyle);
                     break;
@@ -168,10 +172,10 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
         return NoteBadgeGeometry.Export(anchor, displayLabel, offset, HeaderHeight + 2);
     }
 
-    private static void DrawText(DrawingContext dc, string text, double size, FontWeight weight, Brush brush, Point point)
+    private static void DrawText(DrawingContext dc, string text, double size, FontWeight weight, Brush brush, Point point, string family = "Segoe UI")
     {
         var formatted = new FormattedText(text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-            new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, weight, FontStretches.Normal), size, brush, 1);
+            new Typeface(new FontFamily(family), FontStyles.Normal, weight, FontStretches.Normal), size, brush, 1);
         dc.DrawText(formatted, point);
     }
 }

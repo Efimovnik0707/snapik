@@ -125,11 +125,15 @@ public partial class OverlayEditorWindow
         if (_chipFinishers.TryGetValue(id, out var finish)) finish();
     }
 
-    private bool IsInsideChipLayer(DependencyObject? source)
+    private bool IsInsideChipLayer(DependencyObject? source) => IsInside(source, ChipLayer);
+
+    // Whether a press landed inside a given part of the window: the layer of the note pills, or the
+    // text box a caption is being typed in.
+    private static bool IsInside(DependencyObject? source, DependencyObject root)
     {
         while (source is not null)
         {
-            if (ReferenceEquals(source, ChipLayer)) return true;
+            if (ReferenceEquals(source, root)) return true;
             source = source is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(source) : LogicalTreeHelper.GetParent(source);
         }
         return false;

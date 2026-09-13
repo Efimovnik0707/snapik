@@ -27,5 +27,9 @@
     <Compile Include="..\..\src\SnapBrief.App\SoundThrottle.cs" Link="SoundThrottle.cs" />
     <Compile Include="..\..\src\SnapBrief.App\SaveNaming.cs" Link="SaveNaming.cs" />
     <Compile Include="..\..\src\SnapBrief.App\SettingsMigration.cs" Link="SettingsMigration.cs" />
+    <!-- The box of a caption is measured here; the model of a mark comes along, because the measure
+         is written back into the points of one. -->
+    <Compile Include="..\..\src\SnapBrief.App\TextMarkMetrics.cs" Link="TextMarkMetrics.cs" />
+    <Compile Include="..\..\src\SnapBrief.App\EditorModels.cs" Link="EditorModels.cs" />
   </ItemGroup>
 </Project>

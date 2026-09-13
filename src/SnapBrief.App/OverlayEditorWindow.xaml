@@ -10,9 +10,15 @@
         MouseMove="OnWindowMouseMove" MouseLeftButtonUp="OnWindowMouseUp">
     <Window.Resources>
         <!-- The two faces of the pencil capsule: the button swaps the geometry of its own path by
-             the mode, and the menu of the capsule draws its rows from the same two. -->
-        <PathGeometry x:Key="PenGlyph" Figures="M2,14 C5,12 5,8 8,7 M8,7 L13,2 L15,4 L10,9 Z" />
+             the mode, and the menu of the capsule draws its rows from the same two. A pencil with a
+             collar and a tip, not the slanted wedge that read as a razor blade. -->
+        <PathGeometry x:Key="PencilGlyph" Figures="M2.5,13.5 L3.5,10.3 L9.5,4.2 L11.8,6.5 L5.8,12.5 Z M3.5,10.3 L5.8,12.5 M8.5,5.3 L10.7,7.6" />
         <PathGeometry x:Key="HighlightGlyph" Figures="M2,11 L10,3 L14,7 L6,15 L2,15 Z" />
+        <!-- The face of a region filled with blur: worn by the segment that picks it and by the
+             preview on the fill button, so both say the same thing. -->
+        <LinearGradientBrush x:Key="BlurFillPreview" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#66D9DEE8" Offset="0" /><GradientStop Color="#14D9DEE8" Offset="0.5" /><GradientStop Color="#66D9DEE8" Offset="1" />
+        </LinearGradientBrush>
         <!-- Name plus a key capsule, in the dark of the popover. The letter is carried by Uid of the
              button, filled by the code out of EditorShortcuts, so the panel keeps no letters of its
              own. Uid and not an attached property of ours: a path with a prefix
@@ -143,6 +149,9 @@
             </Border>
         </Canvas>
         <Canvas x:Name="CaptureHandleLayer" />
+        <!-- Where a caption is typed: a text box standing over the capture, at the point that was
+             clicked and in the size of the mark, so what is typed is what will be drawn. -->
+        <Canvas x:Name="TextLayer" />
         <Canvas x:Name="ChipLayer" IsHitTestVisible="True" />
 
         <Border x:Name="Hint" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" Padding="13,8"
@@ -197,7 +206,7 @@
                 <!-- One capsule for the pen and the highlighter: the button draws the current mode
                      and carries it in its own Tag, the chevron beside it offers the other one. -->
                 <ToggleButton x:Name="PenTool" Style="{StaticResource OverlayToolStart}" Tag="Pen" Click="OnToolClick">
-                    <Path x:Name="PencilGlyph" Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="{StaticResource PenGlyph}" />
+                    <Path x:Name="PencilCapsuleGlyph" Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="{StaticResource PencilGlyph}" />
                 </ToggleButton>
                 <Button x:Name="PenMenuButton" Style="{StaticResource OverlayToolChevron}" Click="OnPencilMenuClick" ToolTip="Карандаш" AutomationProperties.Name="{local:UiText Карандаш}" />
                 <ToggleButton x:Name="TextTool" Style="{StaticResource OverlayTool}" Tag="Text" Click="OnToolClick">
@@ -213,14 +222,25 @@
                     <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeStartLineCap="Round" Data="M4,1 L4,12 L15,12 M1,4 L12,4 L12,15" />
                 </ToggleButton>
                 <StackPanel x:Name="ColorDots" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,2,0" />
-                <!-- The colour button is a circle and nothing else: the thickness moved to its own
-                     button beside it, so neither of them changes width with the tool. -->
-                <Button x:Name="AppearanceButton" Width="36" MinWidth="36" Padding="0" Style="{StaticResource OverlayButton}" Click="OnColorClick" ToolTip="Цвет и заливка" AutomationProperties.Name="{local:UiText Цвет и заливка}">
+                <!-- The colour button is a circle and nothing else: the thickness and the fill both
+                     moved to buttons of their own, so none of them changes width with the tool. -->
+                <Button x:Name="AppearanceButton" Width="36" MinWidth="36" Padding="0" Style="{StaticResource OverlayButton}" Click="OnColorClick" ToolTip="Цвет" AutomationProperties.Name="{local:UiText Цвет}">
                     <Ellipse x:Name="ColorSwatch" Width="16" Height="16" Fill="#FF3B30" Stroke="#D9DEE8" StrokeThickness="1"/>
                 </Button>
                 <!-- A fixed width and a value that is never blanked: the panel must not jump when a
                      tool without a stroke is armed. -->
                 <Button x:Name="ThicknessButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnThicknessClick" ToolTip="Толщина" AutomationProperties.Name="{local:UiText Толщина}" Content="4 px" />
+                <!-- The fill of a region has a button of its own, with a word on it: as the last
+                     section of the colour popover, under the palette and the HEX field, it was not
+                     found at all. The width is fixed and the caption never blanks, as above. -->
+                <Button x:Name="FillButton" Width="96" MinWidth="96" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnFillButtonClick" AutomationProperties.Name="{local:UiText Заливка}">
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle x:Name="FillButtonPreview" Width="20" Height="14" RadiusX="2" RadiusY="2" Stroke="#D9DEE8" StrokeThickness="1.5" Margin="0,0,7,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="FillButtonLabel" Text="Заливка" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <!-- The size of a caption, in the same shape as the thickness beside it. -->
+                <Button x:Name="FontSizeButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnFontSizeClick" ToolTip="Размер" AutomationProperties.Name="{local:UiText Размер}" Content="20 px" />
                 <Button x:Name="CommentToolButton" Style="{StaticResource OverlayButton}" Click="OnCommentClick">
                     <Path Width="16" Height="16" Stroke="#D9DEE8" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z" />
                 </Button>
@@ -262,46 +282,11 @@
                     <WrapPanel x:Name="ColorPalette" Margin="-3,0,-3,10"/>
                     <TextBox x:Name="ColorHex" Text="#FF3B30" MaxLength="7" Background="#252C36" Foreground="#EEF2F8" CaretBrush="White" BorderBrush="#465366" Padding="9,6" LostKeyboardFocus="OnHexLostFocus" PreviewKeyDown="OnHexKeyDown" AutomationProperties.Name="{local:UiText Цвет HEX}"/>
                     <TextBlock Text="Рамка" FontWeight="SemiBold" Margin="0,18,0,8"/>
-                    <!-- The two circles are the target of the palette and of the HEX field: whichever
-                         is active takes the colour picked above it. -->
-                    <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                        <Button x:Name="OutlineColorButton" Style="{StaticResource OverlayButton}" Width="36" MinWidth="36" Padding="0" Margin="0,0,8,0" Click="OnOutlineTargetClick" ToolTip="Цвет рамки" AutomationProperties.Name="{local:UiText Цвет рамки}">
-                            <Ellipse x:Name="OutlineSwatch" Width="18" Height="18" Fill="#FF3B30" Stroke="#788292" StrokeThickness="1"/>
-                        </Button>
-                        <Border x:Name="OutlineRow" Grid.Column="1" Background="#222933" CornerRadius="8" Padding="3">
-                            <ToggleButton x:Name="OutlineSegment" Style="{StaticResource SegmentButton}" Click="OnOutlineClick" FontSize="12" Content="Показывать рамку" AutomationProperties.Name="{local:UiText Показывать рамку}" />
-                        </Border>
-                    </Grid>
-                    <TextBlock Text="Заливка" FontWeight="SemiBold" Margin="0,18,0,8"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                        <Button x:Name="FillColorButton" Style="{StaticResource OverlayButton}" Width="36" MinWidth="36" Padding="0" Margin="0,0,8,0" Click="OnFillTargetClick" ToolTip="Цвет заливки" AutomationProperties.Name="{local:UiText Цвет заливки}">
-                            <Ellipse x:Name="FillSwatch" Width="18" Height="18" Fill="#FF3B30" Stroke="#788292" StrokeThickness="1"/>
-                        </Button>
-                        <Border x:Name="FillRow" Grid.Column="1" Background="#222933" CornerRadius="8" Padding="3">
-                            <UniformGrid Columns="4">
-                                <ToggleButton x:Name="FillNoneSegment" Style="{StaticResource SegmentButton}" Tag="None" Click="OnFillClick" ToolTip="Контур" AutomationProperties.Name="{local:UiText Контур}">
-                                    <Rectangle Width="20" Height="14" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
-                                </ToggleButton>
-                                <ToggleButton x:Name="FillSolidSegment" Style="{StaticResource SegmentButton}" Tag="Solid" Click="OnFillClick" ToolTip="Сплошная заливка" AutomationProperties.Name="{local:UiText Сплошная заливка}">
-                                    <Rectangle Width="20" Height="14" Fill="#D9DEE8" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
-                                </ToggleButton>
-                                <ToggleButton x:Name="FillTranslucentSegment" Style="{StaticResource SegmentButton}" Tag="Translucent" Click="OnFillClick" ToolTip="Полупрозрачная заливка" AutomationProperties.Name="{local:UiText Полупрозрачная заливка}">
-                                    <Rectangle Width="20" Height="14" Fill="#59D9DEE8" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
-                                </ToggleButton>
-                                <ToggleButton x:Name="FillBlurSegment" Style="{StaticResource SegmentButton}" Tag="Blur" Click="OnFillClick" ToolTip="Заливка размытием" AutomationProperties.Name="{local:UiText Заливка размытием}">
-                                    <Rectangle Width="20" Height="14" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2">
-                                        <Rectangle.Fill>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                <GradientStop Color="#66D9DEE8" Offset="0" /><GradientStop Color="#14D9DEE8" Offset="0.5" /><GradientStop Color="#66D9DEE8" Offset="1" />
-                                            </LinearGradientBrush>
-                                        </Rectangle.Fill>
-                                    </Rectangle>
-                                </ToggleButton>
-                            </UniformGrid>
-                        </Border>
-                    </Grid>
+                    <!-- The colour picked above belongs to the outline of a mark; what stands inside
+                         a region, and the colour of that, moved to the fill button of the panel. -->
+                    <Border x:Name="OutlineRow" Background="#222933" CornerRadius="8" Padding="3">
+                        <ToggleButton x:Name="OutlineSegment" Style="{StaticResource SegmentButton}" Click="OnOutlineClick" FontSize="12" Content="Показывать рамку" AutomationProperties.Name="{local:UiText Показывать рамку}" />
+                    </Border>
                 </StackPanel>
             </Border>
         </Popup>
@@ -311,24 +296,78 @@
             <Border Width="252" Padding="18" Background="#171A20" BorderBrush="#394352" BorderThickness="1" CornerRadius="14" TextElement.Foreground="#EEF2F8" Cursor="Arrow" PreviewKeyDown="OnThicknessKeyDown">
                 <StackPanel>
                     <Grid Margin="0,0,0,12"><TextBlock Text="Толщина" FontWeight="SemiBold"/><TextBlock x:Name="StrokeValue" HorizontalAlignment="Right"/></Grid>
+                    <!-- The four presets and the range of the slider belong to the tool in the hand:
+                         the pencil counts in a few pixels, the highlighter in tens of them. Both are
+                         written by SyncAppearance, so the values live in one place in the code. -->
                     <Border Background="#222933" CornerRadius="8" Padding="3">
                         <UniformGrid x:Name="ThicknessPresetRow" Columns="4">
-                            <ToggleButton x:Name="Thickness2Segment" Style="{StaticResource SegmentButton}" Tag="2" Click="OnThicknessPresetClick" ToolTip="2 px" AutomationProperties.Name="2 px">
+                            <ToggleButton x:Name="ThicknessPreset1Segment" Style="{StaticResource SegmentButton}" Tag="2" Click="OnThicknessPresetClick" ToolTip="2 px" AutomationProperties.Name="2 px">
                                 <Rectangle Width="24" Height="2" RadiusX="1" RadiusY="1" Fill="#D9DEE8" />
                             </ToggleButton>
-                            <ToggleButton x:Name="Thickness4Segment" Style="{StaticResource SegmentButton}" Tag="4" Click="OnThicknessPresetClick" ToolTip="4 px" AutomationProperties.Name="4 px">
+                            <ToggleButton x:Name="ThicknessPreset2Segment" Style="{StaticResource SegmentButton}" Tag="4" Click="OnThicknessPresetClick" ToolTip="4 px" AutomationProperties.Name="4 px">
                                 <Rectangle Width="24" Height="4" RadiusX="2" RadiusY="2" Fill="#D9DEE8" />
                             </ToggleButton>
-                            <ToggleButton x:Name="Thickness6Segment" Style="{StaticResource SegmentButton}" Tag="6" Click="OnThicknessPresetClick" ToolTip="6 px" AutomationProperties.Name="6 px">
+                            <ToggleButton x:Name="ThicknessPreset3Segment" Style="{StaticResource SegmentButton}" Tag="6" Click="OnThicknessPresetClick" ToolTip="6 px" AutomationProperties.Name="6 px">
                                 <Rectangle Width="24" Height="6" RadiusX="3" RadiusY="3" Fill="#D9DEE8" />
                             </ToggleButton>
-                            <ToggleButton x:Name="Thickness8Segment" Style="{StaticResource SegmentButton}" Tag="8" Click="OnThicknessPresetClick" ToolTip="8 px" AutomationProperties.Name="8 px">
+                            <ToggleButton x:Name="ThicknessPreset4Segment" Style="{StaticResource SegmentButton}" Tag="8" Click="OnThicknessPresetClick" ToolTip="8 px" AutomationProperties.Name="8 px">
                                 <Rectangle Width="24" Height="8" RadiusX="4" RadiusY="4" Fill="#D9DEE8" />
                             </ToggleButton>
                         </UniformGrid>
                     </Border>
                     <Slider x:Name="StrokeSlider" Margin="0,12,0,0" Style="{StaticResource StrokeSliderStyle}" Minimum="1" Maximum="16" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" ValueChanged="OnStrokeChanged" AutomationProperties.Name="{local:UiText Толщина линии}"/>
                     <Border Background="#222933" CornerRadius="7" Height="36" Margin="0,12,0,0"><Line x:Name="StrokePreview" X1="15" Y1="18" X2="201" Y2="18" Stroke="#FF3B30" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/></Border>
+                </StackPanel>
+            </Border>
+        </Popup>
+        <!-- The size a caption is typed in: presets, a slider and a preview, the way the thickness
+             popover is built. The size belongs to the mark and travels into session.json with it. -->
+        <Popup x:Name="FontSizePopup" PlacementTarget="{Binding ElementName=FontSizeButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" Closed="OnAppearanceClosed">
+            <Border Width="276" Padding="18" Background="#171A20" BorderBrush="#394352" BorderThickness="1" CornerRadius="14" TextElement.Foreground="#EEF2F8" Cursor="Arrow" PreviewKeyDown="OnFontSizeKeyDown">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12"><TextBlock Text="Размер" FontWeight="SemiBold"/><TextBlock x:Name="FontSizeValue" HorizontalAlignment="Right"/></Grid>
+                    <Border Background="#222933" CornerRadius="8" Padding="3">
+                        <UniformGrid x:Name="FontSizePresetRow" Columns="6">
+                            <ToggleButton x:Name="FontSize1Segment" Style="{StaticResource SegmentButton}" Tag="12" Click="OnFontSizePresetClick" ToolTip="12 px" AutomationProperties.Name="12 px"><TextBlock Text="12" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize2Segment" Style="{StaticResource SegmentButton}" Tag="16" Click="OnFontSizePresetClick" ToolTip="16 px" AutomationProperties.Name="16 px"><TextBlock Text="16" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize3Segment" Style="{StaticResource SegmentButton}" Tag="20" Click="OnFontSizePresetClick" ToolTip="20 px" AutomationProperties.Name="20 px"><TextBlock Text="20" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize4Segment" Style="{StaticResource SegmentButton}" Tag="24" Click="OnFontSizePresetClick" ToolTip="24 px" AutomationProperties.Name="24 px"><TextBlock Text="24" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize5Segment" Style="{StaticResource SegmentButton}" Tag="32" Click="OnFontSizePresetClick" ToolTip="32 px" AutomationProperties.Name="32 px"><TextBlock Text="32" FontSize="12" /></ToggleButton>
+                            <ToggleButton x:Name="FontSize6Segment" Style="{StaticResource SegmentButton}" Tag="48" Click="OnFontSizePresetClick" ToolTip="48 px" AutomationProperties.Name="48 px"><TextBlock Text="48" FontSize="12" /></ToggleButton>
+                        </UniformGrid>
+                    </Border>
+                    <Slider x:Name="FontSizeSlider" Margin="0,12,0,0" Style="{StaticResource StrokeSliderStyle}" Minimum="8" Maximum="96" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" ValueChanged="OnFontSizeChanged" AutomationProperties.Name="{local:UiText Размер шрифта}"/>
+                    <Border Background="#222933" CornerRadius="7" Height="66" Margin="0,12,0,0">
+                        <TextBlock x:Name="FontSizePreview" Text="Ag" FontFamily="Segoe UI Variable Text" Foreground="#FF3B30" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Popup>
+        <!-- The four ways the inside of a region can be filled, and the colour that fills it. The
+             segments and their handler are the ones that used to sit at the bottom of the colour
+             popover; only the way in changed. -->
+        <Popup x:Name="FillPopup" PlacementTarget="{Binding ElementName=FillButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" Closed="OnAppearanceClosed">
+            <Border Width="280" Padding="18" Background="#171A20" BorderBrush="#394352" BorderThickness="1" CornerRadius="14" TextElement.Foreground="#EEF2F8" Cursor="Arrow" PreviewKeyDown="OnFillKeyDown">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12"><TextBlock Text="Заливка" FontWeight="SemiBold"/><TextBlock x:Name="FillValue" HorizontalAlignment="Right"/></Grid>
+                    <Border x:Name="FillRow" Background="#222933" CornerRadius="8" Padding="3">
+                        <UniformGrid Columns="4">
+                            <ToggleButton x:Name="FillNoneSegment" Style="{StaticResource SegmentButton}" Tag="None" Click="OnFillClick" ToolTip="Контур" AutomationProperties.Name="{local:UiText Контур}">
+                                <Rectangle Width="20" Height="14" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
+                            </ToggleButton>
+                            <ToggleButton x:Name="FillSolidSegment" Style="{StaticResource SegmentButton}" Tag="Solid" Click="OnFillClick" ToolTip="Сплошная заливка" AutomationProperties.Name="{local:UiText Сплошная заливка}">
+                                <Rectangle Width="20" Height="14" Fill="#D9DEE8" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
+                            </ToggleButton>
+                            <ToggleButton x:Name="FillTranslucentSegment" Style="{StaticResource SegmentButton}" Tag="Translucent" Click="OnFillClick" ToolTip="Полупрозрачная заливка" AutomationProperties.Name="{local:UiText Полупрозрачная заливка}">
+                                <Rectangle Width="20" Height="14" Fill="#59D9DEE8" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
+                            </ToggleButton>
+                            <ToggleButton x:Name="FillBlurSegment" Style="{StaticResource SegmentButton}" Tag="Blur" Click="OnFillClick" ToolTip="Заливка размытием" AutomationProperties.Name="{local:UiText Заливка размытием}">
+                                <Rectangle Width="20" Height="14" Fill="{StaticResource BlurFillPreview}" Stroke="#D9DEE8" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
+                            </ToggleButton>
+                        </UniformGrid>
+                    </Border>
+                    <TextBlock Text="Цвет заливки" FontWeight="SemiBold" Margin="0,18,0,8"/>
+                    <WrapPanel x:Name="FillPalette" Margin="-3,0,-3,0"/>
                 </StackPanel>
             </Border>
         </Popup>
