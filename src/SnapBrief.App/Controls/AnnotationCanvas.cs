@@ -32,7 +32,8 @@ public sealed class AnnotationCanvas : FrameworkElement
         nameof(Image), typeof(BitmapSource), typeof(AnnotationCanvas), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty ToolProperty = DependencyProperty.Register(
-        nameof(Tool), typeof(EditorTool), typeof(AnnotationCanvas), new FrameworkPropertyMetadata(EditorTool.Select));
+        nameof(Tool), typeof(EditorTool), typeof(AnnotationCanvas),
+        new FrameworkPropertyMetadata(EditorTool.Select, OnToolChanged));
 
     public static readonly DependencyProperty AnnotationsProperty = DependencyProperty.Register(
         nameof(Annotations), typeof(ObservableCollection<AnnotationItem>), typeof(AnnotationCanvas),
@@ -81,6 +82,30 @@ public sealed class AnnotationCanvas : FrameworkElement
         var after = Render();
         if (before.SequenceEqual(after)) throw new InvalidOperationException("The blur selection preview is invisible before mouse release.");
     }
+    // A frame filled with blur bakes the same pixels as the blur tool, so it has to reach the same
+    // cache: without it every movement of the mouse converts, copies and rebuilds the whole frame,
+    // and dragging such a region over a 4K capture stops being possible.
+    internal static void VerifyBlurCache(BitmapSource source)
+    {
+        var filled = new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle,
+            Fill = AnnotationFill.Blur,
+            Points = [new Point(source.PixelWidth * .2, source.PixelHeight * .2), new Point(source.PixelWidth * .6, source.PixelHeight * .6)]
+        };
+        var canvas = new AnnotationCanvas { Image = source, Annotations = [filled] };
+        var baked = canvas.ApplyBlurAnnotations(source);
+        if (ReferenceEquals(baked, source))
+            throw new InvalidOperationException("A region filled with blur must be baked into the preview.");
+        // What a drag does: the region moves, the key of the cache changes, and the frame under it
+        // stays the one that was built before the drag began.
+        canvas.SelectedAnnotation = filled;
+        canvas._manipulating = true;
+        filled.Points[1] = new Point(source.PixelWidth * .7, source.PixelHeight * .7);
+        if (!ReferenceEquals(canvas.ApplyBlurAnnotations(source), baked))
+            throw new InvalidOperationException("Dragging a region filled with blur must reuse the cached frame instead of rebuilding it.");
+    }
+
     public AnnotationCanvas()
     {
         Focusable = true;
@@ -88,6 +113,13 @@ public sealed class AnnotationCanvas : FrameworkElement
         // while a drawing tool is armed, and nowhere else.
         Cursor = Cursors.Arrow;
         ClipToBounds = true;
+    }
+
+    // Another tool was armed from a button or a key without the pointer moving: what the eraser was
+    // pointing at is not its target any more.
+    private static void OnToolChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if ((EditorTool)e.NewValue != EditorTool.Eraser) ((AnnotationCanvas)d).ClearEraseHover();
     }
 
     private static void OnAnnotationsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -119,7 +151,9 @@ public sealed class AnnotationCanvas : FrameworkElement
         // The mark the eraser is about to take is outlined in red, so a click is never a surprise.
         if (_eraseHover is { } erasing && Annotations?.Contains(erasing) == true)
             dc.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(255, 59, 48)), 1.5), GetDisplayBounds(erasing));
-        if (_manipulating && SelectedAnnotation is { Kind: EditorTool.Blur } movingBlur)
+        // While a blurred region travels the frame under it is the cached one, so the region itself
+        // is drawn as a cheap placeholder: the same for the blur tool and for a frame filled with blur.
+        if (_manipulating && SelectedAnnotation is { } movingBlur && IsBlurred(movingBlur))
             DrawBoxShape(dc, Brushes.Black, new Pen(Brushes.DodgerBlue, 1.5), movingBlur.Shape,
                 GetDisplayBounds(movingBlur), _imageRect.Width / Image.PixelWidth);
         if (_draft is not null) DrawAnnotation(dc, _draft, _imageRect);
@@ -289,38 +323,77 @@ public sealed class AnnotationCanvas : FrameworkElement
         EndGesture();
     }
 
+    // The gesture is closed before the capture is given back, and never the other way round:
+    // releasing it raises LostMouseCapture, and the handler there drops whatever a gesture has
+    // left behind. A gesture that ends properly must have nothing left for it to drop.
     internal void EndGesture()
     {
         if (_manipulating)
         {
-            ReleaseMouseCapture();
             _manipulating = false;
             _resizing = false;
             _gestureStart = null;
             _originalPoints = null;
             _originalAdditionalSegments = null;
+            ReleaseMouseCapture();
             if (_manipulationChanged) AnnotationChanged?.Invoke(this, EventArgs.Empty);
             InvalidateVisual();
             return;
         }
         if (_draft is null) return;
-        ReleaseMouseCapture();
-        if (GestureHasSize(_draft))
-        {
-            if (_draft.Kind == EditorTool.Crop)
-                CropRequested?.Invoke(BoundsOf(_draft));
-            else
-            {
-                _draft.Label = string.Empty;
-                Annotations?.Add(_draft);
-                // A stroke of the pen or the highlighter is not selected after the hand lets go: it
-                // is drawing, not an object to adjust. Everything else is selected, as before.
-                if (_draft.Kind is not (EditorTool.Pen or EditorTool.Highlight)) Select(_draft);
-                AnnotationCreated?.Invoke(this, _draft);
-            }
-        }
+        var finished = _draft;
         _draft = null;
         _gestureStart = null;
+        ReleaseMouseCapture();
+        if (GestureHasSize(finished))
+        {
+            if (finished.Kind == EditorTool.Crop)
+                CropRequested?.Invoke(BoundsOf(finished));
+            else
+            {
+                finished.Label = string.Empty;
+                Annotations?.Add(finished);
+                // A stroke of the pen or the highlighter is not selected after the hand lets go: it
+                // is drawing, not an object to adjust. Everything else is selected, as before.
+                if (finished.Kind is not (EditorTool.Pen or EditorTool.Highlight)) Select(finished);
+                AnnotationCreated?.Invoke(this, finished);
+            }
+        }
+        InvalidateVisual();
+    }
+
+    // The capture can be taken away in the middle of a gesture: Alt+Tab, the capture shortcut, a
+    // dialog of another application. What was being drawn or dragged is dropped there and then —
+    // a draft left behind is painted as a ghost until the next press, and a manipulation left
+    // behind reports a change on the next mouse up and writes one history entry for a gesture that
+    // nobody finished.
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        if (_draft is null && !_manipulating) return;
+        _draft = null;
+        _gestureStart = null;
+        _manipulating = false;
+        _resizing = false;
+        _manipulationChanged = false;
+        _originalPoints = null;
+        _originalAdditionalSegments = null;
+        InvalidateVisual();
+    }
+
+    // The red outline of the eraser belongs to where the pointer is, and the pointer is gone:
+    // UpdateCursor only runs over the canvas, so it would leave the outline on the capture until
+    // the next movement over it.
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        ClearEraseHover();
+    }
+
+    private void ClearEraseHover()
+    {
+        if (_eraseHover is null) return;
+        _eraseHover = null;
         InvalidateVisual();
     }
 
@@ -604,9 +677,10 @@ public sealed class AnnotationCanvas : FrameworkElement
     }
 
     // Opaque marks are grabbed anywhere inside, and so is a filled frame; the fill of any other
-    // kind means nothing on screen, so its interior stays free for a new mark.
+    // kind means nothing on screen, so its interior stays free for a new mark. A text mark is its
+    // own interior — the box around it is the letters, not an empty frame to draw into.
     private static bool HasInteriorGrab(AnnotationItem item) =>
-        item.Kind is EditorTool.Blur || (item.Kind == EditorTool.Rectangle && item.Fill != AnnotationFill.None);
+        item.Kind is EditorTool.Blur or EditorTool.Text || (item.Kind == EditorTool.Rectangle && item.Fill != AnnotationFill.None);
 
     private NoteBadge BadgeOf(AnnotationItem item, Rect target)
     {
@@ -665,7 +739,9 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     private BitmapSource ApplyBlurAnnotations(BitmapSource source)
     {
-        if (_manipulating && SelectedAnnotation?.Kind == EditorTool.Blur && _blurCache is not null) return _blurCache;
+        // A region filled with blur is dragged as often as the blur tool itself, and rebuilding the
+        // whole frame on every movement of the mouse freezes a 4K capture: both take the cache.
+        if (_manipulating && SelectedAnnotation is { } dragged && IsBlurred(dragged) && _blurCache is not null) return _blurCache;
         var hash = new HashCode();
         hash.Add(RuntimeHelpers.GetHashCode(source));
         if (Annotations is not null)
@@ -799,11 +875,11 @@ public sealed class AnnotationCanvas : FrameworkElement
         var rendered = new RenderTargetBitmap(480, 300, 96, 96, PixelFormats.Pbgra32);
         rendered.Render(canvas);
 
-        // A frame and a text mark keep their interior free for the next drawing; a blur is opaque,
-        // there is nothing to draw inside it, so it is grabbed anywhere within.
+        // An empty frame keeps its interior free for the next drawing; a blur is opaque and a text
+        // mark is the letters themselves, so both are grabbed anywhere within.
         Verify(rectangle, EditorTool.Blur, interiorGrabs: false);
         Verify(blur, EditorTool.Rectangle, interiorGrabs: true);
-        Verify(text, EditorTool.Arrow, interiorGrabs: false);
+        Verify(text, EditorTool.Arrow, interiorGrabs: true);
 
         // An arrow is grabbed by its line, not by the rectangle its two ends span.
         canvas.Tool = EditorTool.Rectangle;

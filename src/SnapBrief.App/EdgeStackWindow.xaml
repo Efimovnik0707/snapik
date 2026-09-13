@@ -143,7 +143,10 @@
                 </Button>
             </Grid>
 
-            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" MaxHeight="372" Margin="0,7,0,8" Padding="0,0,0,52"
+            <!-- The height is the one the corner grip drags and the settings remember, and it is a
+                 height, not a maximum: the window is on SizeToContent and has to follow the grip
+                 even when the list holds one card. PositionAtEdge sets it for every showing. -->
+            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" Height="372" Margin="0,7,0,8" Padding="0,0,0,52"
                      Background="Transparent" BorderThickness="0" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True"
                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel"
@@ -271,7 +274,7 @@
          wins the hit test where the two meet, and it sits on the corner of the visible card, which is
          10 px inside the window because that margin carries the shadow. The cursor is SizeNESW: the
          bottom left corner is dragged along the north-east / south-west diagonal. The window has no
-         height of its own (SizeToContent), so the drag changes CaptureList.MaxHeight instead.
+         height of its own (SizeToContent), so the drag changes CaptureList.Height instead.
          The window is not resizable by the system, and the strip has no MaxHeight any more: the
          ceiling comes from the working area of the monitor it is on. -->
     <Thumb x:Name="CornerGrip" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="16" Height="16" Margin="10,0,0,10" Cursor="SizeNESW"

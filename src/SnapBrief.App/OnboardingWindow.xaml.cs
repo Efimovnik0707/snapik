@@ -42,20 +42,22 @@ public partial class OnboardingWindow : Window
     /// <summary>Writes a line into the startup log; the wizard has no log of its own.</summary>
     public Action<string>? Trace { get; init; }
 
-    public OnboardingWindow(HotkeySettings settings, bool howToOnly = false)
+    public OnboardingWindow(HotkeySettings settings, bool howToOnly = false, bool settingsFileExists = true)
     {
         _settings = settings;
         _howToOnly = howToOnly;
         _appliedCaptureId = settings.CaptureId;
-        _language = SuggestedLanguage(settings);
+        _language = SuggestedLanguage(settingsFileExists, settings, CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
         InitializeComponent();
         CaptureField.HotkeyId = settings.CaptureId;
         CaptureField.HotkeyChanged += (_, _) => { ErrorText.Visibility = Visibility.Collapsed; HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label; };
         HowTo.KeyLabel = HotkeySettings.Find(settings.CaptureId).Label;
         RussianSegment.Checked += (_, _) => SelectLanguage("ru");
         EnglishSegment.Checked += (_, _) => SelectLanguage("en");
-        LoadStartupState();
-        if (howToOnly) StartButton.Content = "Готово";
+        // The slides from the tray hide the startup step, and reading the registry for a step nobody
+        // sees puts an error in the log (and the "unavailable" line on that hidden step) for nothing.
+        if (!howToOnly) LoadStartupState();
+        if (howToOnly) StartButton.Content = UiLanguage.Text("Готово", _language);
         ShowStep(howToOnly ? StepCount - 1 : 0);
         ApplyLanguage(_language);
         // Shown while the strip is still hidden: without this the wizard can open behind the window
@@ -85,11 +87,20 @@ public partial class OnboardingWindow : Window
     internal static string LanguageForCulture(string twoLetterIsoLanguageName) =>
         twoLetterIsoLanguageName == "ru" ? "ru" : "en";
 
-    // A repeat run from the tray opens on what the user has chosen before; the first run guesses.
-    private static string SuggestedLanguage(HotkeySettings settings) =>
-        settings.OnboardingVersion >= CurrentVersion
-            ? settings.Language == "en" ? "en" : "ru"
-            : LanguageForCulture(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+    /// <summary>
+    /// The language the wizard opens in. The locale is a guess, and it is only made where there is
+    /// nothing to go on: no settings file, nothing chosen in it. A machine that already has one
+    /// keeps what it holds, whatever the locale is and whatever <see cref="CurrentVersion"/> says —
+    /// bumping that version brings the wizard back to everyone, and it must not re-language the
+    /// application behind the user, least of all in the slides from the tray, where there is no
+    /// switch to put it right.
+    /// </summary>
+    internal static string SuggestedLanguage(bool settingsFileExists, HotkeySettings settings, string cultureLanguage)
+    {
+        var chosen = settings.Language is "ru" or "en" ? settings.Language : null;
+        var seen = settingsFileExists || settings.OnboardingVersion > 0;
+        return seen && chosen is not null ? chosen : LanguageForCulture(cultureLanguage);
+    }
 
     internal int Step => _step;
     internal string SelectedLanguage => _language;

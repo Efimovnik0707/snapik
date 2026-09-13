@@ -47,6 +47,9 @@ public partial class EdgeStackWindow : Window
     private bool _busy;
     private bool _loading;
     private bool _exiting;
+    // The question on the way out is on screen (or the session is being deleted): a second "Exit"
+    // from the tray must not start a second one.
+    private bool _leaving;
     private bool _allowClose;
     private bool _sessionResetting;
     private CancellationTokenSource? _receiverEchoWatchCts;
@@ -63,6 +66,7 @@ public partial class EdgeStackWindow : Window
     private Point _dragStart;
     private double _resizeRightEdge;
     private double _resizeTop;
+    private Rect _resizeWorkArea;
     private CaptureItem? _draggedCapture;
     private readonly Stack<(CaptureItem Capture, int Index)> _removed = [];
     private TargetProfile? _selectedProfile;
@@ -74,7 +78,9 @@ public partial class EdgeStackWindow : Window
         if (options.Demo && string.IsNullOrWhiteSpace(dataRoot)) dataRoot = Path.Combine(Path.GetTempPath(), "SnapBrief", $"demo-{Environment.ProcessId}");
         _workspace = new SessionWorkspace(dataRoot);
         _settingsPath = Path.Combine(options.DataDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SnapBrief"), "settings.json");
-        _settings = HotkeySettings.Load(_settingsPath);
+        // The one read of the settings that may also write: a file from an older build is brought
+        // up to date here, once, and every other read in the application stays a read.
+        _settings = HotkeySettings.LoadAndMigrate(_settingsPath);
         UiLanguage.Current = _settings.Language;
         // Before any window content is built: the accent is read through DynamicResource.
         ThemeService.Apply(_settings.Theme, _settings.AccentId);
@@ -588,6 +594,15 @@ public partial class EdgeStackWindow : Window
             new Rect(area.Left, area.Top, area.Width, area.Height), dpi.DpiScaleX, dpi.DpiScaleY);
     }
 
+    // Everything of the window that is not the list: the header, the capture button, the toast and
+    // the paddings. Before the first layout pass there is nothing to measure, and the estimate of
+    // StripResizeGeometry stands in; it is what keeps the bottom of the window on the screen.
+    private double StackChromeHeight()
+    {
+        var measured = ActualHeight - CaptureList.ActualHeight;
+        return double.IsFinite(measured) && measured > 0 ? measured : Controls.StripResizeGeometry.EstimatedChromeHeight;
+    }
+
     private void PositionAtEdge()
     {
         var work = StackWorkArea();
@@ -595,10 +610,16 @@ public partial class EdgeStackWindow : Window
         // hand (or by an older build with another range) must not produce a strip nobody can use.
         Width = Controls.StripResizeGeometry.ClampWidth(_settings.StackWidth);
         // The height is remembered the same way, and it is the height of the list: the window is on
-        // SizeToContent and follows it.
-        CaptureList.MaxHeight = Controls.StripResizeGeometry.ClampListHeight(_settings.StackHeight, work.Height);
+        // SizeToContent and follows it. The clamp takes the chrome into account, so a height stored
+        // on a tall monitor cannot open a window whose lower half is below the screen.
+        CaptureList.Height = Controls.StripResizeGeometry.ClampListHeight(_settings.StackHeight, work.Height, StackChromeHeight());
+        // The height above was just assigned and ActualHeight still holds the one before it; the
+        // placement below is built on the height the window is about to have.
+        UpdateLayout();
         Left = work.Right - Width - 10;
-        Top = Math.Max(work.Top + 24, work.Top + (work.Height - Math.Max(ActualHeight, 160)) / 2);
+        var height = Math.Max(ActualHeight, 160);
+        var centred = Math.Max(work.Top + 24, work.Top + (work.Height - height) / 2);
+        Top = Math.Max(work.Top, Math.Min(centred, work.Bottom - height));
     }
 
     // The right edge is taken once, at the start of the drag: reading it from Left + Width on every
@@ -623,25 +644,27 @@ public partial class EdgeStackWindow : Window
     {
         _resizeRightEdge = Left + Width;
         _resizeTop = Top;
+        // The monitor is asked once: the working area cannot change under a drag, and reading it
+        // costs a P/Invoke and a DPI lookup on every movement of the mouse.
+        _resizeWorkArea = StackWorkArea();
     }
 
     private void OnCornerDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
     {
-        var work = StackWorkArea();
-        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, work.Left);
+        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, _resizeWorkArea.Left);
         Width = width;
         Left = left;
-        // Everything of the window that is not the list: the header, the capture button, the toast
-        // and the paddings. The window has no height of its own, so the list is what the drag moves,
-        // and the chrome is what keeps the bottom of the window inside the working area.
-        var chrome = Math.Max(0, ActualHeight - CaptureList.ActualHeight);
-        CaptureList.MaxHeight = Controls.StripResizeGeometry.ResizeListHeight(
-            CaptureList.MaxHeight, e.VerticalChange, chrome, _resizeTop, work.Bottom);
+        // The delta of a Thumb is measured from where the grip was when the drag began, so it is an
+        // increment only while the grip travels with what it resizes. The bottom of the window
+        // follows the height of the list, the grip sits on that bottom, and both stay true only
+        // because the list carries a height rather than a maximum.
+        CaptureList.Height = Controls.StripResizeGeometry.ResizeListHeight(
+            CaptureList.Height, e.VerticalChange, StackChromeHeight(), _resizeTop, _resizeWorkArea.Bottom);
         Top = _resizeTop;
     }
 
     private void OnCornerDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
-        MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.MaxHeight });
+        MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.Height });
 
     private async Task<bool> PrepareAsync()
     {
@@ -995,7 +1018,7 @@ public partial class EdgeStackWindow : Window
         {
             var readableHowTo = HotkeySettings.TryLoad(_settingsPath, out var currentHowTo);
             if (!readableHowTo) currentHowTo = HotkeySettings.Default;
-            var slides = new OnboardingWindow(currentHowTo, howToOnly: true)
+            var slides = new OnboardingWindow(currentHowTo, howToOnly: true, settingsFileExists: File.Exists(_settingsPath))
             {
                 Trace = message => StartupTrace.Write(_options, message)
             };
@@ -1012,7 +1035,9 @@ public partial class EdgeStackWindow : Window
             // as a whole: merging into it would fail on the very read that failed here.
             var readable = HotkeySettings.TryLoad(_settingsPath, out var current);
             if (!readable) current = HotkeySettings.Default;
-            var wizard = new OnboardingWindow(current)
+            // A file that is there carries a language the user has chosen once, and the wizard opens
+            // in it; the locale is only for a machine that has no file at all.
+            var wizard = new OnboardingWindow(current, settingsFileExists: readable && File.Exists(_settingsPath))
             {
                 TryApply = candidate => ApplyOnboarding(candidate, readable),
                 MarkPassed = () => CompleteOnboarding(readable),
@@ -1218,8 +1243,9 @@ public partial class EdgeStackWindow : Window
         finally { _workspaceMutationGate.Release(); }
     }
 
-    // Clearing the strip archives the current session on disk and opens an empty one; the panel
-    // itself stays visible, and there is no undo in this version (the files remain in the session).
+    // Clearing the strip deletes the directory of the current session and opens an empty one; the
+    // panel itself stays visible, and there is no undo: the captures are gone from the disk, which
+    // is why the question comes first.
     private async Task<bool> ClearStackAsync(bool clipboardGateHeld = false)
     {
         // Clearing gives the clipboard back, so it belongs in the same critical section as every
@@ -1577,12 +1603,21 @@ public partial class EdgeStackWindow : Window
         HideToastNow();
         if (_exiting)
         {
-            // Leaving takes the captures of the session with it, so the question comes before
-            // anything is written or deleted, and a cancelled exit leaves the strip as it was.
-            if (!ConfirmSessionDiscard()) { _exiting = false; ShowStackWithoutActivation(); return; }
-            // SaveAsync is deliberately not called here: it would write session.json back into the
-            // directory that is about to go.
-            await DiscardSessionOnExitAsync();
+            // The tray menu is a window of its own and its clicks arrive even while the question
+            // below runs its own message loop: without this a second "Exit" would put a second
+            // dialog on screen and run the deletion and the close twice.
+            if (_leaving) return;
+            _leaving = true;
+            try
+            {
+                // Leaving takes the captures of the session with it, so the question comes before
+                // anything is written or deleted, and a cancelled exit leaves the strip as it was.
+                if (!ConfirmSessionDiscard()) { _exiting = false; ShowStackWithoutActivation(); return; }
+                // SaveAsync is deliberately not called here: it would write session.json back into the
+                // directory that is about to go.
+                await DiscardSessionOnExitAsync();
+            }
+            finally { _leaving = false; }
             _allowClose = true;
             Close();
             return;
@@ -1593,18 +1628,41 @@ public partial class EdgeStackWindow : Window
         Hide();
     }
 
+    // The same deletion as "Clear the strip", under the same two gates and in the same order: the
+    // tray menu is served even inside the modal editor and inside an export that is still running,
+    // and a directory deleted from under one of them comes back as a half-written session whose
+    // paths are already on the clipboard.
     private async Task DiscardSessionOnExitAsync()
     {
+        // A capture or the editor is still on screen: whatever it writes would land in the
+        // directory right after it was deleted, so the deletion is left to the purge of the next
+        // start, which takes the whole root anyway.
+        if (_busy)
+        {
+            StartupTrace.Write(_options, "Exit: the session was left to the next start, an operation was still running.");
+            return;
+        }
+        await _clipboardPublicationGate.WaitAsync();
         try
         {
-            // The package on the clipboard is a list of paths into the session directory: the
-            // clipboard is given back first, so a paste made after the exit is honestly empty
-            // instead of pointing at files that are no longer there.
-            await ReleaseOwnedClipboardCoreAsync();
-            await _workspace.DiscardCurrentSessionAsync(message => StartupTrace.Write(_options, message));
+            await _workspaceMutationGate.WaitAsync();
+            try
+            {
+                // Nothing may publish or rebuild the clipboard from here on: the strip is going.
+                _sessionResetting = true;
+                _saveTimer.Stop();
+                CancelReceiverEchoWatch();
+                // The package on the clipboard is a list of paths into the session directory: the
+                // clipboard is given back first, so a paste made after the exit is honestly empty
+                // instead of pointing at files that are no longer there.
+                await ReleaseOwnedClipboardCoreAsync();
+                await _workspace.DiscardCurrentSessionAsync(message => StartupTrace.Write(_options, message));
+            }
+            finally { _workspaceMutationGate.Release(); }
         }
         // Nothing can be shown to the user at this point, and the next start purges the root anyway.
         catch (Exception ex) { StartupTrace.Write(_options, $"Exit: the session was not discarded: {ex}"); }
+        finally { _clipboardPublicationGate.Release(); }
     }
 
     // Raise the strip without activating it; whether it stays above other applications is the StackTopmost setting.

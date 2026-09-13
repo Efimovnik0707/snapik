@@ -17,10 +17,20 @@ internal static class StripResizeGeometry
     // The height of the strip is the height of the capture list: the window lives on
     // SizeToContent="Height", and a height written to the window itself is overwritten by the next
     // layout pass. The card (78 px) and the overlap (48 px) stay as they are, the visible part of
-    // the list is what grows.
+    // the list is what grows. The list carries that height outright rather than as a maximum: with
+    // a maximum a short strip is shorter than the number it holds, the window stops following the
+    // corner grip, and the drag moves nothing until the tenth capture.
     internal const double MinimumListHeight = 180;
     internal const double MaximumListHeight = 720;
     internal const double DefaultListHeight = 372;
+
+    /// <summary>
+    /// Everything of the strip window that is not the list: the header, the capture button, the
+    /// toast, the status line and the paddings of the card. The window measures its own before the
+    /// first drag; this is the figure used until there is something to measure, and it is on the
+    /// generous side on purpose — a list clamped a little short still fits on the screen.
+    /// </summary>
+    internal const double EstimatedChromeHeight = 140;
 
     /// <summary>A width from the settings file: out of range is clamped, nonsense falls back to the default.</summary>
     internal static double ClampWidth(double width) =>
@@ -39,15 +49,17 @@ internal static class StripResizeGeometry
 
     /// <summary>
     /// A list height from the settings file: out of range is clamped, nonsense falls back to the
-    /// default. The working area is a ceiling of its own, so a height stored on a large monitor does
-    /// not open a strip taller than the screen it comes back on.
+    /// default. The working area is a ceiling of its own, and the window is taller than its list by
+    /// <paramref name="chromeHeight"/>, so a height stored on a large monitor opens a window that
+    /// still fits on the screen it comes back on, together with the corner grip that resizes it.
     /// </summary>
-    internal static double ClampListHeight(double height, double workHeight)
+    internal static double ClampListHeight(double height, double workHeight, double chromeHeight)
     {
+        var chrome = double.IsFinite(chromeHeight) && chromeHeight > 0 ? chromeHeight : EstimatedChromeHeight;
         var ceiling = double.IsFinite(workHeight) && workHeight > 0
-            ? Math.Max(MinimumListHeight, Math.Min(MaximumListHeight, workHeight))
+            ? Math.Max(MinimumListHeight, Math.Min(MaximumListHeight, workHeight - chrome))
             : MaximumListHeight;
-        return double.IsFinite(height) ? Math.Clamp(height, MinimumListHeight, ceiling) : Math.Min(DefaultListHeight, ceiling);
+        return Math.Clamp(double.IsFinite(height) ? height : DefaultListHeight, MinimumListHeight, ceiling);
     }
 
     /// <summary>

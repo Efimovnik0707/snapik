@@ -17,7 +17,9 @@ namespace SnapBrief.App.Controls;
 public partial class HowToSlides : UserControl
 {
     internal const int SlideCount = 4;
-    private static readonly SolidColorBrush IdleDot = new(Color.FromRgb(70, 80, 94));
+    // One brush for every dot of every instance of the control, so it is frozen: nobody owns it and
+    // nobody may change it under the others.
+    private static readonly SolidColorBrush IdleDot = CreateIdleDot();
     private readonly Storyboard[] _loops;
     private readonly Canvas[] _canvases;
     private readonly UIElement[] _captions;
@@ -30,6 +32,13 @@ public partial class HowToSlides : UserControl
     private bool _ignoreCompleted;
     private int _slide;
     private string _language = UiLanguage.Current;
+
+    private static SolidColorBrush CreateIdleDot()
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(70, 80, 94));
+        brush.Freeze();
+        return brush;
+    }
 
     public HowToSlides()
     {

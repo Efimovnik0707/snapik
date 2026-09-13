@@ -31,9 +31,10 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// <summary>The width of the strip window in pixels; the visible card is 20 px narrower.</summary>
     public double StackWidth { get; init; } = Controls.StripResizeGeometry.DefaultWidth;
     /// <summary>
-    /// The maximum height of the capture list inside the strip, in pixels, not the height of the
-    /// window: the window is on SizeToContent and derives its height from this one. Read back
-    /// clamped to 180..720 and to the working area of the monitor the strip opens on.
+    /// The height of the capture list inside the strip, in pixels, not the height of the window:
+    /// the window is on SizeToContent and derives its height from this one. Read back clamped to
+    /// 180..720 and to the working area of the monitor the strip opens on, less the chrome of the
+    /// window, so that all of it fits on that screen.
     /// </summary>
     public double StackHeight { get; init; } = Controls.StripResizeGeometry.DefaultListHeight;
     public bool ClearStackAfterPaste { get; init; }
@@ -113,9 +114,14 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
 
     // A missing file means "nothing saved yet" and may be overwritten with defaults; a file that
     // exists but does not parse must be left alone, otherwise one bad read wipes every preference.
-    public static bool TryLoad(string path, out HotkeySettings settings)
+    // This is a read and nothing else: SessionWorkspace.Preferences reads on every capture, and a
+    // read that writes would rewrite settings.json with the keys of this build alone.
+    public static bool TryLoad(string path, out HotkeySettings settings) => TryRead(path, out settings, out _);
+
+    private static bool TryRead(string path, out HotkeySettings settings, out bool migrated)
     {
         settings = Default;
+        migrated = false;
         try
         {
             if (!File.Exists(path)) return true;
@@ -126,14 +132,26 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
             // JSON without the hotkey ids builds a record with empty ones, and every Find over them would fail.
             if (string.IsNullOrEmpty(stored.CaptureId) || string.IsNullOrEmpty(stored.PasteId)) return false;
             settings = Migrate(stored);
-            if (settings != stored)
-            {
-                try { settings.Save(path); }
-                catch { /* A file that cannot be written is still a file that can be read from. */ }
-            }
+            migrated = settings != stored;
             return true;
         }
         catch { return false; }
+    }
+
+    /// <summary>
+    /// Reads the file and writes back what the migration changed, so an older file is brought up to
+    /// date once instead of on every read. The start of the application is the only caller: it is
+    /// the one moment where writing to the settings file is a deliberate step.
+    /// </summary>
+    internal static HotkeySettings LoadAndMigrate(string path)
+    {
+        if (!TryRead(path, out var settings, out var migrated)) return Default;
+        if (migrated)
+        {
+            try { settings.Save(path); }
+            catch { /* A file that cannot be written is still a file that can be read from. */ }
+        }
+        return settings;
     }
 
     // Written through a neighbouring temporary file: a write interrupted halfway must not leave

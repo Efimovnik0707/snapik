@@ -86,7 +86,10 @@ public sealed class SessionWorkspace
     public Task PurgePreviousSessionsAsync(Action<string>? trace = null, CancellationToken cancellationToken = default) => Task.Run(() =>
     {
         if (!Directory.Exists(_root)) return;
-        foreach (var directory in Directory.EnumerateDirectories(_root))
+        // The listing is taken whole before the first deletion: enumerating a directory while its
+        // contents are being removed may walk past entries, and a session skipped that way is never
+        // reported anywhere.
+        foreach (var directory in Directory.GetDirectories(_root))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!Guid.TryParseExact(Path.GetFileName(directory), "N", out _)) continue;

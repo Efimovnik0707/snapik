@@ -58,6 +58,19 @@ public static class SmokeTestRunner
             OnboardingWindow.LanguageForCulture("be") != "en" || OnboardingWindow.LanguageForCulture("es") != "en" ||
             OnboardingWindow.LanguageForCulture("en") != "en")
             throw new InvalidOperationException("The suggested language must follow the system locale.");
+        // ...but only where there is nothing to go on. A machine that already has a settings file
+        // keeps the language in it: raising the version of the wizard shows it to everyone again,
+        // and it must not turn a chosen Russian interface English on a Spanish system, nor a chosen
+        // English one Russian on a Russian system.
+        var chosenEnglish = HotkeySettings.Default with { Language = "en", OnboardingVersion = 1 };
+        var chosenRussian = HotkeySettings.Default with { Language = "ru", OnboardingVersion = 1 };
+        var firstRun = HotkeySettings.Default with { OnboardingVersion = 0 };
+        if (OnboardingWindow.SuggestedLanguage(true, chosenEnglish, "ru") != "en" ||
+            OnboardingWindow.SuggestedLanguage(false, chosenEnglish, "es") != "en" ||
+            OnboardingWindow.SuggestedLanguage(true, chosenRussian, "es") != "ru" ||
+            OnboardingWindow.SuggestedLanguage(false, firstRun, "uk") != "en" ||
+            OnboardingWindow.SuggestedLanguage(false, firstRun, "ru") != "ru")
+            throw new InvalidOperationException("The wizard must open in the chosen language and guess from the locale only on a first run.");
         if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
             OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("Stored annotation colour must be read back, an invalid one must fall back to the default.");
@@ -314,6 +327,7 @@ public static class SmokeTestRunner
 
         VerifyLegacyRedactionReadsAsAFilledRegion();
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
+        Controls.AnnotationCanvas.VerifyBlurCache(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
         Controls.AnnotationCanvas.VerifyGestureRules(captures[0].Image);
         foreach (var format in new[] { "png", "jpeg" })
@@ -538,11 +552,19 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("A machine that has never chosen must get the quiet default volume.");
         var loudPath = Path.Combine(root, "loud-settings-smoke.json");
         (HotkeySettings.Default with { SoundVolume = 60, SettingsVersion = 0 }).Save(loudPath);
-        var migrated = HotkeySettings.Load(loudPath);
-        var kept = HotkeySettings.Load(loudPath);
+        // Reading is reading: the preferences are read on every capture, and a read that rewrote the
+        // file would drop every key this build does not know about, without anyone asking for it.
+        var beforeRead = File.ReadAllText(loudPath);
+        HotkeySettings.Load(loudPath);
+        if (File.ReadAllText(loudPath) != beforeRead)
+            throw new InvalidOperationException("Reading the settings must not write them back.");
+        var migrated = HotkeySettings.LoadAndMigrate(loudPath);
+        var kept = HotkeySettings.LoadAndMigrate(loudPath);
+        if (File.ReadAllText(loudPath) == beforeRead)
+            throw new InvalidOperationException("The start of the application must write the migrated settings back once.");
         var pickedPath = Path.Combine(root, "picked-settings-smoke.json");
         (HotkeySettings.Default with { SoundVolume = 75, SettingsVersion = 0 }).Save(pickedPath);
-        var picked = HotkeySettings.Load(pickedPath);
+        var picked = HotkeySettings.LoadAndMigrate(pickedPath);
         if (migrated.SoundVolume != 40 || migrated.SettingsVersion != HotkeySettings.CurrentSettingsVersion ||
             kept.SoundVolume != 40 || picked.SoundVolume != 75 ||
             picked.SettingsVersion != HotkeySettings.CurrentSettingsVersion)
@@ -554,26 +576,33 @@ public static class SmokeTestRunner
     }
 
     // The tray opens the how-to slides on their own: the last step and nothing else, one button, and
-    // no language switch — the language lives in the settings by then.
+    // no language switch — the language lives in the settings by then. Which is why the caption of
+    // that one button is checked in both languages: there is nothing on this window to put it right.
     private static void VerifyHowToOnlyWizard(HotkeySettings settings)
     {
-        var wizard = WithoutBindingErrors("The how-to wizard", () =>
+        foreach (var (language, caption) in new[] { ("ru", "Готово"), ("en", "Done") })
         {
-            var window = new OnboardingWindow(settings, howToOnly: true);
-            window.Measure(new Size(620, 600));
-            window.Arrange(new Rect(0, 0, 620, 600));
-            window.UpdateLayout();
-            return window;
-        });
-        var hidden = wizard.Step1.Visibility != Visibility.Visible && wizard.Step2.Visibility != Visibility.Visible &&
-            wizard.Step3.Visibility != Visibility.Visible && wizard.LanguageToggle.Visibility != Visibility.Visible &&
-            wizard.BackButton.Visibility != Visibility.Visible && wizard.NextButton.Visibility != Visibility.Visible &&
-            wizard.StepText.Visibility != Visibility.Visible;
-        var shown = wizard.Step4.Visibility == Visibility.Visible && wizard.StartButton.Visibility == Visibility.Visible &&
-            wizard.HowTo.Slide == 0;
-        wizard.Close();
-        if (!hidden || !shown)
-            throw new InvalidOperationException("The slides-only wizard must show the last step and hide the steps, the switch and the buttons.");
+            var wizard = WithoutBindingErrors("The how-to wizard", () =>
+            {
+                var window = new OnboardingWindow(settings with { Language = language }, howToOnly: true);
+                window.Measure(new Size(620, 600));
+                window.Arrange(new Rect(0, 0, 620, 600));
+                window.UpdateLayout();
+                return window;
+            });
+            var hidden = wizard.Step1.Visibility != Visibility.Visible && wizard.Step2.Visibility != Visibility.Visible &&
+                wizard.Step3.Visibility != Visibility.Visible && wizard.LanguageToggle.Visibility != Visibility.Visible &&
+                wizard.BackButton.Visibility != Visibility.Visible && wizard.NextButton.Visibility != Visibility.Visible &&
+                wizard.StepText.Visibility != Visibility.Visible;
+            var shown = wizard.Step4.Visibility == Visibility.Visible && wizard.StartButton.Visibility == Visibility.Visible &&
+                wizard.HowTo.Slide == 0;
+            var titled = wizard.SelectedLanguage == language && wizard.StartButton.Content as string == caption;
+            wizard.Close();
+            if (!hidden || !shown)
+                throw new InvalidOperationException("The slides-only wizard must show the last step and hide the steps, the switch and the buttons.");
+            if (!titled)
+                throw new InvalidOperationException($"The slides-only wizard must open in the chosen language and say \"{caption}\" on its only button.");
+        }
     }
 
     // The strings of the welcome step, and the rule that lets any of them travel back: the way from

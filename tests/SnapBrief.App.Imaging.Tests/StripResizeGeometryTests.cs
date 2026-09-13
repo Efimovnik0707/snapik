@@ -66,13 +66,30 @@ public sealed class StripResizeGeometryTests
     }
 
     [Theory]
-    [InlineData(300, 1040, 300)]
-    [InlineData(40, 1040, StripResizeGeometry.MinimumListHeight)]
-    [InlineData(900, 1040, StripResizeGeometry.MaximumListHeight)]
-    [InlineData(900, 500, 500)]
-    [InlineData(double.NaN, 1040, StripResizeGeometry.DefaultListHeight)]
-    public void A_stored_list_height_is_clamped_by_the_range_and_by_the_screen(double stored, double workHeight, double expected) =>
-        Assert.Equal(expected, StripResizeGeometry.ClampListHeight(stored, workHeight));
+    [InlineData(300, 1040, 130, 300)]
+    [InlineData(40, 1040, 130, StripResizeGeometry.MinimumListHeight)]
+    [InlineData(900, 1040, 130, StripResizeGeometry.MaximumListHeight)]
+    [InlineData(900, 500, 130, 370)]
+    [InlineData(double.NaN, 1040, 130, StripResizeGeometry.DefaultListHeight)]
+    // A chrome taller than the screen still leaves a list somebody can use.
+    [InlineData(600, 300, 400, StripResizeGeometry.MinimumListHeight)]
+    // Nothing measured yet: the estimate stands in for the chrome.
+    [InlineData(900, 728, 0, 728 - StripResizeGeometry.EstimatedChromeHeight)]
+    public void A_stored_list_height_is_clamped_by_the_range_and_by_the_screen(double stored, double workHeight, double chrome, double expected) =>
+        Assert.Equal(expected, StripResizeGeometry.ClampListHeight(stored, workHeight, chrome));
+
+    [Fact]
+    public void A_stored_list_height_leaves_room_for_the_chrome_of_the_window()
+    {
+        // The laptop of the report: a working area of 728 px and a height of 720 stored on a big
+        // monitor. The window is the list plus its chrome, and all of it has to fit on the screen,
+        // or the corner grip that would bring it back is below the bottom edge.
+        const double chrome = 130;
+        var height = StripResizeGeometry.ClampListHeight(StripResizeGeometry.MaximumListHeight, 728, chrome);
+
+        Assert.Equal(598, height);
+        Assert.True(height + chrome <= 728);
+    }
 
     [Theory]
     [InlineData(240, 240)]

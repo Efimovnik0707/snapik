@@ -180,8 +180,11 @@ public partial class OverlayEditorWindow
         ArrowMenuButton.Background = Surface.Tool == EditorTool.Arrow ? accent : Brushes.Transparent;
         PenMenuButton.Background = Surface.Tool is EditorTool.Pen or EditorTool.Highlight ? accent : Brushes.Transparent;
         ColorDots.IsEnabled = HasColor(tool);
+        // The dots paint the colour that is actually seen, the same one the circle on the panel
+        // shows, so the one that is outlined has to be compared against that one: against the
+        // outline of a frame that has one, against its fill for a frame that conceals.
         foreach (Button dot in ColorDots.Children)
-            ((Ellipse)dot.Content).Stroke = (Color)dot.Tag == color
+            ((Ellipse)dot.Content).Stroke = (Color)dot.Tag == mainColor
                 ? Brushes.White
                 : new SolidColorBrush(Color.FromRgb(120, 130, 146));
         var fill = selected?.Fill ?? Surface.ActiveFill;

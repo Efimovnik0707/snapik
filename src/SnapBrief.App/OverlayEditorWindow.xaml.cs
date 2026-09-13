@@ -1416,6 +1416,15 @@ public partial class OverlayEditorWindow : Window
             if (e.Key == Key.Escape) { Surface.Focus(); e.Handled = true; }
             return;
         }
+        // Enter is "Done", the way the button, Ctrl+C and the capture shortcut are. Text that is
+        // being edited takes it first (a focused TextBox has already returned above), and an open
+        // popover belongs to Escape, not to finishing the capture.
+        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None && _capture is not null && NextEscapeStep() != EscapeStep.Popover)
+        {
+            e.Handled = true;
+            Complete(false);
+            return;
+        }
         if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Popover)
         {
             ClosePopovers();
