@@ -41,15 +41,19 @@ WizardStyle=modern
 CloseApplications=yes
 CloseApplicationsFilter=SnapBrief.exe
 RestartApplications=no
+; The installer never asks for a language: it takes the one of the system, exactly like the
+; application does. Startup is not asked for either, the wizard of the first run owns that switch.
+ShowLanguageDialog=no
 
+; English first on purpose: with the dialog off Inno picks the language whose LanguageID matches the
+; UI locale and falls back to the FIRST entry when none does, so a Spanish, German or Ukrainian
+; system would otherwise be given a Russian installer.
 [Languages]
-Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "autostart"; Description: "Запускать SnapBrief при входе в Windows"; GroupDescription: "Автозапуск:"; Flags: unchecked; Languages: russian
-Name: "autostart"; Description: "Start SnapBrief when you sign in to Windows"; GroupDescription: "Startup:"; Flags: unchecked; Languages: english
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "build-info.json,*.pdb"
@@ -59,14 +63,17 @@ Name: "{group}\SnapBrief"; Filename: "{app}\SnapBrief.exe"
 Name: "{group}\{cm:UninstallProgram,SnapBrief}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\SnapBrief"; Filename: "{app}\SnapBrief.exe"; Tasks: desktopicon
 
-[Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "SnapBrief"; ValueData: """{app}\SnapBrief.exe"""; Flags: uninsdeletevalue; Tasks: autostart
-
 [Run]
 Filename: "{app}\SnapBrief.exe"; Description: "{cm:LaunchProgram,SnapBrief}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "taskkill.exe"; Parameters: "/IM SnapBrief.exe /F"; Flags: runhidden; RunOnceId: "KillSnapBrief"
+; The startup entry is written by the application itself now, into this very value, so the installer
+; no longer creates it and "uninsdeletevalue" no longer removes it. Uninstalling has to drop it
+; unconditionally, or a user who switched startup on in the wizard keeps a Run entry pointing at an
+; executable that is gone. A [Registry] line with "deletevalue" was rejected: it would also switch
+; the setting off on every install over an existing one.
+Filename: "reg.exe"; Parameters: "delete ""HKCU\Software\Microsoft\Windows\CurrentVersion\Run"" /v SnapBrief /f"; Flags: runhidden; RunOnceId: "DropAutostart"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
