@@ -14,6 +14,11 @@ public partial class OverlayEditorWindow
     private async void OnSaveImageClick(object sender, RoutedEventArgs e)
     {
         if (_capture is null || _busyCrop || _captureResizeCorner >= 0 || Surface.IsMouseCaptured) return;
+        // The caption that is still being typed is finished first, the way "Done" finishes it: while
+        // the text box is open the canvas leaves that caption out of the drawing, and the file on
+        // disk would come out without the words that are on the screen. Ctrl+S reaches this handler
+        // with the focus still inside the text box, so nothing else commits it.
+        CommitTextEdit();
         _busyCrop = true;
         var wasTopmost = Topmost;
         try

@@ -236,7 +236,7 @@ public static class SmokeTestRunner
         WithoutBindingErrors("The how-to slides", Controls.HowToSlides.RunSlidesProbe);
         VerifyHowToOnlyWizard(restoredSettings);
         VerifySlideKeysStayInsideTheWizard(restoredSettings);
-        VerifyAShortcutNeedsAModifier(restoredSettings);
+        VerifyAShortcutNeedsAModifier(restoredSettings, root);
         var closedWithoutButtons = false;
         var skipped = new OnboardingWindow(restoredSettings) { MarkPassed = () => closedWithoutButtons = true };
         skipped.Close();
@@ -772,16 +772,34 @@ public static class SmokeTestRunner
     // field refuses to record anything else, and a "custom:0:<key>" already sitting in a settings
     // file (a bare arrow recorded by an older build) is read as the default instead of being
     // registered globally once more.
-    private static void VerifyAShortcutNeedsAModifier(HotkeySettings settings)
+    private static void VerifyAShortcutNeedsAModifier(HotkeySettings settings, string root)
     {
         const string bareLeftArrow = "custom:0:37";
         if (HotkeySettings.Find(bareLeftArrow).Id != HotkeySettings.Choices[0].Id ||
             HotkeySettings.Find("custom:0:83").Id != HotkeySettings.Choices[0].Id)
             throw new InvalidOperationException("A stored shortcut without a modifier must be read as the default one.");
+        // A shortcut that ends with a modifier: "Ctrl + LeftShift", which an older field wrote when
+        // Shift was let go of with Ctrl still down.
+        if (HotkeySettings.Find("custom:2:161").Id != HotkeySettings.Choices[0].Id)
+            throw new InvalidOperationException("A stored shortcut that ends with a modifier must be read as the default one.");
         if (HotkeySettings.Find("custom:0:44").Gesture.VirtualKey != 0x2C ||
             HotkeySettings.Find("custom:0:19").Gesture.VirtualKey != 0x13 ||
             HotkeySettings.Find("custom:2:37").Id != "custom:2:37")
             throw new InvalidOperationException("Print Screen, Pause and any combination with a modifier must survive the read.");
+        // Each shortcut falls back to its own default: answering all of them with the capture one
+        // would give the fullscreen save the gesture of the capture, and the strip would then report
+        // "This shortcut is already taken" about a shortcut the user never chose.
+        var refused = HotkeySettings.Default with { CaptureId = bareLeftArrow, PasteId = bareLeftArrow, FullscreenSaveId = bareLeftArrow };
+        if (refused.PasteGesture == refused.CaptureGesture || refused.FullscreenSaveGesture == refused.CaptureGesture ||
+            HotkeySettings.Find(bareLeftArrow, HotkeySettings.Default.PasteId).Id != HotkeySettings.Default.PasteId ||
+            HotkeySettings.Find(bareLeftArrow, HotkeySettings.DefaultFullscreenSaveId).Id != HotkeySettings.DefaultFullscreenSaveId)
+            throw new InvalidOperationException("A refused id must fall back to the default of its own shortcut, not to the capture one.");
+        // And the file is put right once, so that what it holds and what the window shows agree.
+        var barePath = Path.Combine(root, "bare-shortcut-smoke.json");
+        (HotkeySettings.Default with { CaptureId = bareLeftArrow }).Save(barePath);
+        var healed = HotkeySettings.LoadAndMigrate(barePath);
+        if (healed.CaptureId != HotkeySettings.Default.CaptureId || HotkeySettings.Load(barePath).CaptureId != HotkeySettings.Default.CaptureId)
+            throw new InvalidOperationException("A settings file holding a refused shortcut must be put right when it is read.");
         WithoutBindingErrors("The hotkey field", () => Controls.HotkeyField.RunHotkeyFieldProbe("ru"));
         var wizard = WithoutBindingErrors("The wizard on a shortcut without a modifier", () =>
         {

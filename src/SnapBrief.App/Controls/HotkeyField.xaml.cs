@@ -86,7 +86,10 @@ public partial class HotkeyField : UserControl
         if (!_recording) return;
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         e.Handled = true;
-        if (key is Key.Pause or Key.Snapshot || IsModifier(key)) RecordKey(key);
+        // Only the two keys that are a shortcut on their own are taken on the way up, and only
+        // because they never arrive on the way down. A modifier let go of is not a shortcut: with
+        // Ctrl still held, releasing Shift used to be read as "Ctrl + LeftShift".
+        if (key is Key.Pause or Key.Snapshot) RecordKey(key);
     }
     private void OnCaptureKeyDown(object sender, KeyEventArgs e)
     {
@@ -117,6 +120,9 @@ public partial class HotkeyField : UserControl
     {
         var vk = KeyInterop.VirtualKeyFromKey(key);
         if (vk is <= 0 or >= 255 || !_recording) return false;
+        // A modifier is what the shortcut is held together with, never what it ends with, whichever
+        // way the key arrived here.
+        if (HotkeyRules.IsModifierKey((ushort)vk)) return false;
         // Nothing is recorded and the recording goes on: the field asks for a modifier instead of
         // taking a key that would then belong to SnapBrief everywhere on the machine.
         if (modifiers == 0 && !HotkeyRules.IsShortcutOnItsOwn((ushort)vk))
@@ -149,6 +155,11 @@ public partial class HotkeyField : UserControl
             field.HotkeyId != $"custom:{(uint)HotkeyModifiers.Control}:{KeyInterop.VirtualKeyFromKey(Key.Left)}")
             throw new InvalidOperationException("The same key with a modifier must be recorded as it was pressed.");
         field.BeginRecording();
+        // Ctrl held, Shift let go of: the released modifier must not become the key of the shortcut,
+        // or every Ctrl+Shift on the machine would belong to SnapBrief from then on.
+        var taken = field.HotkeyId;
+        if (field.RecordKey(Key.LeftShift, (uint)HotkeyModifiers.Control) || field.HotkeyId != taken)
+            throw new InvalidOperationException("A modifier let go of must not become the key of a shortcut.");
         if (!field.RecordKey(Key.Snapshot, 0) || field.HotkeyId != $"custom:0:{KeyInterop.VirtualKeyFromKey(Key.Snapshot)}")
             throw new InvalidOperationException("Print Screen is a shortcut on its own and must be taken without a modifier.");
     }

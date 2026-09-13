@@ -17,7 +17,9 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
 {
     public bool CaptureEnabled { get; init; } = true;
     public bool FullscreenSaveEnabled { get; init; }
-    public string FullscreenSaveId { get; init; } = "custom:4:44";
+    /// <summary>Shift + Print Screen, what "save the whole screen" carries until it is changed.</summary>
+    public const string DefaultFullscreenSaveId = "custom:4:44";
+    public string FullscreenSaveId { get; init; } = DefaultFullscreenSaveId;
     public bool ShowNotifications { get; init; } = true;
     public bool RememberRegion { get; init; }
     public bool CaptureCursor { get; init; }
@@ -77,7 +79,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public int OnboardingVersion { get; init; }
     public string Theme { get; init; } = "dark";
     public string AccentId { get; init; } = "blue";
-    public HotkeyGesture FullscreenSaveGesture => Find(FullscreenSaveId).Gesture;
+    public HotkeyGesture FullscreenSaveGesture => Find(FullscreenSaveId, DefaultFullscreenSaveId).Gesture;
     // A method rather than a property: everything the record exposes as a property is written into
     // settings.json, and this one is a fallback, not a preference of its own.
     public string PackageDirectory() => string.IsNullOrWhiteSpace(PackageSaveDirectory) ? SaveDirectory : PackageSaveDirectory;
@@ -116,7 +118,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
         System.Linq.Enumerable.Where(Choices, choice => choice.Id != "print-screen").ToArray();
 
     public HotkeyGesture CaptureGesture => Find(CaptureId).Gesture;
-    public HotkeyGesture PasteGesture => Find(PasteId).Gesture;
+    public HotkeyGesture PasteGesture => Find(PasteId, Default.PasteId).Gesture;
 
     public static HotkeySettings Load(string path) => TryLoad(path, out var settings) ? settings : Default;
 
@@ -139,7 +141,17 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
             if (JsonSerializer.Deserialize<HotkeySettings>(content) is not { } stored) return false;
             // JSON without the hotkey ids builds a record with empty ones, and every Find over them would fail.
             if (string.IsNullOrEmpty(stored.CaptureId) || string.IsNullOrEmpty(stored.PasteId)) return false;
-            settings = Migrate(stored);
+            // An id that must not be registered is replaced by the default of its own shortcut here,
+            // not only where the shortcut is read: otherwise the file goes on holding "custom:0:37"
+            // for good while the window shows "Ctrl + Alt + S", and the Mac port, with rules of its
+            // own, reads the same file differently. A valid id resolves to itself, so a healthy file
+            // comes out of this unchanged and is not written back.
+            settings = Migrate(stored) with
+            {
+                CaptureId = Find(stored.CaptureId).Id,
+                PasteId = Find(stored.PasteId, Default.PasteId).Id,
+                FullscreenSaveId = Find(stored.FullscreenSaveId, DefaultFullscreenSaveId).Id
+            };
             migrated = settings != stored;
             return true;
         }
@@ -225,15 +237,26 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
         }
     }
 
-    public static HotkeyChoice Find(string id)
+    /// <summary>
+    /// The choice a stored id stands for. An id that must not be registered falls back to the
+    /// default of the shortcut it was read for, which is why the fallback is an argument: the
+    /// capture, the fullscreen save and the paste each have a different one, and answering all
+    /// three with the capture shortcut would make two of them collide with it.
+    /// </summary>
+    public static HotkeyChoice Find(string id) => Find(id, Default.CaptureId);
+
+    public static HotkeyChoice Find(string id, string fallbackId) =>
+        Resolve(id) ?? Resolve(fallbackId) ?? Choices[0];
+
+    private static HotkeyChoice? Resolve(string id)
     {
         var preset = Choices.FirstOrDefault(c => c.Id == id);
         if (preset is not null) return preset;
-        // A stored "custom:0:<key>" is nonsense for every key but the two that stand alone, and is
-        // answered with the default. Builds before this one let the field record a key pressed
-        // alone, and a settings file holding one would otherwise go on taking that key from the
-        // whole machine at every start. Nothing is written back here, reading never writes; the
-        // next save of the settings makes the default permanent.
+        // A stored "custom:0:<key>" is nonsense for every key but the two that stand alone, and a
+        // stored id that ends with a modifier is nonsense outright; both are answered with the
+        // default. Builds before this one let the field record them, and a settings file holding one
+        // would otherwise go on taking those keys from the whole machine at every start. Nothing is
+        // written back here, reading never writes; the file itself is put right in TryRead.
         if (HotkeyRules.TryParseCustom(id, out var modifiers, out var key))
         {
             var flags = (HotkeyModifiers)modifiers;
@@ -245,7 +268,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
             label += key == 0x13 ? "Pause / Break" : key == 0x2C ? "Print Screen" : KeyInterop.KeyFromVirtualKey(key).ToString();
             return new HotkeyChoice(id, label, new HotkeyGesture(flags | HotkeyModifiers.NoRepeat, key));
         }
-        return Choices[0];
+        return null;
     }
 }
 

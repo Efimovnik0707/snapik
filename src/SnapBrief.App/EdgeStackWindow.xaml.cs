@@ -136,10 +136,12 @@ public partial class EdgeStackWindow : Window
             ContextMenuStrip = new WinForms.ContextMenuStrip()
         };
         _trayIcon.ContextMenuStrip.Items.Add("Показать ленту", null, (_, _) => Dispatcher.Invoke(ShowStackWithoutActivation));
-        _trayIcon.ContextMenuStrip.Items.Add("Настройки", null, (_, _) => Dispatcher.Invoke(() => { ShowStackWithoutActivation(); OpenSettings(); }));
-        // BeginInvoke, not Invoke: the slides open modally, and a modal loop started from inside the
-        // click handler of the menu runs while that menu is still on screen. The dialog then may
-        // never get the activation its arrow keys need. Posting it lets the menu close first.
+        // BeginInvoke, not Invoke, for both of the items that open a dialog: a modal loop started
+        // from inside the click handler of the menu runs while that menu is still on screen, and the
+        // dialog then may never get the activation its keyboard needs. Posting it lets the menu close
+        // first. Without activation the settings window is worse off than the slides: the hotkey
+        // field would record nothing at all.
+        _trayIcon.ContextMenuStrip.Items.Add("Настройки", null, (_, _) => Dispatcher.BeginInvoke(() => { ShowStackWithoutActivation(); OpenSettings(); }));
         _trayIcon.ContextMenuStrip.Items.Add("Как пользоваться", null, (_, _) => Dispatcher.BeginInvoke(() => ShowOnboarding(howToOnly: true)));
         _trayIcon.ContextMenuStrip.Items.Add("Новый снимок", null, (_, _) => Dispatcher.InvokeAsync(CaptureLoopAsync));
         _trayIcon.ContextMenuStrip.Items.Add(new WinForms.ToolStripSeparator());

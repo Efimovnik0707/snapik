@@ -17,6 +17,10 @@ public partial class OverlayEditorWindow
     private string _editingTextBefore = string.Empty;
     private bool _editingTextIsNew;
     private int _editingUndoDepth;
+    // The capture as it stood before a caption that was already there was opened for retyping. The
+    // typing itself goes through the property of the mark, and that path only overwrites the last
+    // snapshot, so without this one Ctrl+Z after retyping undid the action before the caption.
+    private OverlaySnapshot? _editingTextBeforeState;
     private bool _closingTextEdit;
 
     internal bool IsEditingText => _editingText is not null;
@@ -50,6 +54,8 @@ public partial class OverlayEditorWindow
         _editingTextBefore = annotation.Text;
         _editingTextIsNew = isNew;
         _editingUndoDepth = _undo.Count;
+        // A caption just placed already has an entry of its own, pushed where it was created.
+        _editingTextBeforeState = isNew || _capture is null ? null : SnapshotState();
         Surface.EditingTextId = annotation.Id;
         Surface.SelectAnnotation(annotation.Id);
         _settingUp = true;
@@ -96,13 +102,21 @@ public partial class OverlayEditorWindow
     {
         if (_editingText is not { } annotation || _closingTextEdit) return;
         _closingTextEdit = true;
+        var before = _editingTextBeforeState;
+        var rewritten = annotation.Text != _editingTextBefore;
         try
         {
             CloseTextEditor();
             // A caption with nothing in it is not a caption: leaving it would drop an invisible mark
             // on the capture, and there would be no way to find it again.
             if (string.IsNullOrWhiteSpace(annotation.Text)) DropTextMark(annotation);
-            else if (_capture is not null) { _lastSnapshot = SnapshotState(); RefreshLabels(); }
+            else if (_capture is not null)
+            {
+                // Retyping a caption is one entry of the history, made here and not per keystroke.
+                if (before is not null && rewritten) { _undo.Push(before); _redo.Clear(); }
+                _lastSnapshot = SnapshotState();
+                RefreshLabels();
+            }
             Surface.Focus();
         }
         finally { _closingTextEdit = false; }
@@ -139,6 +153,7 @@ public partial class OverlayEditorWindow
     private void CloseTextEditor()
     {
         _editingText = null;
+        _editingTextBeforeState = null;
         Surface.EditingTextId = null;
         _textEditor.Visibility = Visibility.Collapsed;
         Surface.InvalidateVisual();

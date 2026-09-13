@@ -13,6 +13,16 @@ public sealed class HotkeyRulesTests
         Assert.False(HotkeyRules.TryParseCustom(stored, out _, out _));
 
     [Theory]
+    // A modifier where the key of the shortcut belongs: "Ctrl + LeftShift" is what an older build
+    // wrote when Shift was let go of with Ctrl still down, and it answered every Ctrl+Shift there is.
+    [InlineData("custom:2:161")]
+    [InlineData("custom:6:17")]
+    [InlineData("custom:1:18")]
+    [InlineData("custom:2:91")]
+    public void A_stored_shortcut_that_ends_with_a_modifier_is_refused(string stored) =>
+        Assert.False(HotkeyRules.TryParseCustom(stored, out _, out _));
+
+    [Theory]
     // Print Screen and Pause are shortcuts on their own, and Print Screen is offered as a preset.
     [InlineData("custom:0:44", 0x2C)]
     [InlineData("custom:0:19", 0x13)]

@@ -502,7 +502,12 @@ public sealed class AnnotationCanvas : FrameworkElement
         for (var i = Annotations.Count - 1; i >= 0; i--)
         {
             var bounds = BoundsOf(Annotations[i]);
-            bounds.Inflate(Math.Max(8, Annotations[i].Thickness * 2), Math.Max(8, Annotations[i].Thickness * 2));
+            // The box is drawn through the middle of the stroke, so it is widened by half of it and
+            // a little to grab by. Twice the whole width was the same thing while the thickness of
+            // the highlighter meant a quarter of its real one; with the real width it reached 96 px,
+            // and the eraser took strokes the hand was nowhere near.
+            var reach = Math.Max(8, Annotations[i].Thickness / 2 + 4);
+            bounds.Inflate(reach, reach);
             if (bounds.Contains(imagePoint)) return Annotations[i];
         }
         return null;
@@ -911,6 +916,22 @@ public sealed class AnnotationCanvas : FrameworkElement
         canvas.Tool = EditorTool.Rectangle;
         canvas.UpdateGesture(new Point(240, 5), pressed: false);
         if (canvas.Cursor != Cursors.Arrow) throw new InvalidOperationException("Outside the capture the pointer must be the ordinary arrow.");
+
+        // How far from a mark a click still lands on it, in the pixels of the capture: half the
+        // stroke and a little to grab by. The highlighter counts its thickness in real pixels now,
+        // and twice the whole width took strokes 96 px away from where the hand was.
+        var wide = new AnnotationItem { Kind = EditorTool.Highlight, Thickness = 48 };
+        wide.Points.Add(new Point(40, 40));
+        wide.Points.Add(new Point(140, 40));
+        // The stroke stands alone on the capture, so what the hit test answers is about its reach
+        // and about nothing else that was drawn above.
+        annotations.Clear();
+        annotations.Add(wide);
+        if (!ReferenceEquals(canvas.HitTestAnnotation(new Point(90, 40)), wide))
+            throw new InvalidOperationException("A stroke of the highlighter must be found where it is drawn.");
+        if (canvas.HitTestAnnotation(new Point(90, 80)) is not null)
+            throw new InvalidOperationException("A click 40 px away from a highlighter stroke must find nothing.");
+        annotations.Remove(wide);
     }
 
     // A caption is placed by one click, it carries the word of the interface and the size the panel

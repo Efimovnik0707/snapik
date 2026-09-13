@@ -38,6 +38,11 @@ public partial class HowToSlides : UserControl
     // it is already down. That stray event added a step of its own after every move of the user.
     private readonly DispatcherTimer _auto = new();
     private bool _autoAdvancing;
+    // The user has taken the slides into their own hands, for as long as this control lives. In the
+    // wizard the step with the slides is left and entered again (Back, then Next), and Start runs a
+    // second time; without this the carousel began moving on its own under a hand that had already
+    // stopped it.
+    private bool _steppedByHand;
     private int _slide;
     private string _language = UiLanguage.Current;
 
@@ -83,7 +88,7 @@ public partial class HowToSlides : UserControl
     {
         if (_running) return;
         _running = true;
-        _autoAdvancing = true;
+        _autoAdvancing = !_steppedByHand;
         Play(_slide);
     }
 
@@ -167,6 +172,7 @@ public partial class HowToSlides : UserControl
     private void StopAutoAdvance()
     {
         _autoAdvancing = false;
+        _steppedByHand = true;
         _auto.Stop();
     }
 
@@ -217,6 +223,12 @@ public partial class HowToSlides : UserControl
         slides.ShowSlide(0);
         slides.Start();
         RunSlideNavigationProbe(slides);
+        // The step with the slides can be left and entered again, and Start runs a second time. A
+        // carousel the user has already stopped must stay stopped.
+        slides.Stop();
+        slides.Start();
+        if (slides.AutoAdvancing)
+            throw new InvalidOperationException("Slides the user has stepped through must not start moving by themselves again.");
         slides.Stop();
         slides.Stop();
     }

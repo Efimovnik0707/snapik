@@ -418,6 +418,20 @@ public partial class OverlayEditorWindow : Window
         }
         if (widths[0] < 100 || widths.Distinct().Count() != 1)
             throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
+
+        // And on a working area narrower than the row, the row wraps instead of running past it:
+        // the panel grew by a fill button and a size button, and a tail off the screen takes
+        // "Сохранить" and "Готово" with it.
+        var oneRow = window.Toolbar.DesiredSize.Height;
+        var narrow = Math.Max(200, widths[0] - 120);
+        window.Toolbar.MaxWidth = narrow;
+        window.Toolbar.InvalidateMeasure();
+        window.Toolbar.Measure(new Size(narrow, double.PositiveInfinity));
+        var wrapped = window.Toolbar.DesiredSize;
+        window.Toolbar.MaxWidth = double.PositiveInfinity;
+        window.Toolbar.InvalidateMeasure();
+        if (wrapped.Width > narrow + 0.5 || wrapped.Height <= oneRow)
+            throw new InvalidOperationException($"The markup panel must wrap into a working area of {narrow}, not run past it: {wrapped}.");
     }
 
     // The two rules of a click that landed on nothing: beside the capture it finishes the markup,
@@ -638,6 +652,23 @@ public partial class OverlayEditorWindow : Window
         if (!window.IsEditingText || window._textEditor.Text != "Привет" || window._textEditor.SelectedText.Length != 0)
             throw new InvalidOperationException("A double click on a caption must open it with the caret in it, not over the whole word.");
         window.CommitTextEdit();
+
+        // Retyping a caption that was already there is one entry of the history, and one Ctrl+Z
+        // brings the old words back instead of undoing whatever was done before the caption.
+        var depthBeforeRetyping = window._undo.Count;
+        window.OnAnnotationActivated(window, caption);
+        window._textEditor.Text = "Пока";
+        window.CommitTextEdit();
+        if (window._undo.Count != depthBeforeRetyping + 1 || caption.Text != "Пока")
+            throw new InvalidOperationException("Retyping a caption must leave one entry in the history.");
+        window.OnUndoClick(window, new RoutedEventArgs());
+        if (window._capture!.Annotations.Single().Text != "Привет" || window._undo.Count != depthBeforeRetyping)
+            throw new InvalidOperationException("One undo after retyping a caption must bring the old words back.");
+        // And retyping it into the same words is nothing to undo at all.
+        window.OnAnnotationActivated(window, window._capture.Annotations.Single());
+        window.CommitTextEdit();
+        if (window._undo.Count != depthBeforeRetyping)
+            throw new InvalidOperationException("A caption opened and left as it was must not fill the history.");
 
         window.SelectToolMode(EditorTool.Rectangle);
         if (window.FontSizeButton.IsEnabled || string.IsNullOrWhiteSpace((string?)window.FontSizeButton.Content))
@@ -1184,7 +1215,10 @@ public partial class OverlayEditorWindow : Window
         if (_capture is not null)
         {
             _redo.Clear();
-            _lastSnapshot = SnapshotState();
+            // Every character typed into a caption comes through here, and a snapshot is a deep copy
+            // of the whole capture with every mark on it. While the text box is open there is one
+            // snapshot instead, taken when the caption is finished.
+            if (_editingText is null) _lastSnapshot = SnapshotState();
         }
         Surface.InvalidateVisual();
     }
@@ -1409,8 +1443,13 @@ public partial class OverlayEditorWindow : Window
 
     private void PositionToolbar()
     {
-        Toolbar.UpdateLayout();
         var work = LayoutWorkArea();
+        // The width the panel may ask for, which is what makes its row wrap: PlaceToolbar keeps 8 px
+        // at each side of the working area, and a panel wider than what is left loses its tail, from
+        // "Комментарий" to "Готово", off the screen. The floor is the width the placement already
+        // assumes, so a working area narrower than that changes nothing that was not broken anyway.
+        Toolbar.MaxWidth = Math.Max(380, work.Width - 16);
+        Toolbar.UpdateLayout();
         var width = Math.Max(Toolbar.ActualWidth, 380);
         var height = Math.Max(Toolbar.ActualHeight, 50);
         var placement = PlaceToolbar(_cropRect, work, new Size(width, height), VisibleNoteRects().ToArray());
