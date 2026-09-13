@@ -46,6 +46,8 @@ public sealed class AnnotationCanvas : FrameworkElement
     public string ActiveArrowStyle { get; set; } = "straight";
     public AnnotationShape ActiveShape { get; set; } = AnnotationShape.Rectangle;
     public AnnotationFill ActiveFill { get; set; } = AnnotationFill.None;
+    public Color? ActiveFillColor { get; set; }
+    public bool ActiveHasOutline { get; set; } = true;
     public double ImagePadding { get; set; } = 28;
 
     public event EventHandler<AnnotationItem>? AnnotationCreated;
@@ -107,8 +109,8 @@ public sealed class AnnotationCanvas : FrameworkElement
 
         if (Annotations is not null)
         {
-            foreach (var annotation in Annotations.Where(a => a.Kind is not (EditorTool.Blur or EditorTool.Conceal))) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
-            foreach (var annotation in Annotations.Where(a => a.Kind == EditorTool.Conceal)) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
+            foreach (var annotation in Annotations.Where(a => a.Kind != EditorTool.Blur && !HasOpaqueFill(a))) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
+            foreach (var annotation in Annotations.Where(HasOpaqueFill)) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
             foreach (var annotation in Annotations) DrawAnnotation(dc, annotation, _imageRect, includeSelection: true, drawShape: false);
         }
         if (_manipulating && SelectedAnnotation is { Kind: EditorTool.Blur } movingBlur)
@@ -162,6 +164,8 @@ public sealed class AnnotationCanvas : FrameworkElement
             // travel into session.json and change what a later build draws there.
             Shape = Tool == EditorTool.Rectangle ? ActiveShape : AnnotationShape.Rectangle,
             Fill = Tool == EditorTool.Rectangle ? ActiveFill : AnnotationFill.None,
+            FillColor = Tool == EditorTool.Rectangle ? ActiveFillColor : null,
+            HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
             Color = Tool == EditorTool.Conceal ? Colors.Black : ActiveColor,
             Thickness = ActiveThickness,
             Points = [_gestureStart.Value, _gestureStart.Value]
@@ -296,8 +300,8 @@ public sealed class AnnotationCanvas : FrameworkElement
             dc.DrawImage(ApplyBlurAnnotations(Image), pixelRect);
             if (Annotations is not null)
             {
-                foreach (var annotation in Annotations.Where(a => a.Kind is not (EditorTool.Blur or EditorTool.Conceal))) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawLabel: false);
-                foreach (var annotation in Annotations.Where(a => a.Kind == EditorTool.Conceal)) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawLabel: false);
+                foreach (var annotation in Annotations.Where(a => a.Kind != EditorTool.Blur && !HasOpaqueFill(a))) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawLabel: false);
+                foreach (var annotation in Annotations.Where(HasOpaqueFill)) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawLabel: false);
                 foreach (var annotation in Annotations) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawShape: false);
             }
         }
@@ -428,7 +432,7 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     // The frame of a region: the outline follows Shape, what stands inside it follows Fill. The
     // export renderer draws the same three shapes from the same numbers, in image pixels.
-    internal static void DrawBoxShape(DrawingContext dc, Brush? fill, Pen pen, AnnotationShape shape, Rect rect, double scale)
+    internal static void DrawBoxShape(DrawingContext dc, Brush? fill, Pen? pen, AnnotationShape shape, Rect rect, double scale)
     {
         switch (shape)
         {
@@ -445,6 +449,8 @@ public sealed class AnnotationCanvas : FrameworkElement
         }
     }
 
+    // The blur fill is baked into the picture before the marks are drawn, so nothing is painted over
+    // the region here: only its outline, if it has one.
     internal static Brush? ShapeFillBrush(Color color, AnnotationFill fill) => fill switch
     {
         AnnotationFill.Solid => new SolidColorBrush(color),
@@ -452,8 +458,13 @@ public sealed class AnnotationCanvas : FrameworkElement
         _ => null
     };
 
+    // An opaque fill is drawn after every other mark, because it hides whatever stands under it;
+    // that is what the conceal tool used to do, and a solid region does the same.
+    internal static bool HasOpaqueFill(AnnotationItem item) =>
+        item.Kind == EditorTool.Conceal || (item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Solid);
+
     private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale) =>
-        DrawBoxShape(dc, ShapeFillBrush(item.Color, item.Fill), pen, item.Shape, rect, scale);
+        DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), item.HasOutline ? pen : null, item.Shape, rect, scale);
 
     private static bool HasResizeHandles(AnnotationItem item) => item.Kind != EditorTool.Comment;
 
@@ -578,7 +589,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         var hash = new HashCode();
         hash.Add(RuntimeHelpers.GetHashCode(source));
         if (Annotations is not null)
-            foreach (var annotation in Annotations.Where(a => a.Kind == EditorTool.Blur))
+            foreach (var annotation in Annotations.Where(IsBlurred))
             {
                 hash.Add(annotation.Id); hash.Add(annotation.Thickness);
                 foreach (var point in annotation.Points) { hash.Add(point.X); hash.Add(point.Y); }
@@ -587,12 +598,17 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (_blurCache is not null && key == _blurCacheKey) return _blurCache;
         BitmapSource result = source;
         if (Annotations is not null)
-            foreach (var annotation in Annotations.Where(a => a.Kind == EditorTool.Blur && a.Points.Count > 1))
+            foreach (var annotation in Annotations.Where(a => IsBlurred(a) && a.Points.Count > 1))
                 result = RegionBlur.Apply(result, ToPixelRect(BoundsOf(annotation), source.PixelWidth, source.PixelHeight), BlurRadius(annotation));
         _blurCacheKey = key;
         _blurCache = result;
         return _blurCache;
     }
+
+    // The blur tool and a region filled with blur bake the same pixels into the picture, so one rule
+    // decides what is blurred and both take the same code below.
+    internal static bool IsBlurred(AnnotationItem item) =>
+        item.Kind == EditorTool.Blur || (item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Blur);
 
     private static int BlurRadius(AnnotationItem annotation) => Math.Clamp((int)Math.Round(annotation.Thickness * 3), 4, 36);
 

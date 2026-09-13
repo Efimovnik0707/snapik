@@ -28,7 +28,8 @@ public enum AnnotationFill
 {
     None,
     Solid,
-    Translucent
+    Translucent,
+    Blur
 }
 
 public readonly record struct NormalizedPoint(double X, double Y);
@@ -52,6 +53,14 @@ public sealed record AnnotationItem(
 
     public AnnotationShape Shape { get; init; } = AnnotationShape.Rectangle;
     public AnnotationFill Fill { get; init; } = AnnotationFill.None;
+
+    // What stands inside the box, as "#AARRGGBB". Absent means the colour of the outline, which is
+    // what every mark written before the field carried.
+    public string? FillColor { get; init; }
+
+    // Whether the outline of the box is drawn at all. A solid fill without an outline is how a mark
+    // conceals; absent means the outline is drawn, exactly as it always was.
+    public bool HasOutline { get; init; } = true;
     public ImmutableArray<ImmutableArray<NormalizedPoint>> PathSegments { get; init; } = [];
 
     public ImmutableArray<ImmutableArray<NormalizedPoint>> GetPathSegments() =>

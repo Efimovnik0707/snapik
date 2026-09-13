@@ -120,7 +120,8 @@ public partial class OverlayEditorWindow
         _syncingAppearance = false;
     }
 
-    private void ApplyAppearance(Color? color, double? thickness, AnnotationShape? shape = null, AnnotationFill? fill = null, string? arrowStyle = null)
+    private void ApplyAppearance(Color? color, double? thickness, AnnotationShape? shape = null, AnnotationFill? fill = null,
+        string? arrowStyle = null, Color? fillColor = null, bool? hasOutline = null)
     {
         var selected = Surface.SelectedAnnotation;
         var tool = selected?.Kind ?? Surface.Tool;
@@ -128,6 +129,8 @@ public partial class OverlayEditorWindow
         if (thickness is { } t && HasStroke(tool)) { _appearanceDefaultsChanged |= t != _activeThickness; _activeThickness = t; Surface.ActiveThickness = t; if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; } }
         if (shape is { } s && HasShape(tool)) { _appearanceDefaultsChanged |= s != _activeShape; _activeShape = s; Surface.ActiveShape = s; if (selected is not null) { selected.Shape = s; _appearanceChanged = true; } }
         if (fill is { } f && HasShape(tool)) { _appearanceDefaultsChanged |= f != _activeFill; _activeFill = f; Surface.ActiveFill = f; if (selected is not null) { selected.Fill = f; _appearanceChanged = true; } }
+        if (fillColor is { } fc && HasShape(tool)) { _appearanceDefaultsChanged |= fc != _activeFillColor; _activeFillColor = fc; Surface.ActiveFillColor = fc; if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; } }
+        if (hasOutline is { } outline && HasShape(tool)) { _appearanceDefaultsChanged |= outline != _activeHasOutline; _activeHasOutline = outline; Surface.ActiveHasOutline = outline; if (selected is not null) { selected.HasOutline = outline; _appearanceChanged = true; } }
         if (arrowStyle is { } style && tool == EditorTool.Arrow) { Surface.ActiveArrowStyle = style; if (selected is not null) { selected.ArrowStyle = style; _appearanceChanged = true; } }
         Surface.InvalidateVisual();
         SyncAppearance();
@@ -207,7 +210,9 @@ public partial class OverlayEditorWindow
                 AnnotationColor = $"#{_activeColor.R:X2}{_activeColor.G:X2}{_activeColor.B:X2}",
                 AnnotationThickness = Math.Clamp(_activeThickness, 1, 16),
                 AnnotationShape = _activeShape.ToString().ToLowerInvariant(),
-                AnnotationFill = _activeFill.ToString().ToLowerInvariant()
+                AnnotationFill = _activeFill.ToString().ToLowerInvariant(),
+                AnnotationFillColor = _activeFillColor is { } fillColor ? $"#{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : string.Empty,
+                AnnotationOutline = _activeHasOutline
             };
             settings.Save(path);
         }
@@ -226,6 +231,15 @@ public partial class OverlayEditorWindow
     internal static AnnotationShape ParseAnnotationShape(string? value) =>
         Enum.TryParse<AnnotationShape>(value, ignoreCase: true, out var shape) &&
         string.Equals(shape.ToString(), value, StringComparison.OrdinalIgnoreCase) ? shape : AnnotationShape.Rectangle;
+
+    // An empty value is a real preference: "the fill takes the colour of the outline". Only a value
+    // that cannot be read at all falls back to it as well.
+    internal static Color? ParseAnnotationFillColor(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        try { return ColorConverter.ConvertFromString(value) is Color color ? color : null; }
+        catch (Exception) { return null; }
+    }
 
     internal static AnnotationFill ParseAnnotationFill(string? value) =>
         Enum.TryParse<AnnotationFill>(value, ignoreCase: true, out var fill) &&

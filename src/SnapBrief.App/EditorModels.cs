@@ -51,6 +51,13 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     public AnnotationShape Shape { get; set; } = AnnotationShape.Rectangle;
     public AnnotationFill Fill { get; set; } = AnnotationFill.None;
 
+    // The colour inside the box; null means "the colour of the outline", which is how every mark
+    // drawn before the fill had a colour of its own still reads.
+    public Color? FillColor { get; set; }
+
+    // A frame without an outline: a solid fill and no outline is what the conceal tool used to draw.
+    public bool HasOutline { get; set; } = true;
+
     public string Note
     {
         get => _note;
@@ -74,7 +81,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Id = Id,
         Kind = Kind,
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle, NoteOffset = NoteOffset,
-        Shape = Shape, Fill = Fill,
+        Shape = Shape, Fill = Fill, FillColor = FillColor, HasOutline = HasOutline,
         Points = [.. Points],
         AdditionalPathSegments = AdditionalPathSegments.Select(segment => segment.ToList()).ToList(),
         Color = Color,
@@ -109,7 +116,8 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     {
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
         NoteOffset = NoteOffset is { } offset ? new NormalizedPoint(offset.X / imageWidth, offset.Y / imageHeight) : null,
-        Shape = Shape, Fill = Fill,
+        Shape = Shape, Fill = Fill, HasOutline = HasOutline,
+        FillColor = FillColor is { } fillColor ? $"#{fillColor.A:X2}{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : null,
         PathSegments = AdditionalPathSegments.Count == 0 ? [] : new[] { Points }.Concat(AdditionalPathSegments)
             .Select(segment => segment.Select(p => new NormalizedPoint(Math.Clamp(p.X / imageWidth, 0, 1), Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray())
             .ToImmutableArray()
@@ -119,12 +127,19 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     {
         var segments = item.GetPathSegments()
             .Select(segment => segment.Select(p => new Point(p.X * imageWidth, p.Y * imageHeight)).ToList()).ToList();
+        // A session written by a build that still had the conceal tool carries "redaction" marks.
+        // The tool is gone; what it drew is a region with a solid black fill and no outline, and it
+        // is written back in that shape the next time the session is saved.
+        var redaction = item.Kind == AnnotationKind.Redaction;
         return new()
         {
         Id = item.Id,
         ParentAnnotationId = item.ParentAnnotationId, ArrowStyle = item.ArrowStyle,
         NoteOffset = item.NoteOffset is { } offset ? new Point(offset.X * imageWidth, offset.Y * imageHeight) : null,
-        Shape = item.Shape, Fill = item.Fill,
+        Shape = item.Shape,
+        Fill = redaction ? AnnotationFill.Solid : item.Fill,
+        FillColor = redaction ? Colors.Black : ParseFillColor(item.FillColor),
+        HasOutline = !redaction && item.HasOutline,
         Kind = item.Kind switch
         {
             AnnotationKind.Comment => EditorTool.Comment,
@@ -133,7 +148,6 @@ public sealed class AnnotationItem : INotifyPropertyChanged
             AnnotationKind.Freehand => EditorTool.Pen,
             AnnotationKind.Highlight => EditorTool.Highlight,
             AnnotationKind.Text => EditorTool.Text,
-            AnnotationKind.Redaction => EditorTool.Conceal,
             AnnotationKind.Blur => EditorTool.Blur,
             _ => EditorTool.Rectangle
         },
@@ -144,6 +158,15 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Text = item.Text,
         Note = item.Note
         };
+    }
+
+    // A colour written by hand, or by a build that knew another format, means "the colour of the
+    // outline" rather than a broken mark.
+    private static Color? ParseFillColor(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        try { return ColorConverter.ConvertFromString(value) is Color color ? color : null; }
+        catch (Exception) { return null; }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

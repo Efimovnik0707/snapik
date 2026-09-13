@@ -32,9 +32,9 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
 
             var labels = CaptureLabels.ForNotedAnnotations(context.DisplayLabel, capture)
                 .ToDictionary(x => x.Annotation.Id, x => x.DisplayLabel);
-            foreach (var annotation in capture.Annotations.Where(a => a.Kind is not (AnnotationKind.Blur or AnnotationKind.Redaction)))
+            foreach (var annotation in capture.Annotations.Where(a => a.Kind != AnnotationKind.Blur && !HasOpaqueFill(a)))
                 DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, null, HeaderHeight, drawShape: true);
-            foreach (var annotation in capture.Annotations.Where(a => a.Kind == AnnotationKind.Redaction))
+            foreach (var annotation in capture.Annotations.Where(HasOpaqueFill))
                 DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, null, HeaderHeight, drawShape: true);
             foreach (var annotation in capture.Annotations)
                 DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, labels.GetValueOrDefault(annotation.Id), HeaderHeight, drawShape: false);
@@ -65,10 +65,19 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
         DrawText(dc, "SNAPBRIEF · СНИМОК", 12, FontWeights.SemiBold, new SolidColorBrush(Color.FromRgb(94, 104, 122)), new Point(57, 16));
     }
 
+    // The same two rules the editor canvas draws by: an opaque region goes over everything else, and
+    // a blur is baked into the picture whether it came from the blur tool or from a region filled
+    // with blur.
+    private static bool HasOpaqueFill(SnapBrief.Core.Models.AnnotationItem item) =>
+        item.Kind == AnnotationKind.Redaction || (item.Kind == AnnotationKind.Rectangle && item.Fill == AnnotationFill.Solid);
+
+    private static bool IsBlurred(SnapBrief.Core.Models.AnnotationItem item) =>
+        item.Kind == AnnotationKind.Blur || (item.Kind == AnnotationKind.Rectangle && item.Fill == AnnotationFill.Blur);
+
     private static BitmapSource ApplyBlurAnnotations(BitmapSource source, CoreCaptureItem capture)
     {
         BitmapSource result = source;
-        foreach (var item in capture.Annotations.Where(a => a.Kind == AnnotationKind.Blur && a.Points.Length > 1))
+        foreach (var item in capture.Annotations.Where(a => IsBlurred(a) && a.Points.Length > 1))
         {
             var left = Math.Clamp((int)Math.Floor(Math.Min(item.Points[0].X, item.Points[1].X) * source.PixelWidth), 0, source.PixelWidth);
             var top = Math.Clamp((int)Math.Floor(Math.Min(item.Points[0].Y, item.Points[1].Y) * source.PixelHeight), 0, source.PixelHeight);
@@ -105,7 +114,9 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
             switch (item.Kind)
             {
                 case AnnotationKind.Rectangle:
-                    Controls.AnnotationCanvas.DrawBoxShape(dc, Controls.AnnotationCanvas.ShapeFillBrush(color, item.Fill), pen, item.Shape, rect, 1);
+                    var fillColor = ParseFillColor(item.FillColor) ?? color;
+                    Controls.AnnotationCanvas.DrawBoxShape(dc, Controls.AnnotationCanvas.ShapeFillBrush(fillColor, item.Fill),
+                        item.HasOutline ? pen : null, item.Shape, rect, 1);
                     break;
                 case AnnotationKind.Redaction: dc.DrawRectangle(Brushes.Black, null, rect); break;
                 case AnnotationKind.Text: DrawText(dc, item.Text, Math.Max(16, item.Thickness * 4.5), FontWeights.SemiBold, brush, start); break;
@@ -135,6 +146,14 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
                 new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), 13, Brushes.White, 1);
             dc.DrawText(label, new Point(badge.Center.X - label.Width / 2, badge.Center.Y - label.Height / 2));
         }
+    }
+
+    // A fill colour that cannot be read means "the colour of the outline": the mark is still drawn.
+    private static Color? ParseFillColor(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        try { return ColorConverter.ConvertFromString(value) is Color color ? color : null; }
+        catch (Exception) { return null; }
     }
 
     // The same circle the editor canvas shows, in the pixels of the exported picture.

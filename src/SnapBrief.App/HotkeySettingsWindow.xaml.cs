@@ -33,8 +33,12 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public double AnnotationThickness { get; init; } = 4;
     /// <summary>The frame the editor draws by default: rectangle, rounded or ellipse.</summary>
     public string AnnotationShape { get; init; } = "rectangle";
-    /// <summary>How that frame is filled by default: none, solid or translucent.</summary>
+    /// <summary>How that frame is filled by default: none, solid, translucent or blur.</summary>
     public string AnnotationFill { get; init; } = "none";
+    /// <summary>The colour inside that frame; empty means "the colour of the outline".</summary>
+    public string AnnotationFillColor { get; init; } = string.Empty;
+    /// <summary>Whether that frame carries an outline at all; a solid fill without one conceals.</summary>
+    public bool AnnotationOutline { get; init; } = true;
     public string SaveFormat { get; init; } = "png";
     public int JpegQuality { get; init; } = 92;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "SnapBrief");

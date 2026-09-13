@@ -47,6 +47,8 @@ public partial class OverlayEditorWindow : Window
     private double _activeThickness = DefaultAnnotationThickness;
     private SnapBrief.Core.Models.AnnotationShape _activeShape = SnapBrief.Core.Models.AnnotationShape.Rectangle;
     private SnapBrief.Core.Models.AnnotationFill _activeFill = SnapBrief.Core.Models.AnnotationFill.None;
+    private Color? _activeFillColor;
+    private bool _activeHasOutline = true;
     private Guid? _commentParentId;
     private Guid? _expandedChipId;
     private AnnotationItem? _chipDragAnnotation;
@@ -66,6 +68,8 @@ public partial class OverlayEditorWindow : Window
         _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
         _activeShape = ParseAnnotationShape(preferences.AnnotationShape);
         _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
+        _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
+        _activeHasOutline = preferences.AnnotationOutline;
         _capture = existing?.DeepClone();
         _isNew = existing is null;
         if (_capture is not null && !string.IsNullOrWhiteSpace(_capture.Note))
@@ -445,6 +449,8 @@ public partial class OverlayEditorWindow : Window
         Surface.ActiveThickness = _activeThickness;
         Surface.ActiveShape = _activeShape;
         Surface.ActiveFill = _activeFill;
+        Surface.ActiveFillColor = _activeFillColor;
+        Surface.ActiveHasOutline = _activeHasOutline;
         SyncAppearance();
         Hint.Visibility = Visibility.Collapsed;
         Toolbar.Visibility = Visibility.Visible;
