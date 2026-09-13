@@ -1,0 +1,85 @@
+using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+
+namespace SnapBrief.App.Controls;
+
+/// <summary>
+/// One row of the comments panel: the number of the note, its text and what it is attached to.
+/// A border and not a button on purpose, because a click here must select the mark on the capture
+/// without taking the focus away from it.
+/// </summary>
+public sealed class CommentListEntry : Border
+{
+    private static readonly Brush BadgeBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255));
+    private static readonly Brush CurrentBrush = new SolidColorBrush(Color.FromArgb(56, 47, 140, 255));
+    private static readonly Brush HoverBrush = new SolidColorBrush(Color.FromRgb(41, 48, 58));
+    private readonly TextBlock _badge = new()
+    {
+        Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeights.Bold,
+        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly TextBlock _text = new()
+    {
+        Foreground = new SolidColorBrush(Color.FromRgb(238, 242, 248)), FontSize = 12,
+        TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly TextBlock _relation = new()
+    {
+        Foreground = new SolidColorBrush(Color.FromRgb(143, 154, 170)), FontSize = 11,
+        Margin = new Thickness(0, 3, 0, 0), Visibility = Visibility.Collapsed
+    };
+    private bool _current;
+
+    public CommentListEntry(Guid annotationId)
+    {
+        AnnotationId = annotationId;
+        Padding = new Thickness(7, 6, 7, 6);
+        Margin = new Thickness(0, 0, 0, 4);
+        CornerRadius = new CornerRadius(9);
+        Background = Brushes.Transparent;
+        Cursor = Cursors.Hand;
+        var badgeHost = new Border
+        {
+            Width = 25, Height = 25, CornerRadius = new CornerRadius(13), Background = BadgeBrush,
+            Child = _badge, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 8, 0)
+        };
+        var lines = new StackPanel();
+        lines.Children.Add(_text);
+        lines.Children.Add(_relation);
+        var row = new DockPanel();
+        DockPanel.SetDock(badgeHost, Dock.Left);
+        row.Children.Add(badgeHost);
+        row.Children.Add(lines);
+        Child = row;
+        MouseEnter += (_, _) => { if (!_current) Background = HoverBrush; };
+        MouseLeave += (_, _) => { if (!_current) Background = Brushes.Transparent; };
+        MouseLeftButtonUp += (_, e) => { Activated?.Invoke(this, EventArgs.Empty); e.Handled = true; };
+    }
+
+    public Guid AnnotationId { get; }
+
+    /// <summary>The number of the note, or "+" while it has no text and claims no number yet.</summary>
+    public string Label { get => _badge.Text; set => _badge.Text = value; }
+
+    public string Text { get => _text.Text; set => _text.Text = value; }
+
+    public string Relation
+    {
+        set
+        {
+            _relation.Text = value;
+            _relation.Visibility = string.IsNullOrEmpty(value) ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
+    public bool IsCurrent
+    {
+        get => _current;
+        set { _current = value; Background = value ? CurrentBrush : Brushes.Transparent; }
+    }
+
+    public event EventHandler? Activated;
+}

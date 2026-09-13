@@ -328,6 +328,7 @@ public static class SmokeTestRunner
         // key capsule is watched here like every other binding of the run.
         WithoutBindingErrors("The markup panel", () => OverlayEditorWindow.RunShortcutHintProbe(captures[0]));
         WithoutBindingErrors("The colour and thickness panel", () => OverlayEditorWindow.RunPanelProbe(captures[0]));
+        WithoutBindingErrors("The comments panel", () => OverlayEditorWindow.RunCommentsPanelProbe(captures[0]));
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
         var noteProbeCore = noteProbe.ToCore();
         var noteProbeLabel = SnapBrief.Core.Exporting.CaptureLabels.ForNotedAnnotations("A", noteProbeCore).SingleOrDefault();

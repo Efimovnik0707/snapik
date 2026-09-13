@@ -59,6 +59,7 @@ public partial class OverlayEditorWindow : Window
     private bool _chipDragMoved;
     private bool _settingUp;
     private bool _busyCrop;
+    private readonly bool _commentsPanelVisible;
 
     private OverlayEditorWindow(SessionWorkspace workspace, DesktopFrame frame, int captureIndex, CaptureItem? existing)
     {
@@ -81,6 +82,11 @@ public partial class OverlayEditorWindow : Window
             _capture.Annotations.Add(new AnnotationItem { Kind = EditorTool.Comment, Note = _capture.Note, Points = [new Point(24, 24), new Point(32, 32)] });
             _capture.Note = string.Empty;
         }
+        // The comments panel belongs to a capture reopened from the strip that already carries
+        // notes. The decision is taken here, before the layout is measured against it, and it does
+        // not change while the window is open.
+        _commentsPanelVisible = !_isNew && _capture is not null &&
+            _capture.Annotations.Any(annotation => !string.IsNullOrWhiteSpace(annotation.Note));
         InitializeComponent();
         // The crosshair belongs to the phase where an area is being selected; once there is a
         // capture to mark up, the pointer says what it will do where it stands.
@@ -188,6 +194,10 @@ public partial class OverlayEditorWindow : Window
                 throw new InvalidOperationException("The arrow menu must hold three styles and no thickness, and the X key must be free.");
             if (EditorShortcuts.Find(EditorTool.Eraser) is not { Key: Key.E } || EditorShortcuts.Caption(EditorTool.Eraser) != "Eraser (E)")
                 throw new InvalidOperationException("The eraser must sit on the E key, with a name of its own in both languages.");
+            // The comments panel is checked by its own two captions rather than by walking it: every
+            // other line in it is what the user wrote, and that stays in the language they wrote it.
+            if (window.CommentsTitle.Text != "Comments" || window.CommentsEmpty.Text != "No comments yet")
+                throw new InvalidOperationException("The comments panel must carry its captions in the language of the window.");
             // The pencil capsule stands for both modes: the H key arms the highlighter, and the
             // capsule starts carrying it, glyph, tag and all.
             Row(pencilMenu, "Highlight (H)").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -370,6 +380,94 @@ public partial class OverlayEditorWindow : Window
             throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
     }
 
+    // The comments panel of a capture reopened from the strip, with the checks that used to live in
+    // the preview window: an empty note claims no number, the numbers close the gap after a
+    // deletion and match the export, the list carries a large capture, and a click on a row selects
+    // the same mark on the picture.
+    internal static void RunCommentsPanelProbe(CaptureItem source)
+    {
+        var capture = new CaptureItem
+        {
+            Id = source.Id, Image = source.Image, SourcePath = source.SourcePath, DisplayLabel = source.DisplayLabel
+        };
+        capture.Annotations.Add(new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle, Points = [new Point(10, 10), new Point(80, 80)], Note = "Первый"
+        });
+        capture.Annotations.Add(new AnnotationItem
+        {
+            Kind = EditorTool.Comment, Points = [new Point(40, 40), new Point(48, 48)]
+        });
+        var root = Path.Combine(Path.GetTempPath(), "SnapBrief", $"comments-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
+        var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
+        var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
+        window.Measure(new Size(1280, 720));
+        window.Arrange(new Rect(0, 0, 1280, 720));
+        window._cropRect = new Rect(120, 90, 900, 506);
+        window.SetupEditor();
+        // A capture taken just now has no notes and no panel: the same window, the other case.
+        var fresh = new OverlayEditorWindow(workspace, frame, 0, null) { Width = 1280, Height = 720 };
+        try
+        {
+            if (fresh._commentsPanelVisible || fresh.CommentsPanel.Visibility != Visibility.Collapsed)
+                throw new InvalidOperationException("A freshly taken capture must not show the comments panel.");
+            CommentsPanelChecks(window);
+        }
+        finally
+        {
+            fresh.Close();
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void CommentsPanelChecks(OverlayEditorWindow window)
+    {
+        var capture = window._capture!;
+        if (!window._commentsPanelVisible || window.CommentsPanel.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("A capture reopened with notes must show the comments panel.");
+        if (window.Surface.Tool != EditorTool.Select || window.SelectTool.IsChecked != true || window.RectangleTool.IsChecked == true)
+            throw new InvalidOperationException("A capture reopened from the strip must open on the select tool.");
+        var monitor = window.GetCropMonitorWorkArea();
+        if (monitor.Width > 900 && window.LayoutWorkArea().Right > monitor.Right - CommentsPanelWidth)
+            throw new InvalidOperationException("The markup must be laid out to the left of the comments panel.");
+
+        Controls.CommentListEntry Row(Guid id) =>
+            window.CommentsList.Children.OfType<Controls.CommentListEntry>().Single(entry => entry.AnnotationId == id);
+        var blank = capture.Annotations.Single(annotation => annotation.Kind == EditorTool.Comment);
+        var marked = capture.Annotations.Single(annotation => annotation.Kind == EditorTool.Rectangle);
+        if (Row(blank.Id).Label != "+")
+            throw new InvalidOperationException("An empty comment must not claim an export label.");
+        blank.Note = "Второй";
+        window.RefreshLabels();
+        var expectedSecond = CaptureLabels.ForNotedAnnotations(capture.DisplayLabel, capture.ToCore()).Last().DisplayLabel;
+        if (Row(blank.Id).Label != expectedSecond || Row(blank.Id).Text != "Второй")
+            throw new InvalidOperationException("The panel and the export must number the notes alike.");
+
+        window.DeleteAnnotationNote(marked);
+        var expectedFirst = CaptureLabels.ForNotedAnnotations(capture.DisplayLabel, capture.ToCore()).Single().DisplayLabel;
+        var remaining = window.CommentsList.Children.OfType<Controls.CommentListEntry>().Single();
+        if (remaining.Label != expectedFirst)
+            throw new InvalidOperationException("The numbers of the panel must close the gap after a deletion.");
+
+        window.ActivateCommentRow(remaining.AnnotationId);
+        if (window.Surface.SelectedAnnotation?.Id != blank.Id || !remaining.IsCurrent)
+            throw new InvalidOperationException("A click on a row must select the same mark and mark the row.");
+        window.Surface.SelectAnnotation(null);
+        if (remaining.IsCurrent)
+            throw new InvalidOperationException("The highlight of the panel must follow the selection both ways.");
+
+        for (var i = 0; i < 299; i++)
+            capture.Annotations.Add(new AnnotationItem
+            {
+                Kind = EditorTool.Comment, Points = [new Point(50, 50), new Point(58, 58)], Note = $"Комментарий {i + 2}"
+            });
+        window.RefreshLabels();
+        if (window.CommentsList.Children.Count != 300 || window.CommentsEmpty.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("The comments panel truncated a large capture.");
+    }
+
     internal static CaptureItem RunNoteAffordanceProbe(CaptureItem source)
     {
         var capture = source.DeepClone();
@@ -509,8 +607,9 @@ public partial class OverlayEditorWindow : Window
         Focus();
         if (_capture is null) { RestoreLastRegion(); return; }
         var monitor = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
-        var work = new Rect((monitor.Left - _frame.Left) * ActualWidth / _frame.PixelWidth, (monitor.Top - _frame.Top) * ActualHeight / _frame.PixelHeight,
-            monitor.Width * ActualWidth / _frame.PixelWidth, monitor.Height * ActualHeight / _frame.PixelHeight);
+        var work = WithoutCommentsStrip(new Rect(
+            (monitor.Left - _frame.Left) * ActualWidth / _frame.PixelWidth, (monitor.Top - _frame.Top) * ActualHeight / _frame.PixelHeight,
+            monitor.Width * ActualWidth / _frame.PixelWidth, monitor.Height * ActualHeight / _frame.PixelHeight), _commentsPanelVisible);
         var maxWidth = work.Width * .78;
         var maxHeight = work.Height * .72;
         var scale = Math.Min(maxWidth / _capture.Image.PixelWidth, maxHeight / _capture.Image.PixelHeight);
@@ -599,7 +698,11 @@ public partial class OverlayEditorWindow : Window
         CropBorder.Height = _cropRect.Height;
         Surface.Image = _capture.Image;
         Surface.Annotations = _capture.Annotations;
-        Surface.Tool = EditorTool.Rectangle;
+        // A fresh capture opens ready to draw a region; a capture reopened from the strip opens on
+        // the select tool, because its marks are there to be read and adjusted.
+        Surface.Tool = _isNew ? EditorTool.Rectangle : EditorTool.Select;
+        foreach (var button in ToolButtons)
+            button.IsChecked = string.Equals(button.Tag?.ToString(), Surface.Tool.ToString(), StringComparison.Ordinal);
         // The whole panel starts from the settings file, so the sync below shows what the next mark
         // will really look like.
         Surface.ActiveColor = _activeColor;
@@ -621,8 +724,10 @@ public partial class OverlayEditorWindow : Window
         RefreshLabels();
         RebuildChips();
         UpdateShade();
+        PositionCommentsPanel();
+        SyncCommentsPanel();
         _settingUp = false;
-        Dispatcher.BeginInvoke(() => { PositionToolbar(); PositionShotNote(); RepositionChips(); }, DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(() => { PositionCommentsPanel(); PositionToolbar(); PositionShotNote(); RepositionChips(); }, DispatcherPriority.Loaded);
     }
 
     private void UpdateCropVisual()
@@ -760,6 +865,7 @@ public partial class OverlayEditorWindow : Window
     {
         SyncAppearance();
         UpdateNoteButton();
+        HighlightCommentRow(annotation?.Id);
         if (Mouse.LeftButton == MouseButtonState.Pressed) return;
         RepositionChips();
     }
@@ -1033,13 +1139,14 @@ public partial class OverlayEditorWindow : Window
                 text.Text = string.IsNullOrEmpty(annotation.Label) ? (annotation.Kind == EditorTool.Text ? "T" : "+") : annotation.Label;
             }
         }
+        SyncCommentsPanel();
         Surface.InvalidateVisual();
     }
 
     private void RepositionChips()
     {
         if (_capture is null) return;
-        var work = GetCropMonitorWorkArea();
+        var work = LayoutWorkArea();
         var occupied = new List<Rect>();
         var chips = ChipLayer.Children.OfType<Border>()
             .Where(chip => chip.Visibility == Visibility.Visible && chip.Tag is Guid)
@@ -1089,7 +1196,7 @@ public partial class OverlayEditorWindow : Window
 
     private void PositionShotNote()
     {
-        var work = GetCropMonitorWorkArea();
+        var work = LayoutWorkArea();
         var left = Math.Clamp(_cropRect.Right - 250, work.Left + 8, Math.Max(work.Left + 8, work.Right - 258));
         var top = Math.Clamp(_cropRect.Top, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - 132));
         ShotNoteChip.HorizontalAlignment = HorizontalAlignment.Left;
@@ -1099,7 +1206,7 @@ public partial class OverlayEditorWindow : Window
     private void PositionToolbar()
     {
         Toolbar.UpdateLayout();
-        var work = GetCropMonitorWorkArea();
+        var work = LayoutWorkArea();
         var width = Math.Max(Toolbar.ActualWidth, 380);
         var height = Math.Max(Toolbar.ActualHeight, 50);
         var placement = PlaceToolbar(_cropRect, work, new Size(width, height), VisibleNoteRects().ToArray());
