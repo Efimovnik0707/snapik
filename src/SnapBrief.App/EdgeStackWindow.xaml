@@ -22,6 +22,45 @@
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
         </Style>
+        <!-- The icons of the header: the default WPF template lit them with a pale plate and left the
+             icon itself grey, so hovering read as fading. Path does not inherit Foreground, which is
+             why every icon below binds its Stroke (or Fill) to the Foreground of its own button: one
+             trigger then repaints the plate and the icon together. -->
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Width" Value="26" /><Setter Property="Height" Value="26" /><Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#D9DEE8" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="Chrome" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#29303A" /><Setter Property="Foreground" Value="White" /></Trigger>
+                    <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#222932" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <!-- The close of a card: round and 24 px, and it lies on a photograph, so it carries a dark
+             plate of its own. A style of its own rather than BasedOn: CornerRadius lives inside the
+             template, and inheritance cannot reach it. -->
+        <Style x:Key="CardCloseButton" TargetType="Button">
+            <Setter Property="Width" Value="24" /><Setter Property="Height" Value="24" /><Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="#CC0F1218" /><Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#D9DEE8" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="Chrome" CornerRadius="12" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#E62A313C" /><Setter Property="Foreground" Value="White" /></Trigger>
+                    <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#E6222932" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
         <Style TargetType="ContextMenu">
             <Setter Property="Background" Value="#F2171A20" /><Setter Property="Foreground" Value="#EEF2F8" />
             <Setter Property="BorderBrush" Value="#39424E" /><Setter Property="BorderThickness" Value="1" />
@@ -83,7 +122,9 @@
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Grid.Row="0" Height="28" MouseLeftButtonDown="OnHeaderMouseDown">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="26" /><ColumnDefinition Width="28" /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
+                <!-- Three columns of the same 30 px: a button of 26 sits in the middle of each and
+                     keeps a gap of four from its neighbour. -->
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="1,0,7,0" />
                     <TextBlock Foreground="White" FontSize="12" FontWeight="SemiBold" Text="SnapBrief" />
@@ -91,14 +132,14 @@
                         <TextBlock x:Name="CountText" Foreground="#BFC8D6" FontSize="11" Text="0" />
                     </Border>
                 </StackPanel>
-                <Button Grid.Column="1" Background="Transparent" BorderThickness="0" Click="OnClearStackClick" ToolTip="Очистить ленту" AutomationProperties.Name="Очистить ленту">
-                    <Path Stretch="Uniform" Width="12" Height="13" Stroke="#BFC8D6" StrokeThickness="1.4" StrokeLineJoin="Round" Data="M1,3 L13,3 M5.5,3 L5.5,1.5 L8.5,1.5 L8.5,3 M2.6,3 L3.4,13 L10.6,13 L11.4,3" />
+                <Button Grid.Column="1" Style="{StaticResource IconButton}" Click="OnClearStackClick" ToolTip="Очистить ленту" AutomationProperties.Name="Очистить ленту">
+                    <Path Stretch="Uniform" Width="12" Height="13" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4" StrokeLineJoin="Round" Data="M1,3 L13,3 M5.5,3 L5.5,1.5 L8.5,1.5 L8.5,3 M2.6,3 L3.4,13 L10.6,13 L11.4,3" />
                 </Button>
-                <Button Grid.Column="2" Background="Transparent" BorderThickness="0" Foreground="#BFC8D6" Click="OnMoreClick" ToolTip="Ещё">
-                    <Path Width="14" Height="3" Fill="#BFC8D6" Data="M1,1.5 A1.5,1.5 0 1 0 4,1.5 A1.5,1.5 0 1 0 1,1.5 M6,1.5 A1.5,1.5 0 1 0 9,1.5 A1.5,1.5 0 1 0 6,1.5 M11,1.5 A1.5,1.5 0 1 0 14,1.5 A1.5,1.5 0 1 0 11,1.5" />
+                <Button Grid.Column="2" Style="{StaticResource IconButton}" Click="OnMoreClick" ToolTip="Ещё">
+                    <Path Width="14" Height="3" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M1,1.5 A1.5,1.5 0 1 0 4,1.5 A1.5,1.5 0 1 0 1,1.5 M6,1.5 A1.5,1.5 0 1 0 9,1.5 A1.5,1.5 0 1 0 6,1.5 M11,1.5 A1.5,1.5 0 1 0 14,1.5 A1.5,1.5 0 1 0 11,1.5" />
                 </Button>
-                <Button Grid.Column="3" Background="Transparent" BorderThickness="0" Click="OnHideClick" ToolTip="Свернуть в трей" AutomationProperties.Name="Свернуть в трей">
-                    <Path Stretch="Uniform" Width="10" Height="10" Stroke="#BFC8D6" StrokeThickness="1.5" Data="M0,0 L10,10 M10,0 L0,10" />
+                <Button Grid.Column="3" Style="{StaticResource IconButton}" Click="OnHideClick" ToolTip="Свернуть в трей" AutomationProperties.Name="Свернуть в трей">
+                    <Path Stretch="Uniform" Width="10" Height="10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Data="M0,0 L10,10 M10,0 L0,10" />
                 </Button>
             </Grid>
 
@@ -145,8 +186,8 @@
                                             </Border>
                                         </Grid>
                                     </Button>
-                                    <Button x:Name="DeleteButton" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0" Width="27" Height="27" Padding="7" Opacity="0" Background="#E6171A20" BorderThickness="0" Click="OnRemoveCaptureClick" Tag="{Binding}" ToolTip="Удалить">
-                                        <Path Stroke="White" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,1 L9,9 M9,1 L1,9" />
+                                    <Button x:Name="DeleteButton" Style="{StaticResource CardCloseButton}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0" Opacity="0" Click="OnRemoveCaptureClick" Tag="{Binding}" ToolTip="Удалить">
+                                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,1 L9,9 M9,1 L1,9" />
                                     </Button>
                                 </Grid>
                             </Border>
