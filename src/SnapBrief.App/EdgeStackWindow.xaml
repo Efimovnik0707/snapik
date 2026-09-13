@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:SnapBrief.App"
         Title="{local:UiText SnapBrief — Лента снимков}" AutomationProperties.Name="{local:UiText SnapBrief — Лента снимков}"
-        Width="208" MinHeight="128" MaxHeight="620" SizeToContent="Height"
+        Width="208" MinHeight="128" SizeToContent="Height"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
         BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="False" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">
     <Window.Resources>
@@ -265,6 +265,17 @@
          its place at the screen edge. The header drag lives further in and never meets this. -->
     <Thumb x:Name="WidthGrip" HorizontalAlignment="Left" Width="6" Margin="10,22,0,22" Cursor="SizeWE"
            DragStarted="OnWidthDragStarted" DragDelta="OnWidthDragDelta" DragCompleted="OnWidthDragCompleted">
+        <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
+    </Thumb>
+    <!-- The bottom left corner takes width and height at once. It is declared after WidthGrip so it
+         wins the hit test where the two meet, and it sits on the corner of the visible card, which is
+         10 px inside the window because that margin carries the shadow. The cursor is SizeNESW: the
+         bottom left corner is dragged along the north-east / south-west diagonal. The window has no
+         height of its own (SizeToContent), so the drag changes CaptureList.MaxHeight instead.
+         The window is not resizable by the system, and the strip has no MaxHeight any more: the
+         ceiling comes from the working area of the monitor it is on. -->
+    <Thumb x:Name="CornerGrip" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="16" Height="16" Margin="10,0,0,10" Cursor="SizeNESW"
+           DragStarted="OnCornerDragStarted" DragDelta="OnCornerDragDelta" DragCompleted="OnCornerDragCompleted">
         <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
     </Thumb>
     </Grid>

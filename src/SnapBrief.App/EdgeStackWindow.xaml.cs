@@ -62,6 +62,7 @@ public partial class EdgeStackWindow : Window
     private int _toastGeneration;
     private Point _dragStart;
     private double _resizeRightEdge;
+    private double _resizeTop;
     private CaptureItem? _draggedCapture;
     private readonly Stack<(CaptureItem Capture, int Index)> _removed = [];
     private TargetProfile? _selectedProfile;
@@ -593,6 +594,9 @@ public partial class EdgeStackWindow : Window
         // The width the user dragged the strip to, kept inside its range: a settings file written by
         // hand (or by an older build with another range) must not produce a strip nobody can use.
         Width = Controls.StripResizeGeometry.ClampWidth(_settings.StackWidth);
+        // The height is remembered the same way, and it is the height of the list: the window is on
+        // SizeToContent and follows it.
+        CaptureList.MaxHeight = Controls.StripResizeGeometry.ClampListHeight(_settings.StackHeight, work.Height);
         Left = work.Right - Width - 10;
         Top = Math.Max(work.Top + 24, work.Top + (work.Height - Math.Max(ActualHeight, 160)) / 2);
     }
@@ -611,6 +615,33 @@ public partial class EdgeStackWindow : Window
 
     private void OnWidthDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
         MutateSettings(stored => stored with { StackWidth = Width });
+
+    // The corner takes both sides at once. The right edge and the top edge are taken once, for the
+    // same reason the width drag takes the right one: the strip keeps its place at the screen edge
+    // and grows downwards instead of walking around while the pointer moves.
+    private void OnCornerDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+    {
+        _resizeRightEdge = Left + Width;
+        _resizeTop = Top;
+    }
+
+    private void OnCornerDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        var work = StackWorkArea();
+        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, work.Left);
+        Width = width;
+        Left = left;
+        // Everything of the window that is not the list: the header, the capture button, the toast
+        // and the paddings. The window has no height of its own, so the list is what the drag moves,
+        // and the chrome is what keeps the bottom of the window inside the working area.
+        var chrome = Math.Max(0, ActualHeight - CaptureList.ActualHeight);
+        CaptureList.MaxHeight = Controls.StripResizeGeometry.ResizeListHeight(
+            CaptureList.MaxHeight, e.VerticalChange, chrome, _resizeTop, work.Bottom);
+        Top = _resizeTop;
+    }
+
+    private void OnCornerDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
+        MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.MaxHeight });
 
     private async Task<bool> PrepareAsync()
     {

@@ -28,6 +28,12 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public bool StackTopmost { get; init; } = true;
     /// <summary>The width of the strip window in pixels; the visible card is 20 px narrower.</summary>
     public double StackWidth { get; init; } = Controls.StripResizeGeometry.DefaultWidth;
+    /// <summary>
+    /// The maximum height of the capture list inside the strip, in pixels, not the height of the
+    /// window: the window is on SizeToContent and derives its height from this one. Read back
+    /// clamped to 180..720 and to the working area of the monitor the strip opens on.
+    /// </summary>
+    public double StackHeight { get; init; } = Controls.StripResizeGeometry.DefaultListHeight;
     public bool ClearStackAfterPaste { get; init; }
     /// <summary>
     /// Whether clearing the strip and leaving the application ask before the captures of the session

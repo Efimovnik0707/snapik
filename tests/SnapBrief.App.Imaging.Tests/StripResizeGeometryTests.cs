@@ -41,6 +41,39 @@ public sealed class StripResizeGeometryTests
         Assert.Equal(new Rect(0, 0, 1920, 1040), StripResizeGeometry.ToDeviceIndependent(new Rect(0, 0, 1920, 1040), 0, 0));
     }
 
+    [Fact]
+    public void Dragging_the_corner_down_grows_the_list_and_leaves_the_top_edge_alone()
+    {
+        // 100 of the working area below the strip is the chrome of the window, so the list may take
+        // the rest of it; a drag of 60 px takes 60 px of that.
+        Assert.Equal(432, StripResizeGeometry.ResizeListHeight(372, 60, 100, 200, 1040));
+        Assert.Equal(312, StripResizeGeometry.ResizeListHeight(372, -60, 100, 200, 1040));
+    }
+
+    [Theory]
+    [InlineData(-1000, StripResizeGeometry.MinimumListHeight)]
+    [InlineData(1000, StripResizeGeometry.MaximumListHeight)]
+    public void The_list_height_stays_inside_its_range(double delta, double expected) =>
+        Assert.Equal(expected, StripResizeGeometry.ResizeListHeight(372, delta, 100, 0, 2000));
+
+    [Fact]
+    public void The_list_stops_at_the_bottom_of_the_working_area()
+    {
+        // 1040 - 700 - 140 = 200 left for the list, even though the drag and the range would allow more.
+        Assert.Equal(200, StripResizeGeometry.ResizeListHeight(372, 500, 140, 700, 1040));
+        // A strip that is already lower than its own chrome still gets a usable list.
+        Assert.Equal(StripResizeGeometry.MinimumListHeight, StripResizeGeometry.ResizeListHeight(372, 500, 140, 1000, 1040));
+    }
+
+    [Theory]
+    [InlineData(300, 1040, 300)]
+    [InlineData(40, 1040, StripResizeGeometry.MinimumListHeight)]
+    [InlineData(900, 1040, StripResizeGeometry.MaximumListHeight)]
+    [InlineData(900, 500, 500)]
+    [InlineData(double.NaN, 1040, StripResizeGeometry.DefaultListHeight)]
+    public void A_stored_list_height_is_clamped_by_the_range_and_by_the_screen(double stored, double workHeight, double expected) =>
+        Assert.Equal(expected, StripResizeGeometry.ClampListHeight(stored, workHeight));
+
     [Theory]
     [InlineData(240, 240)]
     [InlineData(40, StripResizeGeometry.MinimumWidth)]
