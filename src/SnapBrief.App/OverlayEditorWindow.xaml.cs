@@ -59,6 +59,9 @@ public partial class OverlayEditorWindow : Window
     private bool _chipDragMoved;
     private bool _settingUp;
     private bool _busyCrop;
+    // This press has already been spent on closing an editor beside the capture (the pill of a
+    // note), so the release that follows must not finish the shot on top of it: one click, one thing.
+    private bool _outsideClickConsumed;
     private readonly bool _commentsPanelVisible;
 
     private OverlayEditorWindow(SessionWorkspace workspace, DesktopFrame frame, int captureIndex, CaptureItem? existing)
@@ -380,6 +383,53 @@ public partial class OverlayEditorWindow : Window
             throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
     }
 
+    // The two rules of a click that landed on nothing: beside the capture it finishes the markup,
+    // and a press already spent on closing the pill of a note finishes nothing on top of it.
+    internal static void RunOutsideClickProbe(CaptureItem source)
+    {
+        var capture = source.DeepClone();
+        var root = Path.Combine(Path.GetTempPath(), "SnapBrief", $"outside-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
+        var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
+        var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
+        window.Measure(new Size(1280, 720));
+        window.Arrange(new Rect(0, 0, 1280, 720));
+        window._cropRect = new Rect(120, 90, 900, 506);
+        window.SetupEditor();
+        try { OutsideClickChecks(window); }
+        finally
+        {
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void OutsideClickChecks(OverlayEditorWindow window)
+    {
+        var beside = new Point(40, 40);
+        var inside = new Point(400, 300);
+        if (window.TakeOutsideClick(window.DesktopImage, beside) != OutsideClick.Finish)
+            throw new InvalidOperationException("A click beside the capture must finish the markup.");
+        if (window.TakeOutsideClick(window.DesktopImage, inside) != OutsideClick.Ignore)
+            throw new InvalidOperationException("A click on the capture must be left to the canvas.");
+        if (window.TakeOutsideClick(window.Surface, beside) != OutsideClick.Ignore)
+            throw new InvalidOperationException("Only a click on the desktop behind the capture finishes the markup.");
+
+        // The pill of a note is open: the press beside it closes the pill and is spent on that, and
+        // only the next click finishes the markup.
+        var annotation = new AnnotationItem { Kind = EditorTool.Rectangle, Points = [new Point(120, 120), new Point(260, 220)], Note = "Заметка" };
+        window._capture!.Annotations.Add(annotation);
+        window._visibleChipIds.Add(annotation.Id);
+        window.AddChip(annotation, focus: true);
+        window.PressBesideEditors(window.DesktopImage);
+        if (window._expandedChipId is not null)
+            throw new InvalidOperationException("A press beside an open note pill must finish what is being typed in it.");
+        if (window.TakeOutsideClick(window.DesktopImage, beside) != OutsideClick.Spent)
+            throw new InvalidOperationException("The click that closed a note pill must not finish the markup as well.");
+        if (window.TakeOutsideClick(window.DesktopImage, beside) != OutsideClick.Finish)
+            throw new InvalidOperationException("The next click beside the capture must finish the markup again.");
+    }
+
     // The comments panel of a capture reopened from the strip, with the checks that used to live in
     // the preview window: an empty note claims no number, the numbers close the gap after a
     // deletion and match the export, the list carries a large capture, and a click on a row selects
@@ -619,9 +669,34 @@ public partial class OverlayEditorWindow : Window
         SetupEditor();
     }
 
+    // What a release of the button means for the shot: nothing at all, a press that was already
+    // spent on closing something beside the capture, or "Done". A click on an empty part of the
+    // capture never gets here, it belongs to the canvas, which drops the selection and draws nothing.
+    internal enum OutsideClick { Ignore, Spent, Finish }
+
+    internal OutsideClick TakeOutsideClick(object? source, Point point)
+    {
+        // Only the desktop behind the capture answers here: the shade is not hit testable and the
+        // markup layer has no background of its own, so anything else means the press landed
+        // somewhere with a meaning of its own.
+        var click = _capture is null || _busyCrop || source is not Image || _cropRect.Contains(point)
+            ? OutsideClick.Ignore
+            : _outsideClickConsumed ? OutsideClick.Spent : OutsideClick.Finish;
+        _outsideClickConsumed = false;
+        return click;
+    }
+
+    // A press beside the capture finishes what is being typed there first, and is spent on that:
+    // the release that follows it must not close the editor on top of it.
+    internal void PressBesideEditors(DependencyObject? source)
+    {
+        _outsideClickConsumed = _expandedChipId is not null && !IsInsideChipLayer(source);
+        FinishExpandedChipIfOutside(source);
+    }
+
     private void OnWindowMouseDown(object sender, MouseButtonEventArgs e)
     {
-        FinishExpandedChipIfOutside(e.OriginalSource as DependencyObject);
+        PressBesideEditors(e.OriginalSource as DependencyObject);
         if (_busyCrop || _closed || _capture is not null) return;
         if (!_isNew || _capture is not null || e.OriginalSource is not Image) return;
         _selectionStart = e.GetPosition(this);
@@ -642,15 +717,13 @@ public partial class OverlayEditorWindow : Window
     {
         if (_selectionStart is null)
         {
-            // A click beside the capture no longer finishes the shot: it drops the selection and
-            // closes whatever is open, the same as a click on an empty part of the capture. The
-            // shot is finished by "Done", by Ctrl+C and by the capture hotkey.
-            if (_capture is not null && e.OriginalSource is Image && !_busyCrop && !_cropRect.Contains(e.GetPosition(this)))
-            {
-                e.Handled = true;
-                ClosePopovers();
-                Surface.SelectAnnotation(null);
-            }
+            // A click beside the capture finishes the markup again. A click on an empty part of the
+            // capture drops the selection instead, and that one belongs to the canvas: it never
+            // reaches this handler.
+            var click = TakeOutsideClick(e.OriginalSource, e.GetPosition(this));
+            if (click == OutsideClick.Ignore) return;
+            e.Handled = true;
+            if (click == OutsideClick.Finish) { ClosePopovers(); Complete(false); }
             return;
         }
         _cropRect = Normalize(_selectionStart.Value, e.GetPosition(this));
