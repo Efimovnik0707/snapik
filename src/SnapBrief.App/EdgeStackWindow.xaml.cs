@@ -486,6 +486,9 @@ public partial class EdgeStackWindow : Window
             var addNext = true;
             while (addNext)
             {
+                // Checked before anything is hidden: an eleventh press must not open the editor over
+                // a capture that has nowhere to go.
+                if (StripIsFull()) { addNext = false; continue; }
                 HideForCapture();
                 var result = await OverlayEditorWindow.CaptureNewAsync(_workspace, PendingCaptures.Count);
                 if (result.Capture is null) { addNext = false; continue; }
@@ -506,6 +509,15 @@ public partial class EdgeStackWindow : Window
             _busy = false;
             ShowStackWithoutActivation();
         }
+    }
+
+    // The strip holds ten captures, sent ones included: they take the same disk and the same memory,
+    // and the letters of the strip stay inside A..J. Every way of adding a capture goes through here.
+    private bool StripIsFull(int adding = 1)
+    {
+        if (Captures.Count + adding <= SentCaptureRules.MaxStripCaptures) return false;
+        ShowToast(UiLanguage.Text("В ленте максимум 10 снимков. Отправьте или удалите лишние"));
+        return true;
     }
 
     private async void OnRemoveCaptureClick(object sender, RoutedEventArgs e)
@@ -821,9 +833,15 @@ public partial class EdgeStackWindow : Window
         bool? picked;
         using (SuspendTopmost()) picked = dialog.ShowDialog(this);
         if (picked != true) return;
+        if (StripIsFull()) return;
+        // A multiple selection larger than the free places takes the first of them, and the toast
+        // about the limit replaces the one about the captures that were added.
+        var free = SentCaptureRules.MaxStripCaptures - Captures.Count;
+        var chosen = dialog.FileNames;
+        var truncated = chosen.Length > free;
         var imported = 0;
         var failures = new List<string>();
-        foreach (var path in dialog.FileNames)
+        foreach (var path in chosen.Take(free))
         {
             try { Captures.Add(await _workspace.AddImageAsync(SessionWorkspace.LoadBitmap(path))); imported++; }
             catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
@@ -836,12 +854,14 @@ public partial class EdgeStackWindow : Window
         if (imported > 0) await RefreshOwnedClipboardAsync();
         // A failed import must survive the next status update, a successful one has to stay readable for a few seconds.
         if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
+        else if (truncated) ShowToast(UiLanguage.Text("В ленте максимум 10 снимков. Отправьте или удалите лишние"));
         else if (saved) ShowToast(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
     }
 
     private async Task ImportClipboardAsync()
     {
         await _pasteIntentTransition;
+        if (StripIsFull()) return;
         if (!Clipboard.ContainsImage() || Clipboard.GetImage() is not { } image) { SetStatus(UiLanguage.Text("В буфере нет изображения."), true); return; }
         image.Freeze();
         Captures.Add(await _workspace.AddImageAsync(image));
@@ -1491,6 +1511,9 @@ public partial class EdgeStackWindow : Window
     {
         await _pasteIntentTransition;
         if (_removed.Count == 0) return;
+        // The capture stays on the stack of removed ones: after another capture leaves the strip
+        // there is room again, and "Restore" still has something to bring back.
+        if (StripIsFull()) return;
         var removed = _removed.Pop();
         Captures.Insert(Math.Clamp(removed.Index, 0, Captures.Count), removed.Capture);
         Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowToast(UiLanguage.Text("Снимок восстановлен.")); await RefreshOwnedClipboardAsync();

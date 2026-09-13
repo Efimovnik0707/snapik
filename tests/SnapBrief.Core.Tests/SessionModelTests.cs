@@ -102,6 +102,19 @@ public sealed class SessionModelTests
         Assert.Empty(SentCaptureRules.ForPackage(captures, _ => true));
     }
 
+    // The limit of the strip and its letters are one rule: ten captures never ask for a letter past J.
+    [Fact]
+    public void A_full_strip_stops_at_ten_captures_and_its_last_letter_is_J()
+    {
+        Assert.Equal(10, SentCaptureRules.MaxStripCaptures);
+
+        var labels = SentCaptureRules.StripLabels([.. Enumerable.Repeat(false, SentCaptureRules.MaxStripCaptures)]);
+
+        Assert.Equal(SentCaptureRules.MaxStripCaptures, labels.Count);
+        Assert.Equal("A", labels[0]);
+        Assert.Equal("J", labels[^1]);
+    }
+
     private sealed class FrozenTimeProvider(DateTimeOffset value) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => value;

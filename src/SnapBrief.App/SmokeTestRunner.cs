@@ -188,6 +188,7 @@ public static class SmokeTestRunner
             ("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.", "This shortcut is already taken. Free it in the other application or pick another one."),
             ("Показать ленту", "Show the strip"), ("Очистить ленту", "Clear the strip"),
             ("Удалить снимки сессии?", "Delete the captures of this session?"), ("Больше не спрашивать", "Do not ask again"),
+            ("В ленте максимум 10 снимков. Отправьте или удалите лишние", "The strip holds at most 10 captures. Paste or delete some first."),
             ("Снимки этой сессии будут удалены. Чтобы сохранить, нажмите «Сохранить пакет…» в меню •••",
                 "The captures of this session will be deleted. To keep them, use \"Save package…\" in the ••• menu."),
             ("SnapBrief — Лента снимков", "SnapBrief — Capture strip")

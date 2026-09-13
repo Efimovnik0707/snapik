@@ -7,6 +7,12 @@ namespace SnapBrief.Core.Exporting;
 /// </summary>
 public static class SentCaptureRules
 {
+    /// <summary>
+    /// How many captures the strip holds, sent ones included. Ten because the letters of the strip
+    /// are then never asked to go past J: a package of that size is still one message in a chat.
+    /// </summary>
+    public const int MaxStripCaptures = 10;
+
     public static IReadOnlyList<T> ForPackage<T>(IEnumerable<T> captures, Func<T, bool> isSent) =>
         captures.Where(capture => !isSent(capture)).ToArray();
 
