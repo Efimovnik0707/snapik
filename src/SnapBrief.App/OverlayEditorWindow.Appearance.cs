@@ -19,7 +19,13 @@ public partial class OverlayEditorWindow
     // belong to the palette, otherwise no swatch is circled.
     internal static readonly Color DefaultAnnotationColor = Color.FromRgb(255, 59, 48);
     internal const double DefaultAnnotationThickness = 4;
+    // The highlighter is measured in tens of pixels, not in units of them: its width, its presets
+    // and the range of its slider are its own, and the button on the panel shows whichever is armed.
+    internal const double DefaultHighlightThickness = 16;
+    internal const double MinimumHighlightThickness = 4;
+    internal const double MaximumHighlightThickness = 48;
     internal static readonly double[] ThicknessPresets = [2, 4, 6, 8];
+    internal static readonly double[] HighlightThicknessPresets = [8, 12, 16, 24];
     private static bool HasColor(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Arrow or EditorTool.Pen or EditorTool.Highlight or EditorTool.Text;
     private static bool HasStroke(EditorTool tool) => HasColor(tool) && tool != EditorTool.Text;
     // The frame is shared by a region and by a blur: one shape is remembered for both. What stands
@@ -45,6 +51,29 @@ public partial class OverlayEditorWindow
             ["#FF1744", "#FF6D00", "#FFEA00", "#C6FF00", "#00E676", "#1DE9B6", "#00E5FF", "#2979FF", "#651FFF", "#D500F9", "#FF4081", "#FFFFFF"],
             ["#FF1744", "#FFEA00", "#00E676", "#2979FF", "#FFFFFF"])
     ];
+
+    // The thickness the panel works on: the highlighter keeps one of its own, everything else with a
+    // stroke shares the other, which is what the common thickness button was asked to do.
+    internal static double[] ThicknessPresetsFor(EditorTool tool) =>
+        tool == EditorTool.Highlight ? HighlightThicknessPresets : ThicknessPresets;
+
+    internal double ActiveThicknessFor(EditorTool tool) =>
+        tool == EditorTool.Highlight ? _activeHighlightThickness : _activeThickness;
+
+    private void SetActiveThickness(EditorTool tool, double value)
+    {
+        if (tool == EditorTool.Highlight)
+        {
+            _appearanceDefaultsChanged |= value != _activeHighlightThickness;
+            _activeHighlightThickness = value;
+        }
+        else
+        {
+            _appearanceDefaultsChanged |= value != _activeThickness;
+            _activeThickness = value;
+        }
+        Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
+    }
 
     // What one click on the panel changes: the outline while the mark has one, the fill otherwise,
     // so a click stays meaningful for a black concealing box as well.
@@ -147,7 +176,9 @@ public partial class OverlayEditorWindow
         var selected = Surface.SelectedAnnotation;
         var tool = selected?.Kind ?? Surface.Tool;
         var color = selected?.Color ?? _activeColor;
-        var thickness = selected?.Thickness ?? _activeThickness;
+        var thickness = selected?.Thickness ?? ActiveThicknessFor(tool);
+        // The next mark takes the thickness of the tool in the hand, not of the mark under the cursor.
+        Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
         var outline = selected?.HasOutline ?? _activeHasOutline;
         var fillColor = (selected is not null ? selected.FillColor : _activeFillColor) ?? color;
         // The circle on the panel and the dots beside it work on the colour that is actually seen:
@@ -158,17 +189,40 @@ public partial class OverlayEditorWindow
         // A tool without a stroke leaves the last thickness on the button, dimmed by the disabled
         // state of the style: an empty caption is what used to make the panel jump.
         ThicknessButton.IsEnabled = HasStroke(tool);
-        ThicknessButton.Content = $"{(HasStroke(tool) ? thickness : _activeThickness):0} px";
+        ThicknessButton.Content = $"{(HasStroke(tool) ? thickness : ActiveThicknessFor(tool)):0} px";
         ColorHex.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
         ColorHex.BorderBrush = new SolidColorBrush(Color.FromRgb(70, 83, 102));
+        var highlighting = tool == EditorTool.Highlight;
         StrokeSlider.IsEnabled = HasStroke(tool);
-        StrokeSlider.Value = Math.Clamp(thickness, 1, 16);
+        StrokeSlider.Minimum = highlighting ? MinimumHighlightThickness : 1;
+        StrokeSlider.Maximum = highlighting ? MaximumHighlightThickness : 16;
+        StrokeSlider.Value = Math.Clamp(thickness, StrokeSlider.Minimum, StrokeSlider.Maximum);
         StrokeValue.Text = HasStroke(tool) ? $"{thickness:0} px" : "—";
         StrokePreview.Stroke = new SolidColorBrush(color);
-        StrokePreview.StrokeThickness = thickness;
+        // The preview shows what the stroke will look like, inside a box 36 px tall: a highlighter
+        // that wide is drawn with its own transparency and its own square ends.
+        StrokePreview.StrokeThickness = Math.Min(24, thickness);
+        StrokePreview.Opacity = highlighting ? Controls.AnnotationCanvas.HighlightOpacity : 1;
+        StrokePreview.StrokeStartLineCap = StrokePreview.StrokeEndLineCap = highlighting ? PenLineCap.Square : PenLineCap.Round;
         StrokePreview.Visibility = HasStroke(tool) ? Visibility.Visible : Visibility.Hidden;
-        foreach (System.Windows.Controls.Primitives.ToggleButton preset in ThicknessPresetRow.Children)
-            preset.IsChecked = preset.Tag is string tag && double.TryParse(tag, System.Globalization.CultureInfo.InvariantCulture, out var value) && Math.Abs(value - thickness) < 0.001;
+        // The four presets are the presets of the tool in the hand, values, tooltips and all.
+        var presets = ThicknessPresetsFor(tool);
+        var segments = ThicknessPresetRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>().ToArray();
+        for (var i = 0; i < segments.Length && i < presets.Length; i++)
+        {
+            var value = presets[i];
+            var caption = $"{value:0} px";
+            segments[i].Tag = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            segments[i].ToolTip = caption;
+            System.Windows.Automation.AutomationProperties.SetName(segments[i], caption);
+            // A 24 px band would not fit a segment 30 px tall, so the drawing of a preset is capped.
+            if (segments[i].Content is Rectangle bar)
+            {
+                bar.Height = Math.Min(20, value);
+                bar.RadiusX = bar.RadiusY = Math.Min(20, value) / 2;
+            }
+            segments[i].IsChecked = Math.Abs(value - thickness) < 0.001;
+        }
         foreach (Button swatch in ColorPalette.Children)
             swatch.BorderBrush = (Color)swatch.Tag == color ? Brushes.White : Brushes.Transparent;
         foreach (Button swatch in FillPalette.Children)
@@ -220,7 +274,7 @@ public partial class OverlayEditorWindow
         var selected = Surface.SelectedAnnotation;
         var tool = selected?.Kind ?? Surface.Tool;
         if (color is { } c && HasColor(tool)) { _appearanceDefaultsChanged |= c != _activeColor; _activeColor = c; Surface.ActiveColor = c; if (selected is not null) { selected.Color = c; _appearanceChanged = true; } }
-        if (thickness is { } t && HasStroke(tool)) { _appearanceDefaultsChanged |= t != _activeThickness; _activeThickness = t; Surface.ActiveThickness = t; if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; } }
+        if (thickness is { } t && HasStroke(tool)) { SetActiveThickness(tool, t); if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; } }
         if (shape is { } s && HasShape(tool)) { _appearanceDefaultsChanged |= s != _activeShape; _activeShape = s; Surface.ActiveShape = s; if (selected is not null) { selected.Shape = s; _appearanceChanged = true; } }
         if (fill is { } f && HasFill(tool)) { _appearanceDefaultsChanged |= f != _activeFill; _activeFill = f; Surface.ActiveFill = f; if (selected is not null) { selected.Fill = f; _appearanceChanged = true; } }
         if (fillColor is { } fc && HasFill(tool)) { _appearanceDefaultsChanged |= fc != _activeFillColor; _activeFillColor = fc; Surface.ActiveFillColor = fc; if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; } }
@@ -382,6 +436,7 @@ public partial class OverlayEditorWindow
             {
                 AnnotationColor = $"#{_activeColor.R:X2}{_activeColor.G:X2}{_activeColor.B:X2}",
                 AnnotationThickness = Math.Clamp(_activeThickness, 1, 16),
+                AnnotationHighlightThickness = Math.Clamp(_activeHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness),
                 AnnotationShape = _activeShape.ToString().ToLowerInvariant(),
                 AnnotationFill = _activeFill.ToString().ToLowerInvariant(),
                 AnnotationFillColor = _activeFillColor is { } fillColor ? $"#{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : string.Empty,

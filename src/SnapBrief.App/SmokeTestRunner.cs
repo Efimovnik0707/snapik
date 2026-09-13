@@ -31,7 +31,7 @@ public static class SmokeTestRunner
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
             ConfirmSessionDiscard = false, StackHeight = 300,
-            AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationShape = "ellipse", AnnotationFill = "translucent",
+            AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationShape = "ellipse", AnnotationFill = "translucent",
             AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "neon", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
@@ -101,6 +101,13 @@ public static class SmokeTestRunner
             !OverlayEditorWindow.Palettes[0].Colors.Contains(HotkeySettings.Default.AnnotationColor) ||
             OverlayEditorWindow.ParseAnnotationColor(HotkeySettings.Default.AnnotationColor) != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("The stored palette must be read back, and the default colour must belong to the standard palette.");
+        // The highlighter carries a width of its own, next to the one every other stroke shares.
+        if (restoredSettings.AnnotationHighlightThickness != 22 ||
+            HotkeySettings.Default.AnnotationHighlightThickness != OverlayEditorWindow.DefaultHighlightThickness ||
+            OverlayEditorWindow.HighlightThicknessPresets.Length != 4 ||
+            OverlayEditorWindow.ThicknessPresetsFor(EditorTool.Highlight) != OverlayEditorWindow.HighlightThicknessPresets ||
+            OverlayEditorWindow.ThicknessPresetsFor(EditorTool.Pen) != OverlayEditorWindow.ThicknessPresets)
+            throw new InvalidOperationException("The width of the highlighter must be stored and offered apart from the one of the pencil.");
         // The half of the pencil capsule that was armed last comes back with the next capture.
         if (OverlayEditorWindow.ParseAnnotationPencil(restoredSettings.AnnotationPencil) != EditorTool.Highlight ||
             OverlayEditorWindow.ParseAnnotationPencil("marker") != EditorTool.Pen ||
@@ -330,6 +337,7 @@ public static class SmokeTestRunner
         Controls.AnnotationCanvas.VerifyBlurCache(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
         Controls.AnnotationCanvas.VerifyGestureRules(captures[0].Image);
+        await VerifyHighlighterStaysOneTone(root);
         foreach (var format in new[] { "png", "jpeg" })
         {
             var imagePath = Path.Combine(root, "local-save." + (format == "jpeg" ? "jpg" : "png"));
@@ -496,6 +504,50 @@ public static class SmokeTestRunner
         Directory.CreateDirectory(root);
         await File.WriteAllTextAsync(Path.Combine(root, "smoke-test-result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         return success;
+    }
+
+    // A highlighter lays its ink down once: the joint between two segments of a stroke must be
+    // exactly as light as the middle of a segment, and that is what tells it from the pencil. Drawn
+    // over white, where a second layer of transparent ink would show at once, and next to a pencil
+    // stroke, which has to come out as the colour of the mark itself.
+    private static async Task VerifyHighlighterStaysOneTone(string root)
+    {
+        var probeRoot = Path.Combine(root, "highlighter-probe");
+        Directory.CreateDirectory(probeRoot);
+        var stride = 400 * 4;
+        var pixels = new byte[stride * 200];
+        Array.Fill(pixels, (byte)255);
+        var white = System.Windows.Media.Imaging.BitmapSource.Create(400, 200, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+        white.Freeze();
+        var imagePath = Path.Combine(probeRoot, "white.png");
+        await LocalImageSave.WriteAsync(white, imagePath, "png", 92, false);
+
+        SnapBrief.Core.Models.AnnotationItem Stroke(SnapBrief.Core.Models.AnnotationKind kind, double y) =>
+            SnapBrief.Core.Models.AnnotationItem.Create(kind,
+                [new(0.1, y), new(0.3, y), new(0.5, y), new(0.8, y)], "#FFFF3B30", 16);
+        var capture = SnapBrief.Core.Models.CaptureItem.Create("source/white.png", 400, 200) with
+        {
+            Annotations = [Stroke(SnapBrief.Core.Models.AnnotationKind.Highlight, 0.35), Stroke(SnapBrief.Core.Models.AnnotationKind.Freehand, 0.75)]
+        };
+        await using var png = new MemoryStream();
+        await new WpfExportImageRenderer().RenderAsync(capture,
+            new SnapBrief.Core.Exporting.ExportImageContext("A", 0, imagePath), png, default);
+        png.Position = 0;
+        var exported = System.Windows.Media.Imaging.BitmapFrame.Create(png,
+            System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+
+        var middle = PixelAt(exported, 80, 48 + 70);
+        var joint = PixelAt(exported, 120, 48 + 70);
+        if (!middle.SequenceEqual(joint))
+            throw new InvalidOperationException("The joint of a highlighter stroke came out darker than the middle of a segment.");
+        if (middle[0] == 255 && middle[1] == 255 && middle[2] == 255)
+            throw new InvalidOperationException("The highlighter left nothing on the capture.");
+        if (middle[0] == 48 && middle[1] == 59 && middle[2] == 255)
+            throw new InvalidOperationException("The highlighter must be transparent, not the colour of the mark itself.");
+        var pencil = PixelAt(exported, 120, 48 + 150);
+        if (pencil[0] != 48 || pencil[1] != 59 || pencil[2] != 255)
+            throw new InvalidOperationException("The pencil must draw the colour of the mark, whole.");
+        Directory.Delete(probeRoot, true);
     }
 
     // The start of a run takes every session the previous run left in the root, together with the

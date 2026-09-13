@@ -511,11 +511,9 @@ public sealed class AnnotationCanvas : FrameworkElement
 
         if (drawShape && item.Kind is (EditorTool.Pen or EditorTool.Highlight))
         {
-            var opacity = item.Kind == EditorTool.Highlight ? 0.35 : 1;
-            var pathPen = new Pen(new SolidColorBrush(Color.FromArgb((byte)(opacity * 255), item.Color.R, item.Color.G, item.Color.B)), item.Kind == EditorTool.Highlight ? thickness * 4 : thickness)
-            { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-            foreach (var segment in new[] { item.Points }.Concat(item.AdditionalPathSegments))
-                for (var i = 1; i < segment.Count; i++) dc.DrawLine(pathPen, Map(segment[i - 1]), Map(segment[i]));
+            var stroke = StrokeGeometry(PathSegmentsOf(item), Map);
+            if (item.Kind == EditorTool.Highlight) DrawHighlightStroke(dc, stroke, brush, thickness);
+            else dc.DrawGeometry(null, pen, stroke);
         }
         else if (drawShape && item.Points.Count > 1)
         {
@@ -576,6 +574,43 @@ public sealed class AnnotationCanvas : FrameworkElement
                 dc.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), new Rect(corner.X - 4, corner.Y - 4, 8, 8));
         }
     }
+
+    // How transparent a highlighter is. One number for both renderers, applied to the whole stroke
+    // at once rather than to the brush: transparent ink laid segment by segment piles up at every
+    // joint, and a highlighter drawn that way came out as a ragged pen.
+    internal const double HighlightOpacity = 0.4;
+
+    // A stroke is one geometry, not a line per pair of points: the points of a freehand mark are
+    // dense, so a hundred round caps used to be painted over each other.
+    internal static Geometry StrokeGeometry<TPoint>(IEnumerable<IReadOnlyList<TPoint>> segments, Func<TPoint, Point> map)
+    {
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+            foreach (var segment in segments.Where(points => points.Count > 1))
+            {
+                context.BeginFigure(map(segment[0]), false, false);
+                context.PolyLineTo(segment.Skip(1).Select(map).ToArray(), true, false);
+            }
+        geometry.Freeze();
+        return geometry;
+    }
+
+    // Square ends and flat joints, and the whole stroke made transparent once: that is what makes a
+    // highlighter read as a highlighter beside the pencil.
+    internal static void DrawHighlightStroke(DrawingContext dc, Geometry stroke, Brush brush, double thickness)
+    {
+        var pen = new Pen(brush, thickness)
+        {
+            StartLineCap = PenLineCap.Square, EndLineCap = PenLineCap.Square, LineJoin = PenLineJoin.Bevel
+        };
+        pen.Freeze();
+        dc.PushOpacity(HighlightOpacity);
+        dc.DrawGeometry(null, pen, stroke);
+        dc.Pop();
+    }
+
+    private static IEnumerable<IReadOnlyList<Point>> PathSegmentsOf(AnnotationItem item) =>
+        new[] { (IReadOnlyList<Point>)item.Points }.Concat(item.AdditionalPathSegments);
 
     // The frame of a region: the outline follows Shape, what stands inside it follows Fill. The
     // export renderer draws the same three shapes from the same numbers, in image pixels.
@@ -657,8 +692,10 @@ public sealed class AnnotationCanvas : FrameworkElement
             case EditorTool.Pen:
             case EditorTool.Highlight:
             {
-                var width = item.Kind == EditorTool.Highlight ? band * 2 : band;
-                foreach (var segment in new[] { item.Points }.Concat(item.AdditionalPathSegments))
+                // Half the stroke plus a little slack: the thickness of a mark is the width it is
+                // really drawn with now, for the highlighter as well as for the pencil.
+                var width = Math.Max(6, item.Thickness * scale / 2 + 4);
+                foreach (var segment in PathSegmentsOf(item))
                     if (DistanceToPolyline(segment.Select(ToDisplay).ToArray(), point) <= width) return true;
                 return false;
             }

@@ -10,8 +10,9 @@
         MouseMove="OnWindowMouseMove" MouseLeftButtonUp="OnWindowMouseUp">
     <Window.Resources>
         <!-- The two faces of the pencil capsule: the button swaps the geometry of its own path by
-             the mode, and the menu of the capsule draws its rows from the same two. -->
-        <PathGeometry x:Key="PenGlyph" Figures="M2,14 C5,12 5,8 8,7 M8,7 L13,2 L15,4 L10,9 Z" />
+             the mode, and the menu of the capsule draws its rows from the same two. A pencil with a
+             collar and a tip, not the slanted wedge that read as a razor blade. -->
+        <PathGeometry x:Key="PencilGlyph" Figures="M2.5,13.5 L3.5,10.3 L9.5,4.2 L11.8,6.5 L5.8,12.5 Z M3.5,10.3 L5.8,12.5 M8.5,5.3 L10.7,7.6" />
         <PathGeometry x:Key="HighlightGlyph" Figures="M2,11 L10,3 L14,7 L6,15 L2,15 Z" />
         <!-- The face of a region filled with blur: worn by the segment that picks it and by the
              preview on the fill button, so both say the same thing. -->
@@ -202,7 +203,7 @@
                 <!-- One capsule for the pen and the highlighter: the button draws the current mode
                      and carries it in its own Tag, the chevron beside it offers the other one. -->
                 <ToggleButton x:Name="PenTool" Style="{StaticResource OverlayToolStart}" Tag="Pen" Click="OnToolClick">
-                    <Path x:Name="PencilGlyph" Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="{StaticResource PenGlyph}" />
+                    <Path x:Name="PencilCapsuleGlyph" Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="{StaticResource PencilGlyph}" />
                 </ToggleButton>
                 <Button x:Name="PenMenuButton" Style="{StaticResource OverlayToolChevron}" Click="OnPencilMenuClick" ToolTip="Карандаш" AutomationProperties.Name="{local:UiText Карандаш}" />
                 <ToggleButton x:Name="TextTool" Style="{StaticResource OverlayTool}" Tag="Text" Click="OnToolClick">
@@ -290,18 +291,21 @@
             <Border Width="252" Padding="18" Background="#171A20" BorderBrush="#394352" BorderThickness="1" CornerRadius="14" TextElement.Foreground="#EEF2F8" Cursor="Arrow" PreviewKeyDown="OnThicknessKeyDown">
                 <StackPanel>
                     <Grid Margin="0,0,0,12"><TextBlock Text="Толщина" FontWeight="SemiBold"/><TextBlock x:Name="StrokeValue" HorizontalAlignment="Right"/></Grid>
+                    <!-- The four presets and the range of the slider belong to the tool in the hand:
+                         the pencil counts in a few pixels, the highlighter in tens of them. Both are
+                         written by SyncAppearance, so the values live in one place in the code. -->
                     <Border Background="#222933" CornerRadius="8" Padding="3">
                         <UniformGrid x:Name="ThicknessPresetRow" Columns="4">
-                            <ToggleButton x:Name="Thickness2Segment" Style="{StaticResource SegmentButton}" Tag="2" Click="OnThicknessPresetClick" ToolTip="2 px" AutomationProperties.Name="2 px">
+                            <ToggleButton x:Name="ThicknessPreset1Segment" Style="{StaticResource SegmentButton}" Tag="2" Click="OnThicknessPresetClick" ToolTip="2 px" AutomationProperties.Name="2 px">
                                 <Rectangle Width="24" Height="2" RadiusX="1" RadiusY="1" Fill="#D9DEE8" />
                             </ToggleButton>
-                            <ToggleButton x:Name="Thickness4Segment" Style="{StaticResource SegmentButton}" Tag="4" Click="OnThicknessPresetClick" ToolTip="4 px" AutomationProperties.Name="4 px">
+                            <ToggleButton x:Name="ThicknessPreset2Segment" Style="{StaticResource SegmentButton}" Tag="4" Click="OnThicknessPresetClick" ToolTip="4 px" AutomationProperties.Name="4 px">
                                 <Rectangle Width="24" Height="4" RadiusX="2" RadiusY="2" Fill="#D9DEE8" />
                             </ToggleButton>
-                            <ToggleButton x:Name="Thickness6Segment" Style="{StaticResource SegmentButton}" Tag="6" Click="OnThicknessPresetClick" ToolTip="6 px" AutomationProperties.Name="6 px">
+                            <ToggleButton x:Name="ThicknessPreset3Segment" Style="{StaticResource SegmentButton}" Tag="6" Click="OnThicknessPresetClick" ToolTip="6 px" AutomationProperties.Name="6 px">
                                 <Rectangle Width="24" Height="6" RadiusX="3" RadiusY="3" Fill="#D9DEE8" />
                             </ToggleButton>
-                            <ToggleButton x:Name="Thickness8Segment" Style="{StaticResource SegmentButton}" Tag="8" Click="OnThicknessPresetClick" ToolTip="8 px" AutomationProperties.Name="8 px">
+                            <ToggleButton x:Name="ThicknessPreset4Segment" Style="{StaticResource SegmentButton}" Tag="8" Click="OnThicknessPresetClick" ToolTip="8 px" AutomationProperties.Name="8 px">
                                 <Rectangle Width="24" Height="8" RadiusX="4" RadiusY="4" Fill="#D9DEE8" />
                             </ToggleButton>
                         </UniformGrid>

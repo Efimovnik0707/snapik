@@ -28,7 +28,7 @@ internal static class UiLanguage
         ["Качество JPEG: {0} % (меньше, легче файл)"] = "JPEG quality: {0} % (lower means a smaller file)",
         ["Сохранить"] = "Save", ["Отмена"] = "Cancel", ["Закрыть"] = "Close",
         ["Нажмите своё сочетание клавиш"] = "Press your shortcut", ["Нажми, чтобы изменить"] = "Click to change", ["Новый снимок"] = "New capture", ["+ Снимок"] = "+ Capture",
-        ["Готово"] = "Done", ["Выбор"] = "Select", ["Область"] = "Region", ["Стрелка"] = "Arrow", ["Перо"] = "Pen",
+        ["Готово"] = "Done", ["Выбор"] = "Select", ["Область"] = "Region", ["Стрелка"] = "Arrow",
         ["Маркер"] = "Highlight", ["Текст"] = "Text", ["Ластик"] = "Eraser", ["Размыть"] = "Blur", ["Обрезать"] = "Crop",
         ["Сочетания клавиш"] = "Keyboard shortcuts", ["Инструменты"] = "Tools", ["Действия"] = "Actions",
         ["Отменить снимок"] = "Cancel the capture", ["Закончить заметку"] = "Finish the note", ["Новая строка в заметке"] = "New line in the note",

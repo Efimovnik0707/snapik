@@ -22,7 +22,7 @@ internal static class EditorShortcuts
         new(EditorTool.Select, Key.V, "Выбор"),
         new(EditorTool.Rectangle, Key.R, "Область"),
         new(EditorTool.Arrow, Key.A, "Стрелка"),
-        new(EditorTool.Pen, Key.P, "Перо"),
+        new(EditorTool.Pen, Key.P, "Карандаш"),
         new(EditorTool.Highlight, Key.H, "Маркер"),
         new(EditorTool.Text, Key.T, "Текст"),
         new(EditorTool.Eraser, Key.E, "Ластик"),

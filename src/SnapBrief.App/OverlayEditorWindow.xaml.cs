@@ -45,6 +45,7 @@ public partial class OverlayEditorWindow : Window
     private OverlaySnapshot? _lastSnapshot;
     private Color _activeColor = DefaultAnnotationColor;
     private double _activeThickness = DefaultAnnotationThickness;
+    private double _activeHighlightThickness = DefaultHighlightThickness;
     private SnapBrief.Core.Models.AnnotationShape _activeShape = SnapBrief.Core.Models.AnnotationShape.Rectangle;
     private SnapBrief.Core.Models.AnnotationFill _activeFill = SnapBrief.Core.Models.AnnotationFill.None;
     private Color? _activeFillColor;
@@ -72,6 +73,7 @@ public partial class OverlayEditorWindow : Window
         var preferences = workspace.Preferences;
         _activeColor = ParseAnnotationColor(preferences.AnnotationColor);
         _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
+        _activeHighlightThickness = Math.Clamp(preferences.AnnotationHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness);
         _activeShape = ParseAnnotationShape(preferences.AnnotationShape);
         _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
         _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
@@ -171,7 +173,7 @@ public partial class OverlayEditorWindow : Window
                 foreach (var text in PanelStrings(panel))
                     if (cyrillic.IsMatch(text))
                         throw new InvalidOperationException($"The English markup panel still shows Russian text: \"{text}\".");
-            if (EditorShortcuts.Caption(EditorTool.Pen) != "Pen (P)" || (string?)window.SelectTool.ToolTip != "Select" ||
+            if (EditorShortcuts.Caption(EditorTool.Pen) != "Pencil (P)" || (string?)window.SelectTool.ToolTip != "Select" ||
                 window.SelectTool.Uid != "V")
                 throw new InvalidOperationException("The panel must show the translated name and the key from EditorShortcuts.");
             var capsule = ShortcutCapsuleText(window, window.SelectTool);
@@ -205,11 +207,11 @@ public partial class OverlayEditorWindow : Window
             // capsule starts carrying it, glyph, tag and all.
             Row(pencilMenu, "Highlight (H)").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             if (window.Surface.Tool != EditorTool.Highlight || (string?)window.PenTool.Tag != "Highlight" ||
-                window.PencilGlyph.Data.ToString() != window.FindResource("HighlightGlyph").ToString() || window.PenTool.IsChecked != true)
+                window.PencilCapsuleGlyph.Data.ToString() != window.FindResource("HighlightGlyph").ToString() || window.PenTool.IsChecked != true)
                 throw new InvalidOperationException("A pick in the pencil menu must arm the mode and show it on the capsule.");
             window.SelectToolMode(EditorTool.Pen);
-            if ((string?)window.PenTool.Tag != "Pen" || window.PencilGlyph.Data.ToString() != window.FindResource("PenGlyph").ToString())
-                throw new InvalidOperationException("The P key must put the capsule back on the pen.");
+            if ((string?)window.PenTool.Tag != "Pen" || window.PencilCapsuleGlyph.Data.ToString() != window.FindResource("PencilGlyph").ToString())
+                throw new InvalidOperationException("The P key must put the capsule back on the pencil.");
         }
         finally
         {
@@ -304,12 +306,29 @@ public partial class OverlayEditorWindow : Window
         window.SelectPalette(Palettes[0]);
 
         // The thickness lives on its own button now: a preset reaches the canvas and the button.
-        window.OnThicknessPresetClick(window.Thickness6Segment, new RoutedEventArgs());
-        if (window.Surface.ActiveThickness != 6 || (string?)window.ThicknessButton.Content != "6 px" || window.Thickness6Segment.IsChecked != true)
+        window.OnThicknessPresetClick(window.ThicknessPreset3Segment, new RoutedEventArgs());
+        if (window.Surface.ActiveThickness != 6 || (string?)window.ThicknessButton.Content != "6 px" || window.ThicknessPreset3Segment.IsChecked != true)
             throw new InvalidOperationException("A thickness preset must reach the canvas and the button that opens it.");
-        if (!ThicknessPresets.SequenceEqual(window.ThicknessPresetRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>()
-                .Select(preset => double.Parse((string)preset.Tag, System.Globalization.CultureInfo.InvariantCulture))))
+        double[] PresetRow() => [.. window.ThicknessPresetRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>()
+            .Select(preset => double.Parse((string)preset.Tag, System.Globalization.CultureInfo.InvariantCulture))];
+        if (!ThicknessPresets.SequenceEqual(PresetRow()))
             throw new InvalidOperationException("The thickness popover must offer the four presets.");
+
+        // The highlighter counts in tens of pixels and keeps a width of its own: the button shows the
+        // one of the tool in the hand, and switching between the two does not mix them.
+        window.SelectToolMode(EditorTool.Highlight);
+        window.OnThicknessPresetClick(window.ThicknessPreset4Segment, new RoutedEventArgs());
+        if (window.Surface.ActiveThickness != 24 || (string?)window.ThicknessButton.Content != "24 px" ||
+            !HighlightThicknessPresets.SequenceEqual(PresetRow()) || window.StrokeSlider.Maximum != MaximumHighlightThickness)
+            throw new InvalidOperationException("The highlighter must carry presets, a range and a width of its own.");
+        window.SelectToolMode(EditorTool.Pen);
+        if (window.Surface.ActiveThickness != 6 || (string?)window.ThicknessButton.Content != "6 px" ||
+            !ThicknessPresets.SequenceEqual(PresetRow()) || window.StrokeSlider.Maximum != 16)
+            throw new InvalidOperationException("The pencil must keep the thickness it shares with every other stroke.");
+        window.SelectToolMode(EditorTool.Highlight);
+        if (window.Surface.ActiveThickness != 24)
+            throw new InvalidOperationException("Arming the highlighter again must bring its own width back.");
+        window.SelectToolMode(EditorTool.Rectangle);
 
         // The fill has a button and a popover of its own now: the four fills, the twelve swatches of
         // the fill colour, and the switch that hides the outline in the colour popover beside it.
@@ -794,7 +813,7 @@ public partial class OverlayEditorWindow : Window
         // The whole panel starts from the settings file, so the sync below shows what the next mark
         // will really look like.
         Surface.ActiveColor = _activeColor;
-        Surface.ActiveThickness = _activeThickness;
+        Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
         Surface.ActiveShape = _activeShape;
         Surface.ActiveFill = _activeFill;
         Surface.ActiveFillColor = _activeFillColor;
@@ -921,7 +940,7 @@ public partial class OverlayEditorWindow : Window
         _appearanceDefaultsChanged |= tool != _activePencil;
         _activePencil = tool;
         PenTool.Tag = tool.ToString();
-        PencilGlyph.Data = (Geometry)FindResource(tool == EditorTool.Highlight ? "HighlightGlyph" : "PenGlyph");
+        PencilCapsuleGlyph.Data = (Geometry)FindResource(tool == EditorTool.Highlight ? "HighlightGlyph" : "PencilGlyph");
         if (EditorShortcuts.Find(tool) is { } shortcut)
         {
             PenTool.ToolTip = UiLanguage.Text(shortcut.Name);

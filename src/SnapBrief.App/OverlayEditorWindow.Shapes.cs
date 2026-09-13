@@ -73,7 +73,7 @@ public partial class OverlayEditorWindow
     private ContextMenu BuildPencilMenu(UIElement target)
     {
         var menu = ToolMenu(target);
-        Add(EditorTool.Pen, "PenGlyph");
+        Add(EditorTool.Pen, "PencilGlyph");
         Add(EditorTool.Highlight, "HighlightGlyph");
         return menu;
 
