@@ -24,6 +24,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     private int _resizeCorner = -1;
     private Rect _originalBounds;
     private bool _manipulationChanged;
+    private AnnotationItem? _eraseHover;
     private int _blurCacheKey;
     private BitmapSource? _blurCache;
 
@@ -46,6 +47,8 @@ public sealed class AnnotationCanvas : FrameworkElement
     public string ActiveArrowStyle { get; set; } = "straight";
     public AnnotationShape ActiveShape { get; set; } = AnnotationShape.Rectangle;
     public AnnotationFill ActiveFill { get; set; } = AnnotationFill.None;
+    public Color? ActiveFillColor { get; set; }
+    public bool ActiveHasOutline { get; set; } = true;
     public double ImagePadding { get; set; } = 28;
 
     public event EventHandler<AnnotationItem>? AnnotationCreated;
@@ -81,7 +84,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     public AnnotationCanvas()
     {
         Focusable = true;
-        Cursor = Cursors.Cross;
+        // The crosshair is not the cursor of the whole surface any more: it appears over the capture
+        // while a drawing tool is armed, and nowhere else.
+        Cursor = Cursors.Arrow;
         ClipToBounds = true;
     }
 
@@ -107,12 +112,16 @@ public sealed class AnnotationCanvas : FrameworkElement
 
         if (Annotations is not null)
         {
-            foreach (var annotation in Annotations.Where(a => a.Kind is not (EditorTool.Blur or EditorTool.Conceal))) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
-            foreach (var annotation in Annotations.Where(a => a.Kind == EditorTool.Conceal)) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
+            foreach (var annotation in Annotations.Where(a => a.Kind != EditorTool.Blur && !HasOpaqueFill(a))) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
+            foreach (var annotation in Annotations.Where(HasOpaqueFill)) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
             foreach (var annotation in Annotations) DrawAnnotation(dc, annotation, _imageRect, includeSelection: true, drawShape: false);
         }
+        // The mark the eraser is about to take is outlined in red, so a click is never a surprise.
+        if (_eraseHover is { } erasing && Annotations?.Contains(erasing) == true)
+            dc.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(255, 59, 48)), 1.5), GetDisplayBounds(erasing));
         if (_manipulating && SelectedAnnotation is { Kind: EditorTool.Blur } movingBlur)
-            dc.DrawRectangle(Brushes.Black, new Pen(Brushes.DodgerBlue, 1.5), GetDisplayBounds(movingBlur));
+            DrawBoxShape(dc, Brushes.Black, new Pen(Brushes.DodgerBlue, 1.5), movingBlur.Shape,
+                GetDisplayBounds(movingBlur), _imageRect.Width / Image.PixelWidth);
         if (_draft is not null) DrawAnnotation(dc, _draft, _imageRect);
     }
 
@@ -121,12 +130,32 @@ public sealed class AnnotationCanvas : FrameworkElement
         base.OnMouseLeftButtonDown(e);
         Focus();
         if (Image is null) return;
-        var point = e.GetPosition(this);
+        BeginGesture(e.GetPosition(this), e.ClickCount);
+    }
+
+    // The three halves of a gesture, apart from the mouse that usually drives them: a smoke run
+    // presses, drags and lets go through these without a pointer on screen.
+    internal void BeginGesture(Point point, int clickCount = 1)
+    {
+        if (Image is null) return;
         if (!_imageRect.Contains(point)) return;
+
+        // The eraser draws nothing: it removes the mark under the pointer and tells the window,
+        // which turns that into one history entry, exactly as the Delete key does.
+        if (Tool == EditorTool.Eraser)
+        {
+            if (EraseTarget(point) is not { } target || Annotations is null) return;
+            Select(null);
+            Annotations.Remove(target);
+            _eraseHover = null;
+            AnnotationChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            return;
+        }
 
         // A double click opens the note of whatever it lands on: the text editor for a text mark,
         // the note pill for everything else. The editor window listens for it.
-        if (e.ClickCount == 2 && HitTestAnnotation(ToImage(point)) is { } activated)
+        if (clickCount == 2 && HitTestAnnotation(ToImage(point)) is { } activated)
         {
             Select(activated);
             AnnotationActivated?.Invoke(this, activated);
@@ -154,15 +183,22 @@ public sealed class AnnotationCanvas : FrameworkElement
             return;
         }
 
+        // A press with a drawing tool armed drops the selection at once: whatever the hand does
+        // next, the colour and the thickness on the panel belong to the next mark from now on.
+        Select(null);
         _gestureStart = ToImage(point);
         _draft = new AnnotationItem
         {
             Kind = Tool, ArrowStyle = ActiveArrowStyle,
             // The shape and the fill belong to the frame: on a text or a pen mark they would only
             // travel into session.json and change what a later build draws there.
-            Shape = Tool == EditorTool.Rectangle ? ActiveShape : AnnotationShape.Rectangle,
+            // A region and a blur share the frame the user picked; on a text or a pen mark the shape
+            // would only travel into session.json and change what a later build draws there.
+            Shape = Tool is EditorTool.Rectangle or EditorTool.Blur ? ActiveShape : AnnotationShape.Rectangle,
             Fill = Tool == EditorTool.Rectangle ? ActiveFill : AnnotationFill.None,
-            Color = Tool == EditorTool.Conceal ? Colors.Black : ActiveColor,
+            FillColor = Tool == EditorTool.Rectangle ? ActiveFillColor : null,
+            HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
+            Color = ActiveColor,
             Thickness = ActiveThickness,
             Points = [_gestureStart.Value, _gestureStart.Value]
         };
@@ -173,9 +209,14 @@ public sealed class AnnotationCanvas : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (_manipulating && SelectedAnnotation is not null && _gestureStart is not null && _originalPoints is not null && e.LeftButton == MouseButtonState.Pressed)
+        UpdateGesture(e.GetPosition(this), e.LeftButton == MouseButtonState.Pressed);
+    }
+
+    internal void UpdateGesture(Point displayPoint, bool pressed)
+    {
+        if (_manipulating && SelectedAnnotation is not null && _gestureStart is not null && _originalPoints is not null && pressed)
         {
-            var current = ClampToImage(ToImage(e.GetPosition(this)));
+            var current = ClampToImage(ToImage(displayPoint));
             if (_resizing)
             {
                 var resized = ResizeGeometry.Resize(_originalBounds, _resizeCorner, current,
@@ -201,16 +242,12 @@ public sealed class AnnotationCanvas : FrameworkElement
             _manipulationChanged = true;
             return;
         }
-        if (_draft is null || _gestureStart is null || e.LeftButton != MouseButtonState.Pressed)
+        if (_draft is null || _gestureStart is null || !pressed)
         {
-            var displayPoint = e.GetPosition(this);
-            var handle = FindResizeHandle(displayPoint);
-            var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
-            Cursor = handle.Corner < 0 ? (FindMoveHandle(displayPoint) is not null || movablePin ? Cursors.SizeAll : Tool == EditorTool.Select ? Cursors.Arrow : Cursors.Cross)
-                : handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW;
+            UpdateCursor(displayPoint);
             return;
         }
-        var point = ClampToImage(ToImage(e.GetPosition(this)));
+        var point = ClampToImage(ToImage(displayPoint));
         if (_draft.Kind is EditorTool.Pen or EditorTool.Highlight)
             _draft.Points.Add(point);
         else if (_draft.Points.Count > 1)
@@ -218,9 +255,42 @@ public sealed class AnnotationCanvas : FrameworkElement
         InvalidateVisual();
     }
 
+    // The pointer says what the next press will do: arrows on the corners of a selected mark, a hand
+    // where a mark can be grabbed, a crosshair over the capture with a drawing tool armed, and the
+    // ordinary arrow everywhere else.
+    private void UpdateCursor(Point displayPoint)
+    {
+        if (Tool == EditorTool.Eraser)
+        {
+            var hover = EraseTarget(displayPoint);
+            if (!ReferenceEquals(hover, _eraseHover)) { _eraseHover = hover; InvalidateVisual(); }
+            Cursor = hover is null ? Cursors.Arrow : Cursors.Hand;
+            return;
+        }
+        if (_eraseHover is not null) { _eraseHover = null; InvalidateVisual(); }
+        var handle = FindResizeHandle(displayPoint);
+        if (handle.Corner >= 0) { Cursor = handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW; return; }
+        var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
+        Cursor = FindMoveHandle(displayPoint) is not null || movablePin ? Cursors.Hand
+            : IsDrawingTool(Tool) && _imageRect.Contains(displayPoint) ? Cursors.Cross
+            : Cursors.Arrow;
+    }
+
+    private static bool IsDrawingTool(EditorTool tool) => tool is not (EditorTool.Select or EditorTool.Eraser);
+
+    // The eraser takes whatever the hand can already grab: the edge of a frame, the line of an
+    // arrow, the stroke of a pen, the badge of a comment, the inside of a filled or blurred region.
+    private AnnotationItem? EraseTarget(Point displayPoint) =>
+        FindMoveHandle(displayPoint) ?? HitTestAnnotation(ToImage(displayPoint));
+
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        EndGesture();
+    }
+
+    internal void EndGesture()
+    {
         if (_manipulating)
         {
             ReleaseMouseCapture();
@@ -243,7 +313,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             {
                 _draft.Label = string.Empty;
                 Annotations?.Add(_draft);
-                Select(_draft);
+                // A stroke of the pen or the highlighter is not selected after the hand lets go: it
+                // is drawing, not an object to adjust. Everything else is selected, as before.
+                if (_draft.Kind is not (EditorTool.Pen or EditorTool.Highlight)) Select(_draft);
                 AnnotationCreated?.Invoke(this, _draft);
             }
         }
@@ -262,12 +334,19 @@ public sealed class AnnotationCanvas : FrameworkElement
             AnnotationChanged?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         }
+        // Escape gives up what is going on, one step at a time: the mark being drawn first, the
+        // selection after it. Only with neither of them does the window itself hear the key.
         else if (e.Key == Key.Escape && _draft is not null)
         {
             _draft = null;
             _gestureStart = null;
             ReleaseMouseCapture();
             InvalidateVisual();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && SelectedAnnotation is not null)
+        {
+            Select(null);
             e.Handled = true;
         }
         base.OnKeyDown(e);
@@ -296,8 +375,8 @@ public sealed class AnnotationCanvas : FrameworkElement
             dc.DrawImage(ApplyBlurAnnotations(Image), pixelRect);
             if (Annotations is not null)
             {
-                foreach (var annotation in Annotations.Where(a => a.Kind is not (EditorTool.Blur or EditorTool.Conceal))) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawLabel: false);
-                foreach (var annotation in Annotations.Where(a => a.Kind == EditorTool.Conceal)) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawLabel: false);
+                foreach (var annotation in Annotations.Where(a => a.Kind != EditorTool.Blur && !HasOpaqueFill(a))) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawLabel: false);
+                foreach (var annotation in Annotations.Where(HasOpaqueFill)) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawLabel: false);
                 foreach (var annotation in Annotations) DrawAnnotation(dc, annotation, pixelRect, includeSelection: false, drawShape: false);
             }
         }
@@ -375,11 +454,10 @@ public sealed class AnnotationCanvas : FrameworkElement
                 case EditorTool.Rectangle:
                     DrawBoxShape(dc, item, rect, pen, scale);
                     break;
-                case EditorTool.Conceal:
-                    dc.DrawRectangle(Brushes.Black, null, rect);
-                    break;
                 case EditorTool.Blur:
-                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(54, 255, 255, 255)), new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), rect);
+                    // The preview of a blur that is still being drawn shows the shape it will take.
+                    DrawBoxShape(dc, new SolidColorBrush(Color.FromArgb(54, 255, 255, 255)),
+                        new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), item.Shape, rect, scale);
                     break;
                 case EditorTool.Crop:
                     dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(24, 47, 140, 255)), new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5) { DashStyle = DashStyles.Dash }, rect);
@@ -428,7 +506,7 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     // The frame of a region: the outline follows Shape, what stands inside it follows Fill. The
     // export renderer draws the same three shapes from the same numbers, in image pixels.
-    internal static void DrawBoxShape(DrawingContext dc, Brush? fill, Pen pen, AnnotationShape shape, Rect rect, double scale)
+    internal static void DrawBoxShape(DrawingContext dc, Brush? fill, Pen? pen, AnnotationShape shape, Rect rect, double scale)
     {
         switch (shape)
         {
@@ -436,7 +514,8 @@ public sealed class AnnotationCanvas : FrameworkElement
                 dc.DrawEllipse(fill, pen, new Point(rect.X + rect.Width / 2, rect.Y + rect.Height / 2), rect.Width / 2, rect.Height / 2);
                 break;
             case AnnotationShape.Rounded:
-                var radius = Math.Min(14 * scale, Math.Min(rect.Width, rect.Height) / 4);
+                // The same corner the blur mask rounds, so an outline and the blur inside it agree.
+                var radius = Math.Min(ShapeMask.MaximumCornerRadius * scale, Math.Min(rect.Width, rect.Height) / 4);
                 dc.DrawRoundedRectangle(fill, pen, rect, radius, radius);
                 break;
             default:
@@ -445,6 +524,8 @@ public sealed class AnnotationCanvas : FrameworkElement
         }
     }
 
+    // The blur fill is baked into the picture before the marks are drawn, so nothing is painted over
+    // the region here: only its outline, if it has one.
     internal static Brush? ShapeFillBrush(Color color, AnnotationFill fill) => fill switch
     {
         AnnotationFill.Solid => new SolidColorBrush(color),
@@ -452,17 +533,28 @@ public sealed class AnnotationCanvas : FrameworkElement
         _ => null
     };
 
+    // An opaque fill is drawn after every other mark, because it hides whatever stands under it;
+    // that is what the conceal tool used to do, and a solid region does the same.
+    internal static bool HasOpaqueFill(AnnotationItem item) =>
+        item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Solid;
+
     private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale) =>
-        DrawBoxShape(dc, ShapeFillBrush(item.Color, item.Fill), pen, item.Shape, rect, scale);
+        DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), item.HasOutline ? pen : null, item.Shape, rect, scale);
 
     private static bool HasResizeHandles(AnnotationItem item) => item.Kind != EditorTool.Comment;
 
+    // "Press and drag" is measured on screen, not in the pixels of the capture: at the scale a
+    // 1920 px capture is shown with, three image pixels are under two pixels of hand tremor.
+    private const double GestureThreshold = 4;
+
     private bool GestureHasSize(AnnotationItem item)
     {
+        // A text mark and a comment pin are placed by a single click, as they always were.
         if (item.Kind is EditorTool.Comment or EditorTool.Text) return true;
         if (item.Points.Count < 2) return false;
         if (item.Kind is EditorTool.Pen or EditorTool.Highlight) return item.Points.Count > 2;
-        return (item.Points[1] - item.Points[0]).Length >= 3;
+        var scale = Image is null || _imageRect.Width <= 0 ? 1 : _imageRect.Width / Image.PixelWidth;
+        return (item.Points[1] - item.Points[0]).Length * scale >= GestureThreshold;
     }
 
     // Every mark can be grabbed and moved whatever tool is armed: a box by the band along its
@@ -514,8 +606,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     // Opaque marks are grabbed anywhere inside, and so is a filled frame; the fill of any other
     // kind means nothing on screen, so its interior stays free for a new mark.
     private static bool HasInteriorGrab(AnnotationItem item) =>
-        item.Kind is EditorTool.Blur or EditorTool.Conceal ||
-        (item.Kind == EditorTool.Rectangle && item.Fill != AnnotationFill.None);
+        item.Kind is EditorTool.Blur || (item.Kind == EditorTool.Rectangle && item.Fill != AnnotationFill.None);
 
     private NoteBadge BadgeOf(AnnotationItem item, Rect target)
     {
@@ -578,23 +669,29 @@ public sealed class AnnotationCanvas : FrameworkElement
         var hash = new HashCode();
         hash.Add(RuntimeHelpers.GetHashCode(source));
         if (Annotations is not null)
-            foreach (var annotation in Annotations.Where(a => a.Kind == EditorTool.Blur))
+            foreach (var annotation in Annotations.Where(IsBlurred))
             {
-                hash.Add(annotation.Id); hash.Add(annotation.Thickness);
+                hash.Add(annotation.Id); hash.Add((int)annotation.Shape);
                 foreach (var point in annotation.Points) { hash.Add(point.X); hash.Add(point.Y); }
             }
         var key = hash.ToHashCode();
         if (_blurCache is not null && key == _blurCacheKey) return _blurCache;
         BitmapSource result = source;
         if (Annotations is not null)
-            foreach (var annotation in Annotations.Where(a => a.Kind == EditorTool.Blur && a.Points.Count > 1))
-                result = RegionBlur.Apply(result, ToPixelRect(BoundsOf(annotation), source.PixelWidth, source.PixelHeight), BlurRadius(annotation));
+            foreach (var annotation in Annotations.Where(a => IsBlurred(a) && a.Points.Count > 1))
+            {
+                var region = ToPixelRect(BoundsOf(annotation), source.PixelWidth, source.PixelHeight);
+                result = RegionBlur.Apply(result, region, RegionBlur.RadiusFor(region.Width, region.Height), annotation.Shape);
+            }
         _blurCacheKey = key;
         _blurCache = result;
         return _blurCache;
     }
 
-    private static int BlurRadius(AnnotationItem annotation) => Math.Clamp((int)Math.Round(annotation.Thickness * 3), 4, 36);
+    // The blur tool and a region filled with blur bake the same pixels into the picture, so one rule
+    // decides what is blurred and both take the same code below.
+    internal static bool IsBlurred(AnnotationItem item) =>
+        item.Kind == EditorTool.Blur || (item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Blur);
 
     private static Int32Rect ToPixelRect(Rect bounds, int width, int height)
     {
@@ -612,6 +709,80 @@ public sealed class AnnotationCanvas : FrameworkElement
         var scale = Math.Min(availableWidth / imageWidth, availableHeight / imageHeight);
         var w = imageWidth * scale; var h = imageHeight * scale;
         return new Rect((width - w) / 2, (height - h) / 2, w, h);
+    }
+
+    // The rules of a gesture, driven without a mouse: a press that did not travel draws nothing and
+    // drops the selection, a real drag makes one mark, a stroke of the pen is not selected after it,
+    // and the pointer says what the next press will do wherever it stands.
+    internal static void VerifyGestureRules(BitmapSource source)
+    {
+        var annotations = new ObservableCollection<AnnotationItem>();
+        var canvas = new AnnotationCanvas { Image = source, Annotations = annotations, ImagePadding = 0, Width = 480, Height = 300 };
+        canvas.Measure(new Size(480, 300));
+        canvas.Arrange(new Rect(0, 0, 480, 300));
+        // The picture is laid out inside OnRender, and the rules below are measured against it.
+        new RenderTargetBitmap(480, 300, 96, 96, PixelFormats.Pbgra32).Render(canvas);
+
+        void Gesture(Point from, params Point[] path)
+        {
+            canvas.BeginGesture(from);
+            foreach (var point in path) canvas.UpdateGesture(point, pressed: true);
+            canvas.EndGesture();
+        }
+
+        canvas.Tool = EditorTool.Rectangle;
+        Gesture(new Point(100, 100));
+        if (annotations.Count != 0 || canvas.SelectedAnnotation is not null)
+            throw new InvalidOperationException("A click that did not travel must draw nothing and leave nothing selected.");
+        Gesture(new Point(100, 100), new Point(102, 100));
+        if (annotations.Count != 0)
+            throw new InvalidOperationException("Two pixels of tremor must not become a mark.");
+        Gesture(new Point(100, 100), new Point(160, 160));
+        if (annotations.Count != 1 || !ReferenceEquals(canvas.SelectedAnnotation, annotations[0]))
+            throw new InvalidOperationException("A gesture over the threshold must draw one mark and select it.");
+
+        canvas.Tool = EditorTool.Pen;
+        Gesture(new Point(200, 200), new Point(220, 215), new Point(250, 240));
+        if (annotations.Count != 2 || canvas.SelectedAnnotation is not null)
+            throw new InvalidOperationException("A stroke of the pen must be drawn and must not stay selected.");
+
+        // A click on an empty part of the capture drops the selection and draws nothing at all.
+        canvas.Tool = EditorTool.Rectangle;
+        canvas.SelectAnnotation(annotations[0].Id);
+        Gesture(new Point(430, 60));
+        if (canvas.SelectedAnnotation is not null || annotations.Count != 2)
+            throw new InvalidOperationException("A click on an empty part of the capture must only drop the selection.");
+
+        var bounds = canvas.GetDisplayBounds(annotations[0]);
+        canvas.UpdateGesture(new Point(bounds.Left, bounds.Top + bounds.Height / 2), pressed: false);
+        if (canvas.Cursor != Cursors.Hand) throw new InvalidOperationException("The edge of a mark must show the hand cursor.");
+
+        // The eraser: it points at what it will take, takes it on a click, and says so once.
+        var changes = 0;
+        void Count(object? sender, EventArgs args) => changes++;
+        canvas.AnnotationChanged += Count;
+        canvas.Tool = EditorTool.Eraser;
+        var edge = new Point(bounds.Left, bounds.Top + bounds.Height / 2);
+        canvas.UpdateGesture(edge, pressed: false);
+        if (canvas.Cursor != Cursors.Hand || !ReferenceEquals(canvas._eraseHover, annotations[0]))
+            throw new InvalidOperationException("The eraser must point at the mark under it.");
+        canvas.UpdateGesture(new Point(430, 60), pressed: false);
+        if (canvas.Cursor != Cursors.Arrow || canvas._eraseHover is not null)
+            throw new InvalidOperationException("The eraser must point at nothing over an empty part of the capture.");
+        var kept = annotations[1];
+        Gesture(edge);
+        canvas.AnnotationChanged -= Count;
+        if (annotations.Count != 1 || !ReferenceEquals(annotations[0], kept) || changes != 1)
+            throw new InvalidOperationException("A click of the eraser must remove one mark and report it once.");
+        canvas.Tool = EditorTool.Rectangle;
+        canvas.UpdateGesture(new Point(430, 60), pressed: false);
+        if (canvas.Cursor != Cursors.Cross) throw new InvalidOperationException("The capture with a drawing tool armed must show the crosshair.");
+        canvas.Tool = EditorTool.Select;
+        canvas.UpdateGesture(new Point(430, 60), pressed: false);
+        if (canvas.Cursor != Cursors.Arrow) throw new InvalidOperationException("The select tool must show the ordinary arrow over the capture.");
+        canvas.Tool = EditorTool.Rectangle;
+        canvas.UpdateGesture(new Point(240, 5), pressed: false);
+        if (canvas.Cursor != Cursors.Arrow) throw new InvalidOperationException("Outside the capture the pointer must be the ordinary arrow.");
     }
 
     internal static void VerifyHoverManipulation(BitmapSource source)

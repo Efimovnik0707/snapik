@@ -1,4 +1,3 @@
-using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -29,24 +28,8 @@ public partial class OverlayEditorWindow
                 }));
         }
 
-        // The same edit as the slider in the popover, not a second state: one ApplyAppearance call.
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 4, 10, 2) };
-        row.Children.Add(new TextBlock
-        {
-            Text = UiLanguage.Text("Толщина"), Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0)
-        });
-        var slider = new Slider
-        {
-            Width = 120, Minimum = 1, Maximum = 16, TickFrequency = 1, IsSnapToTickEnabled = true, IsMoveToPointEnabled = true,
-            Style = (Style)FindResource("StrokeSliderStyle"), VerticalAlignment = VerticalAlignment.Center,
-            Value = Math.Clamp(selected?.Thickness ?? _activeThickness, 1, 16)
-        };
-        System.Windows.Automation.AutomationProperties.SetName(slider, UiLanguage.Text("Толщина линии"));
-        slider.ValueChanged += (_, e) => ApplyAppearance(null, Math.Round(e.NewValue));
-        row.Children.Add(slider);
-        menu.Items.Add(new Separator());
-        menu.Items.Add(new MenuItem { Header = row, StaysOpenOnClick = true, Foreground = Brushes.White, Padding = new Thickness(0) });
+        // The thickness is not here any more: it belongs to every stroke, not to the arrow, and it
+        // has its own button on the panel. This menu is about the style of the arrow alone.
         return menu;
     }
 

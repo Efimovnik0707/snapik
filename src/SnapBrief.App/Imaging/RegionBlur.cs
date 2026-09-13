@@ -2,17 +2,26 @@ using System;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using SnapBrief.Core.Models;
 
 namespace SnapBrief.App.Imaging;
 
-/// <summary>Applies a bounded blur to one rectangle in source pixel coordinates.</summary>
+/// <summary>Applies a bounded blur to one region in source pixel coordinates, in the shape it was drawn.</summary>
 public static class RegionBlur
 {
     private const int BytesPerPixel = 4;
     private const int PassCount = 3;
     private const int MaximumRadius = 512;
 
-    public static BitmapSource Apply(BitmapSource source, Int32Rect pixelRegion, int radius)
+    /// <summary>
+    /// How strongly a region is blurred: from its own size, so the strength is not a hidden setting
+    /// of the stroke thickness any more.
+    /// </summary>
+    public static int RadiusFor(double width, double height) =>
+        (int)Math.Round(Math.Clamp(Math.Min(width, height) / 12, 6, 36));
+
+    public static BitmapSource Apply(BitmapSource source, Int32Rect pixelRegion, int radius,
+        AnnotationShape shape = AnnotationShape.Rectangle)
     {
         ArgumentNullException.ThrowIfNull(source);
         if (radius is < 1 or > MaximumRadius)
@@ -29,7 +38,9 @@ public static class RegionBlur
 
         var clipped = Clip(pixelRegion, width, height);
         if (!clipped.IsEmpty)
-            BlurRegion(fullPixels, stride, clipped, radius);
+            // The mask is measured against the region the user drew, not against the part of it that
+            // fits on the picture: half an oval over the edge stays half an oval.
+            BlurRegion(fullPixels, stride, clipped, radius, shape, pixelRegion);
 
         var result = BitmapSource.Create(
             width,
@@ -57,7 +68,8 @@ public static class RegionBlur
             : new Int32Rect((int)left, (int)top, (int)(right - left), (int)(bottom - top));
     }
 
-    private static void BlurRegion(byte[] fullPixels, int fullStride, Int32Rect region, int radius)
+    private static void BlurRegion(byte[] fullPixels, int fullStride, Int32Rect region, int radius,
+        AnnotationShape shape, Int32Rect shapeBox)
     {
         var regionStride = checked(region.Width * BytesPerPixel);
         var regionPixels = new byte[checked(regionStride * region.Height)];
@@ -68,17 +80,39 @@ public static class RegionBlur
             var sourceOffset = checked((region.Y + row) * fullStride + region.X * BytesPerPixel);
             Buffer.BlockCopy(fullPixels, sourceOffset, regionPixels, row * regionStride, regionStride);
         }
+        // A rectangle covers every pixel of its box, so it is written back untouched by the blend
+        // below and comes out byte for byte as it always did.
+        var untouched = shape == AnnotationShape.Rectangle ? null : (byte[])regionPixels.Clone();
 
         for (var pass = 0; pass < PassCount; pass++)
         {
             BlurHorizontal(regionPixels, scratch, region.Width, region.Height, regionStride, radius);
             BlurVertical(scratch, regionPixels, region.Width, region.Height, regionStride, radius);
         }
+        if (untouched is not null) BlendByShape(regionPixels, untouched, region, regionStride, shape, shapeBox);
 
         for (var row = 0; row < region.Height; row++)
         {
             var destinationOffset = checked((region.Y + row) * fullStride + region.X * BytesPerPixel);
             Buffer.BlockCopy(regionPixels, row * regionStride, fullPixels, destinationOffset, regionStride);
+        }
+    }
+
+    // dst = original * (1 - coverage) + blurred * coverage: the picture comes back untouched outside
+    // the shape and the edge of the shape is smooth.
+    private static void BlendByShape(byte[] blurred, byte[] untouched, Int32Rect region, int stride,
+        AnnotationShape shape, Int32Rect shapeBox)
+    {
+        for (var row = 0; row < region.Height; row++)
+        for (var column = 0; column < region.Width; column++)
+        {
+            var coverage = ShapeMask.Coverage(shape, shapeBox.Width, shapeBox.Height,
+                region.X - shapeBox.X + column, region.Y - shapeBox.Y + row);
+            if (coverage >= 1) continue;
+            var offset = row * stride + column * BytesPerPixel;
+            for (var channel = 0; channel < BytesPerPixel; channel++)
+                blurred[offset + channel] = (byte)Math.Clamp(
+                    Math.Round(untouched[offset + channel] * (1 - coverage) + blurred[offset + channel] * coverage), 0, 255);
         }
     }
 

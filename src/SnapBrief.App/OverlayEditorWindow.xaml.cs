@@ -47,6 +47,10 @@ public partial class OverlayEditorWindow : Window
     private double _activeThickness = DefaultAnnotationThickness;
     private SnapBrief.Core.Models.AnnotationShape _activeShape = SnapBrief.Core.Models.AnnotationShape.Rectangle;
     private SnapBrief.Core.Models.AnnotationFill _activeFill = SnapBrief.Core.Models.AnnotationFill.None;
+    private Color? _activeFillColor;
+    private bool _activeHasOutline = true;
+    private PaletteSet _activePalette = Palettes[0];
+    private EditorTool _activePencil = EditorTool.Pen;
     private Guid? _commentParentId;
     private Guid? _expandedChipId;
     private AnnotationItem? _chipDragAnnotation;
@@ -55,6 +59,7 @@ public partial class OverlayEditorWindow : Window
     private bool _chipDragMoved;
     private bool _settingUp;
     private bool _busyCrop;
+    private readonly bool _commentsPanelVisible;
 
     private OverlayEditorWindow(SessionWorkspace workspace, DesktopFrame frame, int captureIndex, CaptureItem? existing)
     {
@@ -66,6 +71,10 @@ public partial class OverlayEditorWindow : Window
         _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
         _activeShape = ParseAnnotationShape(preferences.AnnotationShape);
         _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
+        _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
+        _activeHasOutline = preferences.AnnotationOutline;
+        _activePalette = ParseAnnotationPalette(preferences.AnnotationPalette);
+        _activePencil = ParseAnnotationPencil(preferences.AnnotationPencil);
         _capture = existing?.DeepClone();
         _isNew = existing is null;
         if (_capture is not null && !string.IsNullOrWhiteSpace(_capture.Note))
@@ -73,12 +82,22 @@ public partial class OverlayEditorWindow : Window
             _capture.Annotations.Add(new AnnotationItem { Kind = EditorTool.Comment, Note = _capture.Note, Points = [new Point(24, 24), new Point(32, 32)] });
             _capture.Note = string.Empty;
         }
+        // The comments panel belongs to a capture reopened from the strip that already carries
+        // notes. The decision is taken here, before the layout is measured against it, and it does
+        // not change while the window is open.
+        _commentsPanelVisible = !_isNew && _capture is not null &&
+            _capture.Annotations.Any(annotation => !string.IsNullOrWhiteSpace(annotation.Note));
         InitializeComponent();
+        // The crosshair belongs to the phase where an area is being selected; once there is a
+        // capture to mark up, the pointer says what it will do where it stands.
+        Cursor = existing is null ? Cursors.Cross : Cursors.Arrow;
         InitializeCaptureHandles();
         InitializeNoteButton();
         BuildColorDots();
         AttachLongPress(RectangleTool, () => BuildShapeMenu(RectangleTool));
         AttachLongPress(ArrowTool, () => BuildArrowMenu(ArrowTool));
+        AttachLongPress(PenTool, () => BuildPencilMenu(PenTool));
+        SetPencilMode(_activePencil);
         ApplyShortcutHints();
         DesktopImage.Source = frame.Image;
         var shadeGeometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
@@ -145,7 +164,7 @@ public partial class OverlayEditorWindow : Window
             var cyrillic = new System.Text.RegularExpressions.Regex("[А-Яа-яЁё]");
             // The panel, the palette popover and the cheat sheet: everything written in the dark of
             // the editor, including the two popups that are built but never opened in a smoke run.
-            foreach (var panel in new DependencyObject?[] { window.Toolbar, window.AppearancePopup.Child, window.ShortcutSheetPopup.Child })
+            foreach (var panel in new DependencyObject?[] { window.Toolbar, window.AppearancePopup.Child, window.ThicknessPopup.Child, window.ShortcutSheetPopup.Child })
                 foreach (var text in PanelStrings(panel))
                     if (cyrillic.IsMatch(text))
                         throw new InvalidOperationException($"The English markup panel still shows Russian text: \"{text}\".");
@@ -155,10 +174,11 @@ public partial class OverlayEditorWindow : Window
             var capsule = ShortcutCapsuleText(window, window.SelectTool);
             if (capsule != "V")
                 throw new InvalidOperationException($"The tooltip of the select tool must carry the capsule \"V\", it carried \"{capsule}\".");
-            // The menus of the two split buttons are built, read and used without a popup on screen.
+            // The menus of the three split buttons are built, read and used without a popup on screen.
             var shapeMenu = window.BuildShapeMenu(window.ShapeMenuButton);
             var arrowMenu = window.BuildArrowMenu(window.ArrowMenuButton);
-            foreach (var menu in new[] { shapeMenu, arrowMenu })
+            var pencilMenu = window.BuildPencilMenu(window.PenMenuButton);
+            foreach (var menu in new[] { shapeMenu, arrowMenu, pencilMenu })
                 foreach (var text in PanelStrings(menu))
                     if (cyrillic.IsMatch(text))
                         throw new InvalidOperationException($"The English split button menu still shows Russian text: \"{text}\".");
@@ -168,6 +188,25 @@ public partial class OverlayEditorWindow : Window
             Row(arrowMenu, "Curved arrow").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             if (window.Surface.ActiveShape != SnapBrief.Core.Models.AnnotationShape.Ellipse || window.Surface.ActiveArrowStyle != "curved")
                 throw new InvalidOperationException("A pick in a split button menu must reach the active shape and the active arrow style.");
+            // The arrow menu is about the style of the arrow and nothing else: the thickness left it
+            // for a button of its own, and the conceal tool left the editor altogether.
+            if (arrowMenu.Items.Count != 3 || EditorShortcuts.Tools.Any(shortcut => shortcut.Key == Key.X))
+                throw new InvalidOperationException("The arrow menu must hold three styles and no thickness, and the X key must be free.");
+            if (EditorShortcuts.Find(EditorTool.Eraser) is not { Key: Key.E } || EditorShortcuts.Caption(EditorTool.Eraser) != "Eraser (E)")
+                throw new InvalidOperationException("The eraser must sit on the E key, with a name of its own in both languages.");
+            // The comments panel is checked by its own two captions rather than by walking it: every
+            // other line in it is what the user wrote, and that stays in the language they wrote it.
+            if (window.CommentsTitle.Text != "Comments" || window.CommentsEmpty.Text != "No comments yet")
+                throw new InvalidOperationException("The comments panel must carry its captions in the language of the window.");
+            // The pencil capsule stands for both modes: the H key arms the highlighter, and the
+            // capsule starts carrying it, glyph, tag and all.
+            Row(pencilMenu, "Highlight (H)").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            if (window.Surface.Tool != EditorTool.Highlight || (string?)window.PenTool.Tag != "Highlight" ||
+                window.PencilGlyph.Data.ToString() != window.FindResource("HighlightGlyph").ToString() || window.PenTool.IsChecked != true)
+                throw new InvalidOperationException("A pick in the pencil menu must arm the mode and show it on the capsule.");
+            window.SelectToolMode(EditorTool.Pen);
+            if ((string?)window.PenTool.Tag != "Pen" || window.PencilGlyph.Data.ToString() != window.FindResource("PenGlyph").ToString())
+                throw new InvalidOperationException("The P key must put the capsule back on the pen.");
         }
         finally
         {
@@ -212,6 +251,221 @@ public partial class OverlayEditorWindow : Window
         }
         Walk(root);
         return found;
+    }
+
+    // The panel itself: the palettes and the five dots that follow them, the thickness button with
+    // its presets, and the four ways the inside of a region can be filled. Everything here is
+    // pressed the way a hand would press it, without a mouse.
+    internal static void RunPanelProbe(CaptureItem source)
+    {
+        var capture = source.DeepClone();
+        var root = Path.Combine(Path.GetTempPath(), "SnapBrief", $"panel-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
+        var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
+        var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
+        window.Measure(new Size(1280, 720));
+        window.Arrange(new Rect(0, 0, 1280, 720));
+        window._cropRect = new Rect(120, 90, 900, 506);
+        window.SetupEditor();
+        try { PanelChecks(window); }
+        finally
+        {
+            window.AppearancePopup.IsOpen = false;
+            window.ThicknessPopup.IsOpen = false;
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void PanelChecks(OverlayEditorWindow window)
+    {
+        window.SelectToolMode(EditorTool.Rectangle);
+        window.OpenAppearance();
+        Color Parse(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+        void CheckPalette(PaletteSet palette)
+        {
+            if (window.ColorPalette.Children.OfType<Button>().Select(swatch => (Color)swatch.Tag).SequenceEqual(palette.Colors.Select(Parse)) &&
+                window.ColorDots.Children.OfType<Button>().Select(dot => (Color)dot.Tag).SequenceEqual(palette.Quick.Select(Parse))) return;
+            throw new InvalidOperationException($"The swatches and the quick dots must both come from the \"{palette.Id}\" palette.");
+        }
+        // A clean workspace holds no settings file, so the panel starts on the standard palette, and
+        // the colour it starts with belongs to it.
+        if (window._activePalette.Id != "standard" || !Palettes[0].Colors.Contains($"#{window._activeColor.R:X2}{window._activeColor.G:X2}{window._activeColor.B:X2}"))
+            throw new InvalidOperationException("The editor must start on the standard palette with a colour that belongs to it.");
+        CheckPalette(Palettes[0]);
+        window.SelectPalette(ParseAnnotationPalette("neon"));
+        CheckPalette(Palettes.Single(palette => palette.Id == "neon"));
+        if (window.NeonPaletteSegment.IsChecked != true || window.StandardPaletteSegment.IsChecked != false)
+            throw new InvalidOperationException("The palette segments must show which set is in use.");
+        window.SelectPalette(Palettes[0]);
+
+        // The thickness lives on its own button now: a preset reaches the canvas and the button.
+        window.OnThicknessPresetClick(window.Thickness6Segment, new RoutedEventArgs());
+        if (window.Surface.ActiveThickness != 6 || (string?)window.ThicknessButton.Content != "6 px" || window.Thickness6Segment.IsChecked != true)
+            throw new InvalidOperationException("A thickness preset must reach the canvas and the button that opens it.");
+        if (!ThicknessPresets.SequenceEqual(window.ThicknessPresetRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>()
+                .Select(preset => double.Parse((string)preset.Tag, System.Globalization.CultureInfo.InvariantCulture))))
+            throw new InvalidOperationException("The thickness popover must offer the four presets.");
+
+        // The four fills, the colour of the fill and the switch that hides the outline.
+        window.OnFillClick(window.FillBlurSegment, new RoutedEventArgs());
+        if (window.Surface.ActiveFill != SnapBrief.Core.Models.AnnotationFill.Blur || window.FillColorButton.IsEnabled)
+            throw new InvalidOperationException("A region filled with blur must not offer a colour of its own.");
+        window.OnFillClick(window.FillSolidSegment, new RoutedEventArgs());
+        if (window.Surface.ActiveFill != SnapBrief.Core.Models.AnnotationFill.Solid || !window.FillColorButton.IsEnabled)
+            throw new InvalidOperationException("A region with a solid fill must offer the colour of that fill.");
+        var outlineColor = window.Surface.ActiveColor;
+        window.ApplyPickedColor(Colors.Black);
+        if (window.Surface.ActiveFillColor != Colors.Black || window.Surface.ActiveColor != outlineColor)
+            throw new InvalidOperationException("Picking a colour for the fill must leave the colour of the outline alone.");
+        window.OutlineSegment.IsChecked = false;
+        window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
+        if (window.Surface.ActiveHasOutline || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Black)
+            throw new InvalidOperationException("A region without an outline must show the colour of its fill on the panel.");
+        // One click on a panel dot now paints what is actually seen: the fill of a frame without an outline.
+        window.ApplyQuickColor(Colors.White);
+        if (window.Surface.ActiveFillColor != Colors.White || window.Surface.ActiveColor != outlineColor)
+            throw new InvalidOperationException("A dot on the panel must paint the colour the mark actually shows.");
+        window.OutlineSegment.IsChecked = true;
+        window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
+        window.OnFillClick(window.FillNoneSegment, new RoutedEventArgs());
+
+        // A colour reaches a mark only while it is selected; with nothing selected it belongs to the
+        // next one and leaves what is already drawn alone.
+        if (window._capture!.Annotations.FirstOrDefault(annotation => annotation.Kind == EditorTool.Arrow) is { } drawn)
+        {
+            window.Surface.SelectAnnotation(drawn.Id);
+            window.ApplyPickedColor(Colors.Lime);
+            window.Surface.SelectAnnotation(null);
+            window.ApplyPickedColor(Colors.Magenta);
+            if (drawn.Color != Colors.Lime || window.Surface.ActiveColor != Colors.Magenta)
+                throw new InvalidOperationException("A colour picked with nothing selected must belong to the next mark only.");
+
+            // Escape gives up one thing at a time, and the capture is the last of them. The step
+            // before these two, an open popover, cannot be reached here: a window that was never
+            // shown has no surface for a popup to open on.
+            window.Surface.SelectAnnotation(drawn.Id);
+            if (window.NextEscapeStep() != EscapeStep.Selection)
+                throw new InvalidOperationException("Escape must drop the selection instead of cancelling the capture.");
+            window.Surface.SelectAnnotation(null);
+            if (window.NextEscapeStep() != EscapeStep.Capture)
+                throw new InvalidOperationException("With nothing selected and nothing open, Escape must cancel the capture.");
+
+            // What the eraser does to the window: the canvas removes the mark and reports it, the
+            // window turns that into one history entry, and one undo brings the mark back.
+            window._capture.Annotations.Remove(drawn);
+            window.OnAnnotationChanged(window, EventArgs.Empty);
+            if (window._capture.Annotations.Any(annotation => annotation.Id == drawn.Id))
+                throw new InvalidOperationException("An erased mark must leave the capture.");
+            window.OnUndoClick(window, new RoutedEventArgs());
+            if (window._capture.Annotations.All(annotation => annotation.Id != drawn.Id))
+                throw new InvalidOperationException("One undo must bring an erased mark back.");
+        }
+
+        // The panel keeps its width whatever tool is armed: the thickness button never blanks its
+        // caption, and it and the colour circle are both a fixed size.
+        var widths = new List<double>();
+        foreach (var tool in new[] { EditorTool.Rectangle, EditorTool.Text, EditorTool.Blur, EditorTool.Select, EditorTool.Arrow })
+        {
+            window.SelectToolMode(tool);
+            if (string.IsNullOrWhiteSpace((string?)window.ThicknessButton.Content))
+                throw new InvalidOperationException($"The thickness button showed nothing while the {tool} tool was armed.");
+            // The width the panel asks for, not the width it was given: a window that was never
+            // shown has no arranged size to read.
+            window.Toolbar.InvalidateMeasure();
+            window.Toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            widths.Add(window.Toolbar.DesiredSize.Width);
+        }
+        if (widths[0] < 100 || widths.Distinct().Count() != 1)
+            throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
+    }
+
+    // The comments panel of a capture reopened from the strip, with the checks that used to live in
+    // the preview window: an empty note claims no number, the numbers close the gap after a
+    // deletion and match the export, the list carries a large capture, and a click on a row selects
+    // the same mark on the picture.
+    internal static void RunCommentsPanelProbe(CaptureItem source)
+    {
+        var capture = new CaptureItem
+        {
+            Id = source.Id, Image = source.Image, SourcePath = source.SourcePath, DisplayLabel = source.DisplayLabel
+        };
+        capture.Annotations.Add(new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle, Points = [new Point(10, 10), new Point(80, 80)], Note = "Первый"
+        });
+        capture.Annotations.Add(new AnnotationItem
+        {
+            Kind = EditorTool.Comment, Points = [new Point(40, 40), new Point(48, 48)]
+        });
+        var root = Path.Combine(Path.GetTempPath(), "SnapBrief", $"comments-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
+        var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
+        var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
+        window.Measure(new Size(1280, 720));
+        window.Arrange(new Rect(0, 0, 1280, 720));
+        window._cropRect = new Rect(120, 90, 900, 506);
+        window.SetupEditor();
+        // A capture taken just now has no notes and no panel: the same window, the other case.
+        var fresh = new OverlayEditorWindow(workspace, frame, 0, null) { Width = 1280, Height = 720 };
+        try
+        {
+            if (fresh._commentsPanelVisible || fresh.CommentsPanel.Visibility != Visibility.Collapsed)
+                throw new InvalidOperationException("A freshly taken capture must not show the comments panel.");
+            CommentsPanelChecks(window);
+        }
+        finally
+        {
+            fresh.Close();
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void CommentsPanelChecks(OverlayEditorWindow window)
+    {
+        var capture = window._capture!;
+        if (!window._commentsPanelVisible || window.CommentsPanel.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("A capture reopened with notes must show the comments panel.");
+        if (window.Surface.Tool != EditorTool.Select || window.SelectTool.IsChecked != true || window.RectangleTool.IsChecked == true)
+            throw new InvalidOperationException("A capture reopened from the strip must open on the select tool.");
+        var monitor = window.GetCropMonitorWorkArea();
+        if (monitor.Width > 900 && window.LayoutWorkArea().Right > monitor.Right - CommentsPanelWidth)
+            throw new InvalidOperationException("The markup must be laid out to the left of the comments panel.");
+
+        Controls.CommentListEntry Row(Guid id) =>
+            window.CommentsList.Children.OfType<Controls.CommentListEntry>().Single(entry => entry.AnnotationId == id);
+        var blank = capture.Annotations.Single(annotation => annotation.Kind == EditorTool.Comment);
+        var marked = capture.Annotations.Single(annotation => annotation.Kind == EditorTool.Rectangle);
+        if (Row(blank.Id).Label != "+")
+            throw new InvalidOperationException("An empty comment must not claim an export label.");
+        blank.Note = "Второй";
+        window.RefreshLabels();
+        var expectedSecond = CaptureLabels.ForNotedAnnotations(capture.DisplayLabel, capture.ToCore()).Last().DisplayLabel;
+        if (Row(blank.Id).Label != expectedSecond || Row(blank.Id).Text != "Второй")
+            throw new InvalidOperationException("The panel and the export must number the notes alike.");
+
+        window.DeleteAnnotationNote(marked);
+        var expectedFirst = CaptureLabels.ForNotedAnnotations(capture.DisplayLabel, capture.ToCore()).Single().DisplayLabel;
+        var remaining = window.CommentsList.Children.OfType<Controls.CommentListEntry>().Single();
+        if (remaining.Label != expectedFirst)
+            throw new InvalidOperationException("The numbers of the panel must close the gap after a deletion.");
+
+        window.ActivateCommentRow(remaining.AnnotationId);
+        if (window.Surface.SelectedAnnotation?.Id != blank.Id || !remaining.IsCurrent)
+            throw new InvalidOperationException("A click on a row must select the same mark and mark the row.");
+        window.Surface.SelectAnnotation(null);
+        if (remaining.IsCurrent)
+            throw new InvalidOperationException("The highlight of the panel must follow the selection both ways.");
+
+        for (var i = 0; i < 299; i++)
+            capture.Annotations.Add(new AnnotationItem
+            {
+                Kind = EditorTool.Comment, Points = [new Point(50, 50), new Point(58, 58)], Note = $"Комментарий {i + 2}"
+            });
+        window.RefreshLabels();
+        if (window.CommentsList.Children.Count != 300 || window.CommentsEmpty.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("The comments panel truncated a large capture.");
     }
 
     internal static CaptureItem RunNoteAffordanceProbe(CaptureItem source)
@@ -353,8 +607,9 @@ public partial class OverlayEditorWindow : Window
         Focus();
         if (_capture is null) { RestoreLastRegion(); return; }
         var monitor = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
-        var work = new Rect((monitor.Left - _frame.Left) * ActualWidth / _frame.PixelWidth, (monitor.Top - _frame.Top) * ActualHeight / _frame.PixelHeight,
-            monitor.Width * ActualWidth / _frame.PixelWidth, monitor.Height * ActualHeight / _frame.PixelHeight);
+        var work = WithoutCommentsStrip(new Rect(
+            (monitor.Left - _frame.Left) * ActualWidth / _frame.PixelWidth, (monitor.Top - _frame.Top) * ActualHeight / _frame.PixelHeight,
+            monitor.Width * ActualWidth / _frame.PixelWidth, monitor.Height * ActualHeight / _frame.PixelHeight), _commentsPanelVisible);
         var maxWidth = work.Width * .78;
         var maxHeight = work.Height * .72;
         var scale = Math.Min(maxWidth / _capture.Image.PixelWidth, maxHeight / _capture.Image.PixelHeight);
@@ -387,10 +642,14 @@ public partial class OverlayEditorWindow : Window
     {
         if (_selectionStart is null)
         {
+            // A click beside the capture no longer finishes the shot: it drops the selection and
+            // closes whatever is open, the same as a click on an empty part of the capture. The
+            // shot is finished by "Done", by Ctrl+C and by the capture hotkey.
             if (_capture is not null && e.OriginalSource is Image && !_busyCrop && !_cropRect.Contains(e.GetPosition(this)))
             {
                 e.Handled = true;
-                Complete(false);
+                ClosePopovers();
+                Surface.SelectAnnotation(null);
             }
             return;
         }
@@ -431,6 +690,7 @@ public partial class OverlayEditorWindow : Window
     {
         if (_capture is null) return;
         _settingUp = true;
+        Cursor = Cursors.Arrow;
         CropBorder.Visibility = Visibility.Visible;
         Canvas.SetLeft(CropBorder, _cropRect.Left);
         Canvas.SetTop(CropBorder, _cropRect.Top);
@@ -438,13 +698,19 @@ public partial class OverlayEditorWindow : Window
         CropBorder.Height = _cropRect.Height;
         Surface.Image = _capture.Image;
         Surface.Annotations = _capture.Annotations;
-        Surface.Tool = EditorTool.Rectangle;
+        // A fresh capture opens ready to draw a region; a capture reopened from the strip opens on
+        // the select tool, because its marks are there to be read and adjusted.
+        Surface.Tool = _isNew ? EditorTool.Rectangle : EditorTool.Select;
+        foreach (var button in ToolButtons)
+            button.IsChecked = string.Equals(button.Tag?.ToString(), Surface.Tool.ToString(), StringComparison.Ordinal);
         // The whole panel starts from the settings file, so the sync below shows what the next mark
         // will really look like.
         Surface.ActiveColor = _activeColor;
         Surface.ActiveThickness = _activeThickness;
         Surface.ActiveShape = _activeShape;
         Surface.ActiveFill = _activeFill;
+        Surface.ActiveFillColor = _activeFillColor;
+        Surface.ActiveHasOutline = _activeHasOutline;
         SyncAppearance();
         Hint.Visibility = Visibility.Collapsed;
         Toolbar.Visibility = Visibility.Visible;
@@ -458,8 +724,10 @@ public partial class OverlayEditorWindow : Window
         RefreshLabels();
         RebuildChips();
         UpdateShade();
+        PositionCommentsPanel();
+        SyncCommentsPanel();
         _settingUp = false;
-        Dispatcher.BeginInvoke(() => { PositionToolbar(); PositionShotNote(); RepositionChips(); }, DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(() => { PositionCommentsPanel(); PositionToolbar(); PositionShotNote(); RepositionChips(); }, DispatcherPriority.Loaded);
     }
 
     private void UpdateCropVisual()
@@ -484,7 +752,7 @@ public partial class OverlayEditorWindow : Window
     }
 
     private System.Windows.Controls.Primitives.ToggleButton[] ToolButtons =>
-        [SelectTool, RectangleTool, ArrowTool, PenTool, HighlightTool, TextTool, ConcealTool, BlurTool, CropTool];
+        [SelectTool, RectangleTool, ArrowTool, PenTool, TextTool, EraserTool, BlurTool, CropTool];
 
     // Every letter on the panel comes from EditorShortcuts: the name goes to the tooltip (and is
     // translated with the rest of the window), the key goes to the capsule of the tooltip template.
@@ -545,41 +813,32 @@ public partial class OverlayEditorWindow : Window
     }
 
     private void OnColorClick(object sender, RoutedEventArgs e) => OpenAppearance();
-    private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenAppearance();
-
-    private void OnMoreToolsClick(object sender, RoutedEventArgs e)
-    {
-        var menu = new ContextMenu
-        {
-            PlacementTarget = (UIElement)sender,
-            Background = new SolidColorBrush(Color.FromArgb(248, 23, 26, 32)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(58, 66, 78)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(5)
-        };
-        AddTool(EditorTool.Pen);
-        AddTool(EditorTool.Highlight);
-        AddTool(EditorTool.Conceal);
-        menu.IsOpen = true;
-
-        void AddTool(EditorTool tool) { var item = ActionItem(EditorShortcuts.Caption(tool), () => SelectToolMode(tool)); item.IsChecked = Surface.Tool == tool; menu.Items.Add(item); }
-        static MenuItem ActionItem(string title, Action action)
-        {
-            var item = new MenuItem { Header = title, Foreground = Brushes.White, Background = Brushes.Transparent, Padding = new Thickness(10, 7, 10, 7) };
-            item.Click += (_, _) => action();
-            return item;
-        }
-    }
+    private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenThickness();
 
     private void SelectToolMode(EditorTool tool)
     {
+        if (tool is EditorTool.Pen or EditorTool.Highlight) SetPencilMode(tool);
         Surface.SelectAnnotation(null);
         Surface.Tool = tool;
         SyncAppearance();
         foreach (var button in ToolButtons)
             button.IsChecked = string.Equals(button.Tag?.ToString(), tool.ToString(), StringComparison.Ordinal);
         Surface.Focus();
+    }
+
+    // The capsule carries the mode in its own Tag, so one button stands for both the pen and the
+    // highlighter: the tool click, the P and H keys and the menu all come through here.
+    private void SetPencilMode(EditorTool tool)
+    {
+        _appearanceDefaultsChanged |= tool != _activePencil;
+        _activePencil = tool;
+        PenTool.Tag = tool.ToString();
+        PencilGlyph.Data = (Geometry)FindResource(tool == EditorTool.Highlight ? "HighlightGlyph" : "PenGlyph");
+        if (EditorShortcuts.Find(tool) is { } shortcut)
+        {
+            PenTool.ToolTip = UiLanguage.Text(shortcut.Name);
+            PenTool.Uid = shortcut.Caption;
+        }
     }
 
     private void OnAnnotationCreated(object sender, AnnotationItem annotation)
@@ -606,6 +865,7 @@ public partial class OverlayEditorWindow : Window
     {
         SyncAppearance();
         UpdateNoteButton();
+        HighlightCommentRow(annotation?.Id);
         if (Mouse.LeftButton == MouseButtonState.Pressed) return;
         RepositionChips();
     }
@@ -879,13 +1139,14 @@ public partial class OverlayEditorWindow : Window
                 text.Text = string.IsNullOrEmpty(annotation.Label) ? (annotation.Kind == EditorTool.Text ? "T" : "+") : annotation.Label;
             }
         }
+        SyncCommentsPanel();
         Surface.InvalidateVisual();
     }
 
     private void RepositionChips()
     {
         if (_capture is null) return;
-        var work = GetCropMonitorWorkArea();
+        var work = LayoutWorkArea();
         var occupied = new List<Rect>();
         var chips = ChipLayer.Children.OfType<Border>()
             .Where(chip => chip.Visibility == Visibility.Visible && chip.Tag is Guid)
@@ -935,7 +1196,7 @@ public partial class OverlayEditorWindow : Window
 
     private void PositionShotNote()
     {
-        var work = GetCropMonitorWorkArea();
+        var work = LayoutWorkArea();
         var left = Math.Clamp(_cropRect.Right - 250, work.Left + 8, Math.Max(work.Left + 8, work.Right - 258));
         var top = Math.Clamp(_cropRect.Top, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - 132));
         ShotNoteChip.HorizontalAlignment = HorizontalAlignment.Left;
@@ -945,7 +1206,7 @@ public partial class OverlayEditorWindow : Window
     private void PositionToolbar()
     {
         Toolbar.UpdateLayout();
-        var work = GetCropMonitorWorkArea();
+        var work = LayoutWorkArea();
         var width = Math.Max(Toolbar.ActualWidth, 380);
         var height = Math.Max(Toolbar.ActualHeight, 50);
         var placement = PlaceToolbar(_cropRect, work, new Size(width, height), VisibleNoteRects().ToArray());
@@ -1155,7 +1416,18 @@ public partial class OverlayEditorWindow : Window
             if (e.Key == Key.Escape) { Surface.Focus(); e.Handled = true; }
             return;
         }
-        if (e.Key == Key.Escape && ShortcutSheetPopup.IsOpen) { ShortcutSheetPopup.IsOpen = false; e.Handled = true; return; }
+        if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Popover)
+        {
+            ClosePopovers();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Selection)
+        {
+            Surface.SelectAnnotation(null);
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape)
         {
             CancelEdit();

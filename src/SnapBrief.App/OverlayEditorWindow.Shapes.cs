@@ -50,7 +50,7 @@ public partial class OverlayEditorWindow
     {
         var menu = ToolMenu(target);
         var selected = Surface.SelectedAnnotation;
-        var current = selected is { Kind: EditorTool.Rectangle } ? selected.Shape : Surface.ActiveShape;
+        var current = selected is { Kind: EditorTool.Rectangle or EditorTool.Blur } ? selected.Shape : Surface.ActiveShape;
         Add(AnnotationShape.Rectangle, "Прямоугольник", new Rectangle { Width = 24, Height = 16, Stroke = Brushes.White, StrokeThickness = 1.4 });
         Add(AnnotationShape.Rounded, "Скруглённый прямоугольник", new Rectangle { Width = 24, Height = 16, RadiusX = 5, RadiusY = 5, Stroke = Brushes.White, StrokeThickness = 1.4 });
         Add(AnnotationShape.Ellipse, "Овал", new Ellipse { Width = 24, Height = 16, Stroke = Brushes.White, StrokeThickness = 1.4 });
@@ -59,12 +59,34 @@ public partial class OverlayEditorWindow
         void Add(AnnotationShape shape, string caption, UIElement icon) =>
             menu.Items.Add(MenuRow(icon, UiLanguage.Text(caption), current == shape, () =>
             {
-                if (Surface.SelectedAnnotation is not { Kind: EditorTool.Rectangle }) SelectToolMode(EditorTool.Rectangle);
+                // The shape belongs to the region and to the blur alike: a selected blur takes it
+                // without the tool switching out from under the hand.
+                if (Surface.SelectedAnnotation is not { Kind: EditorTool.Rectangle or EditorTool.Blur }) SelectToolMode(EditorTool.Rectangle);
                 ApplyAppearance(null, null, shape: shape);
             }));
     }
 
     private void OnShapeMenuClick(object sender, RoutedEventArgs e) => OpenToolMenu(BuildShapeMenu((UIElement)sender));
+
+    // The other half of the pencil capsule: the pen and the highlighter, drawn with the same two
+    // geometries the button itself wears.
+    private ContextMenu BuildPencilMenu(UIElement target)
+    {
+        var menu = ToolMenu(target);
+        Add(EditorTool.Pen, "PenGlyph");
+        Add(EditorTool.Highlight, "HighlightGlyph");
+        return menu;
+
+        void Add(EditorTool tool, string glyph) => menu.Items.Add(MenuRow(
+            new Path
+            {
+                Width = 16, Height = 16, Stroke = Brushes.White, StrokeThickness = 1.7,
+                StrokeLineJoin = PenLineJoin.Round, Data = (Geometry)FindResource(glyph)
+            },
+            EditorShortcuts.Caption(tool), _activePencil == tool, () => SelectToolMode(tool)));
+    }
+
+    private void OnPencilMenuClick(object sender, RoutedEventArgs e) => OpenToolMenu(BuildPencilMenu((UIElement)sender));
 
     // A long press on the tool itself opens the same menu, for the hand that never finds the chevron.
     private void AttachLongPress(ButtonBase button, Func<ContextMenu> build)

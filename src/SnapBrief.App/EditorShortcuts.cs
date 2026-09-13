@@ -25,7 +25,7 @@ internal static class EditorShortcuts
         new(EditorTool.Pen, Key.P, "Перо"),
         new(EditorTool.Highlight, Key.H, "Маркер"),
         new(EditorTool.Text, Key.T, "Текст"),
-        new(EditorTool.Conceal, Key.X, "Скрыть сплошным"),
+        new(EditorTool.Eraser, Key.E, "Ластик"),
         new(EditorTool.Blur, Key.B, "Размыть"),
         new(EditorTool.Crop, Key.C, "Обрезать"),
         new(EditorTool.Comment, Key.N, "Добавить комментарий")

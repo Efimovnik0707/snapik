@@ -84,6 +84,72 @@ public sealed class PersistenceAndExportTests : IDisposable
     }
 
     [Fact]
+    public async Task Json_store_round_trips_the_fill_colour_the_outline_flag_and_the_blur_fill()
+    {
+        var store = new JsonSessionStore(Path.Combine(_root, "sessions"));
+        var concealed = AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.1, 0.1), new(0.4, 0.4)]) with
+        {
+            Fill = AnnotationFill.Solid, FillColor = "#FF000000", HasOutline = false
+        };
+        var blurred = AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.5, 0.5), new(0.9, 0.9)]) with
+        {
+            Shape = AnnotationShape.Ellipse, Fill = AnnotationFill.Blur
+        };
+        var capture = CaptureItem.Create("source/capture.png", 800, 600) with { Annotations = [concealed, blurred] };
+        var session = SessionOperations.AddCapture(SnapBriefSession.Create(Start), capture, Start);
+
+        await store.SaveAsync(session);
+        var restored = await store.LoadAsync(session.Id);
+
+        // The names in the file matter as much as the values: the Mac port reads the same three keys.
+        var json = JsonSerializer.Serialize(session, SnapBriefJson.Options);
+        Assert.Contains("\"fill\": \"blur\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"fillColor\": \"#FF000000\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"hasOutline\": false", json, StringComparison.Ordinal);
+        var restoredConcealed = restored!.Captures[0].Annotations[0];
+        Assert.Equal(AnnotationFill.Solid, restoredConcealed.Fill);
+        Assert.Equal("#FF000000", restoredConcealed.FillColor);
+        Assert.False(restoredConcealed.HasOutline);
+        var restoredBlurred = restored.Captures[0].Annotations[1];
+        Assert.Equal(AnnotationFill.Blur, restoredBlurred.Fill);
+        Assert.Null(restoredBlurred.FillColor);
+        Assert.True(restoredBlurred.HasOutline);
+        SessionValidation.Validate(restored);
+    }
+
+    [Fact]
+    public async Task Json_store_reads_a_session_without_the_fill_fields_and_one_that_still_holds_a_redaction()
+    {
+        var store = new JsonSessionStore(Path.Combine(_root, "sessions"));
+        var box = AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.1, 0.1), new(0.4, 0.4)]);
+        var redaction = AnnotationItem.Create(AnnotationKind.Redaction, [new(0.5, 0.5), new(0.8, 0.8)]);
+        var capture = CaptureItem.Create("source/capture.png", 800, 600) with { Annotations = [box, redaction] };
+        var session = SessionOperations.AddCapture(SnapBriefSession.Create(Start), capture, Start);
+        var json = JsonNode.Parse(JsonSerializer.Serialize(session, SnapBriefJson.Options))!.AsObject();
+        foreach (var annotation in json["captures"]!.AsArray()[0]!["annotations"]!.AsArray())
+        {
+            var item = annotation!.AsObject();
+            item.Remove("fill");
+            item.Remove("fillColor");
+            Assert.True(item.Remove("hasOutline"));
+        }
+        var directory = store.GetSessionDirectory(session.Id);
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "session.json"), json.ToJsonString(SnapBriefJson.Options));
+
+        var restored = await store.LoadAsync(session.Id);
+
+        // A file written before the fill carried a colour reads exactly as it did: no fill, no colour
+        // of its own, and an outline. The redaction kind stays readable for the editor to migrate.
+        var restoredBox = restored!.Captures[0].Annotations[0];
+        Assert.Equal(AnnotationFill.None, restoredBox.Fill);
+        Assert.Null(restoredBox.FillColor);
+        Assert.True(restoredBox.HasOutline);
+        Assert.Equal(AnnotationKind.Redaction, restored.Captures[0].Annotations[1].Kind);
+        SessionValidation.Validate(restored);
+    }
+
+    [Fact]
     public async Task Json_store_round_trips_the_sent_flag_and_reads_a_file_written_without_it()
     {
         var sessionsRoot = Path.Combine(_root, "sessions");

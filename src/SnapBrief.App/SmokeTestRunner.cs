@@ -32,6 +32,7 @@ public static class SmokeTestRunner
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
             ConfirmSessionDiscard = false, StackHeight = 300,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationShape = "ellipse", AnnotationFill = "translucent",
+            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "neon", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion,
@@ -67,6 +68,32 @@ public static class SmokeTestRunner
             OverlayEditorWindow.ParseAnnotationShape("hexagon") != SnapBrief.Core.Models.AnnotationShape.Rectangle ||
             OverlayEditorWindow.ParseAnnotationFill("2") != SnapBrief.Core.Models.AnnotationFill.None)
             throw new InvalidOperationException("Stored frame shape and fill must be read back, unknown ones must fall back to the defaults.");
+        // The colour inside the frame and the outline switch travel with them; an empty colour is the
+        // preference "the fill takes the colour of the outline", not a broken value.
+        if (OverlayEditorWindow.ParseAnnotationFillColor(restoredSettings.AnnotationFillColor) != Color.FromRgb(16, 24, 32) ||
+            restoredSettings.AnnotationOutline ||
+            OverlayEditorWindow.ParseAnnotationFillColor(string.Empty) is not null ||
+            OverlayEditorWindow.ParseAnnotationFillColor("not a colour") is not null ||
+            !HotkeySettings.Default.AnnotationOutline || HotkeySettings.Default.AnnotationFillColor != string.Empty)
+            throw new InvalidOperationException("The stored fill colour and outline flag must be read back, with an outline and no own colour by default.");
+        // The palette is remembered by its name; a name nobody knows falls back to the standard set,
+        // and the colour the editor starts with has to belong to that set.
+        if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "neon" ||
+            OverlayEditorWindow.ParseAnnotationPalette("rainbow").Id != "standard" ||
+            OverlayEditorWindow.ParseAnnotationPalette("1").Id != "standard" ||
+            OverlayEditorWindow.ParseAnnotationPalette(null).Id != "standard" ||
+            HotkeySettings.Default.AnnotationPalette != "standard" ||
+            OverlayEditorWindow.Palettes.Length != 3 ||
+            OverlayEditorWindow.Palettes.Any(palette => palette.Colors.Length != 12 || palette.Quick.Length != 5) ||
+            !OverlayEditorWindow.Palettes[0].Colors.Contains(HotkeySettings.Default.AnnotationColor) ||
+            OverlayEditorWindow.ParseAnnotationColor(HotkeySettings.Default.AnnotationColor) != OverlayEditorWindow.DefaultAnnotationColor)
+            throw new InvalidOperationException("The stored palette must be read back, and the default colour must belong to the standard palette.");
+        // The half of the pencil capsule that was armed last comes back with the next capture.
+        if (OverlayEditorWindow.ParseAnnotationPencil(restoredSettings.AnnotationPencil) != EditorTool.Highlight ||
+            OverlayEditorWindow.ParseAnnotationPencil("marker") != EditorTool.Pen ||
+            OverlayEditorWindow.ParseAnnotationPencil(null) != EditorTool.Pen ||
+            HotkeySettings.Default.AnnotationPencil != "pen")
+            throw new InvalidOperationException("The stored pencil mode must be read back, with the pen by default.");
         // The strip and the editor write the same file: every write starts from the file on disk.
         var mergeSettingsPath = Path.Combine(root, "merge-settings-smoke.json");
         (HotkeySettings.Default with { AnnotationColor = "#FF0000", AnnotationThickness = 7 }).Save(mergeSettingsPath);
@@ -218,19 +245,32 @@ public static class SmokeTestRunner
             var source = i == 2 ? CreatePrivacyBitmap(1920, 1080) : SessionWorkspace.CreateDemoBitmap(i, 1920, 1080, i == 0 ? 144 : 96);
             var capture = await workspace.AddImageAsync(source);
             capture.Note = i == 2 ? "Текст обрезается" : string.Empty;
-            capture.Annotations.Add(new AnnotationItem
-            {
-                Kind = i == 2 ? EditorTool.Conceal : i == 1 ? EditorTool.Rectangle : EditorTool.Arrow,
-                Points = [new Point(1050, 650), new Point(1520, 880)],
-                Note = annotationNotes[i],
-                Color = Color.FromRgb(49, 92, 245),
-                Thickness = 6
-            });
+            // The third capture carries a mark read out of the old format: a "redaction" written by
+            // a build that still had the conceal tool, migrated by the same code a stored session
+            // goes through. Its exported pixels are checked below, so the read path stays covered.
+            capture.Annotations.Add(i == 2
+                ? AnnotationItem.FromCore(
+                    SnapBrief.Core.Models.AnnotationItem.Create(
+                        SnapBrief.Core.Models.AnnotationKind.Redaction,
+                        [new SnapBrief.Core.Models.NormalizedPoint(1050d / 1920, 650d / 1080), new SnapBrief.Core.Models.NormalizedPoint(1520d / 1920, 880d / 1080)],
+                        "#FF315CF5", 6, note: annotationNotes[i]),
+                    1920, 1080)
+                : new AnnotationItem
+                {
+                    Kind = i == 1 ? EditorTool.Rectangle : EditorTool.Arrow,
+                    Points = [new Point(1050, 650), new Point(1520, 880)],
+                    Note = annotationNotes[i],
+                    Color = Color.FromRgb(49, 92, 245),
+                    Thickness = 6
+                });
             if (i == 2)
             {
+                // An oval blur: the mask follows the shape of the region in both renderers, so the
+                // corner of its bounding box has to come out of the export untouched.
                 capture.Annotations.Add(new AnnotationItem
                 {
                     Kind = EditorTool.Blur,
+                    Shape = SnapBrief.Core.Models.AnnotationShape.Ellipse,
                     Points = [new Point(980, 620), new Point(1400, 900)],
                     Color = Color.FromRgb(47, 140, 255),
                     Thickness = 6
@@ -251,8 +291,31 @@ public static class SmokeTestRunner
             Thickness = 6
         });
 
+        // Concealing is a region with a solid black fill and no outline now, and a region can also be
+        // filled with blur: both are checked on the exported PNG of the privacy capture below.
+        captures[2].Annotations.Add(new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle,
+            Fill = SnapBrief.Core.Models.AnnotationFill.Solid,
+            FillColor = Colors.Black,
+            HasOutline = false,
+            Points = [new Point(200, 600), new Point(600, 800)],
+            Color = Color.FromRgb(255, 59, 48),
+            Thickness = 6
+        });
+        captures[2].Annotations.Add(new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle,
+            Fill = SnapBrief.Core.Models.AnnotationFill.Blur,
+            Points = [new Point(200, 200), new Point(600, 400)],
+            Color = Color.FromRgb(255, 59, 48),
+            Thickness = 6
+        });
+
+        VerifyLegacyRedactionReadsAsAFilledRegion();
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);
+        Controls.AnnotationCanvas.VerifyGestureRules(captures[0].Image);
         foreach (var format in new[] { "png", "jpeg" })
         {
             var imagePath = Path.Combine(root, "local-save." + (format == "jpeg" ? "jpg" : "png"));
@@ -271,6 +334,8 @@ public static class SmokeTestRunner
         // The tooltip of the panel is built for real inside the probe, so the binding that fills its
         // key capsule is watched here like every other binding of the run.
         WithoutBindingErrors("The markup panel", () => OverlayEditorWindow.RunShortcutHintProbe(captures[0]));
+        WithoutBindingErrors("The colour and thickness panel", () => OverlayEditorWindow.RunPanelProbe(captures[0]));
+        WithoutBindingErrors("The comments panel", () => OverlayEditorWindow.RunCommentsPanelProbe(captures[0]));
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
         var noteProbeCore = noteProbe.ToCore();
         var noteProbeLabel = SnapBrief.Core.Exporting.CaptureLabels.ForNotedAnnotations("A", noteProbeCore).SingleOrDefault();
@@ -303,7 +368,19 @@ public static class SmokeTestRunner
         var redactionPixel = PixelAt(decoded[2], 1250, 48 + 760);
         var sourceBlurPixel = PixelAt(captures[2].Image, 1010, 700);
         var exportedBlurPixel = PixelAt(decoded[2], 1010, 48 + 700);
+        // The corner of the box of an oval blur is outside the oval and keeps the pixels it had.
+        var ovalBlurCornerKept = PixelAt(captures[2].Image, 985, 625).SequenceEqual(PixelAt(decoded[2], 985, 48 + 625));
         var redactionLabelHasLightInk = HasLightPixel(decoded[2], 1048, 48 + 615, 70, 35);
+        // The new way to conceal: a region with a solid black fill and no outline hides the picture
+        // exactly as the removed tool did.
+        var filledConcealPixel = PixelAt(decoded[2], 400, 48 + 700);
+        var concealedByFill = filledConcealPixel[3] == 255 && filledConcealPixel[0] < 8 && filledConcealPixel[1] < 8 && filledConcealPixel[2] < 8;
+        // A region filled with blur: the picture inside it is blurred and the outline is still drawn.
+        var blurFillSourceCenter = PixelAt(captures[2].Image, 400, 300);
+        var blurFillExportCenter = PixelAt(decoded[2], 400, 48 + 300);
+        var blurFillOutlinePixel = PixelAt(decoded[2], 200, 48 + 300);
+        var blurFilledRegionExported = !blurFillSourceCenter.SequenceEqual(blurFillExportCenter)
+            && blurFillOutlinePixel[0] == 48 && blurFillOutlinePixel[1] == 59 && blurFillOutlinePixel[2] == 255;
         var ovalSourceCenter = PixelAt(captures[1].Image, 400, 350);
         var ovalExportCenter = PixelAt(decoded[1], 400, 48 + 350);
         var ovalSourceCorner = PixelAt(captures[1].Image, 205, 205);
@@ -376,6 +453,7 @@ public static class SmokeTestRunner
             && sourceCorner.SequenceEqual(exportedCorner)
             && redactionPixel[3] == 255 && redactionPixel[0] < 8 && redactionPixel[1] < 8 && redactionPixel[2] < 8
             && !sourceBlurPixel.SequenceEqual(exportedBlurPixel)
+            && ovalBlurCornerKept
             && redactionLabelHasLightInk
             && prepared.Manifest.PromptText.Contains("Увеличить кнопку", StringComparison.Ordinal)
             && prepared.Manifest.PromptText.Contains("Снимок C", StringComparison.Ordinal)
@@ -383,6 +461,8 @@ public static class SmokeTestRunner
             && prepared.Manifest.NoteCount == 5
             && sentFlagPersisted
             && translucentOvalExported
+            && concealedByFill
+            && blurFilledRegionExported
             && freshSessionPersisted;
         success = success
             && noteProbe.Annotations.Single(a => a.Kind == EditorTool.Comment).Note == "Контекстная заметка"
@@ -514,6 +594,27 @@ public static class SmokeTestRunner
         var duplicate = UiLanguage.EnglishValues.GroupBy(value => value, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1);
         if (duplicate is not null)
             throw new InvalidOperationException($"Two Russian strings share the English value \"{duplicate.Key}\", so one of them cannot come back.");
+    }
+
+    // A mark written by a build that still had the conceal tool comes back as a region with a solid
+    // black fill and no outline, and is written back in that shape; the fill also survives the clone
+    // the undo history is made of.
+    private static void VerifyLegacyRedactionReadsAsAFilledRegion()
+    {
+        var legacy = SnapBrief.Core.Models.AnnotationItem.Create(SnapBrief.Core.Models.AnnotationKind.Redaction,
+            [new SnapBrief.Core.Models.NormalizedPoint(0.1, 0.1), new SnapBrief.Core.Models.NormalizedPoint(0.4, 0.4)]);
+        var migrated = AnnotationItem.FromCore(legacy, 1000, 800);
+        if (migrated.Kind != EditorTool.Rectangle || migrated.Fill != SnapBrief.Core.Models.AnnotationFill.Solid ||
+            migrated.FillColor != Colors.Black || migrated.HasOutline)
+            throw new InvalidOperationException("A legacy redaction must read as a black region without an outline.");
+        var written = migrated.ToCore(1000, 800);
+        if (written.Kind != SnapBrief.Core.Models.AnnotationKind.Rectangle ||
+            written.Fill != SnapBrief.Core.Models.AnnotationFill.Solid ||
+            written.FillColor != "#FF000000" || written.HasOutline)
+            throw new InvalidOperationException("A migrated redaction must be written back as a filled region without an outline.");
+        var clone = migrated.Clone();
+        if (clone.FillColor != migrated.FillColor || clone.HasOutline != migrated.HasOutline || clone.Fill != migrated.Fill)
+            throw new InvalidOperationException("The fill of a region must survive the clone the undo history is made of.");
     }
 
     // A binding that cannot resolve its path is not an exception: WPF writes it to the trace and

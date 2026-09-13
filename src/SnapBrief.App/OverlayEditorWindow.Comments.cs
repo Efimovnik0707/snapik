@@ -10,6 +10,103 @@ namespace SnapBrief.App;
 
 public partial class OverlayEditorWindow
 {
+    private const double CommentsPanelWidth = 280;
+    private const double CommentsPanelGap = 16;
+
+    // The work area the markup is laid out in: with the comments panel on screen it is the monitor
+    // minus the strip that panel takes, so the capture never hides under it.
+    private Rect LayoutWorkArea() => WithoutCommentsStrip(GetCropMonitorWorkArea(), _commentsPanelVisible);
+
+    private static Rect WithoutCommentsStrip(Rect work, bool panelVisible) =>
+        panelVisible
+            ? new Rect(work.Left, work.Top, Math.Max(240, work.Width - CommentsPanelWidth - CommentsPanelGap), work.Height)
+            : work;
+
+    private void PositionCommentsPanel()
+    {
+        CommentsPanel.Visibility = _commentsPanelVisible ? Visibility.Visible : Visibility.Collapsed;
+        if (!_commentsPanelVisible) return;
+        var work = GetCropMonitorWorkArea();
+        CommentsPanel.Margin = new Thickness(Math.Max(work.Left, work.Right - CommentsPanelWidth - 8), work.Top + 8, 0, 0);
+        CommentsPanel.Height = Math.Max(160, work.Height - 16);
+    }
+
+    // The rows the panel shows: every comment pin, even one still without text, and every mark that
+    // carries a note. The numbers are the numbers of the export, taken from the same code.
+    private IEnumerable<(AnnotationItem Annotation, string Label)> CommentRows()
+    {
+        if (_capture is null) yield break;
+        foreach (var annotation in _capture.Annotations)
+            if (annotation.Kind == EditorTool.Comment || !string.IsNullOrWhiteSpace(annotation.Note))
+                yield return (annotation, string.IsNullOrEmpty(annotation.Label) ? "+" : annotation.Label);
+    }
+
+    // Called after every change of the notes: the rows are rebuilt only when the set of them
+    // changed, otherwise the numbers and the text are refreshed in place.
+    private void SyncCommentsPanel()
+    {
+        if (!_commentsPanelVisible || _capture is null) return;
+        var rows = CommentRows().ToArray();
+        var current = CommentsList.Children.OfType<CommentListEntry>().ToArray();
+        if (!current.Select(entry => entry.AnnotationId).SequenceEqual(rows.Select(row => row.Annotation.Id)))
+        {
+            CommentsList.Children.Clear();
+            foreach (var (annotation, _) in rows)
+            {
+                var entry = new CommentListEntry(annotation.Id);
+                entry.Activated += (_, _) => ActivateCommentRow(annotation.Id);
+                CommentsList.Children.Add(entry);
+            }
+            current = [.. CommentsList.Children.OfType<CommentListEntry>()];
+        }
+        for (var i = 0; i < rows.Length; i++)
+        {
+            var (annotation, label) = rows[i];
+            current[i].Label = label;
+            current[i].Text = annotation.Note;
+            current[i].Relation = RelationOf(annotation);
+        }
+        CommentsEmpty.Visibility = rows.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        HighlightCommentRow(Surface.SelectedAnnotation?.Id);
+    }
+
+    private string RelationOf(AnnotationItem annotation)
+    {
+        if (annotation.Kind != EditorTool.Comment) return string.Empty;
+        if (_capture is null) return string.Empty;
+        var parent = annotation.ParentAnnotationId is { } parentId
+            ? _capture.Annotations.FirstOrDefault(item => item.Id == parentId)
+            : null;
+        return parent is { Label.Length: > 0 }
+            ? $"{UiLanguage.Text("К отметке")} {parent.Label}"
+            : $"{UiLanguage.Text("К снимку")} {_capture.DisplayLabel}";
+    }
+
+    // A click on a row selects the mark on the capture and opens its pill, without taking the focus
+    // off the capture; the highlight travels the other way as well, through OnSelectionChanged.
+    private void ActivateCommentRow(Guid annotationId)
+    {
+        Surface.SelectAnnotation(annotationId);
+        if (_chipExpanders.TryGetValue(annotationId, out var expand)) expand(true);
+        HighlightCommentRow(annotationId);
+    }
+
+    private void HighlightCommentRow(Guid? annotationId)
+    {
+        if (!_commentsPanelVisible) return;
+        var offset = 0d;
+        var found = -1d;
+        foreach (var entry in CommentsList.Children.OfType<CommentListEntry>())
+        {
+            entry.IsCurrent = annotationId is { } id && entry.AnnotationId == id;
+            if (entry.IsCurrent) found = offset;
+            offset += entry.ActualHeight + entry.Margin.Top + entry.Margin.Bottom;
+        }
+        // Scrolled to by the heights of the rows above it: a row that was never laid out has no
+        // position to transform into the panel.
+        if (found >= 0) CommentsScroll.ScrollToVerticalOffset(found);
+    }
+
     private bool HasFocusedChipOtherThan(Guid id) =>
         _chipBorders.Any(entry => entry.Key != id && entry.Value.IsKeyboardFocusWithin);
 
