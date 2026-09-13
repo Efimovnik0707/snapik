@@ -13,14 +13,25 @@ public sealed class StripResizeGeometryTests
     }
 
     [Theory]
-    [InlineData(-1000, StripResizeGeometry.MaximumWidth)]
+    // A drag far past the left edge of a 1920 working area stops at that edge, not at a number.
+    [InlineData(-2000, 1920d)]
     [InlineData(1000, StripResizeGeometry.MinimumWidth)]
-    public void The_width_stays_inside_its_range(double delta, double expected)
+    public void The_width_stops_at_the_working_area_and_at_the_minimum(double delta, double expected)
     {
         var (left, width) = StripResizeGeometry.Resize(1920, 260, delta, 0);
 
         Assert.Equal(expected, width);
         Assert.Equal(1920 - expected, left);
+    }
+
+    [Fact]
+    public void The_strip_stretches_to_half_of_the_screen()
+    {
+        // The strip sits at the right edge of a 1920 screen, the grip travels 700 px to the left.
+        var (left, width) = StripResizeGeometry.Resize(1910, 260, -700, 0);
+
+        Assert.Equal(960, width);
+        Assert.Equal(950, left);
     }
 
     [Fact]
@@ -52,8 +63,9 @@ public sealed class StripResizeGeometryTests
 
     [Theory]
     [InlineData(-1000, StripResizeGeometry.MinimumListHeight)]
-    [InlineData(1000, StripResizeGeometry.MaximumListHeight)]
-    public void The_list_height_stays_inside_its_range(double delta, double expected) =>
+    // 2000 of working area less 100 of chrome is all the list may take, and no number cuts it earlier.
+    [InlineData(2000, 1900d)]
+    public void The_list_height_stops_at_the_working_area_and_at_the_minimum(double delta, double expected) =>
         Assert.Equal(expected, StripResizeGeometry.ResizeListHeight(372, delta, 100, 0, 2000));
 
     [Fact]
@@ -68,7 +80,8 @@ public sealed class StripResizeGeometryTests
     [Theory]
     [InlineData(300, 1040, 130, 300)]
     [InlineData(40, 1040, 130, StripResizeGeometry.MinimumListHeight)]
-    [InlineData(900, 1040, 130, StripResizeGeometry.MaximumListHeight)]
+    // The ceiling is the working area less the chrome, 910 here, and nothing below that.
+    [InlineData(1000, 1040, 130, 910)]
     [InlineData(900, 500, 130, 370)]
     [InlineData(double.NaN, 1040, 130, StripResizeGeometry.DefaultListHeight)]
     // A chrome taller than the screen still leaves a list somebody can use.
@@ -85,17 +98,22 @@ public sealed class StripResizeGeometryTests
         // monitor. The window is the list plus its chrome, and all of it has to fit on the screen,
         // or the corner grip that would bring it back is below the bottom edge.
         const double chrome = 130;
-        var height = StripResizeGeometry.ClampListHeight(StripResizeGeometry.MaximumListHeight, 728, chrome);
+        var height = StripResizeGeometry.ClampListHeight(720, 728, chrome);
 
         Assert.Equal(598, height);
         Assert.True(height + chrome <= 728);
     }
 
     [Theory]
-    [InlineData(240, 240)]
-    [InlineData(40, StripResizeGeometry.MinimumWidth)]
-    [InlineData(900, StripResizeGeometry.MaximumWidth)]
-    [InlineData(double.NaN, StripResizeGeometry.DefaultWidth)]
-    public void A_stored_width_is_clamped_and_nonsense_falls_back(double stored, double expected) =>
-        Assert.Equal(expected, StripResizeGeometry.ClampWidth(stored));
+    [InlineData(240, 1920, 240)]
+    [InlineData(40, 1920, StripResizeGeometry.MinimumWidth)]
+    // The working area less the gap at the edge is the ceiling, on both monitors.
+    [InlineData(5000, 1920, 1910)]
+    // A width dragged out on a large monitor, opened on a laptop.
+    [InlineData(1600, 1366, 1356)]
+    [InlineData(double.NaN, 1920, StripResizeGeometry.DefaultWidth)]
+    // No monitor to ask yet: the default stands, and the minimum is still a floor.
+    [InlineData(40, 0, StripResizeGeometry.MinimumWidth)]
+    public void A_stored_width_is_clamped_by_the_screen_and_nonsense_falls_back(double stored, double workWidth, double expected) =>
+        Assert.Equal(expected, StripResizeGeometry.ClampWidth(stored, workWidth));
 }

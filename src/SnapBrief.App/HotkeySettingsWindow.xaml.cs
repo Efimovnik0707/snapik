@@ -28,13 +28,17 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// <summary>The schema version of this file; 0 is a file written before versions existed.</summary>
     public int SettingsVersion { get; init; }
     public bool StackTopmost { get; init; } = true;
-    /// <summary>The width of the strip window in pixels; the visible card is 20 px narrower.</summary>
+    /// <summary>
+    /// The width of the strip window in pixels; the visible card is 20 px narrower. Read back
+    /// clamped to the minimum and to the working area of the monitor the strip opens on, less the
+    /// gap it keeps at the edge; there is no number above that.
+    /// </summary>
     public double StackWidth { get; init; } = Controls.StripResizeGeometry.DefaultWidth;
     /// <summary>
     /// The height of the capture list inside the strip, in pixels, not the height of the window:
     /// the window is on SizeToContent and derives its height from this one. Read back clamped to
-    /// 180..720 and to the working area of the monitor the strip opens on, less the chrome of the
-    /// window, so that all of it fits on that screen.
+    /// the minimum and to the working area of the monitor the strip opens on, less the chrome of
+    /// the window, so that all of it fits on that screen.
     /// </summary>
     public double StackHeight { get; init; } = Controls.StripResizeGeometry.DefaultListHeight;
     public bool ClearStackAfterPaste { get; init; }

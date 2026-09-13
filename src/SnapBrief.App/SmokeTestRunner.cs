@@ -45,6 +45,7 @@ public static class SmokeTestRunner
             restoredSettings.SettingsVersion != HotkeySettings.CurrentSettingsVersion)
             throw new InvalidOperationException("Local capture preferences did not survive a settings round trip.");
         VerifySoundDefaults(root);
+        VerifyStripIsBoundedByItsMonitor();
         // The wizard is shown once per version: never seen (no file, or an older version) opens it,
         // the current version does not, and a demo run never does.
         if (!OnboardingWindow.ShouldShowOnboarding(false, HotkeySettings.Default, false) ||
@@ -573,6 +574,26 @@ public static class SmokeTestRunner
         // ship both and the old shutter would still be the one on disk.
         if (File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "Audio", "shutter-2-050s.mp3")))
             throw new InvalidOperationException("The shutter that was replaced is still shipped next to the assembly.");
+    }
+
+    // The strip is bounded by the monitor it opens on, not by a number: a width stored on a large
+    // screen is pulled back inside the working area of a small one, and a drag that goes past the
+    // screen stops at its edge. The strip itself has no smoke run (it needs a shown window and a
+    // real monitor), so the geometry it is built on is checked here.
+    private static void VerifyStripIsBoundedByItsMonitor()
+    {
+        const double work = 1920;
+        var stretched = Controls.StripResizeGeometry.ClampWidth(5000, work);
+        if (stretched != work - Controls.StripResizeGeometry.EdgeGap || stretched <= 900)
+            throw new InvalidOperationException("The width of the strip must be bounded by the working area, and that leaves room for half a screen.");
+        if (Controls.StripResizeGeometry.ClampWidth(1600, 1366) != 1356 ||
+            Controls.StripResizeGeometry.ClampWidth(40, work) != Controls.StripResizeGeometry.MinimumWidth)
+            throw new InvalidOperationException("A width stored on a large monitor must come back inside a small one, and the minimum must hold.");
+        var (left, width) = Controls.StripResizeGeometry.Resize(work, 260, -2000, 0);
+        if (width != work || left != 0)
+            throw new InvalidOperationException("Dragging the strip past the screen must stop at the edge of the working area.");
+        if (Controls.StripResizeGeometry.ResizeListHeight(372, 2000, 100, 0, 2000) != 1900)
+            throw new InvalidOperationException("The height of the strip must be bounded by the working area, not by a number.");
     }
 
     // The tray opens the how-to slides on their own: the last step and nothing else, one button, and

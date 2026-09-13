@@ -606,9 +606,10 @@ public partial class EdgeStackWindow : Window
     private void PositionAtEdge()
     {
         var work = StackWorkArea();
-        // The width the user dragged the strip to, kept inside its range: a settings file written by
-        // hand (or by an older build with another range) must not produce a strip nobody can use.
-        Width = Controls.StripResizeGeometry.ClampWidth(_settings.StackWidth);
+        // The width the user dragged the strip to. The only ceiling is the working area of this
+        // monitor: a width dragged out on a large screen is pulled back in when the strip opens on
+        // a small one, and a settings file written by hand cannot produce a strip nobody can use.
+        Width = Controls.StripResizeGeometry.ClampWidth(_settings.StackWidth, work.Width);
         // The height is remembered the same way, and it is the height of the list: the window is on
         // SizeToContent and follows it. The clamp takes the chrome into account, so a height stored
         // on a tall monitor cannot open a window whose lower half is below the screen.
@@ -616,7 +617,7 @@ public partial class EdgeStackWindow : Window
         // The height above was just assigned and ActualHeight still holds the one before it; the
         // placement below is built on the height the window is about to have.
         UpdateLayout();
-        Left = work.Right - Width - 10;
+        Left = work.Right - Width - Controls.StripResizeGeometry.EdgeGap;
         var height = Math.Max(ActualHeight, 160);
         var centred = Math.Max(work.Top + 24, work.Top + (work.Height - height) / 2);
         Top = Math.Max(work.Top, Math.Min(centred, work.Bottom - height));

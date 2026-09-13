@@ -11,17 +11,23 @@ namespace SnapBrief.App.Controls;
 internal static class StripResizeGeometry
 {
     internal const double MinimumWidth = 200;
-    internal const double MaximumWidth = 380;
     internal const double DefaultWidth = 208;
+
+    /// <summary>
+    /// The gap the strip keeps between itself and the right edge of the working area. It is also
+    /// the ceiling of the width: a strip as wide as the whole working area would have to start
+    /// outside of it to keep that gap.
+    /// </summary>
+    internal const double EdgeGap = 10;
 
     // The height of the strip is the height of the capture list: the window lives on
     // SizeToContent="Height", and a height written to the window itself is overwritten by the next
     // layout pass. The card (78 px) and the overlap (48 px) stay as they are, the visible part of
     // the list is what grows. The list carries that height outright rather than as a maximum: with
     // a maximum a short strip is shorter than the number it holds, the window stops following the
-    // corner grip, and the drag moves nothing until the tenth capture.
+    // corner grip, and the drag moves nothing until the tenth capture. There is no number above:
+    // the working area of the monitor is the only ceiling.
     internal const double MinimumListHeight = 180;
-    internal const double MaximumListHeight = 720;
     internal const double DefaultListHeight = 372;
 
     /// <summary>
@@ -32,9 +38,20 @@ internal static class StripResizeGeometry
     /// </summary>
     internal const double EstimatedChromeHeight = 140;
 
-    /// <summary>A width from the settings file: out of range is clamped, nonsense falls back to the default.</summary>
-    internal static double ClampWidth(double width) =>
-        double.IsFinite(width) ? Math.Clamp(width, MinimumWidth, MaximumWidth) : DefaultWidth;
+    /// <summary>
+    /// A width from the settings file. The ceiling is the working area of the monitor the strip
+    /// opens on, less the gap it keeps at the edge, so a width dragged out on a large monitor is
+    /// pulled back in on a small one; nonsense falls back to the default. When the working area is
+    /// unknown there is no ceiling, only the minimum.
+    /// </summary>
+    internal static double ClampWidth(double width, double workWidth)
+    {
+        var ceiling = double.IsFinite(workWidth) && workWidth > 0
+            ? Math.Max(MinimumWidth, workWidth - EdgeGap)
+            : double.PositiveInfinity;
+        if (!double.IsFinite(width)) return Math.Min(DefaultWidth, ceiling);
+        return Math.Clamp(width, MinimumWidth, ceiling);
+    }
 
     /// <summary>
     /// The new left edge and width for a drag of <paramref name="delta"/> pixels. The strip never
@@ -42,7 +59,7 @@ internal static class StripResizeGeometry
     /// </summary>
     internal static (double Left, double Width) Resize(double right, double width, double delta, double leftLimit)
     {
-        var allowed = Math.Clamp(right - leftLimit, MinimumWidth, MaximumWidth);
+        var allowed = Math.Max(MinimumWidth, right - leftLimit);
         var resized = Math.Clamp(width - delta, MinimumWidth, allowed);
         return (right - resized, resized);
     }
@@ -57,8 +74,8 @@ internal static class StripResizeGeometry
     {
         var chrome = double.IsFinite(chromeHeight) && chromeHeight > 0 ? chromeHeight : EstimatedChromeHeight;
         var ceiling = double.IsFinite(workHeight) && workHeight > 0
-            ? Math.Max(MinimumListHeight, Math.Min(MaximumListHeight, workHeight - chrome))
-            : MaximumListHeight;
+            ? Math.Max(MinimumListHeight, workHeight - chrome)
+            : double.PositiveInfinity;
         return Math.Clamp(double.IsFinite(height) ? height : DefaultListHeight, MinimumListHeight, ceiling);
     }
 
@@ -73,7 +90,7 @@ internal static class StripResizeGeometry
         if (!double.IsFinite(listHeight)) listHeight = DefaultListHeight;
         if (!double.IsFinite(delta)) delta = 0;
         var available = workBottom - top - Math.Max(0, chromeHeight);
-        var ceiling = Math.Max(MinimumListHeight, Math.Min(MaximumListHeight, available));
+        var ceiling = Math.Max(MinimumListHeight, available);
         return Math.Clamp(listHeight + delta, MinimumListHeight, ceiling);
     }
 
