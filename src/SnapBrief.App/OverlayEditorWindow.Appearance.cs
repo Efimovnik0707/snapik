@@ -19,8 +19,10 @@ public partial class OverlayEditorWindow
     internal const double DefaultAnnotationThickness = 4;
     private static bool HasColor(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Arrow or EditorTool.Pen or EditorTool.Highlight or EditorTool.Text;
     private static bool HasStroke(EditorTool tool) => HasColor(tool) && tool != EditorTool.Text;
-    // The shape and the fill belong to the frame of a region and to nothing else.
-    private static bool HasShape(EditorTool tool) => tool == EditorTool.Rectangle;
+    // The frame is shared by a region and by a blur: one shape is remembered for both. What stands
+    // inside the frame belongs to the region alone, a blur has its own picture inside it.
+    private static bool HasShape(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Blur;
+    private static bool HasFill(EditorTool tool) => tool == EditorTool.Rectangle;
 
     private static readonly string[] Palette =
         ["#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7", "#FFFFFF", "#000000", "#00C8DC", "#FF8C42", "#9BA7B8", "#7754D9"];
@@ -110,7 +112,7 @@ public partial class OverlayEditorWindow
                 ? Brushes.White
                 : new SolidColorBrush(Color.FromRgb(120, 130, 146));
         var fill = selected?.Fill ?? Surface.ActiveFill;
-        FillRow.IsEnabled = HasShape(tool);
+        FillRow.IsEnabled = HasFill(tool);
         FillNoneSegment.IsChecked = fill == AnnotationFill.None;
         FillSolidSegment.IsChecked = fill == AnnotationFill.Solid;
         FillTranslucentSegment.IsChecked = fill == AnnotationFill.Translucent;
@@ -128,9 +130,9 @@ public partial class OverlayEditorWindow
         if (color is { } c && HasColor(tool)) { _appearanceDefaultsChanged |= c != _activeColor; _activeColor = c; Surface.ActiveColor = c; if (selected is not null) { selected.Color = c; _appearanceChanged = true; } }
         if (thickness is { } t && HasStroke(tool)) { _appearanceDefaultsChanged |= t != _activeThickness; _activeThickness = t; Surface.ActiveThickness = t; if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; } }
         if (shape is { } s && HasShape(tool)) { _appearanceDefaultsChanged |= s != _activeShape; _activeShape = s; Surface.ActiveShape = s; if (selected is not null) { selected.Shape = s; _appearanceChanged = true; } }
-        if (fill is { } f && HasShape(tool)) { _appearanceDefaultsChanged |= f != _activeFill; _activeFill = f; Surface.ActiveFill = f; if (selected is not null) { selected.Fill = f; _appearanceChanged = true; } }
-        if (fillColor is { } fc && HasShape(tool)) { _appearanceDefaultsChanged |= fc != _activeFillColor; _activeFillColor = fc; Surface.ActiveFillColor = fc; if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; } }
-        if (hasOutline is { } outline && HasShape(tool)) { _appearanceDefaultsChanged |= outline != _activeHasOutline; _activeHasOutline = outline; Surface.ActiveHasOutline = outline; if (selected is not null) { selected.HasOutline = outline; _appearanceChanged = true; } }
+        if (fill is { } f && HasFill(tool)) { _appearanceDefaultsChanged |= f != _activeFill; _activeFill = f; Surface.ActiveFill = f; if (selected is not null) { selected.Fill = f; _appearanceChanged = true; } }
+        if (fillColor is { } fc && HasFill(tool)) { _appearanceDefaultsChanged |= fc != _activeFillColor; _activeFillColor = fc; Surface.ActiveFillColor = fc; if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; } }
+        if (hasOutline is { } outline && HasFill(tool)) { _appearanceDefaultsChanged |= outline != _activeHasOutline; _activeHasOutline = outline; Surface.ActiveHasOutline = outline; if (selected is not null) { selected.HasOutline = outline; _appearanceChanged = true; } }
         if (arrowStyle is { } style && tool == EditorTool.Arrow) { Surface.ActiveArrowStyle = style; if (selected is not null) { selected.ArrowStyle = style; _appearanceChanged = true; } }
         Surface.InvalidateVisual();
         SyncAppearance();

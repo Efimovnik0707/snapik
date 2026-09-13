@@ -114,7 +114,8 @@ public sealed class AnnotationCanvas : FrameworkElement
             foreach (var annotation in Annotations) DrawAnnotation(dc, annotation, _imageRect, includeSelection: true, drawShape: false);
         }
         if (_manipulating && SelectedAnnotation is { Kind: EditorTool.Blur } movingBlur)
-            dc.DrawRectangle(Brushes.Black, new Pen(Brushes.DodgerBlue, 1.5), GetDisplayBounds(movingBlur));
+            DrawBoxShape(dc, Brushes.Black, new Pen(Brushes.DodgerBlue, 1.5), movingBlur.Shape,
+                GetDisplayBounds(movingBlur), _imageRect.Width / Image.PixelWidth);
         if (_draft is not null) DrawAnnotation(dc, _draft, _imageRect);
     }
 
@@ -162,7 +163,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             Kind = Tool, ArrowStyle = ActiveArrowStyle,
             // The shape and the fill belong to the frame: on a text or a pen mark they would only
             // travel into session.json and change what a later build draws there.
-            Shape = Tool == EditorTool.Rectangle ? ActiveShape : AnnotationShape.Rectangle,
+            // A region and a blur share the frame the user picked; on a text or a pen mark the shape
+            // would only travel into session.json and change what a later build draws there.
+            Shape = Tool is EditorTool.Rectangle or EditorTool.Blur ? ActiveShape : AnnotationShape.Rectangle,
             Fill = Tool == EditorTool.Rectangle ? ActiveFill : AnnotationFill.None,
             FillColor = Tool == EditorTool.Rectangle ? ActiveFillColor : null,
             HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
@@ -383,7 +386,9 @@ public sealed class AnnotationCanvas : FrameworkElement
                     dc.DrawRectangle(Brushes.Black, null, rect);
                     break;
                 case EditorTool.Blur:
-                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(54, 255, 255, 255)), new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), rect);
+                    // The preview of a blur that is still being drawn shows the shape it will take.
+                    DrawBoxShape(dc, new SolidColorBrush(Color.FromArgb(54, 255, 255, 255)),
+                        new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), item.Shape, rect, scale);
                     break;
                 case EditorTool.Crop:
                     dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(24, 47, 140, 255)), new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5) { DashStyle = DashStyles.Dash }, rect);
@@ -440,7 +445,8 @@ public sealed class AnnotationCanvas : FrameworkElement
                 dc.DrawEllipse(fill, pen, new Point(rect.X + rect.Width / 2, rect.Y + rect.Height / 2), rect.Width / 2, rect.Height / 2);
                 break;
             case AnnotationShape.Rounded:
-                var radius = Math.Min(14 * scale, Math.Min(rect.Width, rect.Height) / 4);
+                // The same corner the blur mask rounds, so an outline and the blur inside it agree.
+                var radius = Math.Min(ShapeMask.MaximumCornerRadius * scale, Math.Min(rect.Width, rect.Height) / 4);
                 dc.DrawRoundedRectangle(fill, pen, rect, radius, radius);
                 break;
             default:
@@ -591,7 +597,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (Annotations is not null)
             foreach (var annotation in Annotations.Where(IsBlurred))
             {
-                hash.Add(annotation.Id); hash.Add(annotation.Thickness);
+                hash.Add(annotation.Id); hash.Add((int)annotation.Shape);
                 foreach (var point in annotation.Points) { hash.Add(point.X); hash.Add(point.Y); }
             }
         var key = hash.ToHashCode();
@@ -599,7 +605,10 @@ public sealed class AnnotationCanvas : FrameworkElement
         BitmapSource result = source;
         if (Annotations is not null)
             foreach (var annotation in Annotations.Where(a => IsBlurred(a) && a.Points.Count > 1))
-                result = RegionBlur.Apply(result, ToPixelRect(BoundsOf(annotation), source.PixelWidth, source.PixelHeight), BlurRadius(annotation));
+            {
+                var region = ToPixelRect(BoundsOf(annotation), source.PixelWidth, source.PixelHeight);
+                result = RegionBlur.Apply(result, region, RegionBlur.RadiusFor(region.Width, region.Height), annotation.Shape);
+            }
         _blurCacheKey = key;
         _blurCache = result;
         return _blurCache;
@@ -609,8 +618,6 @@ public sealed class AnnotationCanvas : FrameworkElement
     // decides what is blurred and both take the same code below.
     internal static bool IsBlurred(AnnotationItem item) =>
         item.Kind == EditorTool.Blur || (item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Blur);
-
-    private static int BlurRadius(AnnotationItem annotation) => Math.Clamp((int)Math.Round(annotation.Thickness * 3), 4, 36);
 
     private static Int32Rect ToPixelRect(Rect bounds, int width, int height)
     {

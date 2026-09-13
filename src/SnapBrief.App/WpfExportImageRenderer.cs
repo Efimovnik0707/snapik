@@ -83,7 +83,8 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
             var top = Math.Clamp((int)Math.Floor(Math.Min(item.Points[0].Y, item.Points[1].Y) * source.PixelHeight), 0, source.PixelHeight);
             var right = Math.Clamp((int)Math.Ceiling(Math.Max(item.Points[0].X, item.Points[1].X) * source.PixelWidth), left, source.PixelWidth);
             var bottom = Math.Clamp((int)Math.Ceiling(Math.Max(item.Points[0].Y, item.Points[1].Y) * source.PixelHeight), top, source.PixelHeight);
-            result = RegionBlur.Apply(result, new Int32Rect(left, top, right - left, bottom - top), Math.Clamp((int)Math.Round(item.Thickness * 3), 4, 36));
+            var region = new Int32Rect(left, top, right - left, bottom - top);
+            result = RegionBlur.Apply(result, region, RegionBlur.RadiusFor(region.Width, region.Height), item.Shape);
         }
         return result;
     }

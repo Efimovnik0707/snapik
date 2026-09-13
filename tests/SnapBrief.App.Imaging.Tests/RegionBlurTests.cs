@@ -1,4 +1,5 @@
 using SnapBrief.App.Imaging;
+using SnapBrief.Core.Models;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -67,6 +68,28 @@ public sealed class RegionBlurTests
         Assert.Equal(pixels, ReadPixels(result));
     }
 
+    [Fact]
+    public void Apply_WithAnOvalMaskBlursTheCentreAndLeavesTheCornerOfItsBox()
+    {
+        var pixels = CreateCheckerPixels(24, 24);
+        var source = CreateBitmap(24, 24, 96, 96, pixels);
+
+        var result = RegionBlur.Apply(source, new Int32Rect(2, 2, 20, 20), 3, AnnotationShape.Ellipse);
+        var output = ReadPixels(result);
+
+        Assert.NotEqual(GetPixel(pixels, 24, 12, 12), GetPixel(output, 24, 12, 12));
+        // The corner of the bounding box is outside the oval: the picture there is untouched.
+        Assert.Equal(GetPixel(pixels, 24, 2, 2), GetPixel(output, 24, 2, 2));
+        Assert.Equal(GetPixel(pixels, 24, 21, 21), GetPixel(output, 24, 21, 21));
+    }
+
+    [Theory]
+    [InlineData(40, 40, 6)]
+    [InlineData(240, 600, 20)]
+    [InlineData(2000, 1000, 36)]
+    public void RadiusFor_FollowsTheShorterSideBetweenSixAndThirtySix(double width, double height, int expected) =>
+        Assert.Equal(expected, RegionBlur.RadiusFor(width, height));
+
     [Theory]
     [InlineData(0)]
     [InlineData(513)]
@@ -89,6 +112,20 @@ public sealed class RegionBlurTests
         for (var y = 0; y < height; y++)
         for (var x = 0; x < width; x++)
             SetPixel(pixels, width, x, y, (byte)(x * 31), (byte)(y * 37), (byte)((x + y) * 19), 255);
+        return pixels;
+    }
+
+    // A pattern that changes from pixel to pixel: blurring a smooth gradient would leave the middle
+    // of it where it was and prove nothing.
+    private static byte[] CreateCheckerPixels(int width, int height)
+    {
+        var pixels = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
+        {
+            var value = (byte)(((x + y) & 1) == 0 ? 15 : 240);
+            SetPixel(pixels, width, x, y, value, value, value, 255);
+        }
         return pixels;
     }
 

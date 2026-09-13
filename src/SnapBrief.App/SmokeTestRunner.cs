@@ -222,9 +222,12 @@ public static class SmokeTestRunner
             });
             if (i == 2)
             {
+                // An oval blur: the mask follows the shape of the region in both renderers, so the
+                // corner of its bounding box has to come out of the export untouched.
                 capture.Annotations.Add(new AnnotationItem
                 {
                     Kind = EditorTool.Blur,
+                    Shape = SnapBrief.Core.Models.AnnotationShape.Ellipse,
                     Points = [new Point(980, 620), new Point(1400, 900)],
                     Color = Color.FromRgb(47, 140, 255),
                     Thickness = 6
@@ -327,6 +330,8 @@ public static class SmokeTestRunner
         var redactionPixel = PixelAt(decoded[2], 1250, 48 + 760);
         var sourceBlurPixel = PixelAt(captures[2].Image, 1010, 700);
         var exportedBlurPixel = PixelAt(decoded[2], 1010, 48 + 700);
+        // The corner of the box of an oval blur is outside the oval and keeps the pixels it had.
+        var ovalBlurCornerKept = PixelAt(captures[2].Image, 985, 625).SequenceEqual(PixelAt(decoded[2], 985, 48 + 625));
         var redactionLabelHasLightInk = HasLightPixel(decoded[2], 1048, 48 + 615, 70, 35);
         // The new way to conceal: a region with a solid black fill and no outline hides the picture
         // exactly as the removed tool did.
@@ -405,6 +410,7 @@ public static class SmokeTestRunner
             && sourceCorner.SequenceEqual(exportedCorner)
             && redactionPixel[3] == 255 && redactionPixel[0] < 8 && redactionPixel[1] < 8 && redactionPixel[2] < 8
             && !sourceBlurPixel.SequenceEqual(exportedBlurPixel)
+            && ovalBlurCornerKept
             && redactionLabelHasLightInk
             && prepared.Manifest.PromptText.Contains("Увеличить кнопку", StringComparison.Ordinal)
             && prepared.Manifest.PromptText.Contains("Снимок C", StringComparison.Ordinal)

@@ -12,7 +12,12 @@
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The blur masks a region by the shape it was drawn with, and that shape lives in Core. -->
+    <ProjectReference Include="..\..\src\SnapBrief.Core\SnapBrief.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="..\..\src\SnapBrief.App\Imaging\RegionBlur.cs" Link="Imaging\RegionBlur.cs" />
+    <Compile Include="..\..\src\SnapBrief.App\Imaging\ShapeMask.cs" Link="Imaging\ShapeMask.cs" />
     <Compile Include="..\..\src\SnapBrief.App\Controls\ResizeGeometry.cs" Link="ResizeGeometry.cs" />
     <Compile Include="..\..\src\SnapBrief.App\Controls\StripResizeGeometry.cs" Link="StripResizeGeometry.cs" />
     <Compile Include="..\..\src\SnapBrief.App\Controls\HotkeyLabelParts.cs" Link="HotkeyLabelParts.cs" />
