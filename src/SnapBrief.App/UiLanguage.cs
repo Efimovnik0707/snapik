@@ -108,7 +108,14 @@ internal static class UiLanguage
         ["Автозапуск недоступен"] = "Autostart is unavailable",
         ["Закрепить на панели задач"] = "Pin to taskbar",
         ["Как пользоваться"] = "How it works", ["Нажми клавишу"] = "Press the shortcut", ["Выдели область"] = "Select an area",
-        ["Добавь комментарии"] = "Add comments", ["Вставь в чат: Ctrl+V"] = "Paste into the chat: Ctrl+V"
+        ["Добавь комментарии"] = "Add comments", ["Вставь в чат: Ctrl+V"] = "Paste into the chat: Ctrl+V",
+        ["Первый снимок"] = "The first capture", ["Ещё снимок"] = "Another capture",
+        ["До 10 снимков в ленте"] = "Up to 10 captures in the strip", ["Один Ctrl+V отправляет все"] = "One Ctrl+V sends them all",
+        ["Обведи место"] = "Frame the spot", ["Поставь отметку"] = "Drop a marker",
+        ["Напиши, что не так"] = "Write what is wrong", ["В чат уходит текст с номерами"] = "The chat gets the text with the numbers",
+        ["Снимки остаются в ленте"] = "The captures stay in the strip", ["Отправленные помечены"] = "The sent ones are marked",
+        ["Новый снимок снова яркий"] = "A new capture is bright again", ["«Очистить», когда закончил"] = "\"Clear\" when you are done",
+        ["Предыдущий слайд"] = "Previous slide", ["Следующий слайд"] = "Next slide", ["Слайд {0} из {1}"] = "Slide {0} of {1}"
     };
     /// <summary>Every English value, for the smoke check that no two Russian keys share one: the way
     /// back (English to Russian) is a search by value, and a duplicate would answer with the wrong key.</summary>

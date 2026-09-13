@@ -5,7 +5,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 
 namespace SnapBrief.App;
 
@@ -18,14 +17,13 @@ namespace SnapBrief.App;
 public partial class OnboardingWindow : Window
 {
     /// <summary>Bumping this shows the wizard again to everyone who has already seen the older one.</summary>
-    internal const int CurrentVersion = 1;
+    internal const int CurrentVersion = 2;
     private const int StepCount = 4;
     private readonly HotkeySettings _settings;
-    private readonly Storyboard _hint;
+    // The tray opens the slides alone: no language, no shortcut, no steps, one "Done" button.
+    private readonly bool _howToOnly;
     private string _appliedCaptureId;
     private string _language;
-    private bool _hintRunning;
-    private bool _hintApplied;
     private int _step;
 
     /// <summary>
@@ -44,20 +42,21 @@ public partial class OnboardingWindow : Window
     /// <summary>Writes a line into the startup log; the wizard has no log of its own.</summary>
     public Action<string>? Trace { get; init; }
 
-    public OnboardingWindow(HotkeySettings settings)
+    public OnboardingWindow(HotkeySettings settings, bool howToOnly = false)
     {
         _settings = settings;
+        _howToOnly = howToOnly;
         _appliedCaptureId = settings.CaptureId;
         _language = SuggestedLanguage(settings);
         InitializeComponent();
-        _hint = (Storyboard)FindResource("HintLoop");
         CaptureField.HotkeyId = settings.CaptureId;
-        CaptureField.HotkeyChanged += (_, _) => { ErrorText.Visibility = Visibility.Collapsed; HintKeyText.Text = HotkeySettings.Find(CaptureField.HotkeyId).Label; };
-        HintKeyText.Text = HotkeySettings.Find(settings.CaptureId).Label;
+        CaptureField.HotkeyChanged += (_, _) => { ErrorText.Visibility = Visibility.Collapsed; HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label; };
+        HowTo.KeyLabel = HotkeySettings.Find(settings.CaptureId).Label;
         RussianSegment.Checked += (_, _) => SelectLanguage("ru");
         EnglishSegment.Checked += (_, _) => SelectLanguage("en");
         LoadStartupState();
-        ShowStep(0);
+        if (howToOnly) StartButton.Content = "Готово";
+        ShowStep(howToOnly ? StepCount - 1 : 0);
         ApplyLanguage(_language);
         // Shown while the strip is still hidden: without this the wizard can open behind the window
         // the user was working in.
@@ -69,13 +68,7 @@ public partial class OnboardingWindow : Window
     // stopping it is not enough, the clock it left on this window has to be removed as well.
     protected override void OnClosed(EventArgs e)
     {
-        if (_hintApplied)
-        {
-            _hint.Stop(this);
-            _hint.Remove(this);
-            _hintApplied = false;
-            _hintRunning = false;
-        }
+        HowTo.Stop();
         MarkPassed?.Invoke();
         base.OnClosed(e);
     }
@@ -111,6 +104,7 @@ public partial class OnboardingWindow : Window
         EnglishSegment.IsChecked = language == "en";
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
+        HowTo.ApplyLanguage(language);
         RefreshStepCaption();
     }
 
@@ -135,9 +129,29 @@ public partial class OnboardingWindow : Window
         NextButton.IsDefault = !last;
         StartButton.IsDefault = last;
         RefreshStepCaption();
-        // The loop only runs while its step is on screen.
-        if (last && !_hintRunning) { _hint.Begin(this, true); _hintRunning = true; _hintApplied = true; }
-        else if (!last && _hintRunning) { _hint.Stop(this); _hintRunning = false; }
+        // The slides only run while their step is on screen.
+        if (last) HowTo.Start();
+        else HowTo.Stop();
+        if (!_howToOnly) return;
+        // Everything the tray does not need: the wizard is only the slides here, and its one button
+        // says "Done" instead of "Get started".
+        LanguageToggle.Visibility = Visibility.Collapsed;
+        BackButton.Visibility = Visibility.Collapsed;
+        NextButton.Visibility = Visibility.Collapsed;
+        StepText.Visibility = Visibility.Collapsed;
+    }
+
+    // Left and Right step through the slides while the last step is on screen; on the other steps
+    // they belong to whatever has the focus.
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (_step == StepCount - 1 && e.Key is Key.Left or Key.Right)
+        {
+            if (e.Key == Key.Left) HowTo.PreviousSlide();
+            else HowTo.NextSlide();
+            e.Handled = true;
+        }
+        base.OnPreviewKeyDown(e);
     }
 
     private void RefreshStepCaption() =>
@@ -200,7 +214,8 @@ public partial class OnboardingWindow : Window
 
     private void OnStart(object sender, RoutedEventArgs e)
     {
-        if (!Apply(CaptureField.HotkeyId) || !ApplyStartup()) return;
+        // Nothing was collected in the slides-only mode, so nothing is written back from it.
+        if (!_howToOnly && (!Apply(CaptureField.HotkeyId) || !ApplyStartup())) return;
         Close();
     }
 
@@ -209,7 +224,7 @@ public partial class OnboardingWindow : Window
     // user typed and left behind.
     private void OnSkip(object sender, RoutedEventArgs e)
     {
-        Apply(_appliedCaptureId);
+        if (!_howToOnly) Apply(_appliedCaptureId);
         Close();
     }
 

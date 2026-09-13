@@ -160,7 +160,7 @@ public static class SmokeTestRunner
         if (onboarding.Step != 0 || onboarding.SelectedLanguage != "ru" ||
             onboarding.Step1.Visibility != Visibility.Visible || onboarding.Step4.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("The wizard must come back to its first step after the probe.");
-        if (onboarding.HintKeyText.Text != HotkeySettings.Find(restoredSettings.CaptureId).Label ||
+        if (onboarding.HowTo.KeyLabel != HotkeySettings.Find(restoredSettings.CaptureId).Label ||
             onboarding.CaptureField.HotkeyId != restoredSettings.CaptureId)
             throw new InvalidOperationException("The wizard must open on the shortcut the settings hold, and the hint must show it.");
         onboarding.GoToStep(3);
@@ -171,6 +171,8 @@ public static class SmokeTestRunner
         onboarding.Close();
         // Whatever closes the window (here: nothing but Close itself, as Alt+F4 or the taskbar would
         // do) has to leave the wizard marked as passed, or the first run comes back on every start.
+        WithoutBindingErrors("The how-to slides", Controls.HowToSlides.RunSlidesProbe);
+        VerifyHowToOnlyWizard(restoredSettings);
         var closedWithoutButtons = false;
         var skipped = new OnboardingWindow(restoredSettings) { MarkPassed = () => closedWithoutButtons = true };
         skipped.Close();
@@ -395,6 +397,29 @@ public static class SmokeTestRunner
         return success;
     }
 
+    // The tray opens the how-to slides on their own: the last step and nothing else, one button, and
+    // no language switch — the language lives in the settings by then.
+    private static void VerifyHowToOnlyWizard(HotkeySettings settings)
+    {
+        var wizard = WithoutBindingErrors("The how-to wizard", () =>
+        {
+            var window = new OnboardingWindow(settings, howToOnly: true);
+            window.Measure(new Size(620, 600));
+            window.Arrange(new Rect(0, 0, 620, 600));
+            window.UpdateLayout();
+            return window;
+        });
+        var hidden = wizard.Step1.Visibility != Visibility.Visible && wizard.Step2.Visibility != Visibility.Visible &&
+            wizard.Step3.Visibility != Visibility.Visible && wizard.LanguageToggle.Visibility != Visibility.Visible &&
+            wizard.BackButton.Visibility != Visibility.Visible && wizard.NextButton.Visibility != Visibility.Visible &&
+            wizard.StepText.Visibility != Visibility.Visible;
+        var shown = wizard.Step4.Visibility == Visibility.Visible && wizard.StartButton.Visibility == Visibility.Visible &&
+            wizard.HowTo.Slide == 0;
+        wizard.Close();
+        if (!hidden || !shown)
+            throw new InvalidOperationException("The slides-only wizard must show the last step and hide the steps, the switch and the buttons.");
+    }
+
     // The strings of the welcome step, and the rule that lets any of them travel back: the way from
     // English to Russian is a search by value, so two Russian keys sharing one English value would
     // send the wrong Russian string back.
@@ -403,6 +428,8 @@ public static class SmokeTestRunner
         foreach (var (russian, english) in new[]
         {
             ("Добро пожаловать", "Welcome"), ("Язык интерфейса", "Interface language"),
+            ("Первый снимок", "The first capture"), ("Обведи место", "Frame the spot"),
+            ("Снимки остаются в ленте", "The captures stay in the strip"), ("Слайд {0} из {1}", "Slide {0} of {1}"),
             ("SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями.",
                 "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.")
         })

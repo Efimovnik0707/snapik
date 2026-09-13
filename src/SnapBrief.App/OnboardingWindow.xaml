@@ -57,49 +57,6 @@
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
-  <!-- Four phases of 1.2 s over simple shapes: the key is pressed, the area is selected, a note
-       appears, the package goes into a chat. The captions under the drawing follow the same clock. -->
-  <Storyboard x:Key="HintLoop" RepeatBehavior="Forever" Duration="0:0:4.8">
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintKey" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.4"/><LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0.4"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintKeyScale" Storyboard.TargetProperty="ScaleY">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="0.8"/><LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Width">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.1" Value="150"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintSelection" Storyboard.TargetProperty="Height">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.1" Value="66"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintNote" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:2.9" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintPaste" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintArrow" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.7" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:4.1" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintChat" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.35"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0.35"/><LinearDoubleKeyFrame KeyTime="0:0:4" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption1" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="0"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption2" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.2" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="0"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption3" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:2.4" Value="1"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/>
-   </DoubleAnimationUsingKeyFrames>
-   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="HintCaption4" Storyboard.TargetProperty="Opacity">
-    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="1"/>
-   </DoubleAnimationUsingKeyFrames>
-  </Storyboard>
  </Window.Resources>
  <Border Background="#171B22" BorderBrush="#354052" BorderThickness="1" CornerRadius="16" Padding="24">
   <Grid>
@@ -211,44 +168,9 @@
 
     <StackPanel x:Name="Step4" Style="{StaticResource StepPanel}" Visibility="Collapsed">
      <TextBlock Text="Как пользоваться" Style="{StaticResource StepTitle}"/>
-     <!-- No background of its own: the window is one colour from the first step to the last, and the
-          drawing keeps its own 500x200 grid inside a Viewbox instead of being laid out again. -->
-     <Border Background="Transparent" BorderBrush="#2A3240" BorderThickness="1" CornerRadius="12" Padding="8">
-      <Viewbox Stretch="Uniform" Height="144">
-       <Canvas x:Name="HintCanvas" Width="500" Height="200">
-       <Border Canvas.Left="26" Canvas.Top="22" Width="230" Height="140" CornerRadius="8" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1"/>
-       <Rectangle Canvas.Left="42" Canvas.Top="40" Width="90" Height="8" RadiusX="4" RadiusY="4" Fill="#2C3746"/>
-       <Rectangle Canvas.Left="42" Canvas.Top="56" Width="150" Height="8" RadiusX="4" RadiusY="4" Fill="#242E3B"/>
-       <Rectangle x:Name="HintSelection" Canvas.Left="66" Canvas.Top="72" Width="0" Height="0" Opacity="0" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeDashArray="4 3"/>
-       <Border x:Name="HintNote" Canvas.Left="120" Canvas.Top="146" Padding="8,4" CornerRadius="9" Opacity="0" Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
-        <StackPanel Orientation="Horizontal">
-         <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0" Fill="{DynamicResource AccentBrush}"/>
-         <Rectangle Width="46" Height="5" RadiusX="2" RadiusY="2" Fill="#8F9AAA" VerticalAlignment="Center"/>
-        </StackPanel>
-       </Border>
-       <Border x:Name="HintKey" Canvas.Left="26" Canvas.Top="172" Padding="9,4" CornerRadius="6" Opacity="0.4" Background="#252C36" BorderBrush="#465366" BorderThickness="1" RenderTransformOrigin="0.5,0.5">
-        <Border.RenderTransform><ScaleTransform x:Name="HintKeyScale"/></Border.RenderTransform>
-        <TextBlock x:Name="HintKeyText" Text="Ctrl + Alt + S" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
-       </Border>
-       <Path x:Name="HintArrow" Canvas.Left="266" Canvas.Top="80" Opacity="0" Data="M0,12 L48,12 M38,5 L48,12 L38,19" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-       <Border x:Name="HintPaste" Canvas.Left="286" Canvas.Top="34" Padding="9,4" CornerRadius="6" Opacity="0" Background="#252C36" BorderBrush="#465366" BorderThickness="1">
-        <TextBlock Text="Ctrl + V" FontSize="11" FontWeight="SemiBold" Foreground="#EEF2F8"/>
-       </Border>
-       <Border x:Name="HintChat" Canvas.Left="330" Canvas.Top="70" Width="144" Height="58" CornerRadius="10" Opacity="0.35" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
-        <StackPanel VerticalAlignment="Center" Margin="12,0,0,0">
-         <Rectangle Width="76" Height="6" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,7"/>
-         <Rectangle Width="106" Height="6" RadiusX="3" RadiusY="3" Fill="#242E3B" HorizontalAlignment="Left"/>
-        </StackPanel>
-       </Border>
-       </Canvas>
-      </Viewbox>
-     </Border>
-     <Grid Height="24" Margin="0,14,0,0">
-      <TextBlock x:Name="HintCaption1" Text="Нажми клавишу" FontSize="14" HorizontalAlignment="Center"/>
-      <TextBlock x:Name="HintCaption2" Text="Выдели область" FontSize="14" HorizontalAlignment="Center" Opacity="0"/>
-      <TextBlock x:Name="HintCaption3" Text="Добавь комментарии" FontSize="14" HorizontalAlignment="Center" Opacity="0"/>
-      <TextBlock x:Name="HintCaption4" Text="Вставь в чат: Ctrl+V" FontSize="14" HorizontalAlignment="Center" Opacity="0"/>
-     </Grid>
+     <!-- Four slides, their dots and their chevrons live in a control of their own: the tray opens
+          the same slides without the rest of the wizard. -->
+     <controls:HowToSlides x:Name="HowTo"/>
     </StackPanel>
    </Grid>
 
