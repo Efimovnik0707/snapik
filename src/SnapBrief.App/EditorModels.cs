@@ -25,7 +25,10 @@ public enum EditorTool
     Conceal,
     Blur,
     Crop,
-    Comment
+    Comment,
+    // A mode of the panel and never the kind of a mark: the eraser removes what it is clicked on and
+    // nothing carries this value into a session.
+    Eraser
 }
 
 public sealed class AnnotationItem : INotifyPropertyChanged

@@ -27,7 +27,7 @@ internal static class UiLanguage
         ["Сохранить"] = "Save", ["Отмена"] = "Cancel", ["Закрыть"] = "Close",
         ["Нажмите своё сочетание клавиш"] = "Press your shortcut", ["Нажми, чтобы изменить"] = "Click to change", ["Новый снимок"] = "New capture", ["+ Снимок"] = "+ Capture",
         ["Готово"] = "Done", ["Выбор"] = "Select", ["Область"] = "Region", ["Стрелка"] = "Arrow", ["Перо"] = "Pen",
-        ["Маркер"] = "Highlight", ["Текст"] = "Text", ["Размыть"] = "Blur", ["Обрезать"] = "Crop",
+        ["Маркер"] = "Highlight", ["Текст"] = "Text", ["Ластик"] = "Eraser", ["Размыть"] = "Blur", ["Обрезать"] = "Crop",
         ["Цвет и заливка"] = "Color and fill", ["Сочетания клавиш"] = "Keyboard shortcuts", ["Инструменты"] = "Tools", ["Действия"] = "Actions",
         ["Отменить снимок"] = "Cancel the capture", ["Закончить заметку"] = "Finish the note", ["Новая строка в заметке"] = "New line in the note",
         ["Цвет отметки"] = "Annotation color", ["Толщина"] = "Thickness", ["Карандаш"] = "Pencil",

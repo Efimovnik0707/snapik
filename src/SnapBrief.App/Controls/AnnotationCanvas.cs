@@ -24,6 +24,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     private int _resizeCorner = -1;
     private Rect _originalBounds;
     private bool _manipulationChanged;
+    private AnnotationItem? _eraseHover;
     private int _blurCacheKey;
     private BitmapSource? _blurCache;
 
@@ -115,6 +116,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             foreach (var annotation in Annotations.Where(HasOpaqueFill)) DrawAnnotation(dc, annotation, _imageRect, includeSelection: false, drawLabel: false);
             foreach (var annotation in Annotations) DrawAnnotation(dc, annotation, _imageRect, includeSelection: true, drawShape: false);
         }
+        // The mark the eraser is about to take is outlined in red, so a click is never a surprise.
+        if (_eraseHover is { } erasing && Annotations?.Contains(erasing) == true)
+            dc.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(255, 59, 48)), 1.5), GetDisplayBounds(erasing));
         if (_manipulating && SelectedAnnotation is { Kind: EditorTool.Blur } movingBlur)
             DrawBoxShape(dc, Brushes.Black, new Pen(Brushes.DodgerBlue, 1.5), movingBlur.Shape,
                 GetDisplayBounds(movingBlur), _imageRect.Width / Image.PixelWidth);
@@ -135,6 +139,19 @@ public sealed class AnnotationCanvas : FrameworkElement
     {
         if (Image is null) return;
         if (!_imageRect.Contains(point)) return;
+
+        // The eraser draws nothing: it removes the mark under the pointer and tells the window,
+        // which turns that into one history entry, exactly as the Delete key does.
+        if (Tool == EditorTool.Eraser)
+        {
+            if (EraseTarget(point) is not { } target || Annotations is null) return;
+            Select(null);
+            Annotations.Remove(target);
+            _eraseHover = null;
+            AnnotationChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            return;
+        }
 
         // A double click opens the note of whatever it lands on: the text editor for a text mark,
         // the note pill for everything else. The editor window listens for it.
@@ -243,6 +260,14 @@ public sealed class AnnotationCanvas : FrameworkElement
     // ordinary arrow everywhere else.
     private void UpdateCursor(Point displayPoint)
     {
+        if (Tool == EditorTool.Eraser)
+        {
+            var hover = EraseTarget(displayPoint);
+            if (!ReferenceEquals(hover, _eraseHover)) { _eraseHover = hover; InvalidateVisual(); }
+            Cursor = hover is null ? Cursors.Arrow : Cursors.Hand;
+            return;
+        }
+        if (_eraseHover is not null) { _eraseHover = null; InvalidateVisual(); }
         var handle = FindResizeHandle(displayPoint);
         if (handle.Corner >= 0) { Cursor = handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW; return; }
         var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
@@ -251,7 +276,12 @@ public sealed class AnnotationCanvas : FrameworkElement
             : Cursors.Arrow;
     }
 
-    private static bool IsDrawingTool(EditorTool tool) => tool != EditorTool.Select;
+    private static bool IsDrawingTool(EditorTool tool) => tool is not (EditorTool.Select or EditorTool.Eraser);
+
+    // The eraser takes whatever the hand can already grab: the edge of a frame, the line of an
+    // arrow, the stroke of a pen, the badge of a comment, the inside of a filled or blurred region.
+    private AnnotationItem? EraseTarget(Point displayPoint) =>
+        FindMoveHandle(displayPoint) ?? HitTestAnnotation(ToImage(displayPoint));
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
@@ -726,6 +756,25 @@ public sealed class AnnotationCanvas : FrameworkElement
         var bounds = canvas.GetDisplayBounds(annotations[0]);
         canvas.UpdateGesture(new Point(bounds.Left, bounds.Top + bounds.Height / 2), pressed: false);
         if (canvas.Cursor != Cursors.Hand) throw new InvalidOperationException("The edge of a mark must show the hand cursor.");
+
+        // The eraser: it points at what it will take, takes it on a click, and says so once.
+        var changes = 0;
+        void Count(object? sender, EventArgs args) => changes++;
+        canvas.AnnotationChanged += Count;
+        canvas.Tool = EditorTool.Eraser;
+        var edge = new Point(bounds.Left, bounds.Top + bounds.Height / 2);
+        canvas.UpdateGesture(edge, pressed: false);
+        if (canvas.Cursor != Cursors.Hand || !ReferenceEquals(canvas._eraseHover, annotations[0]))
+            throw new InvalidOperationException("The eraser must point at the mark under it.");
+        canvas.UpdateGesture(new Point(430, 60), pressed: false);
+        if (canvas.Cursor != Cursors.Arrow || canvas._eraseHover is not null)
+            throw new InvalidOperationException("The eraser must point at nothing over an empty part of the capture.");
+        var kept = annotations[1];
+        Gesture(edge);
+        canvas.AnnotationChanged -= Count;
+        if (annotations.Count != 1 || !ReferenceEquals(annotations[0], kept) || changes != 1)
+            throw new InvalidOperationException("A click of the eraser must remove one mark and report it once.");
+        canvas.Tool = EditorTool.Rectangle;
         canvas.UpdateGesture(new Point(430, 60), pressed: false);
         if (canvas.Cursor != Cursors.Cross) throw new InvalidOperationException("The capture with a drawing tool armed must show the crosshair.");
         canvas.Tool = EditorTool.Select;

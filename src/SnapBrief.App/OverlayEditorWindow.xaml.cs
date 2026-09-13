@@ -186,6 +186,8 @@ public partial class OverlayEditorWindow : Window
             // for a button of its own, and the conceal tool left the editor altogether.
             if (arrowMenu.Items.Count != 3 || EditorShortcuts.Tools.Any(shortcut => shortcut.Key == Key.X))
                 throw new InvalidOperationException("The arrow menu must hold three styles and no thickness, and the X key must be free.");
+            if (EditorShortcuts.Find(EditorTool.Eraser) is not { Key: Key.E } || EditorShortcuts.Caption(EditorTool.Eraser) != "Eraser (E)")
+                throw new InvalidOperationException("The eraser must sit on the E key, with a name of its own in both languages.");
             // The pencil capsule stands for both modes: the H key arms the highlighter, and the
             // capsule starts carrying it, glyph, tag and all.
             Row(pencilMenu, "Highlight (H)").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -338,6 +340,16 @@ public partial class OverlayEditorWindow : Window
             window.Surface.SelectAnnotation(null);
             if (window.NextEscapeStep() != EscapeStep.Capture)
                 throw new InvalidOperationException("With nothing selected and nothing open, Escape must cancel the capture.");
+
+            // What the eraser does to the window: the canvas removes the mark and reports it, the
+            // window turns that into one history entry, and one undo brings the mark back.
+            window._capture.Annotations.Remove(drawn);
+            window.OnAnnotationChanged(window, EventArgs.Empty);
+            if (window._capture.Annotations.Any(annotation => annotation.Id == drawn.Id))
+                throw new InvalidOperationException("An erased mark must leave the capture.");
+            window.OnUndoClick(window, new RoutedEventArgs());
+            if (window._capture.Annotations.All(annotation => annotation.Id != drawn.Id))
+                throw new InvalidOperationException("One undo must bring an erased mark back.");
         }
 
         // The panel keeps its width whatever tool is armed: the thickness button never blanks its
@@ -635,7 +647,7 @@ public partial class OverlayEditorWindow : Window
     }
 
     private System.Windows.Controls.Primitives.ToggleButton[] ToolButtons =>
-        [SelectTool, RectangleTool, ArrowTool, PenTool, TextTool, BlurTool, CropTool];
+        [SelectTool, RectangleTool, ArrowTool, PenTool, TextTool, EraserTool, BlurTool, CropTool];
 
     // Every letter on the panel comes from EditorShortcuts: the name goes to the tooltip (and is
     // translated with the rest of the window), the key goes to the capsule of the tooltip template.
