@@ -137,7 +137,10 @@ public partial class EdgeStackWindow : Window
         };
         _trayIcon.ContextMenuStrip.Items.Add("Показать ленту", null, (_, _) => Dispatcher.Invoke(ShowStackWithoutActivation));
         _trayIcon.ContextMenuStrip.Items.Add("Настройки", null, (_, _) => Dispatcher.Invoke(() => { ShowStackWithoutActivation(); OpenSettings(); }));
-        _trayIcon.ContextMenuStrip.Items.Add("Как пользоваться", null, (_, _) => Dispatcher.Invoke(() => ShowOnboarding(howToOnly: true)));
+        // BeginInvoke, not Invoke: the slides open modally, and a modal loop started from inside the
+        // click handler of the menu runs while that menu is still on screen. The dialog then may
+        // never get the activation its arrow keys need. Posting it lets the menu close first.
+        _trayIcon.ContextMenuStrip.Items.Add("Как пользоваться", null, (_, _) => Dispatcher.BeginInvoke(() => ShowOnboarding(howToOnly: true)));
         _trayIcon.ContextMenuStrip.Items.Add("Новый снимок", null, (_, _) => Dispatcher.InvokeAsync(CaptureLoopAsync));
         _trayIcon.ContextMenuStrip.Items.Add(new WinForms.ToolStripSeparator());
         _trayIcon.ContextMenuStrip.Items.Add("Выйти", null, (_, _) => Dispatcher.Invoke(() => { _exiting = true; Close(); }));

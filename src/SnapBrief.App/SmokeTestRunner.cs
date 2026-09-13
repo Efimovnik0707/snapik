@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace SnapBrief.App;
@@ -219,6 +220,7 @@ public static class SmokeTestRunner
         // do) has to leave the wizard marked as passed, or the first run comes back on every start.
         WithoutBindingErrors("The how-to slides", Controls.HowToSlides.RunSlidesProbe);
         VerifyHowToOnlyWizard(restoredSettings);
+        VerifySlideKeysStayInsideTheWizard(restoredSettings);
         var closedWithoutButtons = false;
         var skipped = new OnboardingWindow(restoredSettings) { MarkPassed = () => closedWithoutButtons = true };
         skipped.Close();
@@ -624,6 +626,39 @@ public static class SmokeTestRunner
             if (!titled)
                 throw new InvalidOperationException($"The slides-only wizard must open in the chosen language and say \"{caption}\" on its only button.");
         }
+    }
+
+    // The arrow keys of the slides: they move one slide, they are eaten so that nothing else reads
+    // them, they do nothing at the ends, and they never take the wizard off its step or off the
+    // screen. A shortcut of a bare Left used to be registered globally, and the arrow then reached
+    // the capture instead of the slides, which hid the wizard for good.
+    // The handler is called directly: a real key event needs a PresentationSource, that is a window
+    // shown with a handle of its own, and the smoke run shows nothing.
+    private static void VerifySlideKeysStayInsideTheWizard(HotkeySettings settings)
+    {
+        var closed = false;
+        var wizard = WithoutBindingErrors("The slide keys of the wizard", () =>
+        {
+            var window = new OnboardingWindow(settings, howToOnly: true);
+            window.Measure(new Size(620, 600));
+            window.Arrange(new Rect(0, 0, 620, 600));
+            window.UpdateLayout();
+            return window;
+        });
+        wizard.Closed += (_, _) => closed = true;
+        var step = wizard.Step;
+        if (!wizard.HandleNavigationKey(Key.Left) || wizard.HowTo.Slide != 0)
+            throw new InvalidOperationException("The left arrow on the first slide must be eaten and leave the slide where it is.");
+        if (!wizard.HandleNavigationKey(Key.Right) || wizard.HowTo.Slide != 1 || wizard.HowTo.AutoAdvancing)
+            throw new InvalidOperationException("The right arrow must show the next slide and stop the automatic run.");
+        for (var i = 0; i < Controls.HowToSlides.SlideCount; i++) wizard.HandleNavigationKey(Key.Right);
+        if (wizard.HowTo.Slide != Controls.HowToSlides.SlideCount - 1)
+            throw new InvalidOperationException("The right arrow on the last slide must stay on it instead of wrapping round.");
+        if (wizard.HandleNavigationKey(Key.Down) || wizard.HandleNavigationKey(Key.Escape))
+            throw new InvalidOperationException("Only the two arrows belong to the slides; every other key stays with the window.");
+        if (wizard.Step != step || closed)
+            throw new InvalidOperationException("The arrows must not move the wizard between its steps, and must not close it.");
+        wizard.Close();
     }
 
     // The strings of the welcome step, and the rule that lets any of them travel back: the way from

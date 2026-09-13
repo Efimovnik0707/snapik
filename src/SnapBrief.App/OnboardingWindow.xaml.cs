@@ -61,8 +61,10 @@ public partial class OnboardingWindow : Window
         ShowStep(howToOnly ? StepCount - 1 : 0);
         ApplyLanguage(_language);
         // Shown while the strip is still hidden: without this the wizard can open behind the window
-        // the user was working in.
-        Loaded += (_, _) => Activate();
+        // the user was working in. The slides get the focus as soon as the window has one to give:
+        // opened from the tray the wizard is nothing but the slides, and the arrow keys have to
+        // reach them from the first moment.
+        Loaded += (_, _) => { Activate(); if (_step == StepCount - 1) HowTo.Focus(); };
     }
 
     // The window can go away without any button: the cross, Alt+F4, the taskbar, "Get started".
@@ -140,8 +142,9 @@ public partial class OnboardingWindow : Window
         NextButton.IsDefault = !last;
         StartButton.IsDefault = last;
         RefreshStepCaption();
-        // The slides only run while their step is on screen.
-        if (last) HowTo.Start();
+        // The slides only run while their step is on screen, and they take the focus with them, so
+        // the arrows reach them however the step was arrived at.
+        if (last) { HowTo.Start(); HowTo.Focus(); }
         else HowTo.Stop();
         if (!_howToOnly) return;
         // Everything the tray does not need: the wizard is only the slides here, and its one button
@@ -152,16 +155,23 @@ public partial class OnboardingWindow : Window
         StepText.Visibility = Visibility.Collapsed;
     }
 
-    // Left and Right step through the slides while the last step is on screen; on the other steps
-    // they belong to whatever has the focus.
+    /// <summary>
+    /// Left and Right step through the slides while the last step is on screen, and say so by
+    /// returning true; on the other steps they belong to whatever has the focus. The keys never
+    /// move the wizard between its steps: only "Back", "Next" and the last button do that, and an
+    /// arrow at the end of the slides does nothing at all. The smoke run calls this directly, a
+    /// real key event needs a shown window with a handle behind it.
+    /// </summary>
+    internal bool HandleNavigationKey(Key key)
+    {
+        if (_step != StepCount - 1 || key is not (Key.Left or Key.Right)) return false;
+        HowTo.Step(key == Key.Left ? -1 : 1);
+        return true;
+    }
+
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        if (_step == StepCount - 1 && e.Key is Key.Left or Key.Right)
-        {
-            if (e.Key == Key.Left) HowTo.PreviousSlide();
-            else HowTo.NextSlide();
-            e.Handled = true;
-        }
+        if (HandleNavigationKey(e.Key)) e.Handled = true;
         base.OnPreviewKeyDown(e);
     }
 
