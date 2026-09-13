@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -216,38 +214,6 @@ public partial class OnboardingWindow : Window
     }
 
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
-
-    // Windows blocks pinning to the taskbar from an application, so the step explains the manual
-    // path and only opens the folder with the shortcut the user has to right-click.
-    private void OnShowShortcut(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{ShortcutPath()}\"") { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            ErrorText.Text = $"{UiLanguage.Text("Не удалось открыть папку с ярлыком", _language)}: {ex.Message}";
-            ErrorText.Visibility = Visibility.Visible;
-        }
-    }
-
-    // An installation for every user puts the shortcut into the common desktop and the common Start
-    // menu, so those are searched too; the executable itself is the last resort, and explorer selects
-    // it just as well.
-    internal static string ShortcutPath()
-    {
-        string[] candidates =
-        [
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "SnapBrief.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "SnapBrief", "SnapBrief.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "SnapBrief", "SnapBrief.lnk"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), "SnapBrief.lnk")
-        ];
-        foreach (var candidate in candidates)
-            if (File.Exists(candidate)) return candidate;
-        return Environment.ProcessPath ?? candidates[0];
-    }
 
     // Smoke probe: the wizard is built, laid out, translated both ways and walked through every
     // step, so a broken template or a string without an English pair fails the run.

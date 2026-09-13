@@ -106,7 +106,7 @@ internal static class UiLanguage
             "To keep the strip within reach, pin SnapBrief: open Start, right-click SnapBrief and choose \"Pin to taskbar\"",
         ["Повторный запуск ярлыка не открывает второе окно, а показывает ленту."] = "Starting the shortcut again does not open a second window, it shows the strip.",
         ["Автозапуск недоступен"] = "Autostart is unavailable",
-        ["Показать ярлык"] = "Show the shortcut", ["Не удалось открыть папку с ярлыком"] = "Could not open the folder with the shortcut",
+        ["Закрепить на панели задач"] = "Pin to taskbar",
         ["Как пользоваться"] = "How it works", ["Нажми клавишу"] = "Press the shortcut", ["Выдели область"] = "Select an area",
         ["Добавь комментарии"] = "Add comments", ["Вставь в чат: Ctrl+V"] = "Paste into the chat: Ctrl+V"
     };

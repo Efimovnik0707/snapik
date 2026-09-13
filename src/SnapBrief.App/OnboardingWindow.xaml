@@ -163,9 +163,50 @@
      <!-- Shown only when the startup entry cannot be read or written: a checkbox that is grey for no
           visible reason looks like a bug. -->
      <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" Style="{StaticResource StepSubtitle}" Visibility="Collapsed" Margin="24,-14,0,20"/>
+     <!-- Windows does not let an application pin itself to the taskbar, so the step shows the manual
+          path instead of opening a folder: Start, right-click on SnapBrief, "Pin to taskbar". Shapes
+          only, no bitmaps, and no animation - the moving picture lives on the next step. -->
+     <Viewbox Stretch="Uniform" Width="360" Height="132" HorizontalAlignment="Left" Margin="0,0,0,16">
+      <Canvas Width="360" Height="132">
+       <Rectangle Canvas.Left="0" Canvas.Top="108" Width="360" Height="24" RadiusX="6" RadiusY="6" Fill="#1B212B"/>
+       <Rectangle Canvas.Left="118" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
+       <Rectangle Canvas.Left="140" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
+       <Rectangle Canvas.Left="162" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
+       <Rectangle Canvas.Left="14" Canvas.Top="113" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
+       <Rectangle Canvas.Left="24" Canvas.Top="113" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
+       <Rectangle Canvas.Left="14" Canvas.Top="123" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
+       <Rectangle Canvas.Left="24" Canvas.Top="123" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
+       <Border Canvas.Left="8" Canvas.Top="8" Width="176" Height="96" CornerRadius="10" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
+        <StackPanel Margin="12,10,0,0">
+         <Rectangle Width="96" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+         <Border Height="22" Width="148" CornerRadius="5" HorizontalAlignment="Left" Background="{DynamicResource AccentSoftBrush}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="7,0,0,0">
+           <Ellipse Width="10" Height="10" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+           <Rectangle Width="70" Height="7" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center"/>
+          </StackPanel>
+         </Border>
+         <Rectangle Width="82" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+        </StackPanel>
+       </Border>
+       <Border Canvas.Left="150" Canvas.Top="34" Width="184" Height="70" CornerRadius="8" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
+        <StackPanel Margin="6,5,6,0">
+         <Rectangle Width="104" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="6,6,0,7"/>
+         <Border Height="20" CornerRadius="4" Background="#2E3A49">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
+           <Path Width="11" Height="13" Stretch="Uniform" Fill="#EEF2F8" VerticalAlignment="Center" Margin="0,0,6,0"
+                 Data="M3,0 L9,0 L8,1.6 L8,5 L11,7.6 L11,8.8 L6.6,8.8 L6.6,13 L5.4,13 L5.4,8.8 L1,8.8 L1,7.6 L4,5 L4,1.6 Z"/>
+           <TextBlock Text="Закрепить на панели задач" FontSize="10" Foreground="#EEF2F8" VerticalAlignment="Center"/>
+          </StackPanel>
+         </Border>
+         <Rectangle Width="88" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="6,7,0,0"/>
+        </StackPanel>
+       </Border>
+       <Ellipse Canvas.Left="146" Canvas.Top="56" Width="9" Height="9" Fill="{DynamicResource AccentBrush}" Opacity="0.9"/>
+       <Path Canvas.Left="142" Canvas.Top="52" Fill="#EEF2F8" Stroke="#171B22" StrokeThickness="1" Data="M0,0 L0,13 L3.2,10 L5.2,14 L7.2,13 L5.2,9.2 L9.4,9.2 Z"/>
+      </Canvas>
+     </Viewbox>
      <TextBlock Text="Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»" Style="{StaticResource StepBodyText}"/>
      <TextBlock Text="Повторный запуск ярлыка не открывает второе окно, а показывает ленту." Style="{StaticResource StepSubtitle}"/>
-     <Button x:Name="ShortcutButton" Style="{StaticResource BaseButton}" controls:ButtonChrome.HoverBackground="#2A3240" controls:ButtonChrome.PressedBackground="#20262F" HorizontalAlignment="Left" Padding="0" Foreground="{DynamicResource AccentTextBrush}" Content="Показать ярлык" Click="OnShowShortcut"/>
     </StackPanel>
 
     <StackPanel x:Name="Step4" Style="{StaticResource StepPanel}" Visibility="Collapsed">
