@@ -210,6 +210,7 @@ public static class SmokeTestRunner
         }
         ThemeService.Apply("dark", "blue");
         WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
+        WithoutBindingErrors("The colour spectrum", Controls.ColorSpectrum.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
         {
             var window = new HotkeySettingsWindow(restoredSettings);

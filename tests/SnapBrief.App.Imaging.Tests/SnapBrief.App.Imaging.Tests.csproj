@@ -18,6 +18,7 @@
   <ItemGroup>
     <Compile Include="..\..\src\SnapBrief.App\Imaging\RegionBlur.cs" Link="Imaging\RegionBlur.cs" />
     <Compile Include="..\..\src\SnapBrief.App\Imaging\ShapeMask.cs" Link="Imaging\ShapeMask.cs" />
+    <Compile Include="..\..\src\SnapBrief.App\Imaging\ColorConversion.cs" Link="Imaging\ColorConversion.cs" />
     <Compile Include="..\..\src\SnapBrief.App\Controls\ResizeGeometry.cs" Link="ResizeGeometry.cs" />
     <Compile Include="..\..\src\SnapBrief.App\Controls\StripResizeGeometry.cs" Link="StripResizeGeometry.cs" />
     <Compile Include="..\..\src\SnapBrief.App\Controls\HotkeyLabelParts.cs" Link="HotkeyLabelParts.cs" />

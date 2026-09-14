@@ -62,6 +62,7 @@ internal static class UiLanguage
         ["Размер"] = "Size", ["Размер шрифта"] = "Font size",
         ["Цвет"] = "Color", ["Цвет HEX"] = "HEX color", ["Толщина линии"] = "Line thickness",
         ["Стандартная"] = "Standard", ["Пастель"] = "Pastel", ["Неон"] = "Neon", ["Своя"] = "Custom",
+        ["Оттенок"] = "Hue", ["Насыщенность и яркость"] = "Saturation and brightness",
         ["Выделите область · Esc отменяет"] = "Select an area · Esc cancels", ["СНИМОК {0}"] = "CAPTURE {0}",
         ["Добавить комментарий"] = "Add comment", ["Удалить комментарий"] = "Remove comment", ["Переместить заметку"] = "Move the note", ["Отменить"] = "Undo", ["Повторить"] = "Redo",
         ["Комментарии"] = "Comments", ["Нет комментариев"] = "No comments yet", ["Комментарий к снимку"] = "Capture comment",
