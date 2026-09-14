@@ -172,6 +172,11 @@ public static class SmokeTestRunner
         var themeKeys = ThemeService.Themes.Select(theme => KeysOf(ThemeService.LoadTheme(theme))).ToArray();
         if (themeKeys.Any(keys => !keys.SequenceEqual(themeKeys[0])))
             throw new InvalidOperationException("The theme palettes must all define the same keys.");
+        // A key declared both here and in the base dictionary would be a key the base dictionary
+        // wins or loses by merge order alone, and the theme would be overruled without a word.
+        var baseKeys = KeysOf(new ResourceDictionary { Source = new Uri("Themes/SnapBriefTheme.xaml", UriKind.Relative) });
+        if (themeKeys[0].Intersect(baseKeys).Any())
+            throw new InvalidOperationException("A palette key must not also be declared by the base dictionary.");
         ThemeService.Apply("sea", "blue");
         if (Application.Current.Resources["SurfaceBrush"] is not LinearGradientBrush sea ||
             sea.GradientStops.Count != 2 || sea.GradientStops[0].Color != Color.FromRgb(0x16, 0x3A, 0x44) ||
