@@ -43,6 +43,7 @@ internal static class UiLanguage
         ["Добавь Ctrl, Alt или Shift"] = "Add Ctrl, Alt or Shift",
         ["Уже занято"] = "Already taken", ["Это сочетание занято Windows"] = "Windows keeps this shortcut",
         ["Одно сочетание на два действия. Поменяй одно из них."] = "One shortcut for two actions. Change one of them.",
+        ["Предложить: {0}"] = "Suggest: {0}", ["Не назначено"] = "Not assigned",
         ["Новый снимок"] = "New capture", ["+ Снимок"] = "+ Capture",
         ["Готово"] = "Done", ["Выбор"] = "Select", ["Область"] = "Region", ["Стрелка"] = "Arrow",
         ["Маркер"] = "Highlight", ["Текст"] = "Text", ["Ластик"] = "Eraser", ["Размыть"] = "Blur", ["Обрезать"] = "Crop",

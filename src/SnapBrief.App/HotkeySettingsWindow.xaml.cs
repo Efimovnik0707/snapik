@@ -17,8 +17,11 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
 {
     public bool CaptureEnabled { get; init; } = true;
     public bool FullscreenSaveEnabled { get; init; }
-    /// <summary>Shift + Print Screen, what "save the whole screen" carries until it is changed.</summary>
-    public const string DefaultFullscreenSaveId = "custom:4:44";
+    /// <summary>
+    /// Ctrl + Alt + Shift + S, what "save the whole screen" carries until it is changed. Only the
+    /// default moves: a file that already holds an id is read as it was written.
+    /// </summary>
+    public const string DefaultFullscreenSaveId = "custom:7:83";
     public string FullscreenSaveId { get; init; } = DefaultFullscreenSaveId;
     public bool ShowNotifications { get; init; } = true;
     public bool RememberRegion { get; init; }
@@ -325,6 +328,12 @@ public partial class HotkeySettingsWindow : Window
         FullscreenField.ConflictsWith = [CaptureField];
         CaptureEnabledBox.IsChecked = settings.CaptureEnabled;
         FullscreenEnabledBox.IsChecked = settings.FullscreenSaveEnabled;
+        // A shortcut switched off has no combination to show, and the chip beside it offers one.
+        CaptureEnabledBox.Checked += (_, _) => UpdateShortcutState();
+        CaptureEnabledBox.Unchecked += (_, _) => UpdateShortcutState();
+        FullscreenEnabledBox.Checked += (_, _) => UpdateShortcutState();
+        FullscreenEnabledBox.Unchecked += (_, _) => UpdateShortcutState();
+        UpdateShortcutState();
         NotificationsBox.IsChecked = settings.ShowNotifications;
         RememberBox.IsChecked = settings.RememberRegion;
         CursorBox.IsChecked = settings.CaptureCursor;
@@ -393,8 +402,60 @@ public partial class HotkeySettingsWindow : Window
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
         FullscreenField.ApplyLanguage(language);
+        UpdateShortcutState();
         RefreshAccentNames();
         UpdateQuality();
+    }
+
+    /// <summary>
+    /// The combinations the chip has offered and Windows refused to register. A shortcut another
+    /// application holds fails at the registration and nowhere earlier, so the queue learns about it
+    /// only after a save was attempted, and the chip moves on to the next candidate.
+    /// </summary>
+    private readonly List<string> _refusedByWindows = [];
+
+    /// <summary>The combination the chip put into the field, if the user took one.</summary>
+    private string? _suggested;
+
+    // What the chip offers: the first combination of the queue that neither field holds and nothing
+    // has refused. Null means the queue is exhausted and the chip has nothing to say.
+    private string? SuggestedShortcut() =>
+        HotkeyRules.SuggestFree([CaptureField.HotkeyId, .. _refusedByWindows]);
+
+    // A shortcut that is switched off shows "not assigned", and the one for the whole screen also
+    // shows the chip that switches it on.
+    private void UpdateShortcutState()
+    {
+        CaptureField.IsAssigned = CaptureEnabledBox.IsChecked == true;
+        FullscreenField.IsAssigned = FullscreenEnabledBox.IsChecked == true;
+        var suggestion = FullscreenField.IsAssigned ? null : SuggestedShortcut();
+        SuggestChip.Visibility = suggestion is null ? Visibility.Collapsed : Visibility.Visible;
+        if (suggestion is null) return;
+        var label = HotkeySettings.Find(suggestion, HotkeySettings.DefaultFullscreenSaveId).Label;
+        SuggestChip.Tag = suggestion;
+        SuggestChip.Content = string.Format(UiLanguage.Text("Предложить: {0}", _language), label);
+    }
+
+    // Print Screen is held by the snipping tool on most of Windows 11, and nothing says so until the
+    // registration fails. A combination the chip put there and Windows would not take is dropped
+    // again: the shortcut goes back to "not assigned" and the chip offers the next candidate.
+    private void RefuseSuggestion()
+    {
+        if (FullscreenEnabledBox.IsChecked != true || _suggested is null ||
+            !HotkeyRules.SameGesture(FullscreenField.HotkeyId, _suggested)) return;
+        _refusedByWindows.Add(_suggested);
+        FullscreenEnabledBox.IsChecked = false;
+        UpdateShortcutState();
+    }
+
+    private void OnSuggestShortcut(object sender, RoutedEventArgs e)
+    {
+        if (SuggestChip.Tag is not string suggestion) return;
+        _suggested = suggestion;
+        FullscreenField.HotkeyId = suggestion;
+        FullscreenEnabledBox.IsChecked = true;
+        ErrorText.Visibility = Visibility.Collapsed;
+        UpdateShortcutState();
     }
 
     // The volume belongs to the sounds: with them off there is nothing to make quieter.
@@ -413,6 +474,11 @@ public partial class HotkeySettingsWindow : Window
     private void OnHotkeyChanged(object? sender, EventArgs e)
     {
         ErrorText.Visibility = Visibility.Collapsed;
+        // A combination pressed into a field that was switched off is a request for that shortcut:
+        // it would otherwise be recorded and go on showing "not assigned".
+        if (ReferenceEquals(sender, CaptureField)) CaptureEnabledBox.IsChecked = true;
+        if (ReferenceEquals(sender, FullscreenField)) FullscreenEnabledBox.IsChecked = true;
+        UpdateShortcutState();
         SaveButton.Focus();
     }
     private void OnBrowseDirectory(object sender, RoutedEventArgs e)
@@ -454,7 +520,7 @@ public partial class HotkeySettingsWindow : Window
                 Language = LanguageBox.SelectedIndex == 1 ? "en" : "ru"
             };
             var error = TryApply?.Invoke(Result);
-            if (error is not null) throw new InvalidOperationException(error);
+            if (error is not null) { RefuseSuggestion(); throw new InvalidOperationException(error); }
             DialogResult = true;
         }
         catch (Exception ex) { ErrorText.Text = UiLanguage.Text(ex.Message, _language); ErrorText.Visibility = Visibility.Visible; Result = null; }
@@ -467,6 +533,23 @@ public partial class HotkeySettingsWindow : Window
     /// </summary>
     internal static void RunSettingsRulesProbe(HotkeySettings settings)
     {
+        // A clean installation: the shortcut of the whole screen is off, the field says so, and the
+        // chip offers the first combination of the queue.
+        var clean = new HotkeySettingsWindow(HotkeySettings.Default);
+        clean.ApplyLanguage("ru");
+        if (clean.FullscreenField.IsAssigned || clean.SuggestChip.Visibility != Visibility.Visible ||
+            (string?)clean.SuggestChip.Content != "Предложить: Print Screen")
+            throw new InvalidOperationException("A shortcut that is off must say so and be offered a free combination.");
+        clean.OnSuggestShortcut(clean.SuggestChip, new RoutedEventArgs());
+        if (clean.FullscreenEnabledBox.IsChecked != true || clean.FullscreenField.HotkeyId != "print-screen" ||
+            clean.SuggestChip.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("The chip must switch the shortcut on with the combination it offers.");
+        // Windows refused to register it: the offer is withdrawn and the queue moves on.
+        clean.RefuseSuggestion();
+        if (clean.FullscreenEnabledBox.IsChecked != false || clean.SuggestChip.Visibility != Visibility.Visible ||
+            (string?)clean.SuggestChip.Content != $"Предложить: {HotkeySettings.Find(HotkeySettings.DefaultFullscreenSaveId).Label}")
+            throw new InvalidOperationException("A suggestion Windows refused must give way to the next candidate.");
+
         var window = new HotkeySettingsWindow(settings);
         window.ApplyLanguage("ru");
         window.CaptureField.HotkeyId = "ctrl-alt-s";

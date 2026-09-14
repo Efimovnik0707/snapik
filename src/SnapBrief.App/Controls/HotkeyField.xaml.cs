@@ -23,6 +23,7 @@ public partial class HotkeyField : UserControl
     private const string NeedsModifierCaption = "Добавь Ctrl, Alt или Shift";
     private const string ReservedCaption = "Это сочетание занято Windows";
     private const string TakenCaption = "Уже занято";
+    private const string UnassignedCaption = "Не назначено";
     private static readonly Brush IdleBorder = new SolidColorBrush(Color.FromRgb(68, 80, 100));
     // The third state of the frame, beside the idle one and the accent a recording wears: what the
     // field looks like while it refuses a combination.
@@ -48,6 +49,21 @@ public partial class HotkeyField : UserControl
     {
         get => (string)GetValue(HotkeyIdProperty);
         set => SetValue(HotkeyIdProperty, value);
+    }
+
+    public static readonly DependencyProperty IsAssignedProperty = DependencyProperty.Register(
+        nameof(IsAssigned), typeof(bool), typeof(HotkeyField),
+        new PropertyMetadata(true, (field, _) => ((HotkeyField)field).Refresh()));
+
+    /// <summary>
+    /// Whether the shortcut is switched on at all. A shortcut that is off has no combination to
+    /// show: the id behind it is still the one the file carries, and showing it would offer a
+    /// shortcut that does nothing. The field says "not assigned" instead.
+    /// </summary>
+    public bool IsAssigned
+    {
+        get => (bool)GetValue(IsAssignedProperty);
+        set => SetValue(IsAssignedProperty, value);
     }
 
     /// <summary>Raised after the user records a new hotkey, never for a value set in code.</summary>
@@ -79,7 +95,10 @@ public partial class HotkeyField : UserControl
     {
         if (KeyCaps is null) return;
         KeyCaps.Children.Clear();
-        foreach (var part in HotkeyLabelParts.Split(HotkeySettings.Find(HotkeyId).Label)) KeyCaps.Children.Add(KeyCap(part));
+        // A shortcut that is switched off shows no capsules: the id behind it would otherwise be
+        // read out of the file (or out of the default) and look like a working combination.
+        if (!IsAssigned) KeyCaps.Children.Add(UnassignedLabel(UiLanguage.Text(UnassignedCaption, _language)));
+        else foreach (var part in HotkeyLabelParts.Split(HotkeySettings.Find(HotkeyId).Label)) KeyCaps.Children.Add(KeyCap(part));
         KeyCaps.Visibility = _recording ? Visibility.Collapsed : Visibility.Visible;
         // The recording border is the accent of the current theme, so it follows the accent the user
         // picks; a local value put back over it returns the field to its idle frame.
@@ -117,7 +136,7 @@ public partial class HotkeyField : UserControl
     // A combination another field of the window (or of the settings behind it) already holds. The
     // comparison is by gesture, not by text: "print-screen" and "custom:0:44" are one shortcut.
     private bool IsTaken(string id) =>
-        ConflictsWith.Any(field => !ReferenceEquals(field, this) && HotkeyRules.SameGesture(field.HotkeyId, id)) ||
+        ConflictsWith.Any(field => !ReferenceEquals(field, this) && field.IsAssigned && HotkeyRules.SameGesture(field.HotkeyId, id)) ||
         ReservedIds.Any(reserved => HotkeyRules.SameGesture(reserved(), id));
 
     private static Border KeyCap(string key) => new()
@@ -126,6 +145,12 @@ public partial class HotkeyField : UserControl
         Background = new SolidColorBrush(Color.FromRgb(37, 44, 54)),
         BorderBrush = new SolidColorBrush(Color.FromRgb(70, 83, 102)), BorderThickness = new Thickness(1),
         Child = new TextBlock { Text = key, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(238, 242, 248)) }
+    };
+
+    private static TextBlock UnassignedLabel(string text) => new()
+    {
+        Text = text, FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
+        Foreground = new SolidColorBrush(Color.FromRgb(143, 154, 170))
     };
 
     private void BeginRecording()

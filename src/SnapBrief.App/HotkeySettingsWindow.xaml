@@ -48,6 +48,10 @@
     <controls:HotkeyField x:Name="CaptureField" Margin="0,0,0,20" HotkeyChanged="OnHotkeyChanged" AutomationProperties.Name="{local:UiText Сделать скриншот}"/>
     <CheckBox x:Name="FullscreenEnabledBox" Content="Скриншот всего экрана в папку" Margin="0,0,0,7"/>
     <controls:HotkeyField x:Name="FullscreenField" HotkeyChanged="OnHotkeyChanged" AutomationProperties.Name="{local:UiText Скриншот всего экрана в папку}"/>
+    <!-- The shortcut of the whole screen is off until it is asked for, and the chip is the asking:
+         it carries the first free combination and switches the shortcut on with it. -->
+    <Button x:Name="SuggestChip" Style="{StaticResource BaseButton}" Background="{DynamicResource ElevatedBrush}" BorderBrush="{DynamicResource ElevatedLineBrush}"
+            HorizontalAlignment="Left" Margin="0,10,0,0" MinHeight="28" Padding="12,4" FontSize="12" Click="OnSuggestShortcut" Visibility="Collapsed"/>
    </StackPanel></TabItem>
    <TabItem Header="Сохранение"><StackPanel Margin="0,10,0,0">
     <CheckBox x:Name="AutoSaveBox" Content="{local:UiText Автоматически сохранять готовые снимки}" Margin="0,0,0,16"/>

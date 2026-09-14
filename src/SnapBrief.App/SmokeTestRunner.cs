@@ -241,6 +241,11 @@ public static class SmokeTestRunner
         if (settingsWindow.SelectedAccent != "violet")
             throw new InvalidOperationException("The accent row must show the accent the settings were opened with.");
         settingsWindow.CaptureField.HotkeyId = "custom:2:65";
+        // These settings hold the capture shortcut switched off: the field shows that it is not
+        // assigned, and the capsules come back with the tick.
+        if (settingsWindow.CaptureField.KeyCaps.Children.Count != 1)
+            throw new InvalidOperationException("A shortcut that is switched off must not show a combination.");
+        settingsWindow.CaptureEnabledBox.IsChecked = true;
         if (settingsWindow.CaptureField.HotkeyId != "custom:2:65" || settingsWindow.CaptureField.KeyCaps.Children.Count != 2 ||
             settingsWindow.FullscreenField.KeyCaps.Children.Count != HotkeySettings.Find(restoredSettings.FullscreenSaveId).Label.Split(" + ").Length)
             throw new InvalidOperationException("The hotkey field must keep the id it is given and show one capsule per key.");
