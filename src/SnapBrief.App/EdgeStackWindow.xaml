@@ -76,11 +76,21 @@
         <Style TargetType="MenuItem">
             <Setter Property="Foreground" Value="#EEF2F8" /><Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="10,7" />
+            <!-- The column of the check is the reason this template exists in two parts: the previous
+                 one carried a single ContentPresenter, so a checkable item ("Always on top", the
+                 recipients) was checked in the code and showed nothing of it. -->
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem">
                 <Border x:Name="MenuRow" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                    <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" />
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Path x:Name="CheckMark" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Left" Width="11" Height="8" Stretch="Uniform"
+                              Stroke="{TemplateBinding Foreground}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M1,4.5 L4,7.5 L10,1.5" />
+                        <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" />
+                    </Grid>
                 </Border>
                 <ControlTemplate.Triggers>
+                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="CheckMark" Property="Visibility" Value="Visible" /></Trigger>
                     <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="MenuRow" Property="Background" Value="#303845" /></Trigger>
                     <Trigger Property="IsEnabled" Value="False"><Setter TargetName="MenuRow" Property="Opacity" Value="0.45" /></Trigger>
                 </ControlTemplate.Triggers>
