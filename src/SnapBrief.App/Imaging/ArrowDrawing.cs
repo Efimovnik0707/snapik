@@ -32,12 +32,17 @@ internal static class ArrowDrawing
         return points;
     }
 
-    internal static void Draw(DrawingContext dc, Point start, Point end, Brush brush, double thickness, string style)
+    // The pattern belongs to the shaft alone: a dashed head would read as a broken arrow, and the
+    // head is a filled geometry rather than a stroke in any case.
+    internal static void Draw(DrawingContext dc, Point start, Point end, Brush brush, double thickness, string style,
+        SnapBrief.Core.Models.AnnotationLineStyle lineStyle = SnapBrief.Core.Models.AnnotationLineStyle.Solid)
     {
         var length = (end - start).Length;
         if (length < .01) return;
         var direction = start - end;
-        var pen = new Pen(brush, thickness * (style == "bold" ? 2 : 1)) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        var pen = StrokePattern.Apply(
+            new Pen(brush, thickness * (style == "bold" ? 2 : 1)) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round },
+            lineStyle);
         if (style == "curved")
         {
             var control = ControlPoint(start, end);

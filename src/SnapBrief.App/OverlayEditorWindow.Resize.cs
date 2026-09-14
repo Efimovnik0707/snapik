@@ -18,7 +18,7 @@ public partial class OverlayEditorWindow
     private readonly Thumb[] _captureHandles = new Thumb[4];
     private readonly Border _resizeOutline = new()
     {
-        BorderBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255)),
+        BorderBrush = AccentPalette.Brush,
         BorderThickness = new Thickness(2), IsHitTestVisible = false,
         Visibility = Visibility.Collapsed
     };

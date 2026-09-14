@@ -24,6 +24,16 @@ public enum AnnotationShape
     Ellipse
 }
 
+// The pattern a stroke is drawn with: a frame, an oval, an arrow and a pencil have one, and a
+// highlighter, a caption, a blur and a comment have no stroke to pattern. Absent means "solid",
+// which is what every mark written before the field was drawn with.
+public enum AnnotationLineStyle
+{
+    Solid,
+    Dashed,
+    Dotted
+}
+
 public enum AnnotationFill
 {
     None,
@@ -53,6 +63,7 @@ public sealed record AnnotationItem(
 
     public AnnotationShape Shape { get; init; } = AnnotationShape.Rectangle;
     public AnnotationFill Fill { get; init; } = AnnotationFill.None;
+    public AnnotationLineStyle LineStyle { get; init; } = AnnotationLineStyle.Solid;
 
     // What stands inside the box, as "#AARRGGBB". Absent means the colour of the outline, which is
     // what every mark written before the field carried.

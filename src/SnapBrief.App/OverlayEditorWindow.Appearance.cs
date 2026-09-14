@@ -25,6 +25,14 @@ public partial class OverlayEditorWindow
     internal const double MinimumHighlightThickness = 4;
     internal const double MaximumHighlightThickness = 48;
     internal static readonly double[] ThicknessPresets = [2, 4, 6, 8];
+    // The same three patterns the renderers draw, in the units the shapes of WPF use for a dash
+    // array: multiples of the thickness, exactly as DashStyle counts them.
+    private static DoubleCollection? DashesOf(AnnotationLineStyle style) => style switch
+    {
+        AnnotationLineStyle.Dashed => [3, 2],
+        AnnotationLineStyle.Dotted => [0, 2],
+        _ => null
+    };
     internal static readonly double[] HighlightThicknessPresets = [8, 12, 16, 24];
     private static bool HasColor(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Arrow or EditorTool.Pen or EditorTool.Highlight or EditorTool.Text;
     private static bool HasStroke(EditorTool tool) => HasColor(tool) && tool != EditorTool.Text;
@@ -34,6 +42,10 @@ public partial class OverlayEditorWindow
     private static bool HasFill(EditorTool tool) => tool == EditorTool.Rectangle;
     // The size of the letters belongs to a caption, and to nothing else on the panel.
     private static bool HasFontSize(EditorTool tool) => tool == EditorTool.Text;
+    // The pattern of a stroke belongs to the marks that are drawn with one: the frame and the oval,
+    // the arrow and the pencil. The highlighter is left out on purpose — a dashed highlighter falls
+    // apart into blots.
+    private static bool HasLineStyle(EditorTool tool) => Imaging.StrokePattern.Participates(tool);
 
     // A palette is twelve colours plus the five of them that sit on the panel, one click away. The
     // sets are picked in the popover and remembered between captures; replacing the colours of a set
@@ -121,6 +133,16 @@ public partial class OverlayEditorWindow
         FillPopup.IsOpen = true;
     }
 
+    private void OpenLineStyle()
+    {
+        if (LineStylePopup.IsOpen) { LineStylePopup.IsOpen = false; return; }
+        if (_capture is null) return;
+        _appearanceBefore = SnapshotState();
+        _appearanceChanged = false;
+        SyncAppearance();
+        LineStylePopup.IsOpen = true;
+    }
+
     private void OpenThickness()
     {
         if (ThicknessPopup.IsOpen) { ThicknessPopup.IsOpen = false; return; }
@@ -182,7 +204,6 @@ public partial class OverlayEditorWindow
         _syncingAppearance = true;
         ArrowMenuButton.ToolTip = UiLanguage.Text("Стиль стрелки");
         ShapeMenuButton.ToolTip = UiLanguage.Text("Фигура");
-        CommentToolButton.Background = Surface.Tool == EditorTool.Comment ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
         UndoButton.IsEnabled = _undo.Count > 0;
         RedoButton.IsEnabled = _redo.Count > 0;
         var selected = Surface.SelectedAnnotation;
@@ -202,6 +223,18 @@ public partial class OverlayEditorWindow
         // state of the style: an empty caption is what used to make the panel jump.
         ThicknessButton.IsEnabled = HasStroke(tool);
         ThicknessButton.Content = $"{(HasStroke(tool) ? thickness : ActiveThicknessFor(tool)):0} px";
+        // The pattern of the mark under the hand, or of the next one; a tool without a pattern keeps
+        // the last sample on the button, dimmed by the disabled state, the way the thickness does.
+        var lineStyle = selected is not null && HasLineStyle(selected.Kind) ? selected.LineStyle : _activeLineStyle;
+        LineStyleButton.IsEnabled = HasLineStyle(tool);
+        LineStyleGlyph.StrokeDashArray = DashesOf(lineStyle);
+        LineStyleGlyph.StrokeDashCap = lineStyle == AnnotationLineStyle.Dotted ? PenLineCap.Round : PenLineCap.Flat;
+        LineStylePreview.Stroke = new SolidColorBrush(color);
+        LineStylePreview.StrokeThickness = Math.Min(24, thickness);
+        LineStylePreview.StrokeDashArray = DashesOf(lineStyle);
+        LineStylePreview.StrokeDashCap = lineStyle == AnnotationLineStyle.Dotted ? PenLineCap.Round : PenLineCap.Flat;
+        foreach (var segment in LineStyleRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>())
+            segment.IsChecked = segment.Tag is string name && string.Equals(name, lineStyle.ToString(), StringComparison.Ordinal);
         ColorHex.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
         ColorHex.BorderBrush = new SolidColorBrush(Color.FromRgb(70, 83, 102));
         var highlighting = tool == EditorTool.Highlight;
@@ -295,7 +328,8 @@ public partial class OverlayEditorWindow
     }
 
     private void ApplyAppearance(Color? color, double? thickness, AnnotationShape? shape = null, AnnotationFill? fill = null,
-        string? arrowStyle = null, Color? fillColor = null, bool? hasOutline = null, double? fontSize = null)
+        string? arrowStyle = null, Color? fillColor = null, bool? hasOutline = null, double? fontSize = null,
+        AnnotationLineStyle? lineStyle = null)
     {
         var selected = Surface.SelectedAnnotation;
         var tool = selected?.Kind ?? Surface.Tool;
@@ -306,6 +340,7 @@ public partial class OverlayEditorWindow
         if (fillColor is { } fc && HasFill(tool)) { _appearanceDefaultsChanged |= fc != _activeFillColor; _activeFillColor = fc; Surface.ActiveFillColor = fc; if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; } }
         if (hasOutline is { } outline && HasFill(tool)) { _appearanceDefaultsChanged |= outline != _activeHasOutline; _activeHasOutline = outline; Surface.ActiveHasOutline = outline; if (selected is not null) { selected.HasOutline = outline; _appearanceChanged = true; } }
         if (arrowStyle is { } style && tool == EditorTool.Arrow) { Surface.ActiveArrowStyle = style; if (selected is not null) { selected.ArrowStyle = style; _appearanceChanged = true; } }
+        if (lineStyle is { } line && HasLineStyle(tool)) { _activeLineStyle = line; Surface.ActiveLineStyle = line; if (selected is not null) { selected.LineStyle = line; _appearanceChanged = true; } }
         if (fontSize is { } size && HasFontSize(tool))
         {
             size = TextMarkMetrics.Clamp(size);
@@ -408,6 +443,13 @@ public partial class OverlayEditorWindow
         SyncAppearance();
     }
 
+    private void OnLineStylePresetClick(object sender, RoutedEventArgs e)
+    {
+        if (_syncingAppearance || sender is not System.Windows.Controls.Primitives.ToggleButton { Tag: string tag } ||
+            !Enum.TryParse<AnnotationLineStyle>(tag, out var style)) return;
+        ApplyAppearance(null, null, lineStyle: style);
+    }
+
     private void OnThicknessPresetClick(object sender, RoutedEventArgs e)
     {
         if (_syncingAppearance || sender is not System.Windows.Controls.Primitives.ToggleButton { Tag: string tag } ||
@@ -431,6 +473,7 @@ public partial class OverlayEditorWindow
     private void OnHexKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { ApplyHex(); e.Handled = true; } }
     private void OnAppearanceKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { AppearancePopup.IsOpen = false; e.Handled = true; } }
     private void OnThicknessKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { ThicknessPopup.IsOpen = false; e.Handled = true; } }
+    private void OnLineStyleKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { LineStylePopup.IsOpen = false; e.Handled = true; } }
     private void OnFillKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { FillPopup.IsOpen = false; e.Handled = true; } }
     private void OnFontSizeKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { FontSizePopup.IsOpen = false; e.Handled = true; } }
     private void OnCloseAppearance(object sender, RoutedEventArgs e) => AppearancePopup.IsOpen = false;
@@ -438,10 +481,11 @@ public partial class OverlayEditorWindow
     // What Escape gives up, in order: an open popover, then the selection, and only with nothing
     // left to give up, the capture itself. The mark being drawn is taken by the canvas before the
     // window is asked at all.
-    internal enum EscapeStep { Popover, Selection, Capture }
+    internal enum EscapeStep { Popover, Comment, Selection, Capture }
 
     internal EscapeStep NextEscapeStep() =>
-        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || FillPopup.IsOpen || FontSizePopup.IsOpen ? EscapeStep.Popover
+        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || LineStylePopup.IsOpen || FillPopup.IsOpen || FontSizePopup.IsOpen ? EscapeStep.Popover
+        : Surface.Tool == EditorTool.Comment ? EscapeStep.Comment
         : Surface.SelectedAnnotation is not null ? EscapeStep.Selection
         : EscapeStep.Capture;
 
@@ -449,6 +493,7 @@ public partial class OverlayEditorWindow
     {
         AppearancePopup.IsOpen = false;
         ThicknessPopup.IsOpen = false;
+        LineStylePopup.IsOpen = false;
         FillPopup.IsOpen = false;
         FontSizePopup.IsOpen = false;
         ShortcutSheetPopup.IsOpen = false;

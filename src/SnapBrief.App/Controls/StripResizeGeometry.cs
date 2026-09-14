@@ -54,13 +54,20 @@ internal static class StripResizeGeometry
     }
 
     /// <summary>
-    /// The new left edge and width for a drag of <paramref name="delta"/> pixels. The strip never
-    /// crosses <paramref name="leftLimit"/>, the left edge of the working area it sits in.
+    /// The left edge and the width for a pointer that has travelled <paramref name="pointerDelta"/>
+    /// pixels from where it was when the drag began, measured against <paramref name="startWidth"/>,
+    /// the width the strip had at that same moment. Both figures come from the start of the drag on
+    /// purpose: a delta added to the width of the moment keeps the travel already spent beyond a
+    /// clamp, and the strip then ignores the whole way back until the pointer has given that travel
+    /// up again. The strip never crosses <paramref name="leftLimit"/>, the left edge of the working
+    /// area it sits in.
     /// </summary>
-    internal static (double Left, double Width) Resize(double right, double width, double delta, double leftLimit)
+    internal static (double Left, double Width) WidthFromStart(double right, double startWidth, double pointerDelta, double leftLimit)
     {
+        if (!double.IsFinite(startWidth)) startWidth = DefaultWidth;
+        if (!double.IsFinite(pointerDelta)) pointerDelta = 0;
         var allowed = Math.Max(MinimumWidth, right - leftLimit);
-        var resized = Math.Clamp(width - delta, MinimumWidth, allowed);
+        var resized = Math.Clamp(startWidth - pointerDelta, MinimumWidth, allowed);
         return (right - resized, resized);
     }
 
@@ -80,18 +87,21 @@ internal static class StripResizeGeometry
     }
 
     /// <summary>
-    /// The height of the capture list after a drag of <paramref name="delta"/> pixels downwards. The
-    /// top edge stays where it was, so the strip grows down; <paramref name="chromeHeight"/> is
-    /// everything of the window that is not the list (header, button, toast, paddings), and it keeps
-    /// the bottom of the window inside <paramref name="workBottom"/>.
+    /// The height of the capture list for a pointer that has travelled <paramref name="pointerDelta"/>
+    /// pixels downwards from where it was when the drag began, measured against
+    /// <paramref name="startListHeight"/>, the height the list had at that same moment — the way back
+    /// from a clamp then moves the strip on the first pixel. The top edge stays where it was, so the
+    /// strip grows down; <paramref name="chromeHeight"/> is everything of the window that is not the
+    /// list (header, button, toast, paddings), and it keeps the bottom of the window inside
+    /// <paramref name="workBottom"/>.
     /// </summary>
-    internal static double ResizeListHeight(double listHeight, double delta, double chromeHeight, double top, double workBottom)
+    internal static double ListHeightFromStart(double startListHeight, double pointerDelta, double chromeHeight, double top, double workBottom)
     {
-        if (!double.IsFinite(listHeight)) listHeight = DefaultListHeight;
-        if (!double.IsFinite(delta)) delta = 0;
+        if (!double.IsFinite(startListHeight)) startListHeight = DefaultListHeight;
+        if (!double.IsFinite(pointerDelta)) pointerDelta = 0;
         var available = workBottom - top - Math.Max(0, chromeHeight);
         var ceiling = Math.Max(MinimumListHeight, available);
-        return Math.Clamp(listHeight + delta, MinimumListHeight, ceiling);
+        return Math.Clamp(startListHeight + pointerDelta, MinimumListHeight, ceiling);
     }
 
     /// <summary>

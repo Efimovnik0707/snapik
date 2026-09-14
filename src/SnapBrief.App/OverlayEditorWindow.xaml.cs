@@ -30,7 +30,6 @@ public partial class OverlayEditorWindow : Window
     private readonly bool _isNew;
     private readonly Stack<OverlaySnapshot> _undo = [];
     private readonly Stack<OverlaySnapshot> _redo = [];
-    private readonly Dictionary<Guid, TextBlock> _chipLabels = [];
     private readonly Dictionary<Guid, Border> _chipBorders = [];
     private readonly Dictionary<Guid, Action<bool>> _chipExpanders = [];
     private readonly Dictionary<Guid, Action> _chipFinishers = [];
@@ -49,6 +48,10 @@ public partial class OverlayEditorWindow : Window
     private double _activeFontSize = TextMarkMetrics.DefaultFontSize;
     private SnapBrief.Core.Models.AnnotationShape _activeShape = SnapBrief.Core.Models.AnnotationShape.Rectangle;
     private SnapBrief.Core.Models.AnnotationFill _activeFill = SnapBrief.Core.Models.AnnotationFill.None;
+    // The pattern the next stroke is drawn with. It lives as long as the editor window does and is
+    // not written to the settings file: the rest of the panel is remembered there, but a field of
+    // the settings is a change of their format, and this round declares none for the pattern.
+    private SnapBrief.Core.Models.AnnotationLineStyle _activeLineStyle = SnapBrief.Core.Models.AnnotationLineStyle.Solid;
     private Color? _activeFillColor;
     private bool _activeHasOutline = true;
     private PaletteSet _activePalette = Palettes[0];
@@ -399,39 +402,83 @@ public partial class OverlayEditorWindow : Window
                 throw new InvalidOperationException("One undo must bring an erased mark back.");
         }
 
-        // The panel keeps its width whatever tool is armed: the thickness button never blanks its
-        // caption, and it and the colour circle are both a fixed size.
-        var widths = new List<double>();
-        foreach (var tool in new[] { EditorTool.Rectangle, EditorTool.Text, EditorTool.Blur, EditorTool.Select, EditorTool.Arrow })
-        {
-            window.SelectToolMode(tool);
-            if (string.IsNullOrWhiteSpace((string?)window.ThicknessButton.Content))
-                throw new InvalidOperationException($"The thickness button showed nothing while the {tool} tool was armed.");
-            // The fill button carries a word of its own and never blanks either, whatever is armed.
-            if (string.IsNullOrWhiteSpace(window.FillButtonLabel.Text) || window.FillButton.Visibility != Visibility.Visible)
-                throw new InvalidOperationException($"The fill button showed nothing while the {tool} tool was armed.");
-            // The width the panel asks for, not the width it was given: a window that was never
-            // shown has no arranged size to read.
-            window.Toolbar.InvalidateMeasure();
-            window.Toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            widths.Add(window.Toolbar.DesiredSize.Width);
-        }
-        if (widths[0] < 100 || widths.Distinct().Count() != 1)
-            throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
-
-        // And on a working area narrower than the row, the row wraps instead of running past it:
-        // the panel grew by a fill button and a size button, and a tail off the screen takes
-        // "Сохранить" and "Готово" with it.
-        var oneRow = window.Toolbar.DesiredSize.Height;
-        var narrow = Math.Max(200, widths[0] - 120);
-        window.Toolbar.MaxWidth = narrow;
-        window.Toolbar.InvalidateMeasure();
-        window.Toolbar.Measure(new Size(narrow, double.PositiveInfinity));
-        var wrapped = window.Toolbar.DesiredSize;
+        // Everything measured below has to start from a bare panel. PositionToolbar leaves two
+        // properties on it: Margin, which carries the absolute position of the panel on screen and
+        // which WPF counts inside DesiredSize, and MaxWidth, which is the real width of the monitor.
+        // With those in place "the width the panel asks for" is really "its width plus where it was
+        // put, already wrapped by the screen", and on a narrow screen the arithmetic here turns over
+        // and calls a panel that fits perfectly well a panel that ran off the desktop.
+        var savedMargin = window.Toolbar.Margin;
+        var savedMaxWidth = window.Toolbar.MaxWidth;
+        window.Toolbar.Margin = new Thickness(0);
         window.Toolbar.MaxWidth = double.PositiveInfinity;
-        window.Toolbar.InvalidateMeasure();
-        if (wrapped.Width > narrow + 0.5 || wrapped.Height <= oneRow)
-            throw new InvalidOperationException($"The markup panel must wrap into a working area of {narrow}, not run past it: {wrapped}.");
+        try
+        {
+            // The panel keeps its width whatever tool is armed: the thickness button never blanks its
+            // caption, and it and the colour circle are both a fixed size.
+            var widths = new List<double>();
+            foreach (var tool in new[] { EditorTool.Rectangle, EditorTool.Text, EditorTool.Blur, EditorTool.Select, EditorTool.Arrow })
+            {
+                window.SelectToolMode(tool);
+                if (string.IsNullOrWhiteSpace((string?)window.ThicknessButton.Content))
+                    throw new InvalidOperationException($"The thickness button showed nothing while the {tool} tool was armed.");
+                // The fill button carries a word of its own and never blanks either, whatever is armed.
+                if (string.IsNullOrWhiteSpace(window.FillButtonLabel.Text) || window.FillButton.Visibility != Visibility.Visible)
+                    throw new InvalidOperationException($"The fill button showed nothing while the {tool} tool was armed.");
+                // The width the panel asks for, not the width it was given: a window that was never
+                // shown has no arranged size to read.
+                window.Toolbar.InvalidateMeasure();
+                window.Toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                widths.Add(window.Toolbar.DesiredSize.Width);
+            }
+            if (widths[0] < 100 || widths.Distinct().Count() != 1)
+                throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
+
+            // And on a working area narrower than the row, the row wraps instead of running past it:
+            // the panel grew by a fill button and a size button, and a tail off the screen takes
+            // "Сохранить" and "Готово" with it.
+            var oneRow = window.Toolbar.DesiredSize.Height;
+            var narrow = Math.Max(200, widths[0] - 120);
+            window.Toolbar.MaxWidth = narrow;
+            window.Toolbar.InvalidateMeasure();
+            window.Toolbar.Measure(new Size(narrow, double.PositiveInfinity));
+            var wrapped = window.Toolbar.DesiredSize;
+            window.Toolbar.MaxWidth = double.PositiveInfinity;
+            window.Toolbar.InvalidateMeasure();
+            if (wrapped.Width > narrow + 0.5 || wrapped.Height <= oneRow)
+                throw new InvalidOperationException($"The markup panel must wrap into a working area of {narrow}, not run past it: {wrapped}.");
+
+            // The check this probe was meant to make and never did: the panel, at the width the
+            // working area lets it ask for, is placed inside that working area. The areas are made up
+            // on purpose — against the live monitor the answer would depend on the machine and on its
+            // scale, which is how this probe came to be red at 125 % on a panel that fits the screen.
+            // The placement is the same pair of steps PositionToolbar takes, only against a rectangle
+            // handed to it: the same MaxWidth, the same floors, the same PlaceToolbar.
+            foreach (var area in new[]
+            {
+                new Rect(0, 0, 1920, 1080),                                   // 1920×1080 at 100 %
+                new Rect(0, 0, 1536, 864),                                    // the same monitor at 125 %
+                WithoutCommentsStrip(new Rect(0, 0, 1536, 864), true)         // and with the comments panel out
+            })
+            {
+                var allowed = Math.Max(380, area.Width - 16);
+                window.Toolbar.MaxWidth = allowed;
+                window.Toolbar.InvalidateMeasure();
+                window.Toolbar.Measure(new Size(allowed, double.PositiveInfinity));
+                var asked = window.Toolbar.DesiredSize;
+                window.Toolbar.MaxWidth = double.PositiveInfinity;
+                window.Toolbar.InvalidateMeasure();
+                var placement = PlaceToolbar(window._cropRect, area, new Size(Math.Max(asked.Width, 380), Math.Max(asked.Height, 50)), []);
+                if (placement.Right > area.Right - 8 + 0.5)
+                    throw new InvalidOperationException($"The markup panel placed into a working area of {area} ran past its right edge: {placement}.");
+            }
+        }
+        finally
+        {
+            window.Toolbar.Margin = savedMargin;
+            window.Toolbar.MaxWidth = savedMaxWidth;
+            window.Toolbar.InvalidateMeasure();
+        }
     }
 
     // The two rules of a click that landed on nothing: beside the capture it finishes the markup,
@@ -683,7 +730,7 @@ public partial class OverlayEditorWindow : Window
         {
             Kind = EditorTool.Arrow,
             Points = [new Point(source.Image.PixelWidth * .2, source.Image.PixelHeight * .2), new Point(source.Image.PixelWidth * .55, source.Image.PixelHeight * .48)],
-            Color = Color.FromRgb(47, 140, 255),
+            Color = DefaultAnnotationColor,
             Thickness = 4
         };
         capture.Annotations.Add(annotation);
@@ -705,6 +752,20 @@ public partial class OverlayEditorWindow : Window
         }
     }
 
+    // One number for one comment: the pill carries the text and the cross, and nothing round with a
+    // number in it. The duplicate that was reported was the badge this checks the absence of.
+    private static void PillChecks(Border chip)
+    {
+        var grid = (Grid)chip.Child;
+        if (grid.ColumnDefinitions.Count != 2)
+            throw new InvalidOperationException($"The pill of a note must hold the text and the cross and nothing else: {grid.ColumnDefinitions.Count} columns.");
+        foreach (var child in grid.Children.OfType<Border>())
+            if (child.CornerRadius.TopLeft >= 12)
+                throw new InvalidOperationException("The pill of a note must carry no badge of its own: the number belongs to the capture.");
+        if (grid.Children.OfType<TextBlock>().Any())
+            throw new InvalidOperationException("The pill of a note must carry no label of its own: the number belongs to the capture.");
+    }
+
     private static CaptureItem NoteAffordanceChecks(OverlayEditorWindow window)
     {
         var workingAnnotation = window._capture!.Annotations[0];
@@ -715,8 +776,15 @@ public partial class OverlayEditorWindow : Window
         var comment = new AnnotationItem { Kind = EditorTool.Comment, Points = [new Point(200, 150), new Point(208, 158)] };
         window._capture.Annotations.Add(comment);
         window.OnAnnotationCreated(window, comment);
-        if (window.Surface.Tool != EditorTool.Select || window.SelectTool.IsChecked != true)
-            throw new InvalidOperationException("Comment placement remained armed after creating one pin.");
+        // The tool stays in the hand after a pin is placed, so the next comment needs no trip to the
+        // panel, and the panel shows which tool that is. Escape is what puts it down.
+        if (window.Surface.Tool != EditorTool.Comment || window.CommentToolButton.IsChecked != true)
+            throw new InvalidOperationException("Placing a pin must leave the comment tool in the hand.");
+        if (window.NextEscapeStep() != EscapeStep.Comment)
+            throw new InvalidOperationException("Escape must put the comment tool down before it drops anything else.");
+        window.SelectToolMode(EditorTool.Select);
+        if (window.Surface.Tool != EditorTool.Select || window.SelectTool.IsChecked != true || window.CommentToolButton.IsChecked == true)
+            throw new InvalidOperationException("Putting the comment tool down must arm the select tool instead.");
         var note = window.ChipLayer.Children.OfType<Border>()
             .Select(border => border.Child).OfType<Grid>()
             .SelectMany(grid => grid.Children.OfType<TextBox>()).Single();
@@ -734,12 +802,13 @@ public partial class OverlayEditorWindow : Window
         window.Root.UpdateLayout();
         window.RepositionChips();
         var firstChip = window.ChipLayer.Children.OfType<Border>().Single(border => border.Tag is Guid id && id == comment.Id);
-        if (firstChip.Width != 43 || secondChip.Width != 270 || Panel.GetZIndex(secondChip) <= Panel.GetZIndex(firstChip))
+        // A collapsed pill leaves the screen altogether: what it used to show while collapsed was its
+        // badge, and the badge of a note lives on the capture now. The number on the capture is what
+        // stands for the note until the pill is opened again.
+        if (firstChip.Visibility != Visibility.Collapsed || secondChip.Visibility != Visibility.Visible ||
+            secondChip.Width != 244 || Panel.GetZIndex(secondChip) <= Panel.GetZIndex(firstChip))
             throw new InvalidOperationException("Opening a comment did not collapse and lower the other chips.");
-        var firstRect = new Rect(Canvas.GetLeft(firstChip), Canvas.GetTop(firstChip), firstChip.Width, Math.Max(40, firstChip.ActualHeight));
-        var secondRect = new Rect(Canvas.GetLeft(secondChip), Canvas.GetTop(secondChip), secondChip.Width, Math.Max(40, secondChip.ActualHeight));
-        if (firstRect.IntersectsWith(secondRect))
-            throw new InvalidOperationException("Overlapping comment anchors produced overlapping chip controls.");
+        PillChecks(secondChip);
         window.DeleteAnnotationNote(secondComment);
 
         _ = window.Surface.RenderAnnotated();
@@ -932,6 +1001,7 @@ public partial class OverlayEditorWindow : Window
         Surface.ActiveColor = _activeColor;
         Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
         Surface.ActiveShape = _activeShape;
+        Surface.ActiveLineStyle = _activeLineStyle;
         Surface.ActiveFill = _activeFill;
         Surface.ActiveFillColor = _activeFillColor;
         Surface.ActiveHasOutline = _activeHasOutline;
@@ -980,7 +1050,7 @@ public partial class OverlayEditorWindow : Window
     }
 
     private System.Windows.Controls.Primitives.ToggleButton[] ToolButtons =>
-        [SelectTool, RectangleTool, ArrowTool, PenTool, TextTool, EraserTool, BlurTool, CropTool];
+        [SelectTool, RectangleTool, ArrowTool, PenTool, TextTool, EraserTool, BlurTool, CropTool, CommentToolButton];
 
     // Every letter on the panel comes from EditorShortcuts: the name goes to the tooltip (and is
     // translated with the rest of the window), the key goes to the capsule of the tooltip template.
@@ -989,7 +1059,6 @@ public partial class OverlayEditorWindow : Window
         foreach (var button in ToolButtons)
             if (Enum.TryParse<EditorTool>(button.Tag?.ToString(), out var tool) && EditorShortcuts.Find(tool) is { } shortcut)
                 Hint(button, shortcut.Name, shortcut.Caption);
-        if (EditorShortcuts.Find(EditorTool.Comment) is { } comment) Hint(CommentToolButton, comment.Name, comment.Caption);
         foreach (var (element, name) in new (FrameworkElement Element, string Name)[]
                  { (UndoButton, "Отменить"), (RedoButton, "Повторить"), (SaveImageButton, "Сохранить на компьютер"), (DoneButton, "Готово") })
             // A renamed action leaves the button without a capsule instead of throwing the editor
@@ -1042,6 +1111,7 @@ public partial class OverlayEditorWindow : Window
 
     private void OnColorClick(object sender, RoutedEventArgs e) => OpenAppearance();
     private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenThickness();
+    private void OnLineStyleClick(object sender, RoutedEventArgs e) => OpenLineStyle();
 
     private void SelectToolMode(EditorTool tool)
     {
@@ -1077,7 +1147,9 @@ public partial class OverlayEditorWindow : Window
             annotation.ParentAnnotationId = _commentParentId;
             _commentParentId = null;
             annotation.Points[1] = new Point(Math.Min(_capture.Image.PixelWidth, annotation.Points[0].X + 8), Math.Min(_capture.Image.PixelHeight, annotation.Points[0].Y + 8));
-            SelectToolMode(EditorTool.Select);
+            // The tool stays in the hand, the way the frame and the arrow do: three comments in a row
+            // without going back to the panel. It is put down by Escape, by "Select" and by arming
+            // any other tool.
         }
         PushHistory();
         annotation.PropertyChanged += OnAnnotationPropertyChanged;
@@ -1223,10 +1295,21 @@ public partial class OverlayEditorWindow : Window
         Surface.InvalidateVisual();
     }
 
+    // What a press inside the pill of a note landed on: the text box and the cross answer their own
+    // presses, everything else of the pill is the handle the note is dragged by.
+    private static bool PressLandedOn<T>(object? source) where T : DependencyObject
+    {
+        for (var node = source as DependencyObject; node is not null;)
+        {
+            if (node is T) return true;
+            node = node is Visual ? VisualTreeHelper.GetParent(node) : null;
+        }
+        return false;
+    }
+
     private void RebuildChips()
     {
         ChipLayer.Children.Clear();
-        _chipLabels.Clear();
         _chipBorders.Clear();
         _chipExpanders.Clear();
         _chipFinishers.Clear();
@@ -1237,17 +1320,19 @@ public partial class OverlayEditorWindow : Window
         foreach (var annotation in _capture.Annotations.Where(annotation => _visibleChipIds.Contains(annotation.Id))) AddChip(annotation, false);
     }
 
+    // The pill of a note carries the text and the cross, and no number: the number of a comment is
+    // the badge on the capture, and a second one inside the pill was the duplicate that was seen.
     private void AddChip(AnnotationItem annotation, bool focus)
     {
-        var badge = new TextBlock { Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        _chipLabels[annotation.Id] = badge;
-        var badgeHost = new Border { Width = 25, Height = 25, CornerRadius = new CornerRadius(13), Background = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Child = badge, VerticalAlignment = VerticalAlignment.Center };
         var note = new TextBox
         {
             MinHeight = 32, MaxHeight = 78, Text = annotation.Note, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
             Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), CaretBrush = Brushes.White,
-            SelectionBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Padding = new Thickness(7, 5, 7, 5), Tag = annotation
+            Padding = new Thickness(7, 5, 7, 5), Tag = annotation
         };
+        // The selection of the text takes the accent thinned down, and takes it as a resource: the
+        // accent may change while the pill is open.
+        note.SetResourceReference(System.Windows.Controls.Primitives.TextBoxBase.SelectionBrushProperty, "AccentSoftBrush");
         note.TextChanged += (_, _) =>
         {
             if (_settingUp) return;
@@ -1268,15 +1353,13 @@ public partial class OverlayEditorWindow : Window
         };
         close.Click += OnDeleteAnnotationNoteClick;
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(31) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(29) });
-        grid.Children.Add(badgeHost);
-        Grid.SetColumn(note, 1); grid.Children.Add(note);
-        Grid.SetColumn(close, 2); grid.Children.Add(close);
+        grid.Children.Add(note);
+        Grid.SetColumn(close, 1); grid.Children.Add(close);
         var border = new Border
         {
-            Tag = annotation.Id, Width = 226, MinHeight = 40, Padding = new Thickness(6), CornerRadius = new CornerRadius(13),
+            Tag = annotation.Id, Width = 200, MinHeight = 40, Padding = new Thickness(6), CornerRadius = new CornerRadius(13),
             Background = new SolidColorBrush(Color.FromArgb(244, 23, 26, 32)), Child = grid,
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 14, ShadowDepth = 4, Opacity = .42 }
         };
@@ -1288,10 +1371,14 @@ public partial class OverlayEditorWindow : Window
                 _expandedChipId = annotation.Id;
             }
             else if (_expandedChipId == annotation.Id) _expandedChipId = null;
-            border.Visibility = Visibility.Visible;
-            border.Width = expanded ? 270 : 43;
+            // A collapsed pill used to be its badge and nothing else, so with the badge gone there is
+            // nothing left in it to show: the number on the capture stands for the note until the
+            // pill is opened again, by a double click on the mark, by the "+" beside it or by a row
+            // of the comments panel.
+            border.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            border.Width = 244;
             note.Visibility = close.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-            grid.ColumnDefinitions[2].Width = new GridLength(expanded ? 29 : 0);
+            grid.ColumnDefinitions[1].Width = new GridLength(expanded ? 29 : 0);
             Panel.SetZIndex(border, expanded ? (border.IsKeyboardFocusWithin ? 1200 : 1000) : 0);
             RepositionChips();
             PositionToolbar();
@@ -1301,7 +1388,6 @@ public partial class OverlayEditorWindow : Window
             if (string.IsNullOrWhiteSpace(annotation.Note))
             {
                 _visibleChipIds.Remove(annotation.Id);
-                _chipLabels.Remove(annotation.Id);
                 _chipBorders.Remove(annotation.Id);
                 _chipExpanders.Remove(annotation.Id);
                 _chipFinishers.Remove(annotation.Id);
@@ -1329,28 +1415,34 @@ public partial class OverlayEditorWindow : Window
             if (_chipDragAnnotation is null && !HasFocusedChipOtherThan(annotation.Id)) Expand(true);
         };
         border.MouseLeave += (_, _) => { if (_chipDragAnnotation is null && !border.IsKeyboardFocusWithin) Finish(); };
-        badgeHost.Cursor = Cursors.SizeAll;
-        badgeHost.ToolTip = UiLanguage.Text("Переместить заметку");
-        badgeHost.MouseLeftButtonDown += (_, e) =>
+        // The badge was the handle the note was dragged by; the pill itself is that handle now. The
+        // text box and the cross keep their own presses, and the tooltip of the handle is kept off
+        // the text box, or it would stand over the words while they are being typed.
+        border.Cursor = Cursors.SizeAll;
+        border.ToolTip = UiLanguage.Text("Переместить заметку");
+        ToolTipService.SetIsEnabled(note, false);
+        border.MouseLeftButtonDown += (_, e) =>
         {
+            if (PressLandedOn<TextBox>(e.OriginalSource) || PressLandedOn<Button>(e.OriginalSource)) return;
             BeginNoteDrag(annotation, e.GetPosition(Root));
-            badgeHost.CaptureMouse();
+            border.CaptureMouse();
             e.Handled = true;
         };
-        badgeHost.MouseMove += (_, e) => { if (badgeHost.IsMouseCaptured) DragNoteTo(e.GetPosition(Root)); };
-        badgeHost.MouseLeftButtonUp += (_, e) =>
+        border.MouseMove += (_, e) => { if (border.IsMouseCaptured) DragNoteTo(e.GetPosition(Root)); };
+        border.MouseLeftButtonUp += (_, e) =>
         {
+            if (!border.IsMouseCaptured) return;
             // The drag is closed before the capture is released, because releasing it runs the
             // handler below, and after that a real drag would read as a click.
             var dragged = EndNoteDrag();
-            if (badgeHost.IsMouseCaptured) badgeHost.ReleaseMouseCapture();
+            border.ReleaseMouseCapture();
             // A press that did not travel is still a click: it opens the note.
             if (!dragged) { note.Focus(); Expand(true); }
             e.Handled = true;
         };
         // Alt+Tab, a dialog or anything else that takes the capture away ends the drag too:
         // otherwise the editor stays inside a drag that never finishes and no chip expands again.
-        badgeHost.LostMouseCapture += (_, _) => EndNoteDrag();
+        border.LostMouseCapture += (_, _) => EndNoteDrag();
         ChipLayer.Children.Add(border);
         note.LostKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(() => { if (!border.IsKeyboardFocusWithin && !border.IsMouseOver) Finish(); }, DispatcherPriority.Input);
         note.PreviewKeyDown += (_, e) =>
@@ -1372,10 +1464,6 @@ public partial class OverlayEditorWindow : Window
         foreach (var annotation in _capture.Annotations)
         {
             annotation.Label = labels.GetValueOrDefault(annotation.Id) ?? string.Empty;
-            if (_chipLabels.TryGetValue(annotation.Id, out var text))
-            {
-                text.Text = string.IsNullOrEmpty(annotation.Label) ? "+" : annotation.Label;
-            }
         }
         SyncCommentsPanel();
         Surface.InvalidateVisual();
@@ -1409,9 +1497,16 @@ public partial class OverlayEditorWindow : Window
             // A pill the user placed by hand stays where it was put, and the others go around it.
             if (annotation.NoteOffset is not null)
             {
+                // The pill used to be laid over the badge, its own badge exactly covering it. With
+                // that badge gone it would cover the number of the mark instead, so it stands beside
+                // the badge, and mirrors to the left of it when the right has no room left.
+                const double gap = 8;
                 var badge = Surface.GetBadgeCenter(annotation);
+                var radius = Surface.GetBadgeRadius(annotation);
+                var left = _cropRect.Left + badge.X + radius + gap;
+                if (left + width > work.Right) left = _cropRect.Left + badge.X - radius - gap - width;
                 var manual = ClampChip(
-                    new Point(_cropRect.Left + badge.X - 21.5, _cropRect.Top + badge.Y - height / 2),
+                    new Point(left, _cropRect.Top + badge.Y - height / 2),
                     new Size(width, height), work);
                 Canvas.SetLeft(chip, manual.Left);
                 Canvas.SetTop(chip, manual.Top);
@@ -1674,6 +1769,14 @@ public partial class OverlayEditorWindow : Window
         if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Popover)
         {
             ClosePopovers();
+            e.Handled = true;
+            return;
+        }
+        // The comment tool is armed until it is put down, and Escape is one of the ways to put it
+        // down: it goes back to "Select" and leaves the capture where it is.
+        if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Comment)
+        {
+            SelectToolMode(EditorTool.Select);
             e.Handled = true;
             return;
         }

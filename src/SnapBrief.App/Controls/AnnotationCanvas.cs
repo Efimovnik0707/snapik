@@ -25,6 +25,13 @@ public sealed class AnnotationCanvas : FrameworkElement
     private Rect _originalBounds;
     private bool _manipulationChanged;
     private AnnotationItem? _eraseHover;
+    // The anchor of a leader: the circle at the point a comment is attached to, and the drag of it.
+    private AnnotationItem? _anchorDrag;
+    private List<Point>? _anchorOriginPoints;
+    private Point? _anchorOriginOffset;
+    private Point _anchorDragStart;
+    private bool _anchorMoved;
+    private Guid? _anchorHover;
     private int _blurCacheKey;
     private BitmapSource? _blurCache;
 
@@ -51,6 +58,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     public Color? ActiveFillColor { get; set; }
     public bool ActiveHasOutline { get; set; } = true;
     public double ActiveFontSize { get; set; } = TextMarkMetrics.DefaultFontSize;
+    public AnnotationLineStyle ActiveLineStyle { get; set; } = AnnotationLineStyle.Solid;
     // The mark whose letters are being typed on the capture right now: the canvas leaves it to the
     // text box standing over it, otherwise the caption is drawn twice.
     public Guid? EditingTextId { get; set; }
@@ -199,6 +207,20 @@ public sealed class AnnotationCanvas : FrameworkElement
             AnnotationActivated?.Invoke(this, activated);
             return;
         }
+        // The anchor of a leader is taken before the resize handles: it sits on the point of a
+        // comment, a place where the handle of a neighbouring mark may lie as well, and the handle
+        // would win the press by being asked first.
+        if (FindLeaderAnchor(point) is { } anchored)
+        {
+            Select(anchored);
+            _anchorDrag = anchored;
+            _anchorOriginPoints = [.. anchored.Points];
+            _anchorOriginOffset = anchored.NoteOffset;
+            _anchorDragStart = ToImage(point);
+            _anchorMoved = false;
+            CaptureMouse();
+            return;
+        }
         var handleHit = FindResizeHandle(point);
         if (Tool != EditorTool.Comment && (Tool == EditorTool.Select || handleHit.Annotation is not null || FindMoveHandle(point) is not null))
         {
@@ -238,6 +260,7 @@ public sealed class AnnotationCanvas : FrameworkElement
             HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
             Color = ActiveColor,
             Thickness = ActiveThickness,
+            LineStyle = ActiveLineStyle,
             // The word a new caption starts with comes from the table of the interface: an English
             // window must not get a Russian one.
             Text = Tool == EditorTool.Text ? UiLanguage.Text("Текст") : string.Empty,
@@ -256,6 +279,21 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     internal void UpdateGesture(Point displayPoint, bool pressed)
     {
+        // The anchor travels and its badge stays: the note keeps the place it was put in, so the
+        // offset of the badge gives back exactly what the anchor takes, and the leader grows between
+        // the two. A note that was never moved has no offset to compensate, and its badge follows.
+        if (_anchorDrag is { } anchored && _anchorOriginPoints is not null && pressed)
+        {
+            var moved = ClampToImage(ToImage(displayPoint)) - _anchorDragStart;
+            if (!_anchorMoved && moved.Length * (_imageRect.Width / Image!.PixelWidth) < 4) return;
+            _anchorMoved = true;
+            for (var i = 0; i < anchored.Points.Count && i < _anchorOriginPoints.Count; i++)
+                anchored.Points[i] = ClampToImage(_anchorOriginPoints[i] + moved);
+            if (_anchorOriginOffset is { } offset)
+                anchored.NoteOffset = new Point(offset.X - moved.X, offset.Y - moved.Y);
+            InvalidateVisual();
+            return;
+        }
         if (_manipulating && SelectedAnnotation is not null && _gestureStart is not null && _originalPoints is not null && pressed)
         {
             var current = ClampToImage(ToImage(displayPoint));
@@ -310,6 +348,11 @@ public sealed class AnnotationCanvas : FrameworkElement
             return;
         }
         if (_eraseHover is not null) { _eraseHover = null; InvalidateVisual(); }
+        // The anchor is asked first here for the same reason it is asked first on a press: it has to
+        // answer for the pixels it covers, handles of neighbouring marks included.
+        var anchorHover = FindLeaderAnchor(displayPoint)?.Id;
+        if (anchorHover != _anchorHover) { _anchorHover = anchorHover; InvalidateVisual(); }
+        if (anchorHover is not null) { Cursor = Cursors.Hand; return; }
         var handle = FindResizeHandle(displayPoint);
         if (handle.Corner >= 0) { Cursor = handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW; return; }
         var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
@@ -336,6 +379,19 @@ public sealed class AnnotationCanvas : FrameworkElement
     // left behind. A gesture that ends properly must have nothing left for it to drop.
     internal void EndGesture()
     {
+        if (_anchorDrag is not null)
+        {
+            var moved = _anchorMoved;
+            _anchorDrag = null;
+            _anchorOriginPoints = null;
+            _anchorOriginOffset = null;
+            _anchorMoved = false;
+            ReleaseMouseCapture();
+            // One entry of history for one drag, the way a moved note writes one.
+            if (moved) AnnotationChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            return;
+        }
         if (_manipulating)
         {
             _manipulating = false;
@@ -380,6 +436,13 @@ public sealed class AnnotationCanvas : FrameworkElement
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        if (_anchorDrag is not null)
+        {
+            _anchorDrag = null;
+            _anchorOriginPoints = null;
+            _anchorOriginOffset = null;
+            _anchorMoved = false;
+        }
         if (_draft is null && !_manipulating) return;
         _draft = null;
         _gestureStart = null;
@@ -521,7 +584,9 @@ public sealed class AnnotationCanvas : FrameworkElement
         var thickness = Math.Max(1.5, item.Thickness * scale);
         var brush = new SolidColorBrush(item.Color);
         brush.Freeze();
-        var pen = new Pen(brush, thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        var pen = StrokePattern.Apply(
+            new Pen(brush, thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round },
+            StrokePattern.Of(item.Kind, item.LineStyle));
         pen.Freeze();
 
         if (drawShape && item.Kind is (EditorTool.Pen or EditorTool.Highlight))
@@ -543,10 +608,10 @@ public sealed class AnnotationCanvas : FrameworkElement
                 case EditorTool.Blur:
                     // The preview of a blur that is still being drawn shows the shape it will take.
                     DrawBoxShape(dc, new SolidColorBrush(Color.FromArgb(54, 255, 255, 255)),
-                        new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), item.Shape, rect, scale);
+                        AccentPalette.Pen(1.5), item.Shape, rect, scale);
                     break;
                 case EditorTool.Crop:
-                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(24, 47, 140, 255)), new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5) { DashStyle = DashStyles.Dash }, rect);
+                    dc.DrawRectangle(AccentPalette.Wash(24), new Pen(AccentPalette.Brush, 1.5) { DashStyle = DashStyles.Dash }, rect);
                     break;
                 case EditorTool.Text:
                     // The mark being typed is drawn by the text box on top of it, not here.
@@ -557,14 +622,14 @@ public sealed class AnnotationCanvas : FrameworkElement
                     dc.DrawText(formatted, start);
                     break;
                 case EditorTool.Arrow:
-                    SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, thickness, item.ArrowStyle);
+                    SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, thickness, item.ArrowStyle, StrokePattern.Of(item.Kind, item.LineStyle));
                     break;
             }
         }
 
         if (drawLabel && !string.IsNullOrEmpty(item.Label))
         {
-            var badgeBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255));
+            var badgeBrush = AccentPalette.Brush;
             var badge = BadgeOf(item, target);
             // A badge dragged away from its mark keeps one hair line back to it.
             if (item.NoteOffset is not null)
@@ -575,6 +640,15 @@ public sealed class AnnotationCanvas : FrameworkElement
                     dc.DrawLine(new Pen(badgeBrush, 1), from, to);
             }
             dc.DrawEllipse(badgeBrush, null, badge.Center, badge.Radius, badge.Radius);
+            // The anchor of the leader, on screen only: includeSelection is what separates the canvas
+            // from RenderAnnotated, and a circle without a number explains nothing to whoever receives
+            // the picture. The export draws the leader and the badge, and neither needs a handle.
+            if (includeSelection && item.Kind == EditorTool.Comment)
+            {
+                var anchor = Map(item.Points[0]);
+                var radius = _anchorHover == item.Id ? AnchorHoverRadius : AnchorRadius;
+                dc.DrawEllipse(badgeBrush, new Pen(Brushes.White, 1.5), anchor, radius, radius);
+            }
             var label = new FormattedText(item.Label, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
                 new Typeface(new FontFamily("Segoe UI Variable Text"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal), 11, Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip);
             dc.DrawText(label, new Point(badge.Center.X - label.Width / 2, badge.Center.Y - label.Height / 2));
@@ -587,9 +661,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             var bottomRight = Map(bounds.BottomRight);
             var selectedRect = new Rect(topLeft, bottomRight);
 
-            dc.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(49, 92, 245)), 1) { DashStyle = DashStyles.Dash }, selectedRect);
+            dc.DrawRectangle(null, new Pen(AccentPalette.Brush, 1) { DashStyle = DashStyles.Dash }, selectedRect);
             foreach (var corner in ResizeGeometry.Corners(selectedRect))
-                dc.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), new Rect(corner.X - 4, corner.Y - 4, 8, 8));
+                dc.DrawRectangle(Brushes.White, AccentPalette.Pen(1.5), new Rect(corner.X - 4, corner.Y - 4, 8, 8));
         }
     }
 
@@ -688,6 +762,22 @@ public sealed class AnnotationCanvas : FrameworkElement
     // Every mark can be grabbed and moved whatever tool is armed: a box by the band along its
     // outline, a line by the line itself, a comment by its badge. The interior of a frame stays
     // free for the next drawing, except where the mark is opaque and there is nothing to draw into.
+    // The circle at the point a comment is attached to: the visible end of the leader, and the only
+    // way to move that end without moving the note with it. A comment without a number has no badge
+    // and no leader yet, so it has no anchor either.
+    private AnnotationItem? FindLeaderAnchor(Point point)
+    {
+        if (Annotations is null || Image is null || Tool == EditorTool.Comment) return null;
+        return Annotations.Reverse().FirstOrDefault(item =>
+            item.Kind == EditorTool.Comment && !string.IsNullOrEmpty(item.Label) && item.Points.Count > 0 &&
+            (point - ToDisplay(item.Points[0])).Length <= AnchorHoverRadius);
+    }
+
+    // Five pixels of circle and seven of reach: the circle grows to the reach under the pointer, so
+    // what answers the press is what is seen at that moment.
+    private const double AnchorRadius = 5;
+    private const double AnchorHoverRadius = 7;
+
     private AnnotationItem? FindMoveHandle(Point point)
     {
         if (Annotations is null || Image is null || Tool == EditorTool.Comment) return null;
@@ -752,9 +842,13 @@ public sealed class AnnotationCanvas : FrameworkElement
         return NoteBadgeGeometry.Screen(anchor, item.Label, offset);
     }
 
-    // Where the pill of a note has to sit for its own badge to cover the badge on the picture.
+    // Where the badge of a note is on the picture, and how large it is: the pill of that note stands
+    // beside the circle now, so it needs the middle of it and its edge both.
     public Point GetBadgeCenter(AnnotationItem annotation) =>
         Image is null || annotation.Points.Count == 0 ? default : BadgeOf(annotation, _imageRect).Center;
+
+    public double GetBadgeRadius(AnnotationItem annotation) =>
+        Image is null || annotation.Points.Count == 0 ? 13 : BadgeOf(annotation, _imageRect).Radius;
 
     private Point ToDisplay(Point imagePoint) => new(
         _imageRect.X + imagePoint.X * _imageRect.Width / Image!.PixelWidth,

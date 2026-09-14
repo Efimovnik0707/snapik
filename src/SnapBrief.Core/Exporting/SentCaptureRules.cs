@@ -8,10 +8,17 @@ namespace SnapBrief.Core.Exporting;
 public static class SentCaptureRules
 {
     /// <summary>
-    /// How many captures the strip holds, sent ones included. Ten because the letters of the strip
-    /// are then never asked to go past J: a package of that size is still one message in a chat.
+    /// How many captures the strip holds, sent ones included. Twenty-six because the letters of the
+    /// strip then stop exactly at Z: past that <c>CaptureLabels.ForIndex</c> goes on with AA and AB,
+    /// which the code can do but the 20 px badge of a card cannot show.
     /// </summary>
-    public const int MaxStripCaptures = 10;
+    public const int MaxStripCaptures = 26;
+
+    /// <summary>
+    /// The number the strip warns about once, gently, and goes on adding past: a chat usually takes
+    /// about twenty images in one paste, and a larger package is more likely to be cut than refused.
+    /// </summary>
+    public const int SoftStripWarning = 20;
 
     public static IReadOnlyList<T> ForPackage<T>(IEnumerable<T> captures, Func<T, bool> isSent) =>
         captures.Where(capture => !isSent(capture)).ToArray();

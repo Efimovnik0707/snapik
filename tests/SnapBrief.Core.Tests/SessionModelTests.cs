@@ -102,17 +102,19 @@ public sealed class SessionModelTests
         Assert.Empty(SentCaptureRules.ForPackage(captures, _ => true));
     }
 
-    // The limit of the strip and its letters are one rule: ten captures never ask for a letter past J.
+    // The limit of the strip and its letters are one rule: a full strip asks for the letter Z and
+    // never for the one after it. The soft warning is below the limit, or it would never be said.
     [Fact]
-    public void A_full_strip_stops_at_ten_captures_and_its_last_letter_is_J()
+    public void A_full_strip_stops_at_twenty_six_captures_and_its_last_letter_is_Z()
     {
-        Assert.Equal(10, SentCaptureRules.MaxStripCaptures);
+        Assert.Equal(26, SentCaptureRules.MaxStripCaptures);
+        Assert.True(SentCaptureRules.SoftStripWarning < SentCaptureRules.MaxStripCaptures);
 
         var labels = SentCaptureRules.StripLabels([.. Enumerable.Repeat(false, SentCaptureRules.MaxStripCaptures)]);
 
         Assert.Equal(SentCaptureRules.MaxStripCaptures, labels.Count);
         Assert.Equal("A", labels[0]);
-        Assert.Equal("J", labels[^1]);
+        Assert.Equal("Z", labels[^1]);
     }
 
     private sealed class FrozenTimeProvider(DateTimeOffset value) : TimeProvider

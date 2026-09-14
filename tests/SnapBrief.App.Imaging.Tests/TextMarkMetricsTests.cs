@@ -87,6 +87,25 @@ public sealed class TextMarkMetricsTests
         Assert.True(longer.Points[1].X > small.Points[1].X);
     }
 
+    // Every field of a mark has to survive a copy, and this one is the newest of them: a field the
+    // clone forgets is a field that disappears on the first undo.
+    [Fact]
+    public void A_copy_of_a_mark_keeps_the_pattern_of_its_stroke()
+    {
+        var dashed = new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle,
+            Points = [new Point(10, 10), new Point(80, 40)],
+            LineStyle = SnapBrief.Core.Models.AnnotationLineStyle.Dashed
+        };
+
+        Assert.Equal(SnapBrief.Core.Models.AnnotationLineStyle.Dashed, dashed.Clone().LineStyle);
+        // And the way to the session and back is the same two steps the editor takes.
+        var core = dashed.ToCore(800, 600);
+        Assert.Equal(SnapBrief.Core.Models.AnnotationLineStyle.Dashed, core.LineStyle);
+        Assert.Equal(SnapBrief.Core.Models.AnnotationLineStyle.Dashed, AnnotationItem.FromCore(core, 800, 600).LineStyle);
+    }
+
     [Fact]
     public void Fit_LeavesAMarkThatIsNotACaptionAlone()
     {

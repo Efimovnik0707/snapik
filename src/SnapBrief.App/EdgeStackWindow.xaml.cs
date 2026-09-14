@@ -67,6 +67,20 @@ public partial class EdgeStackWindow : Window
     private double _resizeRightEdge;
     private double _resizeTop;
     private Rect _resizeWorkArea;
+    // The whole geometry of the strip as it was when the drag began, and the pointer with it: every
+    // size under the drag is counted from these, never from the size of the moment.
+    private double _resizeStartWidth;
+    private double _resizeStartListHeight;
+    private double _resizeStartChrome;
+    private double _resizeStartMinHeight;
+    private Point _resizeStartPointer;
+    // The strip as it was before it collapsed, so the capsule gives back the same window.
+    private bool _softLimitWarned;
+    private bool _capsuleMode;
+    private double _expandedWidth;
+    private double _expandedListHeight;
+    private double _expandedTop;
+    private double _expandedMinHeight;
     private CaptureItem? _draggedCapture;
     private readonly Stack<(CaptureItem Capture, int Index)> _removed = [];
     private TargetProfile? _selectedProfile;
@@ -539,6 +553,7 @@ public partial class EdgeStackWindow : Window
                 if (result.Capture is null) { addNext = false; continue; }
                 Captures.Add(result.Capture);
                 Renumber();
+                NoteStripGrowth();
                 InvalidatePrepared();
                 // The shutter belongs to the moment of the capture, so it plays before the package
                 // travels to the clipboard and not after that wait.
@@ -556,13 +571,25 @@ public partial class EdgeStackWindow : Window
         }
     }
 
-    // The strip holds ten captures, sent ones included: they take the same disk and the same memory,
-    // and the letters of the strip stay inside A..J. Every way of adding a capture goes through here.
+    // The strip holds twenty-six captures, sent ones included: they take the same disk and the same
+    // memory, and the letters of the strip stay inside A..Z. Every way of adding a capture goes
+    // through here, and the number of the toast comes from the constant, never from the sentence.
     private bool StripIsFull(int adding = 1)
     {
         if (Captures.Count + adding <= SentCaptureRules.MaxStripCaptures) return false;
-        ShowToast(UiLanguage.Text("В ленте максимум 10 снимков. Отправьте или удалите лишние"));
+        ShowToast(string.Format(UiLanguage.Text("В ленте максимум {0} снимков. Отправьте или удалите лишние"), SentCaptureRules.MaxStripCaptures));
         return true;
+    }
+
+    // The soft limit, said once. Twenty-six captures fit the strip, but a chat usually takes about
+    // twenty images in one paste, so the strip warns when it goes past that number and says nothing
+    // more until it has come back down to it. Every way of adding a capture calls this after adding.
+    private void NoteStripGrowth()
+    {
+        if (Captures.Count <= SentCaptureRules.SoftStripWarning) { _softLimitWarned = false; return; }
+        if (_softLimitWarned) return;
+        _softLimitWarned = true;
+        ShowToast(UiLanguage.Text("Чаты обычно принимают до 20 картинок за раз"));
     }
 
     private async void OnRemoveCaptureClick(object sender, RoutedEventArgs e)
@@ -593,7 +620,10 @@ public partial class EdgeStackWindow : Window
     private void ShowStackWithoutActivation()
     {
         Renumber();
-        PositionAtEdge();
+        // A capture taken while the strip is collapsed must not unfold it: the capsule stays where it
+        // is and only its counter grows. PositionAtEdge is the placement of the strip, and it would
+        // give the window the width and the height of the strip back.
+        if (_capsuleMode) PositionCapsuleAtEdge(); else PositionAtEdge();
         Show();
         _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0053);
         UiLanguage.Apply(this);
@@ -611,6 +641,60 @@ public partial class EdgeStackWindow : Window
     }
 
     private void OnHideClick(object sender, RoutedEventArgs e) => HideStack();
+
+    // The strip collapsed into the capsule, and back. It is a mode of this window: the hotkeys, the
+    // display affinity, the topmost, the tray icon and the drag of the header all hang on this window
+    // and on its handle. The mode lives in memory only and is never written to the settings file: a
+    // strip that opens collapsed would look like a strip that failed to open.
+    private void OnCollapseToCapsuleClick(object sender, RoutedEventArgs e) => CollapseToCapsule();
+
+    private void OnCapsuleClick(object sender, MouseButtonEventArgs e) => ExpandFromCapsule();
+
+    private void CollapseToCapsule()
+    {
+        if (_capsuleMode) return;
+        _capsuleMode = true;
+        _expandedWidth = Width;
+        _expandedListHeight = CaptureList.Height;
+        _expandedTop = Top;
+        _expandedMinHeight = MinHeight;
+        HideToastNow();
+        Shell.Visibility = Visibility.Collapsed;
+        WidthGrip.Visibility = Visibility.Collapsed;
+        CornerGrip.Visibility = Visibility.Collapsed;
+        Capsule.Visibility = Visibility.Visible;
+        // Both sides by the content now, and no floor under the height: the minimum of the strip is
+        // three times the capsule.
+        MinHeight = 0;
+        Width = double.NaN;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        PositionCapsuleAtEdge();
+    }
+
+    private void ExpandFromCapsule()
+    {
+        if (!_capsuleMode) return;
+        _capsuleMode = false;
+        Capsule.Visibility = Visibility.Collapsed;
+        Shell.Visibility = Visibility.Visible;
+        WidthGrip.Visibility = Visibility.Visible;
+        CornerGrip.Visibility = Visibility.Visible;
+        SizeToContent = SizeToContent.Height;
+        MinHeight = _expandedMinHeight;
+        Width = _expandedWidth;
+        CaptureList.Height = _expandedListHeight;
+        UpdateLayout();
+        Left = StackWorkArea().Right - Width - Controls.StripResizeGeometry.EdgeGap;
+        Top = _expandedTop;
+    }
+
+    // The capsule keeps the edge and the height the strip was at: the same right edge with the same
+    // gap, and a Top that is not touched at all.
+    private void PositionCapsuleAtEdge()
+    {
+        UpdateLayout();
+        Left = StackWorkArea().Right - ActualWidth - Controls.StripResizeGeometry.EdgeGap;
+    }
 
     private void AnimateStackIn()
     {
@@ -661,49 +745,86 @@ public partial class EdgeStackWindow : Window
         Top = Math.Max(work.Top, Math.Min(centred, work.Bottom - height));
     }
 
-    // The right edge is taken once, at the start of the drag: reading it from Left + Width on every
-    // delta would accumulate the rounding of each step and let the strip drift off the screen edge.
-    private void OnWidthDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e) =>
-        _resizeRightEdge = Left + Width;
-
-    private void OnWidthDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    // Where the pointer is, in the units the window is placed in. The delta of a Thumb cannot be used
+    // for this: it is measured against the grip itself, the grip travels with the window it resizes,
+    // and once a clamp stops the window the two drift apart by everything the pointer spent past it.
+    private Point PointerInWindowUnits()
     {
-        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, StackWorkArea().Left);
-        Width = width;
-        Left = left;
+        var position = WinForms.Cursor.Position;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var scaleX = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1;
+        var scaleY = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1;
+        return new Point(position.X / scaleX, position.Y / scaleY);
     }
 
-    private void OnWidthDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
-        MutateSettings(stored => stored with { StackWidth = Width });
-
-    // The corner takes both sides at once. The right edge and the top edge are taken once, for the
-    // same reason the width drag takes the right one: the strip keeps its place at the screen edge
-    // and grows downwards instead of walking around while the pointer moves.
-    private void OnCornerDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+    // The whole geometry of the strip, taken once at the start of the drag. The right edge is among
+    // it for a reason of its own: reading it from Left + Width on every delta would accumulate the
+    // rounding of each step and let the strip drift off the screen edge.
+    private void BeginResize()
     {
         _resizeRightEdge = Left + Width;
         _resizeTop = Top;
+        _resizeStartWidth = Width;
+        _resizeStartListHeight = CaptureList.Height;
+        _resizeStartChrome = StackChromeHeight();
+        _resizeStartPointer = PointerInWindowUnits();
         // The monitor is asked once: the working area cannot change under a drag, and reading it
         // costs a P/Invoke and a DPI lookup on every movement of the mouse.
         _resizeWorkArea = StackWorkArea();
     }
 
-    private void OnCornerDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    private void OnWidthDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e) => BeginResize();
+
+    private void OnWidthDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
     {
-        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, _resizeWorkArea.Left);
-        Width = width;
+        var (left, width) = Controls.StripResizeGeometry.WidthFromStart(
+            _resizeRightEdge, _resizeStartWidth, PointerInWindowUnits().X - _resizeStartPointer.X, _resizeWorkArea.Left);
         Left = left;
-        // The delta of a Thumb is measured from where the grip was when the drag began, so it is an
-        // increment only while the grip travels with what it resizes. The bottom of the window
-        // follows the height of the list, the grip sits on that bottom, and both stay true only
-        // because the list carries a height rather than a maximum.
-        CaptureList.Height = Controls.StripResizeGeometry.ResizeListHeight(
-            CaptureList.Height, e.VerticalChange, StackChromeHeight(), _resizeTop, _resizeWorkArea.Bottom);
-        Top = _resizeTop;
+        Width = width;
     }
 
-    private void OnCornerDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
+    private void OnWidthDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
+        MutateSettings(stored => stored with { StackWidth = Width });
+
+    // The corner takes both sides at once. The top edge is held where the drag found it, so the strip
+    // keeps its place at the screen edge and grows downwards instead of walking around under the
+    // pointer. SizeToContent goes off for the length of the drag: while it is on, the window works out
+    // a height of its own on the next layout pass, a pass that lands between the assignments below and
+    // moves the window a second time inside one movement of the mouse.
+    private void OnCornerDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+    {
+        BeginResize();
+        _resizeStartMinHeight = MinHeight;
+        Height = ActualHeight;
+        MinHeight = 0;
+        SizeToContent = SizeToContent.Manual;
+    }
+
+    private void OnCornerDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        var pointer = PointerInWindowUnits();
+        var (left, width) = Controls.StripResizeGeometry.WidthFromStart(
+            _resizeRightEdge, _resizeStartWidth, pointer.X - _resizeStartPointer.X, _resizeWorkArea.Left);
+        // The chrome is the one measured at the start of the drag as well: measuring it again here
+        // reads the layout pass before this one, which under a fast drag is a height the window has
+        // already left behind.
+        var listHeight = Controls.StripResizeGeometry.ListHeightFromStart(
+            _resizeStartListHeight, pointer.Y - _resizeStartPointer.Y, _resizeStartChrome, _resizeTop, _resizeWorkArea.Bottom);
+        // One block, in one order every time: the top first so the strip cannot be seen to jump, the
+        // height last so the window is never taller than what it is about to be moved to.
+        CaptureList.Height = listHeight;
+        Top = _resizeTop;
+        Left = left;
+        Width = width;
+        Height = _resizeStartChrome + listHeight;
+    }
+
+    private void OnCornerDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        SizeToContent = SizeToContent.Height;
+        MinHeight = _resizeStartMinHeight;
         MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.Height });
+    }
 
     private async Task<bool> PrepareAsync()
     {
@@ -939,7 +1060,7 @@ public partial class EdgeStackWindow : Window
             try { Captures.Add(await _workspace.AddImageAsync(SessionWorkspace.LoadBitmap(path))); imported++; }
             catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
         }
-        Renumber(); InvalidatePrepared();
+        Renumber(); NoteStripGrowth(); InvalidatePrepared();
         var saved = await SaveAsync();
         // The clipboard package follows the stack even when the session file could not be written:
         // a receipt left pointing at the previous package makes the next Ctrl+V rotate the session.
@@ -947,7 +1068,7 @@ public partial class EdgeStackWindow : Window
         if (imported > 0) await RefreshOwnedClipboardAsync();
         // A failed import must survive the next status update, a successful one has to stay readable for a few seconds.
         if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
-        else if (truncated) ShowToast(UiLanguage.Text("В ленте максимум 10 снимков. Отправьте или удалите лишние"));
+        else if (truncated) ShowToast(string.Format(UiLanguage.Text("В ленте максимум {0} снимков. Отправьте или удалите лишние"), SentCaptureRules.MaxStripCaptures));
         else if (saved) ShowToast(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
     }
 
@@ -958,7 +1079,7 @@ public partial class EdgeStackWindow : Window
         if (!Clipboard.ContainsImage() || Clipboard.GetImage() is not { } image) { SetStatus(UiLanguage.Text("В буфере нет изображения."), true); return; }
         image.Freeze();
         Captures.Add(await _workspace.AddImageAsync(image));
-        Renumber(); InvalidatePrepared();
+        Renumber(); NoteStripGrowth(); InvalidatePrepared();
         var saved = await SaveAsync();
         await RefreshOwnedClipboardAsync();
         if (saved) ShowToast(UiLanguage.Text("Изображение добавлено."));
@@ -1228,6 +1349,8 @@ public partial class EdgeStackWindow : Window
         CaptureList?.Items.Refresh();
         var pending = PendingCaptures.Count;
         CountText.Text = pending.ToString();
+        // The capsule shows the same number as the header: what is still waiting to be pasted.
+        CapsuleCount.Text = CountText.Text;
         PasteButton.IsEnabled = pending > 0;
     }
 
@@ -1469,7 +1592,7 @@ public partial class EdgeStackWindow : Window
             {
                 Kind = i == 0 ? EditorTool.Rectangle : EditorTool.Arrow,
                 Points = [new Point(650, 360), new Point(980, 520)],
-                Color = Color.FromRgb(47, 140, 255), Thickness = 4,
+                Color = OverlayEditorWindow.DefaultAnnotationColor, Thickness = 4,
                 Note = i == 0 ? "Увеличить кнопку" : "Перенести пункт выше"
             });
             Captures.Add(capture);
@@ -1625,7 +1748,7 @@ public partial class EdgeStackWindow : Window
         if (StripIsFull()) return;
         var removed = _removed.Pop();
         Captures.Insert(Math.Clamp(removed.Index, 0, Captures.Count), removed.Capture);
-        Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowToast(UiLanguage.Text("Снимок восстановлен.")); await RefreshOwnedClipboardAsync();
+        Renumber(); NoteStripGrowth(); InvalidatePrepared(); if (await SaveAsync()) ShowToast(UiLanguage.Text("Снимок восстановлен.")); await RefreshOwnedClipboardAsync();
     }
 
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
@@ -1714,4 +1837,17 @@ public partial class EdgeStackWindow : Window
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
+}
+
+// The depth of a card of the strip from its place in it: the first card is drawn over the second,
+// the second over the third, and so on down the stack, so the shadow of every card falls into the
+// seam below it. The index comes from ItemsControl.AlternationIndex, which is why the strip declares
+// an AlternationCount of MaxStripCaptures: within that count the index is the place of the card.
+public sealed class StripDepthConverter : System.Windows.Data.IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+        value is int index ? -index : 0;
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+        throw new NotSupportedException("The depth of a card is read from its index, never written back.");
 }

@@ -31,7 +31,7 @@ public partial class OverlayEditorWindow
         _textEditor.BorderThickness = new Thickness(0);
         _textEditor.Padding = new Thickness(0);
         _textEditor.CaretBrush = Brushes.White;
-        _textEditor.SelectionBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255));
+        _textEditor.SetResourceReference(System.Windows.Controls.Primitives.TextBoxBase.SelectionBrushProperty, "AccentSoftBrush");
         _textEditor.AcceptsReturn = true;
         _textEditor.TextWrapping = TextWrapping.NoWrap;
         _textEditor.FontFamily = new FontFamily(TextMarkMetrics.FamilyName);
