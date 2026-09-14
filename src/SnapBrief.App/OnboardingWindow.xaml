@@ -84,32 +84,11 @@
        <RadioButton x:Name="EnglishSegment" Style="{StaticResource SegmentButton}" GroupName="OnboardingLanguage" Content="English"/>
       </StackPanel>
      </Border>
-     <TextBlock Text="Добро пожаловать" Style="{StaticResource StepTitle}"/>
-     <TextBlock Text="SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями." Style="{StaticResource StepSubtitle}"/>
-     <!-- The whole product in one static picture: a key, the capture it makes, the chat it lands in.
-          Shapes only, no bitmaps and no text, so it needs no translation and no assets. -->
-     <Viewbox Stretch="Uniform" Width="360" Height="115" HorizontalAlignment="Left">
-      <Canvas Width="500" Height="160">
-       <Border Canvas.Left="14" Canvas.Top="54" Width="96" Height="52" CornerRadius="10" Background="#252C36" BorderBrush="#465366" BorderThickness="1">
-        <Path Width="46" Height="30" Stretch="Uniform" Stroke="#9AA7B8" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-              Data="M1,2 L21,2 L21,15 L1,15 Z M4,5.5 L5,5.5 M8,5.5 L9,5.5 M12,5.5 L13,5.5 M16,5.5 L18,5.5 M4,9 L5,9 M8,9 L9,9 M12,9 L13,9 M16,9 L18,9 M7,12 L15,12"/>
-       </Border>
-       <Path Canvas.Left="124" Canvas.Top="72" Data="M0,8 L38,8 M30,2 L38,8 L30,14" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-       <Border Canvas.Left="178" Canvas.Top="34" Width="144" Height="92" CornerRadius="10" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
-        <StackPanel Margin="14,14,0,0">
-         <Rectangle Width="84" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,8"/>
-         <Rectangle Width="66" Height="26" RadiusX="4" RadiusY="4" HorizontalAlignment="Left" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeDashArray="4 3"/>
-        </StackPanel>
-       </Border>
-       <Path Canvas.Left="336" Canvas.Top="72" Data="M0,8 L38,8 M30,2 L38,8 L30,14" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-       <Border Canvas.Left="390" Canvas.Top="44" Width="96" Height="72" CornerRadius="10" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
-        <StackPanel VerticalAlignment="Center" Margin="12,0,0,0">
-         <Rectangle Width="56" Height="6" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,7"/>
-         <Border Width="66" Height="20" CornerRadius="8" HorizontalAlignment="Left" Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"/>
-        </StackPanel>
-       </Border>
-      </Canvas>
-     </Viewbox>
+     <TextBlock Text="Выдели. Прокомментируй. Отправь." Style="{StaticResource StepTitle}"/>
+     <TextBlock Text="Скриншотер для одной задачи: несколько снимков с заметками — и сразу в дело. В чат с ИИ, в мессенджер, в письмо, в задачу."
+                Style="{StaticResource StepSubtitle}" MaxWidth="470" Margin="0,0,0,26"/>
+     <!-- The same scene the first slide shows: what the product does, in one loop of nine seconds. -->
+     <controls:CaptureSceneSmall x:Name="WelcomeScene" HorizontalAlignment="Center"/>
     </StackPanel>
 
     <StackPanel x:Name="Step2" Style="{StaticResource StepPanel}" Visibility="Collapsed">

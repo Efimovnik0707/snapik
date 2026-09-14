@@ -119,6 +119,13 @@ internal static class UiLanguage
         ["Назад"] = "Back", ["Далее"] = "Next", ["Начать"] = "Get started", ["Пропустить"] = "Skip",
         // The wizard is an ordinary window now: it has a header of its own, and the header minimizes.
         ["Свернуть"] = "Minimize", ["Пропустить настройку"] = "Skip setup",
+        ["Выдели. Прокомментируй. Отправь."] = "Select. Comment. Send.",
+        ["Скриншотер для одной задачи: несколько снимков с заметками — и сразу в дело. В чат с ИИ, в мессенджер, в письмо, в задачу."] =
+            "A screenshot tool for one task: a few captures with notes, ready to use straight away. In an AI chat, a messenger, an email, a ticket.",
+        // The words inside the drawings: they are read, so they are translated, and the smoke run
+        // sweeps them together with the rest of the wizard.
+        ["Кнопку ярче"] = "Make the button brighter", ["Убрать блок"] = "Drop this block",
+        ["Чат"] = "Chat", ["Снимок A"] = "Capture A", ["Текст…"] = "Message…",
         ["Уже занято"] = "Already taken", ["Это сочетание занято Windows"] = "Windows keeps this shortcut",
         ["Предложить: {0}"] = "Suggest: {0}",
         ["Как будет выглядеть"] = "How it will look",

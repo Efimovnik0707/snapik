@@ -105,6 +105,7 @@ public partial class OnboardingWindow : Window
     // stopping it is not enough, the clock it left on this window has to be removed as well.
     protected override void OnClosed(EventArgs e)
     {
+        WelcomeScene.Halt();
         HowTo.Stop();
         MarkPassed?.Invoke();
         base.OnClosed(e);
@@ -150,6 +151,7 @@ public partial class OnboardingWindow : Window
         EnglishSegment.IsChecked = language == "en";
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
+        WelcomeScene.ApplyLanguage(language);
         HowTo.ApplyLanguage(language);
         RefreshStepCaption();
         RefreshCaptureConflict();
@@ -182,7 +184,10 @@ public partial class OnboardingWindow : Window
         NextButton.IsEnabled = true;
         RefreshCaptureConflict();
         // The slides only run while their step is on screen, and they take the focus with them, so
-        // the arrows reach them however the step was arrived at.
+        // the arrows reach them however the step was arrived at. The scene of the first step is the
+        // same: a loop nobody is looking at keeps repainting a hidden panel.
+        if (_step == 0) WelcomeScene.Play();
+        else WelcomeScene.Halt();
         if (last) { HowTo.Start(); HowTo.Focus(); }
         else HowTo.Stop();
         if (!_howToOnly) return;
