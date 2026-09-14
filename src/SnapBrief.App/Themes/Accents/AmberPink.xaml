@@ -1,0 +1,28 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Accent "amber-pink". Hover is the accent darkened by 12 %, pressed by 22 %, the light tone is the
+         accent mixed with white and the soft one is the accent at 33 % over the surface below it.
+         Every accent dictionary must keep exactly these eight keys. AccentFlatColor is for the
+         places that need a Color rather than a Brush (an alpha mix, the exported PNG); everything
+         that paints takes AccentBrush.
+         This one is a gradient: AccentBrush runs at 135 degrees, and both AccentColor and
+         AccentFlatColor are its first stop, because the call sites that read AccentColor cast it
+         to a Color. -->
+    <Color x:Key="AccentColor">#FFBE2E</Color>
+    <Color x:Key="AccentFlatColor">#FFBE2E</Color>
+    <LinearGradientBrush x:Key="AccentBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="#FFBE2E" />
+        <GradientStop Offset="1" Color="#FF79B7" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AccentHoverBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="#E0A728" />
+        <GradientStop Offset="1" Color="#E06AA1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AccentPressedBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="#C79424" />
+        <GradientStop Offset="1" Color="#C75E8F" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#55FFBE2E" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#FFBA9C" />
+    <SolidColorBrush x:Key="FocusBrush" Color="#FFBA9C" />
+</ResourceDictionary>

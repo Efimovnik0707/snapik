@@ -159,8 +159,15 @@ public static class SmokeTestRunner
         // The accent lives in a dictionary of its own and is swapped whole; every accent must carry
         // the same keys, otherwise a DynamicResource would resolve under one accent and not under another.
         ThemeService.Apply("dark", "teal");
-        if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(43, 179, 163))
+        if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(0x28, 0xBE, 0x80))
             throw new InvalidOperationException("Applying an accent must replace the accent brushes of the application.");
+        // Half the accents are gradients, and the brush of one is a LinearGradientBrush: what needs a
+        // single Color (an alpha mix, the exported PNG) reads AccentFlatColor, its first stop.
+        ThemeService.Apply("dark", "blue-violet");
+        if (Application.Current.Resources["AccentBrush"] is not LinearGradientBrush accentGradient ||
+            accentGradient.GradientStops.Count != 2 ||
+            (Color)Application.Current.Resources["AccentFlatColor"] != accentGradient.GradientStops[0].Color)
+            throw new InvalidOperationException("A gradient accent must paint with a gradient, and its flat colour must be the first stop.");
         var accentKeys = ThemeService.Accents
             .Select(accent => KeysOf(ThemeService.LoadAccent(accent)))
             .ToArray();

@@ -2,13 +2,15 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Accent "blue". Hover is the accent darkened by 12 %, pressed by 22 %, the light tone is the
          accent mixed with white and the soft one is the accent at 33 % over the surface below it.
-         The four accents are placeholders until the palettes from the designer arrive; every accent
-         dictionary must keep exactly these keys. -->
+         Every accent dictionary must keep exactly these eight keys. AccentFlatColor is for the
+         places that need a Color rather than a Brush (an alpha mix, the exported PNG); everything
+         that paints takes AccentBrush. -->
     <Color x:Key="AccentColor">#2F8CFF</Color>
+    <Color x:Key="AccentFlatColor">#2F8CFF</Color>
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#297BE0" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#256DC7" />
     <SolidColorBrush x:Key="AccentSoftBrush" Color="#552F8CFF" />
-    <SolidColorBrush x:Key="AccentTextBrush" Color="#7AB8FF" />
-    <SolidColorBrush x:Key="FocusBrush" Color="#7AB8FF" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#7CB7FF" />
+    <SolidColorBrush x:Key="FocusBrush" Color="#7CB7FF" />
 </ResourceDictionary>

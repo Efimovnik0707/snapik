@@ -17,8 +17,10 @@ internal static class ThemeService
     internal const string DefaultTheme = "dark";
     internal const string DefaultAccent = "blue";
     internal static IReadOnlyList<string> Themes { get; } = ["dark", "light", "glass", "night", "sunset", "sea", "dawn"];
-    // Placeholder accents until the palettes from the designer arrive.
-    internal static IReadOnlyList<string> Accents { get; } = ["blue", "teal", "violet", "coral"];
+    // Four solid accents and four gradients; "teal" is called green in the interface and "coral"
+    // orange, because the file carries the identifier and renaming it would need a migration.
+    internal static IReadOnlyList<string> Accents { get; } =
+        ["blue", "teal", "violet", "coral", "blue-violet", "orange-rose", "green-cyan", "amber-pink"];
     private static ResourceDictionary? _theme;
     private static ResourceDictionary? _accent;
 
@@ -62,5 +64,7 @@ internal static class ThemeService
     internal static string Normalize(string? accentId) =>
         Accents.FirstOrDefault(accent => string.Equals(accent, accentId, StringComparison.OrdinalIgnoreCase)) ?? DefaultAccent;
 
-    private static string FileName(string id) => string.Concat(char.ToUpperInvariant(id[0]), id[1..]);
+    // "blue-violet" is one identifier and one file: BlueViolet.xaml.
+    private static string FileName(string id) =>
+        string.Concat(id.Split('-').Select(part => string.Concat(char.ToUpperInvariant(part[0]), part[1..])));
 }
