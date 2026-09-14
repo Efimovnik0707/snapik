@@ -117,6 +117,8 @@ internal static class UiLanguage
         ["Буфер не обновлён"] = "The clipboard was not updated",
         ["Шаг {0} из {1}"] = "Step {0} of {1}",
         ["Назад"] = "Back", ["Далее"] = "Next", ["Начать"] = "Get started", ["Пропустить"] = "Skip",
+        // The wizard is an ordinary window now: it has a header of its own, and the header minimizes.
+        ["Свернуть"] = "Minimize",
         ["Добро пожаловать"] = "Welcome", ["Язык интерфейса"] = "Interface language",
         ["SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями."] =
             "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.",

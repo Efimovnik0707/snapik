@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using WinForms = System.Windows.Forms;
 
 namespace SnapBrief.App;
 
@@ -66,6 +67,31 @@ public partial class OnboardingWindow : Window
         // reach them from the first moment.
         Loaded += (_, _) => { Activate(); if (_step == StepCount - 1) HowTo.Focus(); };
     }
+
+    /// <summary>
+    /// The wizard opens on the monitor the user is on, not on the primary one, and never taller than
+    /// the working area of that monitor. It is done here rather than in Loaded: the handle the scale
+    /// of the monitor is read through exists by now, and the window has not been drawn yet.
+    /// </summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        try
+        {
+            var monitor = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
+            var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+            var topLeft = transform.Transform(new Point(monitor.Left, monitor.Top));
+            var area = transform.Transform(new Point(monitor.Width, monitor.Height));
+            MaxHeight = Math.Max(MinimumUsefulHeight, area.Y - 40);
+            var height = Math.Min(Height, MaxHeight);
+            Left = topLeft.X + (area.X - Width) / 2;
+            Top = topLeft.Y + (area.Y - height) / 2;
+        }
+        catch (Exception ex) { Trace?.Invoke($"Onboarding placement: {ex}"); }
+    }
+
+    /// <summary>Below this the wizard would be a strip of chrome; the content scrolls instead.</summary>
+    private const double MinimumUsefulHeight = 360;
 
     // The window can go away without any button: the cross, Alt+F4, the taskbar, "Get started".
     // Every one of them counts as "seen", and every one of them has to release the loop of step 4 —
@@ -250,6 +276,10 @@ public partial class OnboardingWindow : Window
     }
 
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
+
+    // "Minimize" is the window, not the wizard: nothing is applied and nothing is marked, the window
+    // goes to the taskbar and comes back from it.
+    private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     // Smoke probe: the wizard is built, laid out, translated both ways and walked through every
     // step, so a broken template or a string without an English pair fails the run.
