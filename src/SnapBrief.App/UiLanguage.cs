@@ -119,6 +119,8 @@ internal static class UiLanguage
         ["Назад"] = "Back", ["Далее"] = "Next", ["Начать"] = "Get started", ["Пропустить"] = "Skip",
         // The wizard is an ordinary window now: it has a header of its own, and the header minimizes.
         ["Свернуть"] = "Minimize", ["Пропустить настройку"] = "Skip setup",
+        ["Уже занято"] = "Already taken", ["Это сочетание занято Windows"] = "Windows keeps this shortcut",
+        ["Предложить: {0}"] = "Suggest: {0}",
         ["Как будет выглядеть"] = "How it will look",
         ["Нажми — окно сразу перекрасится. Поменять можно в любой момент в настройках."] =
             "Click and the window repaints at once. You can change it any time in the settings.",

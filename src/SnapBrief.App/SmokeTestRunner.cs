@@ -275,6 +275,19 @@ public static class SmokeTestRunner
         onboarding.GoToStep(0);
         if (onboarding.LanguageToggle.Visibility != Visibility.Visible || onboarding.SkipLink.Visibility != Visibility.Visible)
             throw new InvalidOperationException("The first step must show the language switch, and \"Skip setup\" with it.");
+        // Step 2 asks the shared rules before the registration does: the combination the fullscreen
+        // save already holds is refused where it is typed, "Next" stops, and a free one is offered.
+        onboarding.CaptureField.HotkeyId = restoredSettings.FullscreenSaveId;
+        onboarding.GoToStep(1);
+        if (onboarding.CaptureConflictText.Visibility != Visibility.Visible || onboarding.NextButton.IsEnabled ||
+            onboarding.SuggestChip.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("A shortcut the fullscreen save already holds must be refused on the step, with a free one offered beside it.");
+        onboarding.CaptureField.HotkeyId = restoredSettings.CaptureId;
+        onboarding.GoToStep(1);
+        if (onboarding.CaptureConflictText.Visibility == Visibility.Visible || !onboarding.NextButton.IsEnabled ||
+            onboarding.CaptureField.KeyCaps.Children.Count != HotkeySettings.Find(restoredSettings.CaptureId).Label.Split(" + ").Length)
+            throw new InvalidOperationException("The shortcut of the settings must pass the step and show one capsule per key.");
+        onboarding.GoToStep(0);
         // The wizard is built for the checks above and belongs to nobody afterwards; the probe cannot
         // close it itself, because those checks read the window it returns.
         onboarding.Close();

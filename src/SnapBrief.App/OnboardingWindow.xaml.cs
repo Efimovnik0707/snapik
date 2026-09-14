@@ -24,6 +24,8 @@ public partial class OnboardingWindow : Window
     // The tray opens the slides alone: no language, no shortcut, no steps, one "Done" button.
     private readonly bool _howToOnly;
     private string _appliedCaptureId;
+    // The free combination the chip of step 2 offers, or null while nothing refuses the current one.
+    private string? _suggestedCaptureId;
     private string _language;
     private int _step;
 
@@ -51,7 +53,12 @@ public partial class OnboardingWindow : Window
         _language = SuggestedLanguage(settingsFileExists, settings, CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
         InitializeComponent();
         CaptureField.HotkeyId = settings.CaptureId;
-        CaptureField.HotkeyChanged += (_, _) => { ErrorText.Visibility = Visibility.Collapsed; HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label; };
+        CaptureField.HotkeyChanged += (_, _) =>
+        {
+            ErrorText.Visibility = Visibility.Collapsed;
+            HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label;
+            RefreshCaptureConflict();
+        };
         HowTo.KeyLabel = HotkeySettings.Find(settings.CaptureId).Label;
         RussianSegment.Checked += (_, _) => SelectLanguage("ru");
         EnglishSegment.Checked += (_, _) => SelectLanguage("en");
@@ -145,6 +152,7 @@ public partial class OnboardingWindow : Window
         CaptureField.ApplyLanguage(language);
         HowTo.ApplyLanguage(language);
         RefreshStepCaption();
+        RefreshCaptureConflict();
     }
 
     internal void GoToStep(int index) => ShowStep(index);
@@ -171,6 +179,8 @@ public partial class OnboardingWindow : Window
         NextButton.IsDefault = !last;
         StartButton.IsDefault = last;
         RefreshStepCaption();
+        NextButton.IsEnabled = true;
+        RefreshCaptureConflict();
         // The slides only run while their step is on screen, and they take the focus with them, so
         // the arrows reach them however the step was arrived at.
         if (last) { HowTo.Start(); HowTo.Focus(); }
@@ -202,6 +212,44 @@ public partial class OnboardingWindow : Window
     {
         if (HandleNavigationKey(e.Key)) e.Handled = true;
         base.OnPreviewKeyDown(e);
+    }
+
+    /// <summary>
+    /// What the shortcut of the step is refused for, as the Russian key of the message, or null when
+    /// nothing refuses it. The rules are the shared ones (W0-8); the wizard only asks them.
+    /// </summary>
+    private string? CaptureRefusal()
+    {
+        var id = CaptureField.HotkeyId;
+        if (HotkeyRules.TryParseCustom(id, out var modifiers, out var virtualKey) &&
+            HotkeyRules.IsSystemReserved((ModifierKeys)modifiers, virtualKey))
+            return "Это сочетание занято Windows";
+        return HotkeyRules.SameGesture(id, _settings.FullscreenSaveId) ? "Уже занято" : null;
+    }
+
+    // The refusal is shown under the field, "Next" stops until it is gone, and a free combination is
+    // offered beside it, so that the user is never left to invent one.
+    private void RefreshCaptureConflict()
+    {
+        var refusal = CaptureRefusal();
+        CaptureConflictText.Text = refusal is null ? string.Empty : UiLanguage.Text(refusal, _language);
+        CaptureConflictText.Visibility = refusal is null ? Visibility.Collapsed : Visibility.Visible;
+        _suggestedCaptureId = refusal is null ? null : HotkeyRules.SuggestFree([_settings.FullscreenSaveId, _settings.PasteId]);
+        SuggestChipText.Text = _suggestedCaptureId is null
+            ? string.Empty
+            : string.Format(UiLanguage.Text("Предложить: {0}", _language), HotkeySettings.Find(_suggestedCaptureId).Label);
+        SuggestChip.Visibility = _suggestedCaptureId is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_step == 1) NextButton.IsEnabled = refusal is null;
+    }
+
+    private void OnSuggestFreeShortcut(object sender, MouseButtonEventArgs e)
+    {
+        if (_suggestedCaptureId is null) return;
+        // The field reports what the user records, never what is written into it, so the refusal is
+        // asked about again here.
+        CaptureField.HotkeyId = _suggestedCaptureId;
+        HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label;
+        RefreshCaptureConflict();
     }
 
     private void RefreshStepCaption() =>
@@ -258,7 +306,7 @@ public partial class OnboardingWindow : Window
 
     private void OnNext(object sender, RoutedEventArgs e)
     {
-        if (_step == 1 && !Apply(CaptureField.HotkeyId)) return;
+        if (_step == 1 && (CaptureRefusal() is not null || !Apply(CaptureField.HotkeyId))) return;
         ShowStep(_step + 1);
     }
 
