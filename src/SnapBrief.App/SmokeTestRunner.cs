@@ -34,7 +34,7 @@ public static class SmokeTestRunner
             ConfirmSessionDiscard = false, StackHeight = 300,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationFontSize = 28,
             AnnotationShape = "ellipse", AnnotationFill = "translucent",
-            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "neon", AnnotationPencil = "highlight",
+            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "custom", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion,
@@ -94,16 +94,27 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("The stored fill colour and outline flag must be read back, with an outline and no own colour by default.");
         // The palette is remembered by its name; a name nobody knows falls back to the standard set,
         // and the colour the editor starts with has to belong to that set.
-        if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "neon" ||
+        if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "custom" ||
             OverlayEditorWindow.ParseAnnotationPalette("rainbow").Id != "standard" ||
             OverlayEditorWindow.ParseAnnotationPalette("1").Id != "standard" ||
+            // A file that was written by 1.3.2 on the palette that no longer exists reads as the
+            // standard set, the way any other name nobody knows does.
+            OverlayEditorWindow.ParseAnnotationPalette("neon").Id != "standard" ||
             OverlayEditorWindow.ParseAnnotationPalette(null).Id != "standard" ||
             HotkeySettings.Default.AnnotationPalette != "standard" ||
             OverlayEditorWindow.Palettes.Length != 3 ||
-            OverlayEditorWindow.Palettes.Any(palette => palette.Colors.Length != 12 || palette.Quick.Length != 5) ||
+            OverlayEditorWindow.Palettes.Any(palette => palette.Id != "custom" && (palette.Colors.Length != 12 || palette.Quick.Length != 5)) ||
             !OverlayEditorWindow.Palettes[0].Colors.Contains(HotkeySettings.Default.AnnotationColor) ||
             OverlayEditorWindow.ParseAnnotationColor(HotkeySettings.Default.AnnotationColor) != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("The stored palette must be read back, and the default colour must belong to the standard palette.");
+        // The own palette carries the colours of the file, newest first, and the five newest of them
+        // are the quick row; a hand-written file longer than the row is cut to it.
+        var ownColours = new[] { "#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7" };
+        var ownPalette = OverlayEditorWindow.PaletteFor(HotkeySettings.Default with { AnnotationPalette = "custom", CustomPaletteColors = ownColours });
+        if (ownPalette.Id != "custom" || !ownPalette.Colors.SequenceEqual(ownColours) ||
+            !ownPalette.Quick.SequenceEqual(ownColours.Take(5)) ||
+            OverlayEditorWindow.CustomPalette(Enumerable.Repeat("#2F8CFF", 20)).Colors.Length != HotkeySettings.MaxCustomPaletteColors)
+            throw new InvalidOperationException("The own palette must be built out of the colours the settings carry.");
         // The size a caption is typed in is remembered next to the colour and the widths.
         if (restoredSettings.AnnotationFontSize != 28 ||
             HotkeySettings.Default.AnnotationFontSize != TextMarkMetrics.DefaultFontSize ||

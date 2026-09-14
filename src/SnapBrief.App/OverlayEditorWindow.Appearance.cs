@@ -48,11 +48,37 @@ public partial class OverlayEditorWindow
         new("pastel", "Пастель",
             ["#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7", "#FFFFFF", "#000000", "#00C8DC", "#FF8C42", "#9BA7B8", "#7754D9"],
             ["#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#FFFFFF"]),
-        // Until the palettes from the test come in, this set is a proposal and nothing else.
-        new("neon", "Неон",
-            ["#FF1744", "#FF6D00", "#FFEA00", "#C6FF00", "#00E676", "#1DE9B6", "#00E5FF", "#2979FF", "#651FFF", "#D500F9", "#FF4081", "#FFFFFF"],
-            ["#FF1744", "#FFEA00", "#00E676", "#2979FF", "#FFFFFF"])
+        // The own palette holds no colours of its own: they are the ones the user picked, they live
+        // in the settings file, and PaletteFor puts them in.
+        new("custom", "Своя", [], [])
     ];
+
+    /// <summary>
+    /// The palette a settings file stands for. Everything but the own one is a set written down
+    /// above; the own one is built out of the colours the file carries, newest first, with the five
+    /// newest of them as the quick row on the panel.
+    /// </summary>
+    internal static PaletteSet PaletteFor(HotkeySettings settings) =>
+        ParseAnnotationPalette(settings.AnnotationPalette) is { Id: "custom" }
+            ? CustomPalette(settings.CustomPaletteColors)
+            : ParseAnnotationPalette(settings.AnnotationPalette);
+
+    internal static PaletteSet CustomPalette(System.Collections.Generic.IEnumerable<string> colours)
+    {
+        var kept = colours.Take(HotkeySettings.MaxCustomPaletteColors).ToArray();
+        return new PaletteSet("custom", "Своя", kept, [.. kept.Take(5)]);
+    }
+
+    /// <summary>The colours of the own palette, newest first, as this window has them.</summary>
+    private readonly System.Collections.Generic.List<string> _customColors = [];
+
+    // Called from the constructor: the palette of the next capture is the one the file carries, and
+    // the own colours come with it.
+    private void InitializePalette(HotkeySettings preferences)
+    {
+        _customColors.AddRange(preferences.CustomPaletteColors);
+        _activePalette = PaletteFor(preferences);
+    }
 
     // The thickness the panel works on: the highlighter keeps one of its own, everything else with a
     // stroke shares the other, which is what the common thickness button was asked to do.
@@ -150,7 +176,22 @@ public partial class OverlayEditorWindow
             swatch.Click += (_, _) => pick(color);
             host.Children.Add(swatch);
         }
+        // The own palette is as long as it has been filled; the rest of the row is drawn as empty
+        // cells, so it keeps its shape while it fills up instead of growing under the spectrum.
+        if (_activePalette.Id != "custom") return;
+        for (var slot = _activePalette.Colors.Length; slot < HotkeySettings.MaxCustomPaletteColors; slot++)
+            host.Children.Add(EmptySlot());
     }
+
+    private static Border EmptySlot() => new()
+    {
+        Width = 34, Height = 34, Margin = new Thickness(3), Padding = new Thickness(4),
+        Child = new Ellipse
+        {
+            Width = 22, Height = 22, Stroke = new SolidColorBrush(Color.FromRgb(70, 83, 102)),
+            StrokeThickness = 1, StrokeDashArray = [2, 2]
+        }
+    };
 
     // The row of five dots on the panel: the quick row of the active palette, one click instead of
     // two. The circle beside it still opens the full popover.
@@ -235,10 +276,17 @@ public partial class OverlayEditorWindow
             }
             segments[i].IsChecked = Math.Abs(value - thickness) < 0.001;
         }
-        foreach (Button swatch in ColorPalette.Children)
+        // Only the filled cells are swatches: an empty cell of the own palette is a placeholder and
+        // has no colour to compare against.
+        foreach (var swatch in ColorPalette.Children.OfType<Button>())
             swatch.BorderBrush = (Color)swatch.Tag == color ? Brushes.White : Brushes.Transparent;
-        foreach (Button swatch in FillPalette.Children)
+        foreach (var swatch in FillPalette.Children.OfType<Button>())
             swatch.BorderBrush = (Color)swatch.Tag == fillColor ? Brushes.White : Brushes.Transparent;
+        // The spectrum and the eyedropper belong to the own palette, and the spectrum shows the
+        // colour that is in force: the HEX field and the markers say the same thing.
+        var own = _activePalette.Id == "custom";
+        SpectrumBlock.Visibility = EyedropperButton.Visibility = own ? Visibility.Visible : Visibility.Collapsed;
+        if (own) Spectrum.SelectedColor = mainColor;
         foreach (System.Windows.Controls.Primitives.ToggleButton segment in PaletteRow.Children)
             segment.IsChecked = (string)segment.Tag == _activePalette.Id;
         // The switch that hides the outline of a frame; the fill of that frame lives on the panel now.
@@ -394,7 +442,84 @@ public partial class OverlayEditorWindow
     private void OnPaletteClick(object sender, RoutedEventArgs e)
     {
         if (_syncingAppearance || sender is not System.Windows.Controls.Primitives.ToggleButton { Tag: string id }) return;
-        SelectPalette(ParseAnnotationPalette(id));
+        SelectPalette(id == "custom" ? CustomPalette(_customColors) : ParseAnnotationPalette(id));
+    }
+
+    // The markers are dragged over a colour that is already on the canvas, so every move paints; the
+    // release is what puts the colour into the row of saved ones.
+    private void OnSpectrumChanged(object? sender, EventArgs e)
+    {
+        if (_syncingAppearance) return;
+        ApplyPickedColor(Spectrum.SelectedColor);
+    }
+
+    private void OnSpectrumCommitted(object? sender, EventArgs e)
+    {
+        if (_syncingAppearance) return;
+        RememberCustomColor(Spectrum.SelectedColor);
+    }
+
+    // The eyedropper takes a pixel from anywhere on the desktop. The popover is in the way of the
+    // screen under it, so it is closed for the picking and opened again with the colour.
+    private void OnEyedropperClick(object sender, RoutedEventArgs e)
+    {
+        var before = _activeColor;
+        AppearancePopup.IsOpen = false;
+        var picked = Controls.ScreenColorPicker.Pick(this, ApplyPickedColor);
+        // Given up on: the colour the dropper walked over goes back to the one it started with.
+        ApplyPickedColor(picked ?? before);
+        if (picked is { } colour) RememberCustomColor(colour);
+        OpenAppearance();
+    }
+
+    /// <summary>
+    /// The smoke check of the own palette: the spectrum and the eyedropper come with it, the row
+    /// keeps its twelve cells from the first colour to the last, a colour picked twice rises instead
+    /// of standing there twice, and the spectrum paints the mark.
+    /// </summary>
+    internal void RunCustomPaletteProbe()
+    {
+        SelectPalette(CustomPalette(_customColors));
+        if (CustomPaletteSegment.IsChecked != true || SpectrumBlock.Visibility != Visibility.Visible ||
+            EyedropperButton.Visibility != Visibility.Visible ||
+            ColorPalette.Children.Count != HotkeySettings.MaxCustomPaletteColors)
+            throw new InvalidOperationException("The own palette must show the spectrum and a row of twelve cells.");
+        RememberCustomColor(Color.FromRgb(0x2F, 0x8C, 0xFF));
+        RememberCustomColor(Color.FromRgb(0xFF, 0x4D, 0x4F));
+        RememberCustomColor(Color.FromRgb(0x2F, 0x8C, 0xFF));
+        if (_customColors.Count != 2 || _customColors[0] != "#2F8CFF" ||
+            ColorPalette.Children.OfType<Button>().Count() != 2 ||
+            ColorPalette.Children.Count != HotkeySettings.MaxCustomPaletteColors ||
+            ColorDots.Children.Count != 2)
+            throw new InvalidOperationException("A colour picked again must rise in the row instead of filling a second cell.");
+        for (var step = 0; step < HotkeySettings.MaxCustomPaletteColors + 2; step++)
+            RememberCustomColor(Color.FromRgb((byte)(10 + step), 0x20, 0x30));
+        if (_customColors.Count != HotkeySettings.MaxCustomPaletteColors ||
+            ColorPalette.Children.OfType<Button>().Count() != HotkeySettings.MaxCustomPaletteColors ||
+            ColorDots.Children.Count != 5)
+            throw new InvalidOperationException("The own palette must hold twelve colours and no more, with five of them on the panel.");
+        // The markers paint the mark, and the HEX field beside them shows the same colour.
+        Spectrum.PickInHue(new Point(8, 0));
+        Spectrum.PickInSquare(new Point(160, 0));
+        if (_activeColor != Color.FromRgb(0xFF, 0x00, 0x00) || ColorHex.Text != "#FF0000")
+            throw new InvalidOperationException("A colour picked in the spectrum must reach the mark and the HEX field.");
+        _customColors.Clear();
+        SelectPalette(Palettes[0]);
+    }
+
+    /// <summary>
+    /// The row of saved colours: the newest goes first, a colour that is already in the row moves up
+    /// instead of standing in it twice, and the row is never longer than the file allows.
+    /// </summary>
+    private void RememberCustomColor(Color color)
+    {
+        if (_activePalette.Id != "custom") return;
+        var hex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        _customColors.Remove(hex);
+        _customColors.Insert(0, hex);
+        if (_customColors.Count > HotkeySettings.MaxCustomPaletteColors)
+            _customColors.RemoveRange(HotkeySettings.MaxCustomPaletteColors, _customColors.Count - HotkeySettings.MaxCustomPaletteColors);
+        SelectPalette(CustomPalette(_customColors));
     }
 
     internal void SelectPalette(PaletteSet palette)
@@ -424,7 +549,12 @@ public partial class OverlayEditorWindow
         var value = ColorHex.Text.Trim();
         if (value.StartsWith('#')) value = value[1..];
         if (value.Length == 6 && uint.TryParse(value, System.Globalization.NumberStyles.HexNumber, null, out var rgb))
-            ApplyPickedColor(Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb));
+        {
+            var colour = Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
+            ApplyPickedColor(colour);
+            // A colour typed in is a colour picked: it joins the row of saved ones like any other.
+            RememberCustomColor(colour);
+        }
         else ColorHex.BorderBrush = new SolidColorBrush(Color.FromRgb(255, 110, 110));
     }
     private void OnHexLostFocus(object sender, KeyboardFocusChangedEventArgs e) { if (!_syncingAppearance) ApplyHex(); }
@@ -500,6 +630,7 @@ public partial class OverlayEditorWindow
                 AnnotationFillColor = _activeFillColor is { } fillColor ? $"#{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : string.Empty,
                 AnnotationOutline = _activeHasOutline,
                 AnnotationPalette = _activePalette.Id,
+                CustomPaletteColors = [.. _customColors],
                 AnnotationPencil = _activePencil == EditorTool.Highlight ? "highlight" : "pen"
             };
             settings.Save(path);

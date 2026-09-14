@@ -52,7 +52,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// </summary>
     public bool ConfirmSessionDiscard { get; init; } = true;
     public string AnnotationColor { get; init; } = "#FF3B30";
-    /// <summary>Which set of twelve colours the editor offers: standard, pastel or neon.</summary>
+    /// <summary>Which set of twelve colours the editor offers: standard, pastel or the user's own.</summary>
     public string AnnotationPalette { get; init; } = "standard";
     /// <summary>Which half of the pencil capsule is armed: pen or highlight.</summary>
     public string AnnotationPencil { get; init; } = "pen";
