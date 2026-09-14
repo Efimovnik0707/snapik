@@ -322,6 +322,7 @@ public static class SmokeTestRunner
         // do) has to leave the wizard marked as passed, or the first run comes back on every start.
         WithoutBindingErrors("The how-to slides", Controls.HowToSlides.RunSlidesProbe);
         VerifyHowToOnlyWizard(restoredSettings);
+        VerifyTheStripChromeFollowsTheTheme();
         VerifySlideKeysStayInsideTheWizard(restoredSettings);
         VerifyAShortcutNeedsAModifier(restoredSettings, root);
         var closedWithoutButtons = false;
@@ -830,6 +831,58 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("Dragging the strip past the screen must stop at the edge of the working area.");
         if (Controls.StripResizeGeometry.ListHeightFromStart(372, 2000, 100, 0, 2000) != 1900)
             throw new InvalidOperationException("The height of the strip must be bounded by the working area, not by a number.");
+    }
+
+    // The chrome of the strip is painted by the theme now, and for the same reason as above the
+    // window itself cannot be built here: what is checked is the chain it hangs on. Every token the
+    // shell, the header, the capsule and the toast ask for has to answer under all seven palettes —
+    // a key present in one of them and missing from the next leaves a DynamicResource unresolved and
+    // the strip half dark. And the shadow of the shell reads its colour and its opacity off the
+    // palette through a Freezable (DropShadowEffect), which resolves a DynamicResource only while it
+    // hangs on an element: dawn must dim it and dark must bring it back.
+    private static void VerifyTheStripChromeFollowsTheTheme()
+    {
+        var chrome = new[]
+        {
+            "SurfaceBrush", "SurfaceLineBrush", "ElevatedBrush", "ElevatedLineBrush",
+            "HoverBrush", "PressedBrush", "DividerBrush", "TextBrush", "TextMutedBrush",
+            "TextFaintBrush", "DangerBrush", "ShadowColor", "ShadowOpacity",
+        };
+        foreach (var theme in ThemeService.Themes)
+        {
+            var palette = ThemeService.LoadTheme(theme);
+            foreach (var token in chrome)
+            {
+                if (palette[token] is null)
+                    throw new InvalidOperationException($"The palette \"{theme}\" must carry \"{token}\": the chrome of the strip asks for it.");
+            }
+        }
+        // The markup of the shell, word for word: a DynamicResource inside a Freezable resolves only
+        // through the element the Freezable hangs on, and there is no way to set one from code. The
+        // border hangs in a window of its own, because a repaint reaches what stands in a tree.
+        var shell = (System.Windows.Controls.Border)System.Windows.Markup.XamlReader.Parse(
+            "<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Background=\"{DynamicResource SurfaceBrush}\">" +
+            "<Border.Effect><DropShadowEffect Color=\"{DynamicResource ShadowColor}\" BlurRadius=\"24\" ShadowDepth=\"5\" Opacity=\"{DynamicResource ShadowOpacity}\" /></Border.Effect></Border>");
+        var shadow = (System.Windows.Media.Effects.DropShadowEffect)shell.Effect;
+        var host = new Window { Content = shell, Width = 208, Height = 420, ShowInTaskbar = false };
+        try
+        {
+            foreach (var (theme, opacity) in new[] { ("dawn", 0.15), ("dark", 0.4), ("sea", 0.45) })
+            {
+                ThemeService.Apply(theme, "blue");
+                if (!ReferenceEquals(shell.Background, Application.Current.Resources["SurfaceBrush"]))
+                    throw new InvalidOperationException($"On \"{theme}\" the shell of the strip must take its plate from the palette, not from a literal.");
+                if (Math.Abs(shadow.Opacity - opacity) > 0.0001)
+                    throw new InvalidOperationException($"On \"{theme}\" the shadow of the strip must take its depth from the palette.");
+            }
+            if (shell.Background is not LinearGradientBrush)
+                throw new InvalidOperationException("A gradient theme must reach the shell of the strip as a gradient.");
+        }
+        finally
+        {
+            host.Close();
+            ThemeService.Apply("dark", "blue");
+        }
     }
 
     // The tray opens the how-to slides on their own: the last step and nothing else, one button, and

@@ -11,14 +11,14 @@
         <local:StripDepthConverter x:Key="StripDepth" />
         <Style x:Key="StackButton" TargetType="Button">
             <Setter Property="Height" Value="36" /><Setter Property="Padding" Value="10,0" />
-            <Setter Property="Foreground" Value="#EEF2F8" /><Setter Property="Background" Value="#242A33" />
-            <Setter Property="BorderBrush" Value="#333C49" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" /><Setter Property="Background" Value="{DynamicResource ElevatedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
                 <Border x:Name="B" CornerRadius="10" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="{TemplateBinding Padding}">
                     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <ControlTemplate.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#303845" /><Setter TargetName="B" Property="BorderBrush" Value="#536175" /></Trigger>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="{DynamicResource HoverBrush}" /><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource ElevatedLineBrush}" /></Trigger>
                     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
                     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42" /></Trigger>
                 </ControlTemplate.Triggers>
@@ -31,14 +31,14 @@
         <Style x:Key="IconButton" TargetType="Button">
             <Setter Property="Width" Value="26" /><Setter Property="Height" Value="26" /><Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="#D9DEE8" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" /><Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
                 <Border x:Name="Chrome" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1">
                     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <ControlTemplate.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#29303A" /><Setter Property="Foreground" Value="White" /></Trigger>
-                    <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#222932" /></Trigger>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource HoverBrush}" /><Setter Property="Foreground" Value="{DynamicResource TextBrush}" /></Trigger>
+                    <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PressedBrush}" /></Trigger>
                     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
                     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42" /></Trigger>
                 </ControlTemplate.Triggers>
@@ -64,8 +64,8 @@
             </ControlTemplate></Setter.Value></Setter>
         </Style>
         <Style TargetType="ContextMenu">
-            <Setter Property="Background" Value="#F2171A20" /><Setter Property="Foreground" Value="#EEF2F8" />
-            <Setter Property="BorderBrush" Value="#39424E" /><Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SurfaceLineBrush}" /><Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="5" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContextMenu">
                 <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
@@ -74,7 +74,7 @@
             </ControlTemplate></Setter.Value></Setter>
         </Style>
         <Style TargetType="MenuItem">
-            <Setter Property="Foreground" Value="#EEF2F8" /><Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" /><Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="10,7" />
             <!-- The column of the check is the reason this template exists in two parts: the previous
                  one carried a single ContentPresenter, so a checkable item ("Always on top", the
@@ -91,11 +91,11 @@
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsChecked" Value="True"><Setter TargetName="CheckMark" Property="Visibility" Value="Visible" /></Trigger>
-                    <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="MenuRow" Property="Background" Value="#303845" /></Trigger>
+                    <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="MenuRow" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
                     <Trigger Property="IsEnabled" Value="False"><Setter TargetName="MenuRow" Property="Opacity" Value="0.45" /></Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
-            <Style.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#303845" /></Trigger></Style.Triggers>
+            <Style.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger></Style.Triggers>
         </Style>
         <!-- The bar carries neither width nor margin of its own any more: both of them belong to the
              template of the ScrollViewer below, which lays the bar over the cards instead of beside
@@ -113,9 +113,9 @@
                                     <Thumb>
                                         <Thumb.Template>
                                             <ControlTemplate TargetType="Thumb">
-                                                <Border x:Name="Grip" Background="#657083" CornerRadius="2" />
+                                                <Border x:Name="Grip" Background="{DynamicResource TextFaintBrush}" CornerRadius="2" />
                                                 <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="#8A96A9" /></Trigger>
+                                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource TextMutedBrush}" /></Trigger>
                                                     <Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource FocusBrush}" /></Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -131,8 +131,8 @@
         </Style>
     </Window.Resources>
     <Grid>
-    <Border x:Name="Shell" Margin="10" Padding="10" CornerRadius="16" Background="#F2171A20">
-        <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="24" ShadowDepth="5" Opacity="0.42" /></Border.Effect>
+    <Border x:Name="Shell" Margin="10" Padding="10" CornerRadius="16" Background="{DynamicResource SurfaceBrush}">
+        <Border.Effect><DropShadowEffect Color="{DynamicResource ShadowColor}" BlurRadius="24" ShadowDepth="5" Opacity="{DynamicResource ShadowOpacity}" /></Border.Effect>
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Grid.Row="0" Height="28" MouseLeftButtonDown="OnHeaderMouseDown">
@@ -141,9 +141,9 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="1,0,7,0" />
-                    <TextBlock Foreground="White" FontSize="12" FontWeight="SemiBold" Text="SnapBrief" />
-                    <Border Margin="7,0,0,0" Padding="6,2" CornerRadius="8" Background="#2B3440">
-                        <TextBlock x:Name="CountText" Foreground="#BFC8D6" FontSize="11" Text="0" />
+                    <TextBlock Foreground="{DynamicResource TextBrush}" FontSize="12" FontWeight="SemiBold" Text="SnapBrief" />
+                    <Border Margin="7,0,0,0" Padding="6,2" CornerRadius="8" Background="{DynamicResource ElevatedBrush}">
+                        <TextBlock x:Name="CountText" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" Text="0" />
                     </Border>
                 </StackPanel>
                 <Button Grid.Column="1" Style="{StaticResource IconButton}" Click="OnClearStackClick" ToolTip="Очистить ленту" AutomationProperties.Name="Очистить ленту">
@@ -296,7 +296,7 @@
                     </ListBox.ItemTemplate>
             </ListBox>
 
-            <Button Grid.Row="2" Style="{StaticResource StackButton}" Background="{DynamicResource AccentBrush}" BorderBrush="{DynamicResource AccentBrush}" Click="OnCaptureClick">
+            <Button Grid.Row="2" Style="{StaticResource StackButton}" Foreground="White" Background="{DynamicResource AccentBrush}" BorderBrush="{DynamicResource AccentBrush}" Click="OnCaptureClick">
                 <StackPanel Orientation="Horizontal">
                     <Path Stretch="Uniform" Width="16" Height="14" Margin="0,0,7,0" Stroke="White" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,5 L2,3 L6,3 L7,1.5 L11,1.5 L12,3 L16,3 L16,13 L2,13 Z M9,5 A3,3 0 1 0 9,11 A3,3 0 1 0 9,5" />
                     <TextBlock Text="Новый снимок" FontWeight="SemiBold" />
@@ -308,24 +308,24 @@
                 <Button x:Name="TargetButton" Height="36" Style="{StaticResource StackButton}" HorizontalContentAlignment="Left" Click="OnTargetClick" ToolTip="Получатель">
                     <DockPanel LastChildFill="True">
                         <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="0,0,8,0" />
-                        <Path DockPanel.Dock="Right" Width="8" Height="5" Margin="8,0,0,0" Fill="#AEB8C7" Data="M0,0 L4,4 L8,0 Z" />
-                        <TextBlock x:Name="TargetCaption" VerticalAlignment="Center" Foreground="#EEF2F8" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        <Path DockPanel.Dock="Right" Width="8" Height="5" Margin="8,0,0,0" Fill="{DynamicResource TextMutedBrush}" Data="M0,0 L4,4 L8,0 Z" />
+                        <TextBlock x:Name="TargetCaption" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
                     </DockPanel>
                 </Button>
                 <Button x:Name="PasteButton" Grid.Column="1" Margin="5,0,0,0" Style="{StaticResource StackButton}" Padding="9" Click="OnPasteClick" IsEnabled="False" ToolTip="Подготовить и вставить в черновик">
-                    <Path Width="14" Height="14" Stroke="White" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M7,13 L7,1 M2,6 L7,1 L12,6" />
+                    <Path Width="14" Height="14" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M7,13 L7,1 M2,6 L7,1 L12,6" />
                 </Button>
             </Grid>
             <!-- One toast at a time: it fades in over the strip footer, carries an optional action and never takes focus. -->
-            <Border x:Name="Toast" Grid.Row="4" Margin="2,8,2,0" Padding="8,5" CornerRadius="8" Background="#2B3440" Visibility="Collapsed" Opacity="0">
+            <Border x:Name="Toast" Grid.Row="4" Margin="2,8,2,0" Padding="8,5" CornerRadius="8" Background="{DynamicResource ElevatedBrush}" Visibility="Collapsed" Opacity="0">
                 <DockPanel LastChildFill="True">
                     <Button x:Name="ToastAction" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="0" VerticalAlignment="Center" Focusable="False"
                             Visibility="Collapsed" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentTextBrush}" FontSize="11" Cursor="Hand" Click="OnToastActionClick" />
-                    <TextBlock x:Name="ToastText" Foreground="#DCE3ED" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <TextBlock x:Name="ToastText" Foreground="{DynamicResource TextBrush}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
                 </DockPanel>
             </Border>
             <Grid Grid.Row="5" Margin="2,8,2,0">
-                <TextBlock x:Name="StatusText" Visibility="Collapsed" Foreground="#FF9B95" FontSize="11" TextWrapping="Wrap" />
+                <TextBlock x:Name="StatusText" Visibility="Collapsed" Foreground="{DynamicResource DangerBrush}" FontSize="11" TextWrapping="Wrap" />
             </Grid>
         </Grid>
     </Border>
@@ -335,19 +335,19 @@
          shell keeps as well: it carries the shadow. The counter shows what the header shows, the
          captures still waiting. -->
     <Border x:Name="Capsule" Visibility="Collapsed" Margin="10" Height="44" CornerRadius="22" Padding="6,0,12,0"
-            Background="#F2171A20" BorderBrush="#2A3240" BorderThickness="1" Cursor="Hand"
+            Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" Cursor="Hand"
             HorizontalAlignment="Left" VerticalAlignment="Top"
             MouseLeftButtonDown="OnCapsuleClick" ToolTip="Развернуть ленту" AutomationProperties.Name="Развернуть ленту">
-        <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="4" Opacity="0.45" /></Border.Effect>
+        <Border.Effect><DropShadowEffect Color="{DynamicResource ShadowColor}" BlurRadius="18" ShadowDepth="4" Opacity="{DynamicResource ShadowOpacity}" /></Border.Effect>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <Border Width="28" Height="28" CornerRadius="14" Background="{DynamicResource AccentBrush}">
                 <Path Stretch="Uniform" Width="16" Height="14" Stroke="White" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,5 L2,3 L6,3 L7,1.5 L11,1.5 L12,3 L16,3 L16,13 L2,13 Z M9,5 A3,3 0 1 0 9,11 A3,3 0 1 0 9,5" />
             </Border>
-            <TextBlock Margin="7,0,0,0" VerticalAlignment="Center" Foreground="#EEF2F8" FontSize="12" FontWeight="SemiBold" Text="Новый снимок" />
-            <Border Margin="7,0,0,0" Padding="6,2" CornerRadius="8" Background="#2B3440" VerticalAlignment="Center">
-                <TextBlock x:Name="CapsuleCount" Foreground="#BFC8D6" FontSize="11" Text="0" />
+            <TextBlock Margin="7,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" FontSize="12" FontWeight="SemiBold" Text="Новый снимок" />
+            <Border Margin="7,0,0,0" Padding="6,2" CornerRadius="8" Background="{DynamicResource ElevatedBrush}" VerticalAlignment="Center">
+                <TextBlock x:Name="CapsuleCount" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" Text="0" />
             </Border>
-            <Path Margin="7,0,0,0" VerticalAlignment="Center" Width="12" Height="7" Stroke="#BFC8D6" StrokeThickness="1.4" StrokeLineJoin="Round" Data="M0,6 L6,1 L12,6" />
+            <Path Margin="7,0,0,0" VerticalAlignment="Center" Width="12" Height="7" Stroke="{DynamicResource TextMutedBrush}" StrokeThickness="1.4" StrokeLineJoin="Round" Data="M0,6 L6,1 L12,6" />
         </StackPanel>
     </Border>
     <!-- The left edge of the card resizes the strip: six invisible pixels over the border, right
