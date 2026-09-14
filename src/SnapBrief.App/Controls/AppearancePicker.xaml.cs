@@ -45,6 +45,9 @@ public partial class AppearancePicker : UserControl
     /// <summary>A card and the gap after it: what one press of a chevron moves the gallery by.</summary>
     private const double CardStep = 142;
 
+    /// <summary>The card the gallery starts at, counted by the control itself.</summary>
+    private int _firstCard;
+
     public AppearancePicker()
     {
         InitializeComponent();
@@ -248,11 +251,50 @@ public partial class AppearancePicker : UserControl
         _building = false;
     }
 
+    /// <summary>How many whole cards the gallery shows at its current width, never fewer than one.</summary>
+    private int VisibleCards => Math.Max(1, (int)(Gallery.ViewportWidth / CardStep));
+
+    /// <summary>The furthest card the gallery can start at: past it the strip would show empty space.</summary>
+    private int LastPage => Math.Max(0, ThemeCards.Children.Count - VisibleCards);
+
+    // The gallery is moved by the card, and the card is counted here. Asking the scroll viewer where
+    // it stands does not work for this: it answers with the offset of the previous layout pass, and
+    // it clamps that offset at the end of the strip, so a chevron built on it pages from a number
+    // that is not the one on screen and goes silently dead wherever the clamp landed.
+    private void PageBy(int cards)
+    {
+        _firstCard = Math.Clamp(_firstCard + cards, 0, LastPage);
+        Gallery.ScrollToHorizontalOffset(_firstCard * CardStep);
+        MarkChevrons();
+    }
+
+    // An end says so. A chevron with nothing left to show is switched off instead of answering a
+    // click with nothing, which is how the gallery came to read as one that does not scroll at all.
+    private void MarkChevrons()
+    {
+        PreviousTheme.IsEnabled = _firstCard > 0;
+        NextTheme.IsEnabled = _firstCard < LastPage;
+    }
+
+    // The width of the gallery is known only after a layout pass, and the offset it settles on at the
+    // end of the strip is the clamped one, which is short of a whole number of cards: the count is put
+    // back in step with what is on screen every time the viewer reports a move.
+    private void OnGalleryScrolled(object sender, ScrollChangedEventArgs e)
+    {
+        _firstCard = Gallery.HorizontalOffset >= Gallery.ScrollableWidth
+            ? LastPage
+            : Math.Clamp((int)Math.Round(Gallery.HorizontalOffset / CardStep), 0, LastPage);
+        MarkChevrons();
+    }
+
+    // A card already on screen is left where it is: choosing a theme must not pull the gallery back
+    // from where the chevrons have taken it.
     private void BringSelectedCardIntoView()
     {
         var index = ThemeService.Themes.ToList().IndexOf(_theme);
         if (index < 0 || Gallery is null) return;
-        Gallery.ScrollToHorizontalOffset(Math.Max(0, index * CardStep - CardStep));
+        if (index < _firstCard) PageBy(index - _firstCard);
+        else if (index >= _firstCard + VisibleCards) PageBy(index - VisibleCards + 1 - _firstCard);
     }
 
     // The preview is the whole point of the control: the click paints the application, and nothing
@@ -277,11 +319,9 @@ public partial class AppearancePicker : UserControl
         SelectedPalette = palette;
     }
 
-    private void OnPreviousTheme(object sender, RoutedEventArgs e) =>
-        Gallery.ScrollToHorizontalOffset(Gallery.HorizontalOffset - CardStep);
+    private void OnPreviousTheme(object sender, RoutedEventArgs e) => PageBy(-1);
 
-    private void OnNextTheme(object sender, RoutedEventArgs e) =>
-        Gallery.ScrollToHorizontalOffset(Gallery.HorizontalOffset + CardStep);
+    private void OnNextTheme(object sender, RoutedEventArgs e) => PageBy(1);
 
     /// <summary>
     /// The smoke check: the control builds, shows a card per theme and a dot per accent, picks with a
@@ -316,12 +356,42 @@ public partial class AppearancePicker : UserControl
             Application.Current.Resources["SurfaceBrush"] is not LinearGradientBrush)
             throw new InvalidOperationException("Clicking a card must repaint the application at once.");
 
-        picker.Gallery.ScrollToHorizontalOffset(0);
+        // Seven cards of 132 with a gap of 10 do not fit into the 520 the wizard gives the control,
+        // so there is always something to page at this width.
+        if (picker.Gallery.ScrollableWidth <= 0 || picker.Gallery.ExtentWidth <= picker.Gallery.ViewportWidth)
+            throw new InvalidOperationException("Seven cards of 132 must not fit into 520: the gallery has to have something to page.");
+        picker.PageBy(-picker.ThemeCards.Children.Count);
         picker.UpdateLayout();
+        if (picker._firstCard != 0 || picker.PreviousTheme.IsEnabled || !picker.NextTheme.IsEnabled)
+            throw new InvalidOperationException("At the first card the gallery must offer the way on and not the way back.");
         picker.NextTheme.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
         picker.UpdateLayout();
-        if (picker.Gallery.HorizontalOffset <= 0)
-            throw new InvalidOperationException("The chevrons must page the gallery.");
+        if (picker._firstCard != 1 || picker.Gallery.HorizontalOffset <= 0 || !picker.PreviousTheme.IsEnabled)
+            throw new InvalidOperationException("The chevrons must page the gallery by a card.");
+        // The theme in force keeps its frame while the gallery moves under it, and no other card
+        // takes one.
+        var framed = picker.ThemeCards.Children.OfType<Button>()
+            .Where(card => !ReferenceEquals(card.BorderBrush, Brushes.Transparent)).ToList();
+        if (framed.Count != 1 || framed[0].Tag as string != picker.SelectedTheme)
+            throw new InvalidOperationException("Paging the gallery must leave the frame on the card in force and on no other.");
+        // The end of the strip: the chevron says so instead of answering a click with nothing, and a
+        // card picked where it stands leaves the gallery where the chevrons have taken it.
+        for (var guard = 0; picker.NextTheme.IsEnabled && guard < 20; guard++)
+        {
+            picker.NextTheme.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            picker.UpdateLayout();
+        }
+        var lastPage = picker._firstCard;
+        if (lastPage == 0 || picker.NextTheme.IsEnabled || !picker.PreviousTheme.IsEnabled)
+            throw new InvalidOperationException("At the last card the chevron on must be switched off and the one back left on.");
+        picker.ThemeCards.Children.OfType<Button>().Last().RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        picker.UpdateLayout();
+        if (picker._firstCard != lastPage)
+            throw new InvalidOperationException("A card chosen where it stands must leave the gallery where it is.");
+        picker.PreviousTheme.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        picker.UpdateLayout();
+        if (picker._firstCard != lastPage - 1 || !picker.NextTheme.IsEnabled)
+            throw new InvalidOperationException("The gallery must page back from the end.");
 
         picker.ApplyLanguage("ru");
         if (NameOf(sea)?.Text != "Море")

@@ -21,6 +21,8 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PressedBrush}" /></Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
+                            <!-- The end of the strip is shown the way every other button of the application shows it. -->
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -79,7 +81,8 @@
             </Button>
             <!-- The gallery scrolls, it does not wrap: seven cards of 132 px do not fit into 520, and
                  the chevrons move it by one card at a time. -->
-            <ScrollViewer x:Name="Gallery" Grid.Column="1" Margin="8,0" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+            <ScrollViewer x:Name="Gallery" Grid.Column="1" Margin="8,0" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+                          ScrollChanged="OnGalleryScrolled">
                 <StackPanel x:Name="ThemeCards" Orientation="Horizontal" />
             </ScrollViewer>
             <Button x:Name="NextTheme" Grid.Column="2" Style="{StaticResource Chevron}" Click="OnNextTheme">
