@@ -36,6 +36,7 @@ internal static class UiLanguage
         ["Цвет отметки"] = "Annotation color", ["Толщина"] = "Thickness", ["Карандаш"] = "Pencil",
         ["Размер"] = "Size", ["Размер шрифта"] = "Font size",
         ["Цвет"] = "Color", ["Цвет HEX"] = "HEX color", ["Толщина линии"] = "Line thickness",
+        ["Линия"] = "Line", ["Тип линии"] = "Line style", ["Сплошная"] = "Solid", ["Пунктир"] = "Dashed", ["Точки"] = "Dotted",
         ["Стандартная"] = "Standard", ["Пастель"] = "Pastel", ["Неон"] = "Neon",
         ["Выделите область · Esc отменяет"] = "Select an area · Esc cancels", ["СНИМОК {0}"] = "CAPTURE {0}",
         ["Добавить комментарий"] = "Add comment", ["Удалить комментарий"] = "Remove comment", ["Переместить заметку"] = "Move the note", ["Отменить"] = "Undo", ["Повторить"] = "Redo",

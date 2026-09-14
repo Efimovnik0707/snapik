@@ -97,7 +97,11 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
         Point P(NormalizedPoint p) => new(p.X * width, p.Y * height + offsetY);
         var color = (Color)ColorConverter.ConvertFromString(item.StrokeColor);
         var brush = new SolidColorBrush(color);
-        var pen = new Pen(brush, item.Thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        // The same pattern the editor draws with, and the same units: the dashes of a DashStyle are
+        // thicknesses of the pen, so nothing has to be scaled from the screen to the picture.
+        var pen = SnapBrief.App.Imaging.StrokePattern.Apply(
+            new Pen(brush, item.Thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round },
+            SnapBrief.App.Imaging.StrokePattern.Of(item.Kind, item.LineStyle));
 
         if (drawShape && item.Kind is (AnnotationKind.Freehand or AnnotationKind.Highlight))
         {
@@ -128,7 +132,8 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
                     DrawText(dc, item.Text, TextMarkMetrics.Clamp(item.FontSize), FontWeights.Normal, brush, start, TextMarkMetrics.FamilyName);
                     break;
                 case AnnotationKind.Arrow:
-                    SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, item.Thickness, item.ArrowStyle);
+                    SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, item.Thickness, item.ArrowStyle,
+                        SnapBrief.App.Imaging.StrokePattern.Of(item.Kind, item.LineStyle));
                     break;
             }
         }

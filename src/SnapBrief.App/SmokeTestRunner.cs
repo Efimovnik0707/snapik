@@ -393,6 +393,8 @@ public static class SmokeTestRunner
         var noteOffsetTravelled = movedNote.NoteOffset is { X: > 1 } &&
             movedBadgePixel[0] == 255 && movedBadgePixel[1] == 140 && movedBadgePixel[2] == 47;
 
+        await VerifyLineStyleReachesThePngAsync(captures[0], workspace.SessionDirectory);
+
         var paths = prepared.GetImagePathsInOrder();
         // The names the user sees in a saved package: a two-digit index and the letter of the capture.
         if (!prepared.Manifest.Images.Select(image => image.FileName).SequenceEqual(["01-A.png", "02-B.png", "03-C.png"]))
@@ -977,6 +979,65 @@ public static class SmokeTestRunner
         var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
         bitmap.Freeze();
         return bitmap;
+    }
+
+    // The pattern of a stroke has two journeys to survive: the copy the history makes of a mark, and
+    // the way into the exported PNG. A dotted frame leaves gaps along its edge that a solid one fills,
+    // so the same frame drawn both ways cannot give the same row of pixels.
+    private static async Task VerifyLineStyleReachesThePngAsync(CaptureItem source, string sessionDirectory)
+    {
+        // The exported picture carries a white header above the capture, and everything drawn on the
+        // capture is that much lower in it; the note probe above measures its badge the same way.
+        const int header = 48;
+        var top = (int)Math.Round(source.Image.PixelHeight * .25) + header;
+        var from = (int)Math.Round(source.Image.PixelWidth * .25) + 8;
+        var to = (int)Math.Round(source.Image.PixelWidth * .75) - 8;
+
+        var solid = Ink(await Render(SnapBrief.Core.Models.AnnotationLineStyle.Solid));
+        var dotted = Ink(await Render(SnapBrief.Core.Models.AnnotationLineStyle.Dotted));
+        if (solid < (to - from) / 2)
+            throw new InvalidOperationException($"A solid frame must draw its whole edge into the exported PNG: {solid} of {to - from} pixels.");
+        if (dotted >= solid * .8)
+            throw new InvalidOperationException($"A dotted frame must reach the exported PNG with the gaps it is drawn with: {dotted} pixels against {solid} solid ones.");
+
+        async Task<System.Windows.Media.Imaging.BitmapSource> Render(SnapBrief.Core.Models.AnnotationLineStyle style)
+        {
+            var capture = source.DeepClone();
+            capture.Annotations.Clear();
+            var mark = new AnnotationItem
+            {
+                Kind = EditorTool.Rectangle,
+                Color = Colors.Red,
+                Thickness = 6,
+                LineStyle = style,
+                Points =
+                [
+                    new Point(source.Image.PixelWidth * .25, source.Image.PixelHeight * .25),
+                    new Point(source.Image.PixelWidth * .75, source.Image.PixelHeight * .75)
+                ]
+            };
+            // The copy, not the mark: a pattern the clone forgets is a pattern the first undo loses.
+            capture.Annotations.Add(mark.Clone());
+            using var png = new MemoryStream();
+            await new WpfExportImageRenderer().RenderAsync(capture.ToCore(),
+                new SnapBrief.Core.Exporting.ExportImageContext("A", 0, Path.GetFullPath(Path.Combine(sessionDirectory, capture.SourcePath))),
+                png, default);
+            png.Position = 0;
+            return System.Windows.Media.Imaging.BitmapFrame.Create(png,
+                System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+        }
+
+        int Ink(System.Windows.Media.Imaging.BitmapSource bitmap)
+        {
+            var converted = new System.Windows.Media.Imaging.FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+            var width = to - from;
+            var pixels = new byte[width * 4];
+            converted.CopyPixels(new Int32Rect(from, top, width, 1), pixels, width * 4, 0);
+            var ink = 0;
+            for (var i = 0; i < pixels.Length; i += 4)
+                if (pixels[i + 2] > 180 && pixels[i + 1] < 90 && pixels[i] < 90) ink++;
+            return ink;
+        }
     }
 
     private static byte[] PixelAt(System.Windows.Media.Imaging.BitmapSource bitmap, int x, int y)

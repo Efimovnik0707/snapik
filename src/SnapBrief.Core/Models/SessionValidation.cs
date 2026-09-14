@@ -61,6 +61,13 @@ public static class SessionValidation
                     throw new InvalidDataException("Annotation coordinates must be normalized to the [0, 1] image space.");
                 }
 
+                // An enum read from a file can only be one of its own names, but one built in code
+                // can be any number, and a pattern nobody knows draws nothing at all.
+                if (!Enum.IsDefined(annotation.LineStyle))
+                {
+                    throw new InvalidDataException("The line style of an annotation must be one of the declared patterns.");
+                }
+
                 // The badge offset is a shift, not a coordinate: it may be negative and it may point
                 // outside the image, so only a finite number is required of it.
                 if (annotation.NoteOffset is { } noteOffset &&

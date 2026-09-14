@@ -127,6 +127,52 @@ public sealed class PersistenceAndExportTests : IDisposable
     }
 
     [Fact]
+    public async Task Json_store_round_trips_the_pattern_of_a_stroke_and_defaults_it_to_solid()
+    {
+        var store = new JsonSessionStore(Path.Combine(_root, "sessions"));
+        var dotted = AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.1, 0.1), new(0.4, 0.4)]) with
+        {
+            LineStyle = AnnotationLineStyle.Dotted
+        };
+        var plain = AnnotationItem.Create(AnnotationKind.Arrow, [new(0.5, 0.5), new(0.9, 0.9)]);
+        var capture = CaptureItem.Create("source/capture.png", 800, 600) with { Annotations = [dotted, plain] };
+        var session = SessionOperations.AddCapture(SnapBriefSession.Create(Start), capture, Start);
+
+        await store.SaveAsync(session);
+        var restored = await store.LoadAsync(session.Id);
+
+        // The name in the file matters as much as the value: the Mac port reads the same key.
+        Assert.Contains("\"lineStyle\": \"dotted\"", JsonSerializer.Serialize(session, SnapBriefJson.Options), StringComparison.Ordinal);
+        Assert.Equal(AnnotationLineStyle.Dotted, restored!.Captures[0].Annotations[0].LineStyle);
+        Assert.Equal(AnnotationLineStyle.Solid, restored.Captures[0].Annotations[1].LineStyle);
+        SessionValidation.Validate(restored);
+
+        // A session written before the field existed reads as solid, which is what it was drawn as.
+        var json = JsonNode.Parse(JsonSerializer.Serialize(session, SnapBriefJson.Options))!.AsObject();
+        Assert.True(json["captures"]!.AsArray()[0]!["annotations"]!.AsArray()[0]!.AsObject().Remove("lineStyle"));
+        var directory = store.GetSessionDirectory(session.Id);
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "session.json"), json.ToJsonString(SnapBriefJson.Options));
+        var reread = await store.LoadAsync(session.Id);
+        Assert.Equal(AnnotationLineStyle.Solid, reread!.Captures[0].Annotations[0].LineStyle);
+    }
+
+    // An enum read from a file can only be one of its own names; one built in code can be anything,
+    // and a pattern nobody knows would be drawn as nothing at all.
+    [Fact]
+    public void A_line_style_outside_the_enumeration_is_refused()
+    {
+        var broken = AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.1, 0.1), new(0.4, 0.4)]) with
+        {
+            LineStyle = (AnnotationLineStyle)77
+        };
+        var capture = CaptureItem.Create("source/capture.png", 800, 600) with { Annotations = [broken] };
+
+        // Every change of a session is validated on the way in, so the capture never reaches one.
+        Assert.Throws<InvalidDataException>(() => SessionOperations.AddCapture(SnapBriefSession.Create(Start), capture, Start));
+    }
+
+    [Fact]
     public async Task Json_store_round_trips_the_fill_colour_the_outline_flag_and_the_blur_fill()
     {
         var store = new JsonSessionStore(Path.Combine(_root, "sessions"));

@@ -54,6 +54,10 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     public AnnotationShape Shape { get; set; } = AnnotationShape.Rectangle;
     public AnnotationFill Fill { get; set; } = AnnotationFill.None;
 
+    // The pattern of the stroke: solid, dashed or dotted. A mark without a stroke keeps the default
+    // and writes it, so a highlighter or a caption reads back the same whatever was armed.
+    public AnnotationLineStyle LineStyle { get; set; } = AnnotationLineStyle.Solid;
+
     // The colour inside the box; null means "the colour of the outline", which is how every mark
     // drawn before the fill had a colour of its own still reads.
     public Color? FillColor { get; set; }
@@ -88,6 +92,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Kind = Kind,
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle, NoteOffset = NoteOffset,
         Shape = Shape, Fill = Fill, FillColor = FillColor, HasOutline = HasOutline, FontSize = FontSize,
+        LineStyle = LineStyle,
         Points = [.. Points],
         AdditionalPathSegments = AdditionalPathSegments.Select(segment => segment.ToList()).ToList(),
         Color = Color,
@@ -121,7 +126,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     {
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
         NoteOffset = NoteOffset is { } offset ? new NormalizedPoint(offset.X / imageWidth, offset.Y / imageHeight) : null,
-        Shape = Shape, Fill = Fill, HasOutline = HasOutline, FontSize = FontSize,
+        Shape = Shape, Fill = Fill, HasOutline = HasOutline, FontSize = FontSize, LineStyle = LineStyle,
         FillColor = FillColor is { } fillColor ? $"#{fillColor.A:X2}{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : null,
         PathSegments = AdditionalPathSegments.Count == 0 ? [] : new[] { Points }.Concat(AdditionalPathSegments)
             .Select(segment => segment.Select(p => new NormalizedPoint(Math.Clamp(p.X / imageWidth, 0, 1), Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray())
@@ -146,6 +151,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         FillColor = redaction ? Colors.Black : ParseFillColor(item.FillColor),
         HasOutline = !redaction && item.HasOutline,
         FontSize = item.FontSize,
+        LineStyle = item.LineStyle,
         Kind = item.Kind switch
         {
             AnnotationKind.Comment => EditorTool.Comment,

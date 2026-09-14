@@ -58,6 +58,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     public Color? ActiveFillColor { get; set; }
     public bool ActiveHasOutline { get; set; } = true;
     public double ActiveFontSize { get; set; } = TextMarkMetrics.DefaultFontSize;
+    public AnnotationLineStyle ActiveLineStyle { get; set; } = AnnotationLineStyle.Solid;
     // The mark whose letters are being typed on the capture right now: the canvas leaves it to the
     // text box standing over it, otherwise the caption is drawn twice.
     public Guid? EditingTextId { get; set; }
@@ -259,6 +260,7 @@ public sealed class AnnotationCanvas : FrameworkElement
             HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
             Color = ActiveColor,
             Thickness = ActiveThickness,
+            LineStyle = ActiveLineStyle,
             // The word a new caption starts with comes from the table of the interface: an English
             // window must not get a Russian one.
             Text = Tool == EditorTool.Text ? UiLanguage.Text("Текст") : string.Empty,
@@ -582,7 +584,9 @@ public sealed class AnnotationCanvas : FrameworkElement
         var thickness = Math.Max(1.5, item.Thickness * scale);
         var brush = new SolidColorBrush(item.Color);
         brush.Freeze();
-        var pen = new Pen(brush, thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        var pen = StrokePattern.Apply(
+            new Pen(brush, thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round },
+            StrokePattern.Of(item.Kind, item.LineStyle));
         pen.Freeze();
 
         if (drawShape && item.Kind is (EditorTool.Pen or EditorTool.Highlight))
@@ -618,7 +622,7 @@ public sealed class AnnotationCanvas : FrameworkElement
                     dc.DrawText(formatted, start);
                     break;
                 case EditorTool.Arrow:
-                    SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, thickness, item.ArrowStyle);
+                    SnapBrief.App.Imaging.ArrowDrawing.Draw(dc, start, end, brush, thickness, item.ArrowStyle, StrokePattern.Of(item.Kind, item.LineStyle));
                     break;
             }
         }

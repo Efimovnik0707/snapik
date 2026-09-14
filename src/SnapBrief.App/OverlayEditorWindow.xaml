@@ -234,6 +234,12 @@
                 <!-- A fixed width and a value that is never blanked: the panel must not jump when a
                      tool without a stroke is armed. -->
                 <Button x:Name="ThicknessButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnThicknessClick" ToolTip="Толщина" AutomationProperties.Name="{local:UiText Толщина}" Content="4 px" />
+                <!-- The pattern of a stroke, beside the width of it: a fixed width and a sample that
+                     is never blank, for the same reason the thickness button carries a value it
+                     cannot lose — the panel must not change width with the tool in the hand. -->
+                <Button x:Name="LineStyleButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnLineStyleClick" ToolTip="Линия" AutomationProperties.Name="{local:UiText Линия}">
+                    <Line x:Name="LineStyleGlyph" X1="0" Y1="4" X2="28" Y2="4" Stroke="#D9DEE8" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                </Button>
                 <!-- The fill of a region has a button of its own, with a word on it: as the last
                      section of the colour popover, under the palette and the HEX field, it was not
                      found at all. The width is fixed and the caption never blanks, as above. -->
@@ -323,6 +329,31 @@
                     </Border>
                     <Slider x:Name="StrokeSlider" Margin="0,12,0,0" Style="{StaticResource StrokeSliderStyle}" Minimum="1" Maximum="16" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" ValueChanged="OnStrokeChanged" AutomationProperties.Name="{local:UiText Толщина линии}"/>
                     <Border Background="#222933" CornerRadius="7" Height="36" Margin="0,12,0,0"><Line x:Name="StrokePreview" X1="15" Y1="18" X2="201" Y2="18" Stroke="#FF3B30" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/></Border>
+                </StackPanel>
+            </Border>
+        </Popup>
+        <!-- The pattern of a stroke: three segments and a preview, built the way the thickness
+             popover above is built. The pattern belongs to the mark and travels into session.json
+             with it; the dashes are measured in thicknesses of the pen, so the sample here, the mark
+             on screen and the mark in the exported PNG are the same stroke at three sizes. -->
+        <Popup x:Name="LineStylePopup" PlacementTarget="{Binding ElementName=LineStyleButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" Closed="OnAppearanceClosed">
+            <Border Width="252" Padding="18" Background="#171A20" BorderBrush="#394352" BorderThickness="1" CornerRadius="14" TextElement.Foreground="#EEF2F8" Cursor="Arrow" PreviewKeyDown="OnLineStyleKeyDown">
+                <StackPanel>
+                    <TextBlock Text="Линия" FontWeight="SemiBold" Margin="0,0,0,12" />
+                    <Border Background="#222933" CornerRadius="8" Padding="3">
+                        <UniformGrid x:Name="LineStyleRow" Columns="3">
+                            <ToggleButton x:Name="LineStyleSolidSegment" Style="{StaticResource SegmentButton}" Tag="Solid" Click="OnLineStylePresetClick" ToolTip="Сплошная" AutomationProperties.Name="{local:UiText Сплошная}">
+                                <Line X1="0" Y1="3" X2="44" Y2="3" Stroke="#D9DEE8" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            </ToggleButton>
+                            <ToggleButton x:Name="LineStyleDashedSegment" Style="{StaticResource SegmentButton}" Tag="Dashed" Click="OnLineStylePresetClick" ToolTip="Пунктир" AutomationProperties.Name="{local:UiText Пунктир}">
+                                <Line X1="0" Y1="3" X2="44" Y2="3" Stroke="#D9DEE8" StrokeThickness="2" StrokeDashArray="3 2" />
+                            </ToggleButton>
+                            <ToggleButton x:Name="LineStyleDottedSegment" Style="{StaticResource SegmentButton}" Tag="Dotted" Click="OnLineStylePresetClick" ToolTip="Точки" AutomationProperties.Name="{local:UiText Точки}">
+                                <Line X1="0" Y1="3" X2="44" Y2="3" Stroke="#D9DEE8" StrokeThickness="2" StrokeDashArray="0 2" StrokeDashCap="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            </ToggleButton>
+                        </UniformGrid>
+                    </Border>
+                    <Border Background="#222933" CornerRadius="7" Height="36" Margin="0,12,0,0"><Line x:Name="LineStylePreview" X1="15" Y1="18" X2="201" Y2="18" Stroke="#FF3B30" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Border>
                 </StackPanel>
             </Border>
         </Popup>

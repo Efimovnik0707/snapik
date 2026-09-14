@@ -48,6 +48,10 @@ public partial class OverlayEditorWindow : Window
     private double _activeFontSize = TextMarkMetrics.DefaultFontSize;
     private SnapBrief.Core.Models.AnnotationShape _activeShape = SnapBrief.Core.Models.AnnotationShape.Rectangle;
     private SnapBrief.Core.Models.AnnotationFill _activeFill = SnapBrief.Core.Models.AnnotationFill.None;
+    // The pattern the next stroke is drawn with. It lives as long as the editor window does and is
+    // not written to the settings file: the rest of the panel is remembered there, but a field of
+    // the settings is a change of their format, and this round declares none for the pattern.
+    private SnapBrief.Core.Models.AnnotationLineStyle _activeLineStyle = SnapBrief.Core.Models.AnnotationLineStyle.Solid;
     private Color? _activeFillColor;
     private bool _activeHasOutline = true;
     private PaletteSet _activePalette = Palettes[0];
@@ -997,6 +1001,7 @@ public partial class OverlayEditorWindow : Window
         Surface.ActiveColor = _activeColor;
         Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
         Surface.ActiveShape = _activeShape;
+        Surface.ActiveLineStyle = _activeLineStyle;
         Surface.ActiveFill = _activeFill;
         Surface.ActiveFillColor = _activeFillColor;
         Surface.ActiveHasOutline = _activeHasOutline;
@@ -1106,6 +1111,7 @@ public partial class OverlayEditorWindow : Window
 
     private void OnColorClick(object sender, RoutedEventArgs e) => OpenAppearance();
     private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenThickness();
+    private void OnLineStyleClick(object sender, RoutedEventArgs e) => OpenLineStyle();
 
     private void SelectToolMode(EditorTool tool)
     {
