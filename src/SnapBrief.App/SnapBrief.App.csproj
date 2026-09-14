@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- The Windows SDK projection comes with the target framework: pinning the build number is
+         what makes Windows.UI.Shell.TaskbarManager resolve. Revision .0, not .1: .1 pulls the
+         CsWinRT 3.0 preview along with it. -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <!-- Without this the supported floor rises to 26100 on its own, and Windows 10 falls out. -->
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>

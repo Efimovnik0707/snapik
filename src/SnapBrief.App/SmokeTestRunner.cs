@@ -159,17 +159,57 @@ public static class SmokeTestRunner
         // The accent lives in a dictionary of its own and is swapped whole; every accent must carry
         // the same keys, otherwise a DynamicResource would resolve under one accent and not under another.
         ThemeService.Apply("dark", "teal");
-        if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(43, 179, 163))
+        // Read through AccentPalette rather than cast out of the dictionary: half the accents are
+        // gradients now, and a cast to SolidColorBrush would answer null for four of the eight.
+        if (AccentPalette.Flat != Color.FromRgb(0x28, 0xBE, 0x80))
             throw new InvalidOperationException("Applying an accent must replace the accent brushes of the application.");
+        // Half the accents are gradients, and the brush of one is a LinearGradientBrush: what needs a
+        // single Color (an alpha mix, the exported PNG) reads AccentFlatColor, its first stop.
+        ThemeService.Apply("dark", "blue-violet");
+        if (Application.Current.Resources["AccentBrush"] is not LinearGradientBrush accentGradient ||
+            accentGradient.GradientStops.Count != 2 ||
+            (Color)Application.Current.Resources["AccentFlatColor"] != accentGradient.GradientStops[0].Color)
+            throw new InvalidOperationException("A gradient accent must paint with a gradient, and its flat colour must be the first stop.");
         var accentKeys = ThemeService.Accents
-            .Select(accent => ThemeService.Load(accent).Keys.Cast<object>().Select(key => key.ToString()!).OrderBy(key => key, StringComparer.Ordinal).ToArray())
+            .Select(accent => KeysOf(ThemeService.LoadAccent(accent)))
             .ToArray();
         if (accentKeys.Any(keys => !keys.SequenceEqual(accentKeys[0])))
             throw new InvalidOperationException("The accent dictionaries must all define the same keys.");
+        // The palette of the theme is swapped whole in the same way, and answers to the same rule:
+        // a key present in one palette and missing from another would resolve under one theme and
+        // leave a DynamicResource unresolved under the next.
+        var themeKeys = ThemeService.Themes.Select(theme => KeysOf(ThemeService.LoadTheme(theme))).ToArray();
+        if (themeKeys.Any(keys => !keys.SequenceEqual(themeKeys[0])))
+            throw new InvalidOperationException("The theme palettes must all define the same keys.");
+        // A key declared both here and in the base dictionary would be a key the base dictionary
+        // wins or loses by merge order alone, and the theme would be overruled without a word.
+        var baseKeys = KeysOf(new ResourceDictionary { Source = new Uri("Themes/SnapBriefTheme.xaml", UriKind.Relative) });
+        if (themeKeys[0].Intersect(baseKeys).Any())
+            throw new InvalidOperationException("A palette key must not also be declared by the base dictionary.");
+        ThemeService.Apply("sea", "blue");
+        if (Application.Current.Resources["SurfaceBrush"] is not LinearGradientBrush sea ||
+            sea.GradientStops.Count != 2 || sea.GradientStops[0].Color != Color.FromRgb(0x16, 0x3A, 0x44) ||
+            sea.GradientStops[1].Color != Color.FromRgb(0x1B, 0x3A, 0x2C) ||
+            Application.Current.Resources.MergedDictionaries.Count(entry => entry.Source?.OriginalString.Contains("/Palettes/", StringComparison.Ordinal) == true) != 1)
+            throw new InvalidOperationException("Applying a theme must replace the previous palette, not add another one.");
+        ThemeService.Apply("nothing-like-a-theme", "blue");
+        if (ThemeService.CurrentTheme != "dark" || Application.Current.Resources["SurfaceBrush"] is not SolidColorBrush)
+            throw new InvalidOperationException("A theme nothing answers to must fall back to the dark palette.");
         ThemeService.Apply("dark", "blue");
-        if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(47, 140, 255) ||
+        if (AccentPalette.Flat != Color.FromRgb(47, 140, 255) ||
             Application.Current.Resources.MergedDictionaries.Count(entry => entry.Source?.OriginalString.Contains("/Accents/", StringComparison.Ordinal) == true) != 1)
             throw new InvalidOperationException("Applying an accent must replace the previous accent dictionary, not add another one.");
+        // What a renderer is handed is a frozen copy: setting an Opacity on it must not repaint the
+        // accent of the whole application, and the caller must not have to check whether it may.
+        foreach (var accent in ThemeService.Accents)
+        {
+            ThemeService.Apply("dark", accent);
+            if (!AccentPalette.Brush.IsFrozen || !AccentPalette.Pen(2).IsFrozen || !AccentPalette.Wash(24).IsFrozen ||
+                ReferenceEquals(AccentPalette.Brush, Application.Current.Resources["AccentBrush"]))
+                throw new InvalidOperationException("The accent handed to a renderer must be a frozen copy, not the resource itself.");
+        }
+        ThemeService.Apply("dark", "blue");
+        WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
         {
             var window = new HotkeySettingsWindow(restoredSettings);
@@ -720,6 +760,10 @@ public static class SmokeTestRunner
         if (File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "Audio", "shutter-2-050s.mp3")))
             throw new InvalidOperationException("The shutter that was replaced is still shipped next to the assembly.");
     }
+
+    // The keys of a dictionary that is swapped whole, sorted so that two of them can be compared.
+    private static string[] KeysOf(ResourceDictionary dictionary) =>
+        dictionary.Keys.Cast<object>().Select(key => key.ToString()!).OrderBy(key => key, StringComparer.Ordinal).ToArray();
 
     // The strip is bounded by the monitor it opens on, not by a number: a width stored on a large
     // screen is pulled back inside the working area of a small one, and a drag that goes past the

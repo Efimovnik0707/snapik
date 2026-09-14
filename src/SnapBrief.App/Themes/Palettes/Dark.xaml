@@ -1,0 +1,23 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <!-- One of the seven palettes ThemeService swaps into the application resources. Every palette
+         carries the same fourteen keys: a key missing from one of them would resolve under one
+         theme and leave a DynamicResource unresolved under another. The chrome reads them through
+         DynamicResource, so a swap repaints the open windows without rebuilding anything.
+         Dark: the palette the application carried before themes existed. -->
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#F2171A20" />
+    <SolidColorBrush x:Key="SurfaceBarBrush" Color="#F2171A20" />
+    <SolidColorBrush x:Key="SurfaceLineBrush" Color="#46505E" />
+    <SolidColorBrush x:Key="ElevatedBrush" Color="#242A33" />
+    <SolidColorBrush x:Key="ElevatedLineBrush" Color="#46505E" />
+    <SolidColorBrush x:Key="HoverBrush" Color="#2A3240" />
+    <SolidColorBrush x:Key="PressedBrush" Color="#20262F" />
+    <SolidColorBrush x:Key="DividerBrush" Color="#3A424E" />
+    <SolidColorBrush x:Key="TextBrush" Color="#EEF2F8" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#8F9AAA" />
+    <SolidColorBrush x:Key="TextFaintBrush" Color="#6F7A8A" />
+    <Color x:Key="ShadowColor">#000000</Color>
+    <sys:Double x:Key="ShadowOpacity">0.4</sys:Double>
+    <SolidColorBrush x:Key="DangerBrush" Color="#FF6B6B" />
+</ResourceDictionary>

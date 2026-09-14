@@ -1,8 +1,11 @@
+﻿<!-- Not themed this round: this window is on screen for seconds and its colours are written
+     down here on purpose. The base Window style now paints by the palette of the theme, so
+     the dark values are pinned here rather than inherited. -->
 <Window x:Class="SnapBrief.App.CaptureOverlay"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
-        Background="Transparent" ShowInTaskbar="False" Topmost="True"
+        Background="Transparent" Foreground="#EEF2F8" ShowInTaskbar="False" Topmost="True"
         Cursor="Cross" KeyDown="OnKeyDown" MouseLeftButtonDown="OnMouseDown"
         MouseMove="OnMouseMove" MouseLeftButtonUp="OnMouseUp">
     <Grid>

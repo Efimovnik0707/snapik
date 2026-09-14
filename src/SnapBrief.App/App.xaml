@@ -6,7 +6,9 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/SnapBriefTheme.xaml" />
-                <!-- The accent dictionary ThemeService replaces at startup and on save. -->
+                <!-- The palette of the theme, and after it the accent: ThemeService replaces both at
+                     startup and on save, each in the slot it is merged into here. -->
+                <ResourceDictionary Source="Themes/Palettes/Dark.xaml" />
                 <ResourceDictionary Source="Themes/Accents/Blue.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

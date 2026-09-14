@@ -79,6 +79,20 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public int OnboardingVersion { get; init; }
     public string Theme { get; init; } = "dark";
     public string AccentId { get; init; } = "blue";
+    /// <summary>
+    /// The colours the "own" annotation palette holds, newest first; empty until one is picked. Read
+    /// back with anything that is not a "#RRGGBB" triple dropped and the row cut to twelve, so a
+    /// hand-edited file cannot hand the editor a palette it cannot paint.
+    ///
+    /// The only member of this record that is an array, and an array compares by reference: two
+    /// settings carrying the same colours in two arrays are not equal to each other. An empty row is
+    /// always the one instance below, so the common case compares as it always did; anything that
+    /// has to compare filled rows compares the colours themselves.
+    /// </summary>
+    public string[] CustomPaletteColors { get; init; } = NoPaletteColors;
+    /// <summary>How many colours the "own" palette keeps.</summary>
+    public const int MaxCustomPaletteColors = 12;
+    private static readonly string[] NoPaletteColors = [];
     public HotkeyGesture FullscreenSaveGesture => Find(FullscreenSaveId, DefaultFullscreenSaveId).Gesture;
     // A method rather than a property: everything the record exposes as a property is written into
     // settings.json, and this one is a fallback, not a preference of its own.
@@ -150,7 +164,8 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
             {
                 CaptureId = Find(stored.CaptureId).Id,
                 PasteId = Find(stored.PasteId, Default.PasteId).Id,
-                FullscreenSaveId = Find(stored.FullscreenSaveId, DefaultFullscreenSaveId).Id
+                FullscreenSaveId = Find(stored.FullscreenSaveId, DefaultFullscreenSaveId).Id,
+                CustomPaletteColors = KeepPaletteColors(stored.CustomPaletteColors)
             };
             migrated = settings != stored;
             return true;
@@ -237,6 +252,24 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
         }
     }
 
+    // A file that holds nothing wrong comes back as the very array it was read with, so a healthy
+    // file is not counted as migrated and is not written back.
+    private static string[] KeepPaletteColors(string[]? colours)
+    {
+        if (colours is null || colours.Length == 0) return NoPaletteColors;
+        var kept = colours.Where(IsHexColour).Take(MaxCustomPaletteColors).ToArray();
+        if (kept.Length == 0) return NoPaletteColors;
+        return kept.Length == colours.Length ? colours : kept;
+    }
+
+    private static bool IsHexColour(string? value)
+    {
+        if (value is not { Length: 7 } || value[0] != '#') return false;
+        for (var i = 1; i < value.Length; i++)
+            if (!Uri.IsHexDigit(value[i])) return false;
+        return true;
+    }
+
     /// <summary>
     /// The choice a stored id stands for. An id that must not be registered falls back to the
     /// default of the shortcut it was read for, which is why the fallback is an argument: the
@@ -302,6 +335,7 @@ public partial class HotkeySettingsWindow : Window
         QualitySlider.Value = Math.Clamp(settings.JpegQuality, 1, 100);
         DirectoryBox.Text = settings.SaveDirectory;
         LanguageBox.SelectedIndex = settings.Language == "en" ? 1 : 0;
+        SelectedTheme = ThemeService.NormalizeTheme(settings.Theme);
         BuildAccentRow(settings.AccentId);
         QualitySlider.ValueChanged += (_, _) => UpdateQuality();
         FormatBox.SelectionChanged += (_, _) => UpdateQuality();
@@ -321,7 +355,7 @@ public partial class HotkeySettingsWindow : Window
             var dot = new RadioButton
             {
                 Style = (Style)FindResource("AccentDot"), Tag = accent, GroupName = "Accent",
-                Background = new SolidColorBrush((Color)ThemeService.Load(accent)["AccentColor"]),
+                Background = new SolidColorBrush((Color)ThemeService.LoadAccent(accent)["AccentColor"]),
                 IsChecked = accent == selected
             };
             AccentRow.Children.Add(dot);
@@ -338,6 +372,12 @@ public partial class HotkeySettingsWindow : Window
                 System.Windows.Automation.AutomationProperties.SetName(dot,
                     string.Format(UiLanguage.Text("Акцент: {0}", _language), UiLanguage.Text(accent, _language)));
     }
+
+    /// <summary>
+    /// The theme this window will save. It opens on the one the file carries, normalised, so a value
+    /// nothing answers to is healed by a save instead of being kept; the appearance tab sets it.
+    /// </summary>
+    internal string SelectedTheme { get; set; } = ThemeService.DefaultTheme;
 
     internal string SelectedAccent =>
         AccentRow.Children.OfType<RadioButton>().FirstOrDefault(dot => dot.IsChecked == true)?.Tag as string ?? ThemeService.DefaultAccent;
@@ -395,7 +435,8 @@ public partial class HotkeySettingsWindow : Window
                 PlaySounds = SoundsBox.IsChecked == true, SoundVolume = (int)VolumeSlider.Value,
                 ClearStackAfterPaste = ClearStackBox.IsChecked == true,
                 SaveFormat = FormatBox.SelectedIndex == 1 ? "jpeg" : "png",
-                JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory, AccentId = SelectedAccent,
+                JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory,
+                Theme = SelectedTheme, AccentId = SelectedAccent,
                 Language = LanguageBox.SelectedIndex == 1 ? "en" : "ru"
             };
             var error = TryApply?.Invoke(Result);
