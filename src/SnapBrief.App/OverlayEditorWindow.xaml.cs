@@ -399,39 +399,83 @@ public partial class OverlayEditorWindow : Window
                 throw new InvalidOperationException("One undo must bring an erased mark back.");
         }
 
-        // The panel keeps its width whatever tool is armed: the thickness button never blanks its
-        // caption, and it and the colour circle are both a fixed size.
-        var widths = new List<double>();
-        foreach (var tool in new[] { EditorTool.Rectangle, EditorTool.Text, EditorTool.Blur, EditorTool.Select, EditorTool.Arrow })
-        {
-            window.SelectToolMode(tool);
-            if (string.IsNullOrWhiteSpace((string?)window.ThicknessButton.Content))
-                throw new InvalidOperationException($"The thickness button showed nothing while the {tool} tool was armed.");
-            // The fill button carries a word of its own and never blanks either, whatever is armed.
-            if (string.IsNullOrWhiteSpace(window.FillButtonLabel.Text) || window.FillButton.Visibility != Visibility.Visible)
-                throw new InvalidOperationException($"The fill button showed nothing while the {tool} tool was armed.");
-            // The width the panel asks for, not the width it was given: a window that was never
-            // shown has no arranged size to read.
-            window.Toolbar.InvalidateMeasure();
-            window.Toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            widths.Add(window.Toolbar.DesiredSize.Width);
-        }
-        if (widths[0] < 100 || widths.Distinct().Count() != 1)
-            throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
-
-        // And on a working area narrower than the row, the row wraps instead of running past it:
-        // the panel grew by a fill button and a size button, and a tail off the screen takes
-        // "Сохранить" and "Готово" with it.
-        var oneRow = window.Toolbar.DesiredSize.Height;
-        var narrow = Math.Max(200, widths[0] - 120);
-        window.Toolbar.MaxWidth = narrow;
-        window.Toolbar.InvalidateMeasure();
-        window.Toolbar.Measure(new Size(narrow, double.PositiveInfinity));
-        var wrapped = window.Toolbar.DesiredSize;
+        // Everything measured below has to start from a bare panel. PositionToolbar leaves two
+        // properties on it: Margin, which carries the absolute position of the panel on screen and
+        // which WPF counts inside DesiredSize, and MaxWidth, which is the real width of the monitor.
+        // With those in place "the width the panel asks for" is really "its width plus where it was
+        // put, already wrapped by the screen", and on a narrow screen the arithmetic here turns over
+        // and calls a panel that fits perfectly well a panel that ran off the desktop.
+        var savedMargin = window.Toolbar.Margin;
+        var savedMaxWidth = window.Toolbar.MaxWidth;
+        window.Toolbar.Margin = new Thickness(0);
         window.Toolbar.MaxWidth = double.PositiveInfinity;
-        window.Toolbar.InvalidateMeasure();
-        if (wrapped.Width > narrow + 0.5 || wrapped.Height <= oneRow)
-            throw new InvalidOperationException($"The markup panel must wrap into a working area of {narrow}, not run past it: {wrapped}.");
+        try
+        {
+            // The panel keeps its width whatever tool is armed: the thickness button never blanks its
+            // caption, and it and the colour circle are both a fixed size.
+            var widths = new List<double>();
+            foreach (var tool in new[] { EditorTool.Rectangle, EditorTool.Text, EditorTool.Blur, EditorTool.Select, EditorTool.Arrow })
+            {
+                window.SelectToolMode(tool);
+                if (string.IsNullOrWhiteSpace((string?)window.ThicknessButton.Content))
+                    throw new InvalidOperationException($"The thickness button showed nothing while the {tool} tool was armed.");
+                // The fill button carries a word of its own and never blanks either, whatever is armed.
+                if (string.IsNullOrWhiteSpace(window.FillButtonLabel.Text) || window.FillButton.Visibility != Visibility.Visible)
+                    throw new InvalidOperationException($"The fill button showed nothing while the {tool} tool was armed.");
+                // The width the panel asks for, not the width it was given: a window that was never
+                // shown has no arranged size to read.
+                window.Toolbar.InvalidateMeasure();
+                window.Toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                widths.Add(window.Toolbar.DesiredSize.Width);
+            }
+            if (widths[0] < 100 || widths.Distinct().Count() != 1)
+                throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
+
+            // And on a working area narrower than the row, the row wraps instead of running past it:
+            // the panel grew by a fill button and a size button, and a tail off the screen takes
+            // "Сохранить" and "Готово" with it.
+            var oneRow = window.Toolbar.DesiredSize.Height;
+            var narrow = Math.Max(200, widths[0] - 120);
+            window.Toolbar.MaxWidth = narrow;
+            window.Toolbar.InvalidateMeasure();
+            window.Toolbar.Measure(new Size(narrow, double.PositiveInfinity));
+            var wrapped = window.Toolbar.DesiredSize;
+            window.Toolbar.MaxWidth = double.PositiveInfinity;
+            window.Toolbar.InvalidateMeasure();
+            if (wrapped.Width > narrow + 0.5 || wrapped.Height <= oneRow)
+                throw new InvalidOperationException($"The markup panel must wrap into a working area of {narrow}, not run past it: {wrapped}.");
+
+            // The check this probe was meant to make and never did: the panel, at the width the
+            // working area lets it ask for, is placed inside that working area. The areas are made up
+            // on purpose — against the live monitor the answer would depend on the machine and on its
+            // scale, which is how this probe came to be red at 125 % on a panel that fits the screen.
+            // The placement is the same pair of steps PositionToolbar takes, only against a rectangle
+            // handed to it: the same MaxWidth, the same floors, the same PlaceToolbar.
+            foreach (var area in new[]
+            {
+                new Rect(0, 0, 1920, 1080),                                   // 1920×1080 at 100 %
+                new Rect(0, 0, 1536, 864),                                    // the same monitor at 125 %
+                WithoutCommentsStrip(new Rect(0, 0, 1536, 864), true)         // and with the comments panel out
+            })
+            {
+                var allowed = Math.Max(380, area.Width - 16);
+                window.Toolbar.MaxWidth = allowed;
+                window.Toolbar.InvalidateMeasure();
+                window.Toolbar.Measure(new Size(allowed, double.PositiveInfinity));
+                var asked = window.Toolbar.DesiredSize;
+                window.Toolbar.MaxWidth = double.PositiveInfinity;
+                window.Toolbar.InvalidateMeasure();
+                var placement = PlaceToolbar(window._cropRect, area, new Size(Math.Max(asked.Width, 380), Math.Max(asked.Height, 50)), []);
+                if (placement.Right > area.Right - 8 + 0.5)
+                    throw new InvalidOperationException($"The markup panel placed into a working area of {area} ran past its right edge: {placement}.");
+            }
+        }
+        finally
+        {
+            window.Toolbar.Margin = savedMargin;
+            window.Toolbar.MaxWidth = savedMaxWidth;
+            window.Toolbar.InvalidateMeasure();
+        }
     }
 
     // The two rules of a click that landed on nothing: beside the capture it finishes the markup,
