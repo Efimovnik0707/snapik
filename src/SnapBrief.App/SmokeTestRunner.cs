@@ -731,10 +731,10 @@ public static class SmokeTestRunner
         if (Controls.StripResizeGeometry.ClampWidth(1600, 1366) != 1356 ||
             Controls.StripResizeGeometry.ClampWidth(40, work) != Controls.StripResizeGeometry.MinimumWidth)
             throw new InvalidOperationException("A width stored on a large monitor must come back inside a small one, and the minimum must hold.");
-        var (left, width) = Controls.StripResizeGeometry.Resize(work, 260, -2000, 0);
+        var (left, width) = Controls.StripResizeGeometry.WidthFromStart(work, 260, -2000, 0);
         if (width != work || left != 0)
             throw new InvalidOperationException("Dragging the strip past the screen must stop at the edge of the working area.");
-        if (Controls.StripResizeGeometry.ResizeListHeight(372, 2000, 100, 0, 2000) != 1900)
+        if (Controls.StripResizeGeometry.ListHeightFromStart(372, 2000, 100, 0, 2000) != 1900)
             throw new InvalidOperationException("The height of the strip must be bounded by the working area, not by a number.");
     }
 

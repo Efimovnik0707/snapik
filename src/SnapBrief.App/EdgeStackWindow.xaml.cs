@@ -67,6 +67,13 @@ public partial class EdgeStackWindow : Window
     private double _resizeRightEdge;
     private double _resizeTop;
     private Rect _resizeWorkArea;
+    // The whole geometry of the strip as it was when the drag began, and the pointer with it: every
+    // size under the drag is counted from these, never from the size of the moment.
+    private double _resizeStartWidth;
+    private double _resizeStartListHeight;
+    private double _resizeStartChrome;
+    private double _resizeStartMinHeight;
+    private Point _resizeStartPointer;
     private CaptureItem? _draggedCapture;
     private readonly Stack<(CaptureItem Capture, int Index)> _removed = [];
     private TargetProfile? _selectedProfile;
@@ -661,49 +668,86 @@ public partial class EdgeStackWindow : Window
         Top = Math.Max(work.Top, Math.Min(centred, work.Bottom - height));
     }
 
-    // The right edge is taken once, at the start of the drag: reading it from Left + Width on every
-    // delta would accumulate the rounding of each step and let the strip drift off the screen edge.
-    private void OnWidthDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e) =>
-        _resizeRightEdge = Left + Width;
-
-    private void OnWidthDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    // Where the pointer is, in the units the window is placed in. The delta of a Thumb cannot be used
+    // for this: it is measured against the grip itself, the grip travels with the window it resizes,
+    // and once a clamp stops the window the two drift apart by everything the pointer spent past it.
+    private Point PointerInWindowUnits()
     {
-        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, StackWorkArea().Left);
-        Width = width;
-        Left = left;
+        var position = WinForms.Cursor.Position;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var scaleX = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1;
+        var scaleY = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1;
+        return new Point(position.X / scaleX, position.Y / scaleY);
     }
 
-    private void OnWidthDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
-        MutateSettings(stored => stored with { StackWidth = Width });
-
-    // The corner takes both sides at once. The right edge and the top edge are taken once, for the
-    // same reason the width drag takes the right one: the strip keeps its place at the screen edge
-    // and grows downwards instead of walking around while the pointer moves.
-    private void OnCornerDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+    // The whole geometry of the strip, taken once at the start of the drag. The right edge is among
+    // it for a reason of its own: reading it from Left + Width on every delta would accumulate the
+    // rounding of each step and let the strip drift off the screen edge.
+    private void BeginResize()
     {
         _resizeRightEdge = Left + Width;
         _resizeTop = Top;
+        _resizeStartWidth = Width;
+        _resizeStartListHeight = CaptureList.Height;
+        _resizeStartChrome = StackChromeHeight();
+        _resizeStartPointer = PointerInWindowUnits();
         // The monitor is asked once: the working area cannot change under a drag, and reading it
         // costs a P/Invoke and a DPI lookup on every movement of the mouse.
         _resizeWorkArea = StackWorkArea();
     }
 
-    private void OnCornerDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    private void OnWidthDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e) => BeginResize();
+
+    private void OnWidthDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
     {
-        var (left, width) = Controls.StripResizeGeometry.Resize(_resizeRightEdge, Width, e.HorizontalChange, _resizeWorkArea.Left);
-        Width = width;
+        var (left, width) = Controls.StripResizeGeometry.WidthFromStart(
+            _resizeRightEdge, _resizeStartWidth, PointerInWindowUnits().X - _resizeStartPointer.X, _resizeWorkArea.Left);
         Left = left;
-        // The delta of a Thumb is measured from where the grip was when the drag began, so it is an
-        // increment only while the grip travels with what it resizes. The bottom of the window
-        // follows the height of the list, the grip sits on that bottom, and both stay true only
-        // because the list carries a height rather than a maximum.
-        CaptureList.Height = Controls.StripResizeGeometry.ResizeListHeight(
-            CaptureList.Height, e.VerticalChange, StackChromeHeight(), _resizeTop, _resizeWorkArea.Bottom);
-        Top = _resizeTop;
+        Width = width;
     }
 
-    private void OnCornerDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
+    private void OnWidthDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
+        MutateSettings(stored => stored with { StackWidth = Width });
+
+    // The corner takes both sides at once. The top edge is held where the drag found it, so the strip
+    // keeps its place at the screen edge and grows downwards instead of walking around under the
+    // pointer. SizeToContent goes off for the length of the drag: while it is on, the window works out
+    // a height of its own on the next layout pass, a pass that lands between the assignments below and
+    // moves the window a second time inside one movement of the mouse.
+    private void OnCornerDragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+    {
+        BeginResize();
+        _resizeStartMinHeight = MinHeight;
+        Height = ActualHeight;
+        MinHeight = 0;
+        SizeToContent = SizeToContent.Manual;
+    }
+
+    private void OnCornerDragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        var pointer = PointerInWindowUnits();
+        var (left, width) = Controls.StripResizeGeometry.WidthFromStart(
+            _resizeRightEdge, _resizeStartWidth, pointer.X - _resizeStartPointer.X, _resizeWorkArea.Left);
+        // The chrome is the one measured at the start of the drag as well: measuring it again here
+        // reads the layout pass before this one, which under a fast drag is a height the window has
+        // already left behind.
+        var listHeight = Controls.StripResizeGeometry.ListHeightFromStart(
+            _resizeStartListHeight, pointer.Y - _resizeStartPointer.Y, _resizeStartChrome, _resizeTop, _resizeWorkArea.Bottom);
+        // One block, in one order every time: the top first so the strip cannot be seen to jump, the
+        // height last so the window is never taller than what it is about to be moved to.
+        CaptureList.Height = listHeight;
+        Top = _resizeTop;
+        Left = left;
+        Width = width;
+        Height = _resizeStartChrome + listHeight;
+    }
+
+    private void OnCornerDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        SizeToContent = SizeToContent.Height;
+        MinHeight = _resizeStartMinHeight;
         MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.Height });
+    }
 
     private async Task<bool> PrepareAsync()
     {
