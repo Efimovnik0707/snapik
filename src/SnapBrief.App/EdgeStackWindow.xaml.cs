@@ -1186,7 +1186,7 @@ public partial class EdgeStackWindow : Window
                             ClearStackAfterPaste = candidate.ClearStackAfterPaste,
                             SaveFormat = candidate.SaveFormat, JpegQuality = candidate.JpegQuality,
                             SaveDirectory = candidate.SaveDirectory, Language = candidate.Language,
-                            AccentId = candidate.AccentId
+                            Theme = candidate.Theme, AccentId = candidate.AccentId
                         });
                         if (!merged) return UiLanguage.Text("Не удалось сохранить настройки");
                         ThemeService.Apply(_settings.Theme, _settings.AccentId);
