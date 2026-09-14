@@ -159,7 +159,9 @@ public static class SmokeTestRunner
         // The accent lives in a dictionary of its own and is swapped whole; every accent must carry
         // the same keys, otherwise a DynamicResource would resolve under one accent and not under another.
         ThemeService.Apply("dark", "teal");
-        if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(0x28, 0xBE, 0x80))
+        // Read through AccentPalette rather than cast out of the dictionary: half the accents are
+        // gradients now, and a cast to SolidColorBrush would answer null for four of the eight.
+        if (AccentPalette.Flat != Color.FromRgb(0x28, 0xBE, 0x80))
             throw new InvalidOperationException("Applying an accent must replace the accent brushes of the application.");
         // Half the accents are gradients, and the brush of one is a LinearGradientBrush: what needs a
         // single Color (an alpha mix, the exported PNG) reads AccentFlatColor, its first stop.
@@ -194,9 +196,19 @@ public static class SmokeTestRunner
         if (ThemeService.CurrentTheme != "dark" || Application.Current.Resources["SurfaceBrush"] is not SolidColorBrush)
             throw new InvalidOperationException("A theme nothing answers to must fall back to the dark palette.");
         ThemeService.Apply("dark", "blue");
-        if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(47, 140, 255) ||
+        if (AccentPalette.Flat != Color.FromRgb(47, 140, 255) ||
             Application.Current.Resources.MergedDictionaries.Count(entry => entry.Source?.OriginalString.Contains("/Accents/", StringComparison.Ordinal) == true) != 1)
             throw new InvalidOperationException("Applying an accent must replace the previous accent dictionary, not add another one.");
+        // What a renderer is handed is a frozen copy: setting an Opacity on it must not repaint the
+        // accent of the whole application, and the caller must not have to check whether it may.
+        foreach (var accent in ThemeService.Accents)
+        {
+            ThemeService.Apply("dark", accent);
+            if (!AccentPalette.Brush.IsFrozen || !AccentPalette.Pen(2).IsFrozen || !AccentPalette.Wash(24).IsFrozen ||
+                ReferenceEquals(AccentPalette.Brush, Application.Current.Resources["AccentBrush"]))
+                throw new InvalidOperationException("The accent handed to a renderer must be a frozen copy, not the resource itself.");
+        }
+        ThemeService.Apply("dark", "blue");
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
         {
             var window = new HotkeySettingsWindow(restoredSettings);
