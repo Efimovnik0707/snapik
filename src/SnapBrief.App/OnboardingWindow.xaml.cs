@@ -64,7 +64,7 @@ public partial class OnboardingWindow : Window
         EnglishSegment.Checked += (_, _) => SelectLanguage("en");
         // The slides from the tray hide the startup step, and reading the registry for a step nobody
         // sees puts an error in the log (and the "unavailable" line on that hidden step) for nothing.
-        if (!howToOnly) LoadStartupState();
+        if (!howToOnly) { LoadStartupState(); LoadPinState(); }
         if (howToOnly) StartButton.Content = UiLanguage.Text("Готово", _language);
         ShowStep(howToOnly ? StepCount - 1 : 0);
         ApplyLanguage(_language);
@@ -293,6 +293,44 @@ public partial class OnboardingWindow : Window
         }
         _appliedCaptureId = captureId;
         return true;
+    }
+
+    // What the card says before anything is pressed: the icon may be on the taskbar already (then the
+    // button has nothing to do), or this machine may have no way of putting it there (then the three
+    // lines take the place of the button straight away).
+    private void LoadPinState()
+    {
+        try
+        {
+            if (TaskbarPinService.IsPinned()) { ShowPinned(); return; }
+            if (!TaskbarPinService.CanTry()) ShowPinInstructions();
+        }
+        catch (Exception ex) { Trace?.Invoke($"Onboarding pin state: {ex}"); }
+    }
+
+    private async void OnPinToTaskbar(object sender, RoutedEventArgs e)
+    {
+        PinButton.IsEnabled = false;
+        var result = await TaskbarPinService.TryPinAsync(Trace);
+        PinButton.IsEnabled = true;
+        if (result is TaskbarPinService.PinResult.Pinned or TaskbarPinService.PinResult.AlreadyPinned) ShowPinned();
+        else ShowPinInstructions();
+    }
+
+    private void ShowPinned()
+    {
+        PinButton.Visibility = Visibility.Collapsed;
+        PinInstructions.Visibility = Visibility.Collapsed;
+        PinDone.Visibility = Visibility.Visible;
+        PinSubtitle.Text = UiLanguage.Text("Готово: иконка SnapBrief теперь на панели задач", _language);
+        PinSubtitle.SetResourceReference(ForegroundProperty, "PinnedBrush");
+    }
+
+    private void ShowPinInstructions()
+    {
+        PinButton.Visibility = Visibility.Collapsed;
+        PinDone.Visibility = Visibility.Collapsed;
+        PinInstructions.Visibility = Visibility.Visible;
     }
 
     private bool ApplyStartup()

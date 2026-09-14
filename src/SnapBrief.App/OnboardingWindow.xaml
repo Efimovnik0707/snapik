@@ -30,6 +30,15 @@
    <Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#6F7A8A"/>
    <Setter Property="Cursor" Value="Hand"/><Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
+  <!-- The one colour of the wizard that is not the accent and not the theme: the taskbar icon is
+       either there or it is not, and "there" is said in green. -->
+  <SolidColorBrush x:Key="PinnedBrush" Color="#28BE80"/>
+  <Style x:Key="StepHintNumber" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#A9B4C2"/><Setter Property="MinWidth" Value="14"/>
+  </Style>
+  <Style x:Key="StepHintLine" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#A9B4C2"/><Setter Property="TextWrapping" Value="Wrap"/>
+  </Style>
   <!-- One card per promise of the step: an icon, what it does, and the one control that does it. -->
   <Style x:Key="StepCard" TargetType="Border">
    <Setter Property="Background" Value="#1B212B"/><Setter Property="BorderBrush" Value="#33404F"/>
@@ -162,6 +171,45 @@
        </StackPanel>
        <ToggleButton x:Name="StartupBox" Grid.Column="2" Style="{StaticResource WizardToggle}" VerticalAlignment="Center"
                      AutomationProperties.Name="{local:UiText Открывать при включении компьютера}"/>
+      </Grid>
+     </Border>
+     <Border Style="{StaticResource StepCard}">
+      <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Border Width="40" Height="40" CornerRadius="10" Background="#253B58">
+        <Path Width="18" Height="20" Stretch="Uniform" Fill="{DynamicResource AccentBrush}"
+              Data="M3,0 L9,0 L8,1.6 L8,5 L11,7.6 L11,8.8 L6.6,8.8 L6.6,13 L5.4,13 L5.4,8.8 L1,8.8 L1,7.6 L4,5 L4,1.6 Z"/>
+       </Border>
+       <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,14,0">
+        <TextBlock Text="Закрепить на панели задач" FontSize="14" FontWeight="SemiBold" Foreground="#EEF2F8" TextWrapping="Wrap"/>
+        <TextBlock x:Name="PinSubtitle" Text="Иконка внизу экрана, клик открывает ленту" FontSize="12" Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,3,0,0"/>
+        <!-- Where the button was, once the button could not do it: the three steps of the manual way.
+             Nothing is promised before that, so the button says what it does and nothing more. -->
+        <StackPanel x:Name="PinInstructions" Visibility="Collapsed" Margin="0,8,0,0">
+         <StackPanel Orientation="Horizontal">
+          <TextBlock Text="1." Style="{StaticResource StepHintNumber}"/>
+          <TextBlock Text="Открой «Пуск»" Style="{StaticResource StepHintLine}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+          <TextBlock Text="2." Style="{StaticResource StepHintNumber}"/>
+          <TextBlock Text="Нажми правой кнопкой на SnapBrief" Style="{StaticResource StepHintLine}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+          <TextBlock Text="3." Style="{StaticResource StepHintNumber}"/>
+          <TextBlock Text="Выбери «Закрепить на панели задач»" Style="{StaticResource StepHintLine}"/>
+         </StackPanel>
+        </StackPanel>
+       </StackPanel>
+       <Button x:Name="PinButton" Grid.Column="2" Style="{StaticResource WizardButton}" Height="32" MinHeight="32" MinWidth="0"
+               Padding="12,0" VerticalAlignment="Center" Content="Закрепить" Click="OnPinToTaskbar"/>
+       <Border x:Name="PinDone" Grid.Column="2" Height="32" CornerRadius="7" Padding="12,0" VerticalAlignment="Center" Visibility="Collapsed"
+               Background="#2628BE80" BorderBrush="#28BE80" BorderThickness="1">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+         <Path Width="12" Height="10" Stretch="None" Data="M1,5 L4.5,8.5 L11,1" Stroke="#28BE80" StrokeThickness="2"
+               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center"/>
+         <TextBlock Text="Закреплено" FontSize="13" Foreground="#28BE80" VerticalAlignment="Center" Margin="6,0,0,0"/>
+        </StackPanel>
+       </Border>
       </Grid>
      </Border>
     </StackPanel>
