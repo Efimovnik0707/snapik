@@ -37,14 +37,14 @@ internal static class ThemeService
     internal static ResourceDictionary LoadAccent(string? accentId) =>
         new() { Source = new Uri($"Themes/Accents/{FileName(Normalize(accentId))}.xaml", UriKind.Relative) };
 
-    internal static void Apply(string? theme, string? accentId)
+    internal static void Apply(string? theme, string? accent)
     {
         if (Application.Current is not { } application) return;
         var merged = application.Resources.MergedDictionaries;
         Swap(merged, LoadTheme(theme), ref _theme, "/Palettes/");
-        Swap(merged, LoadAccent(accentId), ref _accent, "/Accents/");
+        Swap(merged, LoadAccent(accent), ref _accent, "/Accents/");
         CurrentTheme = NormalizeTheme(theme);
-        CurrentAccent = Normalize(accentId);
+        CurrentAccent = Normalize(accent);
     }
 
     // The dictionary merged from App.xaml is the one replaced on the first call; every call after
