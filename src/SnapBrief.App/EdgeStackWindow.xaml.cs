@@ -74,6 +74,12 @@ public partial class EdgeStackWindow : Window
     private double _resizeStartChrome;
     private double _resizeStartMinHeight;
     private Point _resizeStartPointer;
+    // The strip as it was before it collapsed, so the capsule gives back the same window.
+    private bool _capsuleMode;
+    private double _expandedWidth;
+    private double _expandedListHeight;
+    private double _expandedTop;
+    private double _expandedMinHeight;
     private CaptureItem? _draggedCapture;
     private readonly Stack<(CaptureItem Capture, int Index)> _removed = [];
     private TargetProfile? _selectedProfile;
@@ -600,7 +606,10 @@ public partial class EdgeStackWindow : Window
     private void ShowStackWithoutActivation()
     {
         Renumber();
-        PositionAtEdge();
+        // A capture taken while the strip is collapsed must not unfold it: the capsule stays where it
+        // is and only its counter grows. PositionAtEdge is the placement of the strip, and it would
+        // give the window the width and the height of the strip back.
+        if (_capsuleMode) PositionCapsuleAtEdge(); else PositionAtEdge();
         Show();
         _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0053);
         UiLanguage.Apply(this);
@@ -618,6 +627,60 @@ public partial class EdgeStackWindow : Window
     }
 
     private void OnHideClick(object sender, RoutedEventArgs e) => HideStack();
+
+    // The strip collapsed into the capsule, and back. It is a mode of this window: the hotkeys, the
+    // display affinity, the topmost, the tray icon and the drag of the header all hang on this window
+    // and on its handle. The mode lives in memory only and is never written to the settings file: a
+    // strip that opens collapsed would look like a strip that failed to open.
+    private void OnCollapseToCapsuleClick(object sender, RoutedEventArgs e) => CollapseToCapsule();
+
+    private void OnCapsuleClick(object sender, MouseButtonEventArgs e) => ExpandFromCapsule();
+
+    private void CollapseToCapsule()
+    {
+        if (_capsuleMode) return;
+        _capsuleMode = true;
+        _expandedWidth = Width;
+        _expandedListHeight = CaptureList.Height;
+        _expandedTop = Top;
+        _expandedMinHeight = MinHeight;
+        HideToastNow();
+        Shell.Visibility = Visibility.Collapsed;
+        WidthGrip.Visibility = Visibility.Collapsed;
+        CornerGrip.Visibility = Visibility.Collapsed;
+        Capsule.Visibility = Visibility.Visible;
+        // Both sides by the content now, and no floor under the height: the minimum of the strip is
+        // three times the capsule.
+        MinHeight = 0;
+        Width = double.NaN;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        PositionCapsuleAtEdge();
+    }
+
+    private void ExpandFromCapsule()
+    {
+        if (!_capsuleMode) return;
+        _capsuleMode = false;
+        Capsule.Visibility = Visibility.Collapsed;
+        Shell.Visibility = Visibility.Visible;
+        WidthGrip.Visibility = Visibility.Visible;
+        CornerGrip.Visibility = Visibility.Visible;
+        SizeToContent = SizeToContent.Height;
+        MinHeight = _expandedMinHeight;
+        Width = _expandedWidth;
+        CaptureList.Height = _expandedListHeight;
+        UpdateLayout();
+        Left = StackWorkArea().Right - Width - Controls.StripResizeGeometry.EdgeGap;
+        Top = _expandedTop;
+    }
+
+    // The capsule keeps the edge and the height the strip was at: the same right edge with the same
+    // gap, and a Top that is not touched at all.
+    private void PositionCapsuleAtEdge()
+    {
+        UpdateLayout();
+        Left = StackWorkArea().Right - ActualWidth - Controls.StripResizeGeometry.EdgeGap;
+    }
 
     private void AnimateStackIn()
     {
@@ -1272,6 +1335,8 @@ public partial class EdgeStackWindow : Window
         CaptureList?.Items.Refresh();
         var pending = PendingCaptures.Count;
         CountText.Text = pending.ToString();
+        // The capsule shows the same number as the header: what is still waiting to be pasted.
+        CapsuleCount.Text = CountText.Text;
         PasteButton.IsEnabled = pending > 0;
     }
 

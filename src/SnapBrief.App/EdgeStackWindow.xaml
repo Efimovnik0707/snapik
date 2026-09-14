@@ -126,9 +126,9 @@
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Grid.Row="0" Height="28" MouseLeftButtonDown="OnHeaderMouseDown">
-                <!-- Three columns of the same 30 px: a button of 26 sits in the middle of each and
+                <!-- Four columns of the same 30 px: a button of 26 sits in the middle of each and
                      keeps a gap of four from its neighbour. -->
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="1,0,7,0" />
                     <TextBlock Foreground="White" FontSize="12" FontWeight="SemiBold" Text="SnapBrief" />
@@ -142,7 +142,12 @@
                 <Button Grid.Column="2" Style="{StaticResource IconButton}" Click="OnMoreClick" ToolTip="Ещё">
                     <Path Width="14" Height="3" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M1,1.5 A1.5,1.5 0 1 0 4,1.5 A1.5,1.5 0 1 0 1,1.5 M6,1.5 A1.5,1.5 0 1 0 9,1.5 A1.5,1.5 0 1 0 6,1.5 M11,1.5 A1.5,1.5 0 1 0 14,1.5 A1.5,1.5 0 1 0 11,1.5" />
                 </Button>
-                <Button Grid.Column="3" Style="{StaticResource IconButton}" Click="OnHideClick" ToolTip="Свернуть в трей" AutomationProperties.Name="Свернуть в трей">
+                <Button Grid.Column="3" Style="{StaticResource IconButton}" Click="OnCollapseToCapsuleClick" ToolTip="Свернуть в капсулу" AutomationProperties.Name="Свернуть в капсулу">
+                    <!-- No Stretch here, unlike its neighbours: a line has no height of its own, and a
+                         uniform stretch of a flat geometry has nothing to scale. -->
+                    <Path Width="10" Height="10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Data="M0,5 L10,5" />
+                </Button>
+                <Button Grid.Column="4" Style="{StaticResource IconButton}" Click="OnHideClick" ToolTip="Свернуть в трей" AutomationProperties.Name="Свернуть в трей">
                     <Path Stretch="Uniform" Width="10" Height="10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" Data="M0,0 L10,10 M10,0 L0,10" />
                 </Button>
             </Grid>
@@ -313,6 +318,27 @@
                 <TextBlock x:Name="StatusText" Visibility="Collapsed" Foreground="#FF9B95" FontSize="11" TextWrapping="Wrap" />
             </Grid>
         </Grid>
+    </Border>
+    <!-- The strip collapsed: the same window, not a second one. The window carries the hotkeys, the
+         display affinity, the topmost with its suspensions, the tray icon and the drag of the header,
+         and a capsule of its own would have to repeat all of it. The margin of 10 is the one the
+         shell keeps as well: it carries the shadow. The counter shows what the header shows, the
+         captures still waiting. -->
+    <Border x:Name="Capsule" Visibility="Collapsed" Margin="10" Height="44" CornerRadius="22" Padding="6,0,12,0"
+            Background="#F2171A20" BorderBrush="#2A3240" BorderThickness="1" Cursor="Hand"
+            HorizontalAlignment="Left" VerticalAlignment="Top"
+            MouseLeftButtonDown="OnCapsuleClick" ToolTip="Развернуть ленту" AutomationProperties.Name="Развернуть ленту">
+        <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="4" Opacity="0.45" /></Border.Effect>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Border Width="28" Height="28" CornerRadius="14" Background="{DynamicResource AccentBrush}">
+                <Path Stretch="Uniform" Width="16" Height="14" Stroke="White" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,5 L2,3 L6,3 L7,1.5 L11,1.5 L12,3 L16,3 L16,13 L2,13 Z M9,5 A3,3 0 1 0 9,11 A3,3 0 1 0 9,5" />
+            </Border>
+            <TextBlock Margin="7,0,0,0" VerticalAlignment="Center" Foreground="#EEF2F8" FontSize="12" FontWeight="SemiBold" Text="Новый снимок" />
+            <Border Margin="7,0,0,0" Padding="6,2" CornerRadius="8" Background="#2B3440" VerticalAlignment="Center">
+                <TextBlock x:Name="CapsuleCount" Foreground="#BFC8D6" FontSize="11" Text="0" />
+            </Border>
+            <Path Margin="7,0,0,0" VerticalAlignment="Center" Width="12" Height="7" Stroke="#BFC8D6" StrokeThickness="1.4" StrokeLineJoin="Round" Data="M0,6 L6,1 L12,6" />
+        </StackPanel>
     </Border>
     <!-- The left edge of the card resizes the strip: six invisible pixels over the border, right
          where the pointer expects them. The right edge is fixed while dragging, so the strip keeps

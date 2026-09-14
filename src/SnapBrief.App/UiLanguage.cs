@@ -48,6 +48,7 @@ internal static class UiLanguage
         ["Заливка размытием"] = "Blurred fill", ["Рамка"] = "Frame", ["Показывать рамку"] = "Show the frame",
         ["Цвет заливки"] = "Fill color",
         ["Сохранить на компьютер"] = "Save to computer", ["Свернуть в трей"] = "Hide to tray", ["Ещё"] = "More",
+        ["Свернуть в капсулу"] = "Collapse to a capsule", ["Развернуть ленту"] = "Expand the strip",
         ["Удалить"] = "Delete", ["Открыть снимок"] = "Open capture", ["Вернуть"] = "Restore", ["Показать ленту"] = "Show the strip",
         ["Запускать с Windows"] = "Start with Windows", ["Выйти"] = "Exit",
         ["SnapBrief — Лента снимков"] = "SnapBrief — Capture strip",
