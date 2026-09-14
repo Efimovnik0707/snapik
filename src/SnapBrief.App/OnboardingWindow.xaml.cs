@@ -18,8 +18,8 @@ namespace SnapBrief.App;
 public partial class OnboardingWindow : Window
 {
     /// <summary>Bumping this shows the wizard again to everyone who has already seen the older one.</summary>
-    internal const int CurrentVersion = 2;
-    private const int StepCount = 4;
+    internal const int CurrentVersion = 3;
+    private const int StepCount = 5;
     private readonly HotkeySettings _settings;
     // The tray opens the slides alone: no language, no shortcut, no steps, one "Done" button.
     private readonly bool _howToOnly;
@@ -159,9 +159,12 @@ public partial class OnboardingWindow : Window
     {
         _step = Math.Clamp(index, 0, StepCount - 1);
         ErrorText.Visibility = Visibility.Collapsed;
-        var panels = new[] { Step1, Step2, Step3, Step4 };
+        var panels = new[] { Step1, Step2, Step3, Step4, Step5 };
         for (var i = 0; i < panels.Length; i++) panels[i].Visibility = i == _step ? Visibility.Visible : Visibility.Collapsed;
         var last = _step == StepCount - 1;
+        // The switch is asked for once and belongs to the first step alone; it is held by its own
+        // visibility rather than by the panel around it, so that the slides from the tray hide it too.
+        LanguageToggle.Visibility = _step == 0 ? Visibility.Visible : Visibility.Collapsed;
         BackButton.Visibility = _step == 0 ? Visibility.Collapsed : Visibility.Visible;
         NextButton.Visibility = last ? Visibility.Collapsed : Visibility.Visible;
         StartButton.Visibility = last ? Visibility.Visible : Visibility.Collapsed;
@@ -175,10 +178,10 @@ public partial class OnboardingWindow : Window
         if (!_howToOnly) return;
         // Everything the tray does not need: the wizard is only the slides here, and its one button
         // says "Done" instead of "Get started".
-        LanguageToggle.Visibility = Visibility.Collapsed;
         BackButton.Visibility = Visibility.Collapsed;
         NextButton.Visibility = Visibility.Collapsed;
         StepText.Visibility = Visibility.Collapsed;
+        SkipLink.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>
@@ -274,6 +277,10 @@ public partial class OnboardingWindow : Window
         if (!_howToOnly) Apply(_appliedCaptureId);
         Close();
     }
+
+    // The text at the bottom left and the cross in the header mean the same thing and do the same
+    // thing; the text says it in words, and says it on every step.
+    private void OnSkipLink(object sender, MouseButtonEventArgs e) => OnSkip(sender, e);
 
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
 

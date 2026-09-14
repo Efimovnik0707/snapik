@@ -13,16 +13,23 @@
   <!-- One layout for every step: the same width, the same heading, the same buttons. The styles are
        local to the wizard on purpose - the shared dictionary is the light theme, and this window is dark. -->
   <Style x:Key="StepPanel" TargetType="StackPanel">
-   <Setter Property="Width" Value="360"/><Setter Property="HorizontalAlignment" Value="Center"/>
-   <Setter Property="VerticalAlignment" Value="Top"/><Setter Property="Margin" Value="0,4,0,0"/>
+   <Setter Property="Width" Value="440"/><Setter Property="HorizontalAlignment" Value="Center"/>
+   <Setter Property="VerticalAlignment" Value="Top"/><Setter Property="Margin" Value="0,12,0,0"/>
   </Style>
   <Style x:Key="StepTitle" TargetType="TextBlock">
-   <Setter Property="FontSize" Value="21"/><Setter Property="FontWeight" Value="SemiBold"/>
-   <Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,6"/>
+   <Setter Property="FontSize" Value="24"/><Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="TextWrapping" Value="Wrap"/>
+   <Setter Property="LineHeight" Value="30"/><Setter Property="Margin" Value="0,0,0,10"/>
   </Style>
   <Style x:Key="StepSubtitle" TargetType="TextBlock">
-   <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#8F9AAA"/>
-   <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,20"/>
+   <Setter Property="FontSize" Value="14"/><Setter Property="Foreground" Value="#A9B4C2"/>
+   <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="LineHeight" Value="21"/><Setter Property="Margin" Value="0,0,0,28"/>
+  </Style>
+  <!-- "Skip setup" is a way out, not a button: it leaves the wizard where the step number is, so the
+       three levels of the window (the window, the step, the way out) never look like one row. -->
+  <Style x:Key="StepSkipLink" TargetType="TextBlock">
+   <Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#6F7A8A"/>
+   <Setter Property="Cursor" Value="Hand"/><Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
   <Style x:Key="StepBodyText" TargetType="TextBlock">
    <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#EEF2F8"/>
@@ -53,13 +60,6 @@
    <Grid Height="28" Margin="0,0,0,14" Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
     <TextBlock Text="SnapBrief" FontSize="12" Foreground="#6F7A8A" VerticalAlignment="Center"/>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-     <Border x:Name="LanguageToggle" CornerRadius="8" Background="#21262F" BorderBrush="#39424F" BorderThickness="1" Padding="2" Margin="0,0,8,0"
-             ToolTip="Язык интерфейса" AutomationProperties.Name="{local:UiText Язык интерфейса}">
-      <StackPanel Orientation="Horizontal">
-       <RadioButton x:Name="RussianSegment" Style="{StaticResource SegmentButton}" GroupName="OnboardingLanguage" Content="Русский"/>
-       <RadioButton x:Name="EnglishSegment" Style="{StaticResource SegmentButton}" GroupName="OnboardingLanguage" Content="English"/>
-      </StackPanel>
-     </Border>
      <Button x:Name="MinimizeButton" Style="{StaticResource WizardIconButton}" Margin="0,0,4,0" VerticalAlignment="Center" Click="OnMinimize" ToolTip="Свернуть" AutomationProperties.Name="{local:UiText Свернуть}">
       <Path Data="M0,1 L10,1" Stroke="#8F9AAA" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
      </Button>
@@ -73,7 +73,17 @@
         forward has to stay on screen whatever the step puts above it. -->
    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
    <Grid>
-    <StackPanel x:Name="Step1" Style="{StaticResource StepPanel}">
+    <StackPanel x:Name="Step1" Style="{StaticResource StepPanel}" Width="520" TextBlock.TextAlignment="Center">
+     <!-- The language is asked once, here, and nowhere else: by the second step it is chosen, and a
+          switch on every step reads as a setting the wizard keeps asking about. -->
+     <Border x:Name="LanguageToggle" CornerRadius="8" Background="#21262F" BorderBrush="#39424F" BorderThickness="1" Padding="2"
+             HorizontalAlignment="Center" Margin="0,0,0,22"
+             ToolTip="Язык интерфейса" AutomationProperties.Name="{local:UiText Язык интерфейса}">
+      <StackPanel Orientation="Horizontal">
+       <RadioButton x:Name="RussianSegment" Style="{StaticResource SegmentButton}" GroupName="OnboardingLanguage" Content="Русский"/>
+       <RadioButton x:Name="EnglishSegment" Style="{StaticResource SegmentButton}" GroupName="OnboardingLanguage" Content="English"/>
+      </StackPanel>
+     </Border>
      <TextBlock Text="Добро пожаловать" Style="{StaticResource StepTitle}"/>
      <TextBlock Text="SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями." Style="{StaticResource StepSubtitle}"/>
      <!-- The whole product in one static picture: a key, the capture it makes, the chat it lands in.
@@ -160,7 +170,12 @@
      <TextBlock Text="Повторный запуск ярлыка не открывает второе окно, а показывает ленту." Style="{StaticResource StepSubtitle}"/>
     </StackPanel>
 
-    <StackPanel x:Name="Step4" Style="{StaticResource StepPanel}" Visibility="Collapsed">
+    <StackPanel x:Name="Step4" Style="{StaticResource StepPanel}" Width="520" Visibility="Collapsed">
+     <TextBlock Text="Как будет выглядеть" Style="{StaticResource StepTitle}"/>
+     <TextBlock Text="Нажми — окно сразу перекрасится. Поменять можно в любой момент в настройках." Style="{StaticResource StepSubtitle}"/>
+    </StackPanel>
+
+    <StackPanel x:Name="Step5" Style="{StaticResource StepPanel}" Width="480" Visibility="Collapsed">
      <TextBlock Text="Как пользоваться" Style="{StaticResource StepTitle}"/>
      <!-- Four slides, their dots and their chevrons live in a control of their own: the tray opens
           the same slides without the rest of the wizard. -->
@@ -170,8 +185,11 @@
    </ScrollViewer>
 
    <TextBlock x:Name="ErrorText" Grid.Row="2" Foreground="#FF9B95" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,8"/>
-   <Grid Grid.Row="3" Margin="0,16,0,0">
-    <TextBlock x:Name="StepText" Foreground="#8F9AAA" VerticalAlignment="Center"/>
+   <Grid Grid.Row="3" Margin="0,14,0,0">
+    <StackPanel x:Name="StepFooter" Orientation="Horizontal" VerticalAlignment="Center">
+     <TextBlock x:Name="StepText" Foreground="#8F9AAA" VerticalAlignment="Center" Margin="0,0,16,0"/>
+     <TextBlock x:Name="SkipLink" Style="{StaticResource StepSkipLink}" Text="Пропустить настройку" MouseLeftButtonDown="OnSkipLink"/>
+    </StackPanel>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
      <Button x:Name="BackButton" Style="{StaticResource WizardButton}" Margin="0,0,8,0" Content="Назад" Click="OnBack"/>
      <Button x:Name="NextButton" Style="{StaticResource WizardPrimaryButton}" Content="Далее" Click="OnNext"/>

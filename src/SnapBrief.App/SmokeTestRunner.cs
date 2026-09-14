@@ -260,14 +260,21 @@ public static class SmokeTestRunner
             return window;
         });
         if (onboarding.Step != 0 || onboarding.SelectedLanguage != "ru" ||
-            onboarding.Step1.Visibility != Visibility.Visible || onboarding.Step4.Visibility != Visibility.Collapsed)
+            onboarding.Step1.Visibility != Visibility.Visible || onboarding.Step5.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("The wizard must come back to its first step after the probe.");
         if (onboarding.HowTo.KeyLabel != HotkeySettings.Find(restoredSettings.CaptureId).Label ||
             onboarding.CaptureField.HotkeyId != restoredSettings.CaptureId)
             throw new InvalidOperationException("The wizard must open on the shortcut the settings hold, and the hint must show it.");
-        onboarding.GoToStep(3);
-        if (onboarding.Step4.Visibility != Visibility.Visible || onboarding.StepText.Text != "Шаг 4 из 4")
+        onboarding.GoToStep(4);
+        if (onboarding.Step5.Visibility != Visibility.Visible || onboarding.StepText.Text != "Шаг 5 из 5")
             throw new InvalidOperationException("The last step must show the animated hint and its own number.");
+        // The three levels of the window: the language belongs to the first step alone, and the way
+        // out belongs to every step.
+        if (onboarding.LanguageToggle.Visibility == Visibility.Visible || onboarding.SkipLink.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("The language switch must be hidden away from the first step, and \"Skip setup\" must stay on every step.");
+        onboarding.GoToStep(0);
+        if (onboarding.LanguageToggle.Visibility != Visibility.Visible || onboarding.SkipLink.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("The first step must show the language switch, and \"Skip setup\" with it.");
         // The wizard is built for the checks above and belongs to nobody afterwards; the probe cannot
         // close it itself, because those checks read the window it returns.
         onboarding.Close();
@@ -798,10 +805,11 @@ public static class SmokeTestRunner
                 return window;
             });
             var hidden = wizard.Step1.Visibility != Visibility.Visible && wizard.Step2.Visibility != Visibility.Visible &&
-                wizard.Step3.Visibility != Visibility.Visible && wizard.LanguageToggle.Visibility != Visibility.Visible &&
+                wizard.Step3.Visibility != Visibility.Visible && wizard.Step4.Visibility != Visibility.Visible &&
+                wizard.LanguageToggle.Visibility != Visibility.Visible &&
                 wizard.BackButton.Visibility != Visibility.Visible && wizard.NextButton.Visibility != Visibility.Visible &&
-                wizard.StepText.Visibility != Visibility.Visible;
-            var shown = wizard.Step4.Visibility == Visibility.Visible && wizard.StartButton.Visibility == Visibility.Visible &&
+                wizard.StepText.Visibility != Visibility.Visible && wizard.SkipLink.Visibility != Visibility.Visible;
+            var shown = wizard.Step5.Visibility == Visibility.Visible && wizard.StartButton.Visibility == Visibility.Visible &&
                 wizard.HowTo.Slide == 0;
             var titled = wizard.SelectedLanguage == language && wizard.StartButton.Content as string == caption;
             wizard.Close();

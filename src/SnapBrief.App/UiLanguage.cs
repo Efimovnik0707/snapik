@@ -118,7 +118,10 @@ internal static class UiLanguage
         ["Шаг {0} из {1}"] = "Step {0} of {1}",
         ["Назад"] = "Back", ["Далее"] = "Next", ["Начать"] = "Get started", ["Пропустить"] = "Skip",
         // The wizard is an ordinary window now: it has a header of its own, and the header minimizes.
-        ["Свернуть"] = "Minimize",
+        ["Свернуть"] = "Minimize", ["Пропустить настройку"] = "Skip setup",
+        ["Как будет выглядеть"] = "How it will look",
+        ["Нажми — окно сразу перекрасится. Поменять можно в любой момент в настройках."] =
+            "Click and the window repaints at once. You can change it any time in the settings.",
         ["Добро пожаловать"] = "Welcome", ["Язык интерфейса"] = "Interface language",
         ["SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями."] =
             "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.",
