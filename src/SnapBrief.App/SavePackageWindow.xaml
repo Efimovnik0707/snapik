@@ -1,3 +1,6 @@
+﻿<!-- Not themed this round: this window is on screen for seconds and its colours are written
+     down here on purpose. The base Window style now paints by the palette of the theme, so
+     the dark values are pinned here rather than inherited. -->
 <Window x:Class="SnapBrief.App.SavePackageWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:SnapBrief.App" xmlns:controls="clr-namespace:SnapBrief.App.Controls"
  Title="SnapBrief" Width="470" SizeToContent="Height" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="#EEF2F8"
