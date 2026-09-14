@@ -209,6 +209,7 @@ public static class SmokeTestRunner
                 throw new InvalidOperationException("The accent handed to a renderer must be a frozen copy, not the resource itself.");
         }
         ThemeService.Apply("dark", "blue");
+        WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
         {
             var window = new HotkeySettingsWindow(restoredSettings);
