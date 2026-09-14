@@ -245,9 +245,11 @@
                 </Button>
                 <!-- The size of a caption, in the same shape as the thickness beside it. -->
                 <Button x:Name="FontSizeButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnFontSizeClick" ToolTip="Размер" AutomationProperties.Name="{local:UiText Размер}" Content="20 px" />
-                <Button x:Name="CommentToolButton" Style="{StaticResource OverlayButton}" Click="OnCommentClick">
-                    <Path Width="16" Height="16" Stroke="#D9DEE8" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z" />
-                </Button>
+<!-- A tool like the others, and checked like the others: the comment stays armed until it is
+                     put down, so the panel has to show that it is in the hand. -->
+                <ToggleButton x:Name="CommentToolButton" Style="{StaticResource OverlayTool}" Tag="Comment" Click="OnCommentClick" AutomationProperties.Name="{local:UiText Комментарий}">
+                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z" />
+                </ToggleButton>
                 <Button x:Name="ShortcutSheetButton" Style="{StaticResource OverlayButton}" Width="30" MinWidth="30" Padding="0" FontWeight="SemiBold" Content="?" Click="OnShortcutSheetClick" ToolTip="Сочетания клавиш" AutomationProperties.Name="{local:UiText Сочетания клавиш}" />
                 <Popup x:Name="ShortcutSheetPopup" PlacementTarget="{Binding ElementName=ShortcutSheetButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False">
                     <Border Padding="18" Background="#171A20" BorderBrush="#394352" BorderThickness="1" CornerRadius="14" TextElement.Foreground="#EEF2F8" Cursor="Arrow">

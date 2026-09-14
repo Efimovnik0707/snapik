@@ -772,8 +772,15 @@ public partial class OverlayEditorWindow : Window
         var comment = new AnnotationItem { Kind = EditorTool.Comment, Points = [new Point(200, 150), new Point(208, 158)] };
         window._capture.Annotations.Add(comment);
         window.OnAnnotationCreated(window, comment);
-        if (window.Surface.Tool != EditorTool.Select || window.SelectTool.IsChecked != true)
-            throw new InvalidOperationException("Comment placement remained armed after creating one pin.");
+        // The tool stays in the hand after a pin is placed, so the next comment needs no trip to the
+        // panel, and the panel shows which tool that is. Escape is what puts it down.
+        if (window.Surface.Tool != EditorTool.Comment || window.CommentToolButton.IsChecked != true)
+            throw new InvalidOperationException("Placing a pin must leave the comment tool in the hand.");
+        if (window.NextEscapeStep() != EscapeStep.Comment)
+            throw new InvalidOperationException("Escape must put the comment tool down before it drops anything else.");
+        window.SelectToolMode(EditorTool.Select);
+        if (window.Surface.Tool != EditorTool.Select || window.SelectTool.IsChecked != true || window.CommentToolButton.IsChecked == true)
+            throw new InvalidOperationException("Putting the comment tool down must arm the select tool instead.");
         var note = window.ChipLayer.Children.OfType<Border>()
             .Select(border => border.Child).OfType<Grid>()
             .SelectMany(grid => grid.Children.OfType<TextBox>()).Single();
@@ -1038,7 +1045,7 @@ public partial class OverlayEditorWindow : Window
     }
 
     private System.Windows.Controls.Primitives.ToggleButton[] ToolButtons =>
-        [SelectTool, RectangleTool, ArrowTool, PenTool, TextTool, EraserTool, BlurTool, CropTool];
+        [SelectTool, RectangleTool, ArrowTool, PenTool, TextTool, EraserTool, BlurTool, CropTool, CommentToolButton];
 
     // Every letter on the panel comes from EditorShortcuts: the name goes to the tooltip (and is
     // translated with the rest of the window), the key goes to the capsule of the tooltip template.
@@ -1047,7 +1054,6 @@ public partial class OverlayEditorWindow : Window
         foreach (var button in ToolButtons)
             if (Enum.TryParse<EditorTool>(button.Tag?.ToString(), out var tool) && EditorShortcuts.Find(tool) is { } shortcut)
                 Hint(button, shortcut.Name, shortcut.Caption);
-        if (EditorShortcuts.Find(EditorTool.Comment) is { } comment) Hint(CommentToolButton, comment.Name, comment.Caption);
         foreach (var (element, name) in new (FrameworkElement Element, string Name)[]
                  { (UndoButton, "Отменить"), (RedoButton, "Повторить"), (SaveImageButton, "Сохранить на компьютер"), (DoneButton, "Готово") })
             // A renamed action leaves the button without a capsule instead of throwing the editor
@@ -1135,7 +1141,9 @@ public partial class OverlayEditorWindow : Window
             annotation.ParentAnnotationId = _commentParentId;
             _commentParentId = null;
             annotation.Points[1] = new Point(Math.Min(_capture.Image.PixelWidth, annotation.Points[0].X + 8), Math.Min(_capture.Image.PixelHeight, annotation.Points[0].Y + 8));
-            SelectToolMode(EditorTool.Select);
+            // The tool stays in the hand, the way the frame and the arrow do: three comments in a row
+            // without going back to the panel. It is put down by Escape, by "Select" and by arming
+            // any other tool.
         }
         PushHistory();
         annotation.PropertyChanged += OnAnnotationPropertyChanged;
@@ -1752,6 +1760,14 @@ public partial class OverlayEditorWindow : Window
         if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Popover)
         {
             ClosePopovers();
+            e.Handled = true;
+            return;
+        }
+        // The comment tool is armed until it is put down, and Escape is one of the ways to put it
+        // down: it goes back to "Select" and leaves the capture where it is.
+        if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Comment)
+        {
+            SelectToolMode(EditorTool.Select);
             e.Handled = true;
             return;
         }

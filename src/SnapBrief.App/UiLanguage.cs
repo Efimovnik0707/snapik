@@ -39,7 +39,7 @@ internal static class UiLanguage
         ["Стандартная"] = "Standard", ["Пастель"] = "Pastel", ["Неон"] = "Neon",
         ["Выделите область · Esc отменяет"] = "Select an area · Esc cancels", ["СНИМОК {0}"] = "CAPTURE {0}",
         ["Добавить комментарий"] = "Add comment", ["Удалить комментарий"] = "Remove comment", ["Переместить заметку"] = "Move the note", ["Отменить"] = "Undo", ["Повторить"] = "Redo",
-        ["Комментарии"] = "Comments", ["Нет комментариев"] = "No comments yet", ["Комментарий к снимку"] = "Capture comment",
+        ["Комментарий"] = "Comment", ["Комментарии"] = "Comments", ["Нет комментариев"] = "No comments yet", ["Комментарий к снимку"] = "Capture comment",
         ["К снимку"] = "To capture", ["К отметке"] = "To annotation",
         ["Прямая стрелка"] = "Straight arrow", ["Изогнутая стрелка"] = "Curved arrow", ["Толстая стрелка"] = "Bold arrow", ["Широкая стрелка"] = "Wide arrow",
         ["Стиль стрелки"] = "Arrow style", ["Фигура"] = "Shape",

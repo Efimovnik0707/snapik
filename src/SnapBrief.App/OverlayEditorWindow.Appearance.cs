@@ -182,7 +182,6 @@ public partial class OverlayEditorWindow
         _syncingAppearance = true;
         ArrowMenuButton.ToolTip = UiLanguage.Text("Стиль стрелки");
         ShapeMenuButton.ToolTip = UiLanguage.Text("Фигура");
-        CommentToolButton.Background = Surface.Tool == EditorTool.Comment ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
         UndoButton.IsEnabled = _undo.Count > 0;
         RedoButton.IsEnabled = _redo.Count > 0;
         var selected = Surface.SelectedAnnotation;
@@ -438,10 +437,11 @@ public partial class OverlayEditorWindow
     // What Escape gives up, in order: an open popover, then the selection, and only with nothing
     // left to give up, the capture itself. The mark being drawn is taken by the canvas before the
     // window is asked at all.
-    internal enum EscapeStep { Popover, Selection, Capture }
+    internal enum EscapeStep { Popover, Comment, Selection, Capture }
 
     internal EscapeStep NextEscapeStep() =>
         ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || FillPopup.IsOpen || FontSizePopup.IsOpen ? EscapeStep.Popover
+        : Surface.Tool == EditorTool.Comment ? EscapeStep.Comment
         : Surface.SelectedAnnotation is not null ? EscapeStep.Selection
         : EscapeStep.Capture;
 
