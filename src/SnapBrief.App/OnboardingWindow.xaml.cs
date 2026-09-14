@@ -26,6 +26,9 @@ public partial class OnboardingWindow : Window
     private string _appliedCaptureId;
     // The free combination the chip of step 2 offers, or null while nothing refuses the current one.
     private string? _suggestedCaptureId;
+    // The theme and the accent the wizard opened with, to go back to if the user skips the setup.
+    private readonly string _openedTheme;
+    private readonly string _openedAccent;
     private string _language;
     private int _step;
 
@@ -60,6 +63,12 @@ public partial class OnboardingWindow : Window
             RefreshCaptureConflict();
         };
         HowTo.KeyLabel = HotkeySettings.Find(settings.CaptureId).Label;
+        // The look the wizard was opened with: "Skip setup" puts it back, whatever step 4 was playing
+        // with, and the candidate carries what is on screen at the end.
+        _openedTheme = settings.Theme;
+        _openedAccent = settings.AccentId;
+        Appearance.SelectedTheme = settings.Theme;
+        Appearance.SelectedAccent = settings.AccentId;
         RussianSegment.Checked += (_, _) => SelectLanguage("ru");
         EnglishSegment.Checked += (_, _) => SelectLanguage("en");
         // The slides from the tray hide the startup step, and reading the registry for a step nobody
@@ -152,6 +161,7 @@ public partial class OnboardingWindow : Window
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
         WelcomeScene.ApplyLanguage(language);
+        Appearance.ApplyLanguage(language);
         HowTo.ApplyLanguage(language);
         RefreshStepCaption();
         RefreshCaptureConflict();
@@ -277,7 +287,11 @@ public partial class OnboardingWindow : Window
     // Only the three fields the wizard owns are new; everything else travels from the file it was
     // opened with, and the strip merges the candidate into the file as it is at that moment.
     private HotkeySettings Candidate(string captureId) =>
-        _settings with { CaptureId = captureId, Language = _language, OnboardingVersion = CurrentVersion };
+        _settings with
+        {
+            CaptureId = captureId, Language = _language, OnboardingVersion = CurrentVersion,
+            Theme = Appearance.SelectedTheme, AccentId = Appearance.SelectedAccent
+        };
 
     // The shortcut is applied when the user leaves its step and again at the finish: the wizard has
     // no "cancel", so what is on screen is what the settings file gets.
@@ -365,7 +379,15 @@ public partial class OnboardingWindow : Window
     // user typed and left behind.
     private void OnSkip(object sender, RoutedEventArgs e)
     {
-        if (!_howToOnly) Apply(_appliedCaptureId);
+        if (!_howToOnly)
+        {
+            // Step 4 repaints the application as it is clicked, so skipping the setup has to paint it
+            // back: what was tried out was never chosen.
+            Appearance.SelectedTheme = _openedTheme;
+            Appearance.SelectedAccent = _openedAccent;
+            ThemeService.Apply(_openedTheme, _openedAccent);
+            Apply(_appliedCaptureId);
+        }
         Close();
     }
 

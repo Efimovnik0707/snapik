@@ -217,6 +217,9 @@
     <StackPanel x:Name="Step4" Style="{StaticResource StepPanel}" Width="520" Visibility="Collapsed">
      <TextBlock Text="Как будет выглядеть" Style="{StaticResource StepTitle}"/>
      <TextBlock Text="Нажми — окно сразу перекрасится. Поменять можно в любой момент в настройках." Style="{StaticResource StepSubtitle}"/>
+     <!-- The same control the settings show under "Look": it repaints the application as it is
+          clicked and saves nothing; what the wizard takes from it is read when the wizard is done. -->
+     <controls:AppearancePicker x:Name="Appearance" HorizontalAlignment="Center"/>
     </StackPanel>
 
     <StackPanel x:Name="Step5" Style="{StaticResource StepPanel}" Width="480" Visibility="Collapsed">
