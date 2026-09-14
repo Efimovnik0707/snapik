@@ -319,6 +319,10 @@ public partial class HotkeySettingsWindow : Window
         InitializeComponent();
         CaptureField.HotkeyId = settings.CaptureId;
         FullscreenField.HotkeyId = settings.FullscreenSaveId;
+        // The two fields of this window are each other's neighbours: a combination one of them
+        // holds is refused in the other while it is being pressed.
+        CaptureField.ConflictsWith = [FullscreenField];
+        FullscreenField.ConflictsWith = [CaptureField];
         CaptureEnabledBox.IsChecked = settings.CaptureEnabled;
         FullscreenEnabledBox.IsChecked = settings.FullscreenSaveEnabled;
         NotificationsBox.IsChecked = settings.ShowNotifications;
@@ -423,6 +427,16 @@ public partial class HotkeySettingsWindow : Window
         {
             if (string.IsNullOrWhiteSpace(DirectoryBox.Text))
                 throw new InvalidOperationException(UiLanguage.Text("Укажите папку сохранения.", _language));
+            // A shortcut recorded before the neighbouring field took it is caught here, by the
+            // gesture the two ids parse to, and not by the registration: Windows only refuses the
+            // second one while both are switched on, and its message blames another application.
+            if (CaptureEnabledBox.IsChecked == true && FullscreenEnabledBox.IsChecked == true &&
+                HotkeyRules.SameGesture(CaptureField.HotkeyId, FullscreenField.HotkeyId))
+            {
+                CaptureField.ShowConflict();
+                FullscreenField.ShowConflict();
+                throw new InvalidOperationException("Одно сочетание на два действия. Поменяй одно из них.");
+            }
             var directory = Path.GetFullPath(DirectoryBox.Text);
             Result = _original with
             {
@@ -444,5 +458,28 @@ public partial class HotkeySettingsWindow : Window
             DialogResult = true;
         }
         catch (Exception ex) { ErrorText.Text = UiLanguage.Text(ex.Message, _language); ErrorText.Visibility = Visibility.Visible; Result = null; }
+    }
+
+    /// <summary>
+    /// The smoke check of the save block: one combination written into both fields is refused, both
+    /// of them go red and nothing is saved. The same keys are given as a preset and as a custom id,
+    /// so the check also proves the comparison is by gesture and not by text.
+    /// </summary>
+    internal static void RunSettingsRulesProbe(HotkeySettings settings)
+    {
+        var window = new HotkeySettingsWindow(settings);
+        window.ApplyLanguage("ru");
+        window.CaptureField.HotkeyId = "ctrl-alt-s";
+        window.FullscreenField.HotkeyId = "custom:3:83";
+        window.CaptureEnabledBox.IsChecked = true;
+        window.FullscreenEnabledBox.IsChecked = true;
+        window.OnSave(window, new RoutedEventArgs());
+        if (window.Result is not null || window.DialogResult is not null)
+            throw new InvalidOperationException("One combination for two actions must not be saved.");
+        if (!window.CaptureField.ShowsConflict || !window.FullscreenField.ShowsConflict)
+            throw new InvalidOperationException("One combination for two actions must turn both fields red.");
+        if (window.ErrorText.Visibility != Visibility.Visible ||
+            window.ErrorText.Text != "Одно сочетание на два действия. Поменяй одно из них.")
+            throw new InvalidOperationException("One combination for two actions must be explained under the tabs.");
     }
 }

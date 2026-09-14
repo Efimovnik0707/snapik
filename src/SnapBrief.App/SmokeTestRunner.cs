@@ -244,6 +244,7 @@ public static class SmokeTestRunner
         if (settingsWindow.CaptureField.HotkeyId != "custom:2:65" || settingsWindow.CaptureField.KeyCaps.Children.Count != 2 ||
             settingsWindow.FullscreenField.KeyCaps.Children.Count != HotkeySettings.Find(restoredSettings.FullscreenSaveId).Label.Split(" + ").Length)
             throw new InvalidOperationException("The hotkey field must keep the id it is given and show one capsule per key.");
+        WithoutBindingErrors("The shortcut rules of the settings", () => HotkeySettingsWindow.RunSettingsRulesProbe(restoredSettings));
         if ((Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentHoverBrush")).Color ||
             (Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentPressedBrush")).Color)
             throw new InvalidOperationException("The primary button must keep the accent while hovered and pressed.");

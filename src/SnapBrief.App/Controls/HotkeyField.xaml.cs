@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -19,8 +21,17 @@ public partial class HotkeyField : UserControl
     private const string IdleCaption = "Нажми, чтобы изменить";
     private const string RecordingCaption = "Нажмите своё сочетание клавиш";
     private const string NeedsModifierCaption = "Добавь Ctrl, Alt или Shift";
+    private const string ReservedCaption = "Это сочетание занято Windows";
+    private const string TakenCaption = "Уже занято";
     private static readonly Brush IdleBorder = new SolidColorBrush(Color.FromRgb(68, 80, 100));
+    // The third state of the frame, beside the idle one and the accent a recording wears: what the
+    // field looks like while it refuses a combination.
+    private static readonly Brush ErrorBorder = new SolidColorBrush(Color.FromRgb(0xFF, 0x6B, 0x6B));
     private bool _recording;
+    // The caption a refusal left there, and whether the frame goes red with it: a missing modifier
+    // is an instruction, a combination Windows keeps or a neighbour holds is a refusal.
+    private string? _notice;
+    private bool _refused;
     private string _language = UiLanguage.Current;
 
     public HotkeyField()
@@ -42,6 +53,21 @@ public partial class HotkeyField : UserControl
     /// <summary>Raised after the user records a new hotkey, never for a value set in code.</summary>
     public event EventHandler? HotkeyChanged;
 
+    /// <summary>
+    /// The other fields of the same window. A field does not know its neighbours by itself: the
+    /// window ties them together, and a combination one of them already holds is refused here,
+    /// while it is being pressed, instead of failing at the registration with a message about
+    /// another application.
+    /// </summary>
+    internal IReadOnlyList<HotkeyField> ConflictsWith { get; set; } = [];
+
+    /// <summary>
+    /// Shortcuts held elsewhere, read when they are needed rather than copied: the wizard has one
+    /// field and the settings behind it, and the combination standing on "save the whole screen"
+    /// must not be recordable on the capture shortcut either.
+    /// </summary>
+    internal IReadOnlyList<Func<string>> ReservedIds { get; set; } = [];
+
     // The captions are built in code, so the field has to be told which language it is shown in.
     internal void ApplyLanguage(string language)
     {
@@ -57,10 +83,42 @@ public partial class HotkeyField : UserControl
         KeyCaps.Visibility = _recording ? Visibility.Collapsed : Visibility.Visible;
         // The recording border is the accent of the current theme, so it follows the accent the user
         // picks; a local value put back over it returns the field to its idle frame.
-        if (_recording) Frame.SetResourceReference(Border.BorderBrushProperty, "FocusBrush");
+        if (_refused) Frame.BorderBrush = ErrorBorder;
+        else if (_recording) Frame.SetResourceReference(Border.BorderBrushProperty, "FocusBrush");
         else Frame.BorderBrush = IdleBorder;
-        Caption.Text = UiLanguage.Text(_recording ? RecordingCaption : IdleCaption, _language);
+        Caption.Text = UiLanguage.Text(_notice ?? (_recording ? RecordingCaption : IdleCaption), _language);
     }
+
+    // A refusal leaves the recording running and the old shortcut where it was: the user presses
+    // another combination and the field goes on from there.
+    private bool Refuse(string caption, bool red)
+    {
+        _notice = caption;
+        _refused = red;
+        Refresh();
+        return false;
+    }
+
+    private void ClearNotice()
+    {
+        _notice = null;
+        _refused = false;
+    }
+
+    /// <summary>
+    /// What the save block calls on both fields when one combination stands for two actions: the
+    /// shortcut was recorded before the neighbour took it, so the refusal comes at saving time.
+    /// </summary>
+    internal void ShowConflict() => Refuse(TakenCaption, true);
+
+    /// <summary>Whether the field is standing on a refusal, with the red frame that goes with it.</summary>
+    internal bool ShowsConflict => _refused;
+
+    // A combination another field of the window (or of the settings behind it) already holds. The
+    // comparison is by gesture, not by text: "print-screen" and "custom:0:44" are one shortcut.
+    private bool IsTaken(string id) =>
+        ConflictsWith.Any(field => !ReferenceEquals(field, this) && HotkeyRules.SameGesture(field.HotkeyId, id)) ||
+        ReservedIds.Any(reserved => HotkeyRules.SameGesture(reserved(), id));
 
     private static Border KeyCap(string key) => new()
     {
@@ -73,13 +131,14 @@ public partial class HotkeyField : UserControl
     private void BeginRecording()
     {
         _recording = true;
+        ClearNotice();
         Refresh();
     }
 
     private void OnBeginRecording(object sender, KeyboardFocusChangedEventArgs e) => BeginRecording();
     private void OnBeginRecordingClick(object sender, MouseButtonEventArgs e) { Focus(); BeginRecording(); }
     // Focus can leave the field without a key ever arriving; the capsules must come back then.
-    private void OnLostFocus(object sender, KeyboardFocusChangedEventArgs e) { _recording = false; Refresh(); }
+    private void OnLostFocus(object sender, KeyboardFocusChangedEventArgs e) { _recording = false; ClearNotice(); Refresh(); }
     private static bool IsModifier(Key key) => key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin;
     private void OnCaptureKeyUp(object sender, KeyEventArgs e)
     {
@@ -99,7 +158,7 @@ public partial class HotkeyField : UserControl
         // with the shortcut the field already had.
         if (key == Key.Tab) return;
         e.Handled = true;
-        if (key == Key.Escape) { _recording = false; Refresh(); return; }
+        if (key == Key.Escape) { _recording = false; ClearNotice(); Refresh(); return; }
         if (!IsModifier(key)) RecordKey(key);
     }
     private void RecordKey(Key key) => RecordKey(key, PressedModifiers());
@@ -126,12 +185,15 @@ public partial class HotkeyField : UserControl
         // Nothing is recorded and the recording goes on: the field asks for a modifier instead of
         // taking a key that would then belong to SnapBrief everywhere on the machine.
         if (modifiers == 0 && !HotkeyRules.IsShortcutOnItsOwn((ushort)vk))
-        {
-            Caption.Text = UiLanguage.Text(NeedsModifierCaption, _language);
-            return false;
-        }
+            return Refuse(NeedsModifierCaption, red: false);
+        // A combination Windows answers before any application does would be a shortcut that never
+        // fires, and one a neighbouring field holds would take the other action away.
+        if (HotkeyRules.IsSystemReserved((ModifierKeys)modifiers, vk)) return Refuse(ReservedCaption, red: true);
+        var id = $"custom:{modifiers}:{vk}";
+        if (IsTaken(id)) return Refuse(TakenCaption, red: true);
         _recording = false;
-        HotkeyId = $"custom:{modifiers}:{vk}";
+        ClearNotice();
+        HotkeyId = id;
         Refresh();
         HotkeyChanged?.Invoke(this, EventArgs.Empty);
         return true;
@@ -162,5 +224,38 @@ public partial class HotkeyField : UserControl
             throw new InvalidOperationException("A modifier let go of must not become the key of a shortcut.");
         if (!field.RecordKey(Key.Snapshot, 0) || field.HotkeyId != $"custom:0:{KeyInterop.VirtualKeyFromKey(Key.Snapshot)}")
             throw new InvalidOperationException("Print Screen is a shortcut on its own and must be taken without a modifier.");
+
+        // The combinations Windows answers first are refused while they are pressed, and the field
+        // says why instead of silently keeping the old shortcut.
+        var kept = field.HotkeyId;
+        field.BeginRecording();
+        foreach (var reserved in new[]
+                 {
+                     (Key.S, (uint)HotkeyModifiers.Windows), (Key.Tab, (uint)HotkeyModifiers.Alt),
+                     (Key.F4, (uint)HotkeyModifiers.Alt), (Key.Escape, (uint)HotkeyModifiers.Control),
+                     (Key.Delete, (uint)(HotkeyModifiers.Control | HotkeyModifiers.Alt))
+                 })
+        {
+            if (field.RecordKey(reserved.Item1, reserved.Item2) || field.HotkeyId != kept)
+                throw new InvalidOperationException("A combination Windows keeps must not become a shortcut of the application.");
+        }
+        if (field.Caption.Text != UiLanguage.Text(ReservedCaption, language) || !ReferenceEquals(field.Frame.BorderBrush, ErrorBorder))
+            throw new InvalidOperationException("A refused combination must turn the frame red and say who keeps it.");
+
+        // A combination the neighbouring field holds is refused the same way, and by gesture: the
+        // neighbour carries the preset, the field is pressing the custom id of the same keys.
+        var neighbour = new HotkeyField { HotkeyId = "print-screen" };
+        field.ConflictsWith = [neighbour, field];
+        field.BeginRecording();
+        if (field.RecordKey(Key.Snapshot, 0) || field.HotkeyId != kept)
+            throw new InvalidOperationException("A shortcut a neighbouring field holds must not be recorded twice.");
+        if (field.Caption.Text != UiLanguage.Text(TakenCaption, language))
+            throw new InvalidOperationException("A shortcut already taken must say so.");
+        field.ConflictsWith = [];
+        field.ReservedIds = [() => "ctrl-shift-s"];
+        field.BeginRecording();
+        if (field.RecordKey(Key.S, (uint)(HotkeyModifiers.Control | HotkeyModifiers.Shift)) || field.HotkeyId != kept)
+            throw new InvalidOperationException("A shortcut held elsewhere in the settings must not be recorded here.");
+        field.ReservedIds = [];
     }
 }
