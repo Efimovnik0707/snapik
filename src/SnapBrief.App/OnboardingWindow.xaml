@@ -223,9 +223,8 @@
     </StackPanel>
 
     <StackPanel x:Name="Step5" Style="{StaticResource StepPanel}" Width="480" Visibility="Collapsed">
-     <TextBlock Text="Как пользоваться" Style="{StaticResource StepTitle}"/>
-     <!-- Four slides, their dots and their chevrons live in a control of their own: the tray opens
-          the same slides without the rest of the wizard. -->
+     <!-- The heading of this step belongs to the slides: it carries the name of the slide under it,
+          and the tray opens the same control without the rest of the wizard. -->
      <controls:HowToSlides x:Name="HowTo"/>
     </StackPanel>
    </Grid>

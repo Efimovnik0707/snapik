@@ -262,9 +262,8 @@ public static class SmokeTestRunner
         if (onboarding.Step != 0 || onboarding.SelectedLanguage != "ru" ||
             onboarding.Step1.Visibility != Visibility.Visible || onboarding.Step5.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("The wizard must come back to its first step after the probe.");
-        if (onboarding.HowTo.KeyLabel != HotkeySettings.Find(restoredSettings.CaptureId).Label ||
-            onboarding.CaptureField.HotkeyId != restoredSettings.CaptureId)
-            throw new InvalidOperationException("The wizard must open on the shortcut the settings hold, and the hint must show it.");
+        if (onboarding.CaptureField.HotkeyId != restoredSettings.CaptureId)
+            throw new InvalidOperationException("The wizard must open on the shortcut the settings hold.");
         onboarding.GoToStep(4);
         if (onboarding.Step5.Visibility != Visibility.Visible || onboarding.StepText.Text != "Шаг 5 из 5")
             throw new InvalidOperationException("The last step must show the animated hint and its own number.");
@@ -874,10 +873,10 @@ public static class SmokeTestRunner
             window.UpdateLayout();
             return window;
         });
-        var label = wizard.HowTo.KeyLabel;
+        var label = HotkeySettings.Find(wizard.CaptureField.HotkeyId).Label;
         wizard.Close();
         if (label != HotkeySettings.Choices[0].Label)
-            throw new InvalidOperationException("A wizard opened on a shortcut without a modifier must show the default one on its capsule.");
+            throw new InvalidOperationException("A wizard opened on a shortcut without a modifier must show the default one in its field.");
     }
 
     // The arrow keys of the slides: they move one slide, they are eaten so that nothing else reads

@@ -159,7 +159,24 @@ internal static class UiLanguage
         ["Напиши, что не так"] = "Write what is wrong", ["В чат уходит текст с номерами"] = "The chat gets the text with the numbers",
         ["Снимки остаются в ленте"] = "The captures stay in the strip", ["Отправленные помечены"] = "The sent ones are marked",
         ["Новый снимок снова яркий"] = "A new capture is bright again", ["«Очистить», когда закончил"] = "\"Clear\" when you are done",
-        ["Предыдущий слайд"] = "Previous slide", ["Следующий слайд"] = "Next slide", ["Слайд {0} из {1}"] = "Slide {0} of {1}"
+        ["Предыдущий слайд"] = "Previous slide", ["Следующий слайд"] = "Next slide", ["Слайд {0} из {1}"] = "Slide {0} of {1}",
+        // The four slides: the name of each and the lines that appear under it one after another.
+        ["Снимок с комментариями"] = "A capture with comments", ["Несколько снимков сразу"] = "Several captures at once",
+        ["Открыть снимок снова"] = "Open a capture again", ["Лента снимков"] = "The capture strip",
+        ["Выдели область экрана, которую хочешь снять."] = "Select the part of the screen you want to capture.",
+        ["Поставь комментарии там, где удобно — сколько нужно."] = "Put comments wherever you like, as many as you need.",
+        ["Ctrl+V в любой чат — картинка и комментарии вставятся вместе."] = "Ctrl+V into any chat, and the picture and the comments go in together.",
+        ["Сделай несколько снимков подряд."] = "Take several captures one after another.",
+        ["Все они собираются в ленту у края экрана."] = "They all gather into the strip at the edge of the screen.",
+        ["У каждого — свои комментарии."] = "Each one keeps its own comments.",
+        ["Ctrl+V — и вся пачка уходит одним сообщением."] = "Ctrl+V, and the whole batch goes as one message.",
+        ["Каждый снимок хранит свои комментарии."] = "Every capture keeps its own comments.",
+        ["Клик по снимку в ленте — он открывается снова, всё на месте."] = "Click a capture in the strip and it opens again, with everything in place.",
+        ["Поправь и закрой — изменения останутся в ленте."] = "Fix it and close it, the changes stay in the strip.",
+        ["Лента живёт, пока открыта. Закроешь — снимки удалятся."] = "The strip lives while it is open. Close it and the captures are gone.",
+        ["Сохранить — «Сохранить пакет…», или включи автосохранение в папку."] = "To keep them, use \"Save package…\", or switch on auto-saving to a folder.",
+        ["Мешает — сверни в капсулу, клик разворачивает обратно."] = "In the way? Collapse it into the capsule, a click opens it again.",
+        ["Лишний снимок — крестик. Всё сразу — «Очистить»."] = "One capture too many: the cross. All of them: \"Clear\"."
     };
     /// <summary>Every English value, for the smoke check that no two Russian keys share one: the way
     /// back (English to Russian) is a search by value, and a duplicate would answer with the wrong key.</summary>

@@ -59,10 +59,8 @@ public partial class OnboardingWindow : Window
         CaptureField.HotkeyChanged += (_, _) =>
         {
             ErrorText.Visibility = Visibility.Collapsed;
-            HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label;
             RefreshCaptureConflict();
         };
-        HowTo.KeyLabel = HotkeySettings.Find(settings.CaptureId).Label;
         // The look the wizard was opened with: "Skip setup" puts it back, whatever step 4 was playing
         // with, and the candidate carries what is on screen at the end.
         _openedTheme = settings.Theme;
@@ -263,7 +261,6 @@ public partial class OnboardingWindow : Window
         // The field reports what the user records, never what is written into it, so the refusal is
         // asked about again here.
         CaptureField.HotkeyId = _suggestedCaptureId;
-        HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label;
         RefreshCaptureConflict();
     }
 

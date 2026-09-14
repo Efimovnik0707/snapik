@@ -23,9 +23,14 @@ public partial class HowToSlides : UserControl
     // nobody may change it under the others.
     private static readonly SolidColorBrush IdleDot = CreateIdleDot();
     // A slide whose storyboard carries no time span of its own still has to move on.
-    private static readonly TimeSpan FallbackSlideDuration = TimeSpan.FromSeconds(4.8);
+    private static readonly TimeSpan FallbackSlideDuration = TimeSpan.FromSeconds(9);
+    // A frame this close to the end of a repeating loop is the finished picture.
+    private static readonly TimeSpan FinishedFrame = TimeSpan.FromSeconds(8.9);
+    // The name of every slide, in the language the control is shown in.
+    private static readonly string[] SlideNames =
+        ["Снимок с комментариями", "Несколько снимков сразу", "Открыть снимок снова", "Лента снимков"];
     private readonly Storyboard[] _loops;
-    private readonly Canvas[] _canvases;
+    private readonly UIElement[] _scenes;
     private readonly UIElement[] _captions;
     private readonly Button[] _dots;
     private readonly Shape[] _dotMarks;
@@ -62,7 +67,7 @@ public partial class HowToSlides : UserControl
             (Storyboard)FindResource("Slide3Loop"), (Storyboard)FindResource("Slide4Loop")
         ];
         _auto.Tick += OnAutoAdvance;
-        _canvases = [SlideCanvas1, SlideCanvas2, SlideCanvas3, SlideCanvas4];
+        _scenes = [Scene1, Scene2, Scene3, Scene4];
         _captions = [SlideCaptions1, SlideCaptions2, SlideCaptions3, SlideCaptions4];
         _dots = [Dot1, Dot2, Dot3, Dot4];
         _dotMarks = [DotMark1, DotMark2, DotMark3, DotMark4];
@@ -75,13 +80,6 @@ public partial class HowToSlides : UserControl
 
     /// <summary>Whether the slides still move on by themselves; the first move of the user ends it.</summary>
     internal bool AutoAdvancing => _autoAdvancing;
-
-    /// <summary>The shortcut shown on the key capsule of the first two slides.</summary>
-    internal string KeyLabel
-    {
-        get => HintKeyText.Text;
-        set { HintKeyText.Text = value; PackKeyText.Text = value; }
-    }
 
     /// <summary>Starts the slides from the one on screen; calling it twice changes nothing.</summary>
     internal void Start()
@@ -108,10 +106,11 @@ public partial class HowToSlides : UserControl
     internal void ShowSlide(int index)
     {
         _slide = Math.Clamp(index, 0, SlideCount - 1);
+        SlideTitle.Text = UiLanguage.Text(SlideNames[_slide], _language);
         for (var i = 0; i < SlideCount; i++)
         {
             var visible = i == _slide ? Visibility.Visible : Visibility.Collapsed;
-            _canvases[i].Visibility = visible;
+            _scenes[i].Visibility = visible;
             _captions[i].Visibility = visible;
             _dotMarks[i].SetValue(Shape.FillProperty, IdleDot);
             if (i == _slide) _dotMarks[i].SetResourceReference(Shape.FillProperty, "AccentBrush");
@@ -147,6 +146,8 @@ public partial class HowToSlides : UserControl
     internal void ApplyLanguage(string language)
     {
         _language = language;
+        Scene1.ApplyLanguage(language);
+        SlideTitle.Text = UiLanguage.Text(SlideNames[_slide], language);
         RefreshDotTips();
     }
 
@@ -161,6 +162,14 @@ public partial class HowToSlides : UserControl
         StopApplied();
         _loops[index].Begin(this, true);
         _applied |= 1 << index;
+        if (index == 0) Scene1.Play();
+        // With the animations of the system switched off the slide shows its finished picture and
+        // waits for the clock below: the frames change one by one instead of moving.
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            _loops[index].Seek(this, FinishedFrame, TimeSeekOrigin.BeginTime);
+            _loops[index].Pause(this);
+        }
         // The wait is always a whole slide long, whichever slide it is and however it was reached.
         _auto.Stop();
         if (!_running || !_autoAdvancing) return;
@@ -178,6 +187,7 @@ public partial class HowToSlides : UserControl
 
     private void StopApplied()
     {
+        Scene1.Halt();
         for (var i = 0; i < _loops.Length; i++)
         {
             if ((_applied & (1 << i)) == 0) continue;
@@ -209,14 +219,14 @@ public partial class HowToSlides : UserControl
     internal static void RunSlidesProbe()
     {
         var slides = new HowToSlides();
-        slides.Measure(new Size(360, 260));
-        slides.Arrange(new Rect(0, 0, 360, 260));
+        slides.Measure(new Size(480, 620));
+        slides.Arrange(new Rect(0, 0, 480, 620));
         for (var index = 0; index < SlideCount; index++)
         {
             slides.ShowSlide(index);
             slides.UpdateLayout();
             var visible = 0;
-            foreach (var canvas in slides._canvases) if (canvas.Visibility == Visibility.Visible) visible++;
+            foreach (var scene in slides._scenes) if (scene.Visibility == Visibility.Visible) visible++;
             if (slides.Slide != index || visible != 1)
                 throw new InvalidOperationException($"The how-to slides must show exactly one drawing, and it must be slide {index + 1}.");
         }
