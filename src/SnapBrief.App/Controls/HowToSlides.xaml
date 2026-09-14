@@ -9,16 +9,16 @@
   <Style x:Key="SlideIconButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
    <Setter Property="Width" Value="30"/><Setter Property="Height" Value="30"/><Setter Property="MinWidth" Value="30"/>
    <Setter Property="MinHeight" Value="30"/><Setter Property="Padding" Value="0"/>
-   <Setter Property="Background" Value="#21262F"/><Setter Property="BorderBrush" Value="#39424F"/>
-   <Setter Property="controls:ButtonChrome.HoverBackground" Value="#2A3240"/>
-   <Setter Property="controls:ButtonChrome.PressedBackground" Value="#20262F"/>
+   <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}"/>
+   <Setter Property="controls:ButtonChrome.HoverBackground" Value="{DynamicResource HoverBrush}"/>
+   <Setter Property="controls:ButtonChrome.PressedBackground" Value="{DynamicResource PressedBrush}"/>
   </Style>
   <Style x:Key="SlideDotButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
    <Setter Property="Width" Value="16"/><Setter Property="Height" Value="16"/><Setter Property="MinWidth" Value="16"/>
    <Setter Property="MinHeight" Value="16"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="4,0"/>
    <Setter Property="Background" Value="Transparent"/>
-   <Setter Property="controls:ButtonChrome.HoverBackground" Value="#2A3240"/>
-   <Setter Property="controls:ButtonChrome.PressedBackground" Value="#20262F"/>
+   <Setter Property="controls:ButtonChrome.HoverBackground" Value="{DynamicResource HoverBrush}"/>
+   <Setter Property="controls:ButtonChrome.PressedBackground" Value="{DynamicResource PressedBrush}"/>
   </Style>
   <!-- One line of the explanation: a number in a circle and the sentence beside it. The lines come
        one after another and stay, so by the end of the loop the whole list is on screen. -->
@@ -31,7 +31,7 @@
    <Setter Property="HorizontalAlignment" Value="Center"/><Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
   <Style x:Key="CaptionText" TargetType="TextBlock">
-   <Setter Property="FontSize" Value="14"/><Setter Property="LineHeight" Value="20"/><Setter Property="Foreground" Value="#EEF2F8"/>
+   <Setter Property="FontSize" Value="14"/><Setter Property="LineHeight" Value="20"/><Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
    <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="12,0,0,0"/><Setter Property="VerticalAlignment" Value="Top"/>
   </Style>
   <Style x:Key="CaptionRow" TargetType="Grid">
@@ -384,8 +384,8 @@
   <!-- The heading of the step and the name of the slide under it: the step says what this is, the
        line under it says which of the four is on screen. -->
   <StackPanel Margin="0,0,0,12">
-   <TextBlock Text="Как пользоваться" FontSize="24" FontWeight="SemiBold" LineHeight="30" Foreground="#EEF2F8" Margin="0,0,0,4"/>
-   <TextBlock x:Name="SlideTitle" FontSize="14" LineHeight="21" Foreground="#A9B4C2"/>
+   <TextBlock Text="Как пользоваться" FontSize="24" FontWeight="SemiBold" LineHeight="30" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,4"/>
+   <TextBlock x:Name="SlideTitle" FontSize="14" LineHeight="21" Foreground="{DynamicResource TextMutedBrush}"/>
   </StackPanel>
 
   <Border Width="480" Height="210" CornerRadius="12" Background="#12161D" BorderBrush="#2A3240" BorderThickness="1"
@@ -1011,15 +1011,15 @@
   <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
    <Button x:Name="PreviousSlideButton" Style="{StaticResource SlideIconButton}" Margin="0,0,14,0"
            Click="OnPreviousSlide" ToolTip="Предыдущий слайд">
-    <Path Data="M7,1 L2,6 L7,11" Stroke="#EEF2F8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+    <Path Data="M7,1 L2,6 L7,11" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
    </Button>
-   <Button x:Name="Dot1" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark1" Width="8" Height="8" Fill="#3A4553"/></Button>
-   <Button x:Name="Dot2" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark2" Width="8" Height="8" Fill="#3A4553"/></Button>
-   <Button x:Name="Dot3" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark3" Width="8" Height="8" Fill="#3A4553"/></Button>
-   <Button x:Name="Dot4" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark4" Width="8" Height="8" Fill="#3A4553"/></Button>
+   <Button x:Name="Dot1" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark1" Width="8" Height="8" Fill="{DynamicResource DividerBrush}"/></Button>
+   <Button x:Name="Dot2" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark2" Width="8" Height="8" Fill="{DynamicResource DividerBrush}"/></Button>
+   <Button x:Name="Dot3" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark3" Width="8" Height="8" Fill="{DynamicResource DividerBrush}"/></Button>
+   <Button x:Name="Dot4" Style="{StaticResource SlideDotButton}" Click="OnDot"><Ellipse x:Name="DotMark4" Width="8" Height="8" Fill="{DynamicResource DividerBrush}"/></Button>
    <Button x:Name="NextSlideButton" Style="{StaticResource SlideIconButton}" Margin="14,0,0,0"
            Click="OnNextSlide" ToolTip="Следующий слайд">
-    <Path Data="M1,1 L6,6 L1,11" Stroke="#EEF2F8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+    <Path Data="M1,1 L6,6 L1,11" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
    </Button>
   </StackPanel>
  </StackPanel>

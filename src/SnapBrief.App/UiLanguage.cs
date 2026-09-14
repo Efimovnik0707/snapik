@@ -142,25 +142,12 @@ internal static class UiLanguage
         ["Как будет выглядеть"] = "How it will look",
         ["Нажми — окно сразу перекрасится. Поменять можно в любой момент в настройках."] =
             "Click and the window repaints at once. You can change it any time in the settings.",
-        ["Добро пожаловать"] = "Welcome", ["Язык интерфейса"] = "Interface language",
-        ["SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями."] =
-            "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.",
+        ["Язык интерфейса"] = "Interface language",
         ["Клавиша для снимка"] = "The capture shortcut",
         ["Нажми на поле и введи своё сочетание"] = "Click the field and press your own shortcut",
-        ["Запуск и панель задач"] = "Startup and the taskbar",
-        ["Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»"] =
-            "To keep the strip within reach, pin SnapBrief: open Start, right-click SnapBrief and choose \"Pin to taskbar\"",
-        ["Повторный запуск ярлыка не открывает второе окно, а показывает ленту."] = "Starting the shortcut again does not open a second window, it shows the strip.",
         ["Автозапуск недоступен"] = "Autostart is unavailable",
         ["Закрепить на панели задач"] = "Pin to taskbar",
-        ["Как пользоваться"] = "How it works", ["Нажми клавишу"] = "Press the shortcut", ["Выдели область"] = "Select an area",
-        ["Добавь комментарии"] = "Add comments", ["Вставь в чат: Ctrl+V"] = "Paste into the chat: Ctrl+V",
-        ["Первый снимок"] = "The first capture", ["Ещё снимок"] = "Another capture",
-        ["До 10 снимков в ленте"] = "Up to 10 captures in the strip", ["Один Ctrl+V отправляет все"] = "One Ctrl+V sends them all",
-        ["Обведи место"] = "Frame the spot", ["Поставь отметку"] = "Drop a marker",
-        ["Напиши, что не так"] = "Write what is wrong", ["В чат уходит текст с номерами"] = "The chat gets the text with the numbers",
-        ["Снимки остаются в ленте"] = "The captures stay in the strip", ["Отправленные помечены"] = "The sent ones are marked",
-        ["Новый снимок снова яркий"] = "A new capture is bright again", ["«Очистить», когда закончил"] = "\"Clear\" when you are done",
+        ["Как пользоваться"] = "How it works",
         ["Предыдущий слайд"] = "Previous slide", ["Следующий слайд"] = "Next slide", ["Слайд {0} из {1}"] = "Slide {0} of {1}",
         // The four slides: the name of each and the lines that appear under it one after another.
         ["Снимок с комментариями"] = "A capture with comments", ["Несколько снимков сразу"] = "Several captures at once",

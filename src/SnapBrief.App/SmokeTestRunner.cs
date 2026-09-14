@@ -919,11 +919,14 @@ public static class SmokeTestRunner
     {
         foreach (var (russian, english) in new[]
         {
-            ("Добро пожаловать", "Welcome"), ("Язык интерфейса", "Interface language"),
-            ("Первый снимок", "The first capture"), ("Обведи место", "Frame the spot"),
-            ("Снимки остаются в ленте", "The captures stay in the strip"), ("Слайд {0} из {1}", "Slide {0} of {1}"),
-            ("SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями.",
-                "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.")
+            ("Выдели. Прокомментируй. Отправь.", "Select. Comment. Send."), ("Язык интерфейса", "Interface language"),
+            ("Пропустить настройку", "Skip setup"), ("Свернуть", "Minimize"),
+            ("Чтобы всегда был под рукой", "So it is always at hand"), ("Закреплено", "Pinned"),
+            ("Как будет выглядеть", "How it will look"), ("Слайд {0} из {1}", "Slide {0} of {1}"),
+            ("Снимок с комментариями", "A capture with comments"), ("Лента снимков", "The capture strip"),
+            ("Выдели область экрана, которую хочешь снять.", "Select the part of the screen you want to capture."),
+            ("Скриншотер для одной задачи: несколько снимков с заметками — и сразу в дело. В чат с ИИ, в мессенджер, в письмо, в задачу.",
+                "A screenshot tool for one task: a few captures with notes, ready to use straight away. In an AI chat, a messenger, an email, a ticket.")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"The wizard is not translated both ways for \"{russian}\".");
