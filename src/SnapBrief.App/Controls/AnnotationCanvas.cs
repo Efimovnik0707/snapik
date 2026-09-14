@@ -752,9 +752,13 @@ public sealed class AnnotationCanvas : FrameworkElement
         return NoteBadgeGeometry.Screen(anchor, item.Label, offset);
     }
 
-    // Where the pill of a note has to sit for its own badge to cover the badge on the picture.
+    // Where the badge of a note is on the picture, and how large it is: the pill of that note stands
+    // beside the circle now, so it needs the middle of it and its edge both.
     public Point GetBadgeCenter(AnnotationItem annotation) =>
         Image is null || annotation.Points.Count == 0 ? default : BadgeOf(annotation, _imageRect).Center;
+
+    public double GetBadgeRadius(AnnotationItem annotation) =>
+        Image is null || annotation.Points.Count == 0 ? 13 : BadgeOf(annotation, _imageRect).Radius;
 
     private Point ToDisplay(Point imagePoint) => new(
         _imageRect.X + imagePoint.X * _imageRect.Width / Image!.PixelWidth,

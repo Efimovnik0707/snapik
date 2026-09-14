@@ -30,7 +30,6 @@ public partial class OverlayEditorWindow : Window
     private readonly bool _isNew;
     private readonly Stack<OverlaySnapshot> _undo = [];
     private readonly Stack<OverlaySnapshot> _redo = [];
-    private readonly Dictionary<Guid, TextBlock> _chipLabels = [];
     private readonly Dictionary<Guid, Border> _chipBorders = [];
     private readonly Dictionary<Guid, Action<bool>> _chipExpanders = [];
     private readonly Dictionary<Guid, Action> _chipFinishers = [];
@@ -749,6 +748,20 @@ public partial class OverlayEditorWindow : Window
         }
     }
 
+    // One number for one comment: the pill carries the text and the cross, and nothing round with a
+    // number in it. The duplicate that was reported was the badge this checks the absence of.
+    private static void PillChecks(Border chip)
+    {
+        var grid = (Grid)chip.Child;
+        if (grid.ColumnDefinitions.Count != 2)
+            throw new InvalidOperationException($"The pill of a note must hold the text and the cross and nothing else: {grid.ColumnDefinitions.Count} columns.");
+        foreach (var child in grid.Children.OfType<Border>())
+            if (child.CornerRadius.TopLeft >= 12)
+                throw new InvalidOperationException("The pill of a note must carry no badge of its own: the number belongs to the capture.");
+        if (grid.Children.OfType<TextBlock>().Any())
+            throw new InvalidOperationException("The pill of a note must carry no label of its own: the number belongs to the capture.");
+    }
+
     private static CaptureItem NoteAffordanceChecks(OverlayEditorWindow window)
     {
         var workingAnnotation = window._capture!.Annotations[0];
@@ -778,12 +791,13 @@ public partial class OverlayEditorWindow : Window
         window.Root.UpdateLayout();
         window.RepositionChips();
         var firstChip = window.ChipLayer.Children.OfType<Border>().Single(border => border.Tag is Guid id && id == comment.Id);
-        if (firstChip.Width != 43 || secondChip.Width != 270 || Panel.GetZIndex(secondChip) <= Panel.GetZIndex(firstChip))
+        // A collapsed pill leaves the screen altogether: what it used to show while collapsed was its
+        // badge, and the badge of a note lives on the capture now. The number on the capture is what
+        // stands for the note until the pill is opened again.
+        if (firstChip.Visibility != Visibility.Collapsed || secondChip.Visibility != Visibility.Visible ||
+            secondChip.Width != 244 || Panel.GetZIndex(secondChip) <= Panel.GetZIndex(firstChip))
             throw new InvalidOperationException("Opening a comment did not collapse and lower the other chips.");
-        var firstRect = new Rect(Canvas.GetLeft(firstChip), Canvas.GetTop(firstChip), firstChip.Width, Math.Max(40, firstChip.ActualHeight));
-        var secondRect = new Rect(Canvas.GetLeft(secondChip), Canvas.GetTop(secondChip), secondChip.Width, Math.Max(40, secondChip.ActualHeight));
-        if (firstRect.IntersectsWith(secondRect))
-            throw new InvalidOperationException("Overlapping comment anchors produced overlapping chip controls.");
+        PillChecks(secondChip);
         window.DeleteAnnotationNote(secondComment);
 
         _ = window.Surface.RenderAnnotated();
@@ -1267,10 +1281,21 @@ public partial class OverlayEditorWindow : Window
         Surface.InvalidateVisual();
     }
 
+    // What a press inside the pill of a note landed on: the text box and the cross answer their own
+    // presses, everything else of the pill is the handle the note is dragged by.
+    private static bool PressLandedOn<T>(object? source) where T : DependencyObject
+    {
+        for (var node = source as DependencyObject; node is not null;)
+        {
+            if (node is T) return true;
+            node = node is Visual ? VisualTreeHelper.GetParent(node) : null;
+        }
+        return false;
+    }
+
     private void RebuildChips()
     {
         ChipLayer.Children.Clear();
-        _chipLabels.Clear();
         _chipBorders.Clear();
         _chipExpanders.Clear();
         _chipFinishers.Clear();
@@ -1281,11 +1306,10 @@ public partial class OverlayEditorWindow : Window
         foreach (var annotation in _capture.Annotations.Where(annotation => _visibleChipIds.Contains(annotation.Id))) AddChip(annotation, false);
     }
 
+    // The pill of a note carries the text and the cross, and no number: the number of a comment is
+    // the badge on the capture, and a second one inside the pill was the duplicate that was seen.
     private void AddChip(AnnotationItem annotation, bool focus)
     {
-        var badge = new TextBlock { Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        _chipLabels[annotation.Id] = badge;
-        var badgeHost = new Border { Width = 25, Height = 25, CornerRadius = new CornerRadius(13), Background = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Child = badge, VerticalAlignment = VerticalAlignment.Center };
         var note = new TextBox
         {
             MinHeight = 32, MaxHeight = 78, Text = annotation.Note, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
@@ -1312,15 +1336,13 @@ public partial class OverlayEditorWindow : Window
         };
         close.Click += OnDeleteAnnotationNoteClick;
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(31) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(29) });
-        grid.Children.Add(badgeHost);
-        Grid.SetColumn(note, 1); grid.Children.Add(note);
-        Grid.SetColumn(close, 2); grid.Children.Add(close);
+        grid.Children.Add(note);
+        Grid.SetColumn(close, 1); grid.Children.Add(close);
         var border = new Border
         {
-            Tag = annotation.Id, Width = 226, MinHeight = 40, Padding = new Thickness(6), CornerRadius = new CornerRadius(13),
+            Tag = annotation.Id, Width = 200, MinHeight = 40, Padding = new Thickness(6), CornerRadius = new CornerRadius(13),
             Background = new SolidColorBrush(Color.FromArgb(244, 23, 26, 32)), Child = grid,
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 14, ShadowDepth = 4, Opacity = .42 }
         };
@@ -1332,10 +1354,14 @@ public partial class OverlayEditorWindow : Window
                 _expandedChipId = annotation.Id;
             }
             else if (_expandedChipId == annotation.Id) _expandedChipId = null;
-            border.Visibility = Visibility.Visible;
-            border.Width = expanded ? 270 : 43;
+            // A collapsed pill used to be its badge and nothing else, so with the badge gone there is
+            // nothing left in it to show: the number on the capture stands for the note until the
+            // pill is opened again, by a double click on the mark, by the "+" beside it or by a row
+            // of the comments panel.
+            border.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            border.Width = 244;
             note.Visibility = close.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-            grid.ColumnDefinitions[2].Width = new GridLength(expanded ? 29 : 0);
+            grid.ColumnDefinitions[1].Width = new GridLength(expanded ? 29 : 0);
             Panel.SetZIndex(border, expanded ? (border.IsKeyboardFocusWithin ? 1200 : 1000) : 0);
             RepositionChips();
             PositionToolbar();
@@ -1345,7 +1371,6 @@ public partial class OverlayEditorWindow : Window
             if (string.IsNullOrWhiteSpace(annotation.Note))
             {
                 _visibleChipIds.Remove(annotation.Id);
-                _chipLabels.Remove(annotation.Id);
                 _chipBorders.Remove(annotation.Id);
                 _chipExpanders.Remove(annotation.Id);
                 _chipFinishers.Remove(annotation.Id);
@@ -1373,28 +1398,34 @@ public partial class OverlayEditorWindow : Window
             if (_chipDragAnnotation is null && !HasFocusedChipOtherThan(annotation.Id)) Expand(true);
         };
         border.MouseLeave += (_, _) => { if (_chipDragAnnotation is null && !border.IsKeyboardFocusWithin) Finish(); };
-        badgeHost.Cursor = Cursors.SizeAll;
-        badgeHost.ToolTip = UiLanguage.Text("Переместить заметку");
-        badgeHost.MouseLeftButtonDown += (_, e) =>
+        // The badge was the handle the note was dragged by; the pill itself is that handle now. The
+        // text box and the cross keep their own presses, and the tooltip of the handle is kept off
+        // the text box, or it would stand over the words while they are being typed.
+        border.Cursor = Cursors.SizeAll;
+        border.ToolTip = UiLanguage.Text("Переместить заметку");
+        ToolTipService.SetIsEnabled(note, false);
+        border.MouseLeftButtonDown += (_, e) =>
         {
+            if (PressLandedOn<TextBox>(e.OriginalSource) || PressLandedOn<Button>(e.OriginalSource)) return;
             BeginNoteDrag(annotation, e.GetPosition(Root));
-            badgeHost.CaptureMouse();
+            border.CaptureMouse();
             e.Handled = true;
         };
-        badgeHost.MouseMove += (_, e) => { if (badgeHost.IsMouseCaptured) DragNoteTo(e.GetPosition(Root)); };
-        badgeHost.MouseLeftButtonUp += (_, e) =>
+        border.MouseMove += (_, e) => { if (border.IsMouseCaptured) DragNoteTo(e.GetPosition(Root)); };
+        border.MouseLeftButtonUp += (_, e) =>
         {
+            if (!border.IsMouseCaptured) return;
             // The drag is closed before the capture is released, because releasing it runs the
             // handler below, and after that a real drag would read as a click.
             var dragged = EndNoteDrag();
-            if (badgeHost.IsMouseCaptured) badgeHost.ReleaseMouseCapture();
+            border.ReleaseMouseCapture();
             // A press that did not travel is still a click: it opens the note.
             if (!dragged) { note.Focus(); Expand(true); }
             e.Handled = true;
         };
         // Alt+Tab, a dialog or anything else that takes the capture away ends the drag too:
         // otherwise the editor stays inside a drag that never finishes and no chip expands again.
-        badgeHost.LostMouseCapture += (_, _) => EndNoteDrag();
+        border.LostMouseCapture += (_, _) => EndNoteDrag();
         ChipLayer.Children.Add(border);
         note.LostKeyboardFocus += (_, _) => Dispatcher.BeginInvoke(() => { if (!border.IsKeyboardFocusWithin && !border.IsMouseOver) Finish(); }, DispatcherPriority.Input);
         note.PreviewKeyDown += (_, e) =>
@@ -1416,10 +1447,6 @@ public partial class OverlayEditorWindow : Window
         foreach (var annotation in _capture.Annotations)
         {
             annotation.Label = labels.GetValueOrDefault(annotation.Id) ?? string.Empty;
-            if (_chipLabels.TryGetValue(annotation.Id, out var text))
-            {
-                text.Text = string.IsNullOrEmpty(annotation.Label) ? "+" : annotation.Label;
-            }
         }
         SyncCommentsPanel();
         Surface.InvalidateVisual();
@@ -1453,9 +1480,16 @@ public partial class OverlayEditorWindow : Window
             // A pill the user placed by hand stays where it was put, and the others go around it.
             if (annotation.NoteOffset is not null)
             {
+                // The pill used to be laid over the badge, its own badge exactly covering it. With
+                // that badge gone it would cover the number of the mark instead, so it stands beside
+                // the badge, and mirrors to the left of it when the right has no room left.
+                const double gap = 8;
                 var badge = Surface.GetBadgeCenter(annotation);
+                var radius = Surface.GetBadgeRadius(annotation);
+                var left = _cropRect.Left + badge.X + radius + gap;
+                if (left + width > work.Right) left = _cropRect.Left + badge.X - radius - gap - width;
                 var manual = ClampChip(
-                    new Point(_cropRect.Left + badge.X - 21.5, _cropRect.Top + badge.Y - height / 2),
+                    new Point(left, _cropRect.Top + badge.Y - height / 2),
                     new Size(width, height), work);
                 Canvas.SetLeft(chip, manual.Left);
                 Canvas.SetTop(chip, manual.Top);
