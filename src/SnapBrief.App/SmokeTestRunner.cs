@@ -253,6 +253,13 @@ public static class SmokeTestRunner
             settingsWindow.FullscreenField.KeyCaps.Children.Count != HotkeySettings.Find(restoredSettings.FullscreenSaveId).Label.Split(" + ").Length)
             throw new InvalidOperationException("The hotkey field must keep the id it is given and show one capsule per key.");
         WithoutBindingErrors("The shortcut rules of the settings", () => HotkeySettingsWindow.RunSettingsRulesProbe(restoredSettings));
+        // The palette of the editor is offered in the settings as well, over the same preference.
+        WithoutBindingErrors("The palette row of the settings", () =>
+        {
+            var window = new HotkeySettingsWindow(HotkeySettings.Default with { AnnotationPalette = "pastel" });
+            if (window.AppearanceTab.SelectedPalette != "pastel")
+                throw new InvalidOperationException("The settings must open on the annotation palette the file carries.");
+        });
         if ((Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentHoverBrush")).Color ||
             (Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentPressedBrush")).Color)
             throw new InvalidOperationException("The primary button must keep the accent while hovered and pressed.");

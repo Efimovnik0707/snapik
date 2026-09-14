@@ -348,6 +348,9 @@ public partial class HotkeySettingsWindow : Window
         EnglishSegment.IsChecked = settings.Language == "en";
         AppearanceTab.SelectedTheme = ThemeService.NormalizeTheme(settings.Theme);
         AppearanceTab.SelectedAccent = ThemeService.Normalize(settings.AccentId);
+        // The row of annotation palettes is the same preference the popover of the editor holds, so
+        // it is read and written as the editor reads and writes it.
+        AppearanceTab.SelectedPalette = OverlayEditorWindow.ParseAnnotationPalette(settings.AnnotationPalette).Id;
         QualitySlider.ValueChanged += (_, _) => UpdateQuality();
         FormatBox.SelectionChanged += (_, _) => UpdateQuality();
         // The captions built in code follow the language picked in this window, not the one it opened with.
@@ -514,7 +517,7 @@ public partial class HotkeySettingsWindow : Window
                 ClearStackAfterPaste = ClearStackBox.IsChecked == true,
                 SaveFormat = FormatBox.SelectedIndex == 1 ? "jpeg" : "png",
                 JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory,
-                Theme = SelectedTheme, AccentId = SelectedAccent,
+                Theme = SelectedTheme, AccentId = SelectedAccent, AnnotationPalette = AppearanceTab.SelectedPalette,
                 Language = EnglishSegment.IsChecked == true ? "en" : "ru"
             };
             ApplyStartup();
