@@ -83,7 +83,7 @@ public partial class OverlayEditorWindow : Window
         _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
         _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
         _activeHasOutline = preferences.AnnotationOutline;
-        _activePalette = ParseAnnotationPalette(preferences.AnnotationPalette);
+        InitializePalette(preferences);
         _activePencil = ParseAnnotationPencil(preferences.AnnotationPencil);
         _capture = existing?.DeepClone();
         _isNew = existing is null;
@@ -305,10 +305,11 @@ public partial class OverlayEditorWindow : Window
         if (window._activePalette.Id != "standard" || !Palettes[0].Colors.Contains($"#{window._activeColor.R:X2}{window._activeColor.G:X2}{window._activeColor.B:X2}"))
             throw new InvalidOperationException("The editor must start on the standard palette with a colour that belongs to it.");
         CheckPalette(Palettes[0]);
-        window.SelectPalette(ParseAnnotationPalette("neon"));
-        CheckPalette(Palettes.Single(palette => palette.Id == "neon"));
-        if (window.NeonPaletteSegment.IsChecked != true || window.StandardPaletteSegment.IsChecked != false)
+        window.SelectPalette(ParseAnnotationPalette("pastel"));
+        CheckPalette(Palettes.Single(palette => palette.Id == "pastel"));
+        if (window.PastelPaletteSegment.IsChecked != true || window.StandardPaletteSegment.IsChecked != false)
             throw new InvalidOperationException("The palette segments must show which set is in use.");
+        window.RunCustomPaletteProbe();
         window.SelectPalette(Palettes[0]);
 
         // The thickness lives on its own button now: a preset reaches the canvas and the button.

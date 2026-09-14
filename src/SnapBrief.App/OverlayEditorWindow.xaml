@@ -288,11 +288,25 @@
                         <UniformGrid x:Name="PaletteRow" Columns="3">
                             <ToggleButton x:Name="StandardPaletteSegment" Style="{StaticResource SegmentButton}" Tag="standard" Click="OnPaletteClick" FontSize="12" Content="Стандартная" AutomationProperties.Name="{local:UiText Стандартная}" />
                             <ToggleButton x:Name="PastelPaletteSegment" Style="{StaticResource SegmentButton}" Tag="pastel" Click="OnPaletteClick" FontSize="12" Content="Пастель" AutomationProperties.Name="{local:UiText Пастель}" />
-                            <ToggleButton x:Name="NeonPaletteSegment" Style="{StaticResource SegmentButton}" Tag="neon" Click="OnPaletteClick" FontSize="12" Content="Неон" AutomationProperties.Name="{local:UiText Неон}" />
+                            <ToggleButton x:Name="CustomPaletteSegment" Style="{StaticResource SegmentButton}" Tag="custom" Click="OnPaletteClick" FontSize="12" Content="Своя" AutomationProperties.Name="{local:UiText Своя}" />
                         </UniformGrid>
                     </Border>
+                    <!-- The own palette is picked, not chosen: the spectrum and the eyedropper come
+                         with it, and the row under them is what has been picked so far. -->
+                    <StackPanel x:Name="SpectrumBlock" Visibility="Collapsed" Margin="0,0,0,12">
+                        <controls:ColorSpectrum x:Name="Spectrum" HorizontalAlignment="Center" ColorChanged="OnSpectrumChanged" ColorCommitted="OnSpectrumCommitted" />
+                        <TextBlock Text="Сохранённые цвета" FontSize="11" Foreground="#8F9AAA" Margin="0,12,0,0" />
+                    </StackPanel>
                     <WrapPanel x:Name="ColorPalette" Margin="-3,0,-3,10"/>
-                    <TextBox x:Name="ColorHex" Text="#FF3B30" MaxLength="7" Background="#252C36" Foreground="#EEF2F8" CaretBrush="White" BorderBrush="#465366" Padding="9,6" LostKeyboardFocus="OnHexLostFocus" PreviewKeyDown="OnHexKeyDown" AutomationProperties.Name="{local:UiText Цвет HEX}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="ColorHex" Text="#FF3B30" MaxLength="7" Background="#252C36" Foreground="#EEF2F8" CaretBrush="White" BorderBrush="#465366" Padding="9,6" LostKeyboardFocus="OnHexLostFocus" PreviewKeyDown="OnHexKeyDown" AutomationProperties.Name="{local:UiText Цвет HEX}"/>
+                        <Button x:Name="EyedropperButton" Grid.Column="1" Style="{StaticResource OverlayButton}" Width="34" MinWidth="34" Height="34" Margin="6,0,0,0" Padding="0" Visibility="Collapsed"
+                                Click="OnEyedropperClick" ToolTip="Взять цвет с экрана" AutomationProperties.Name="{local:UiText Пипетка}">
+                            <Path Width="16" Height="16" Stretch="Uniform" Stroke="#D9DEE8" StrokeThickness="1.5" StrokeLineJoin="Round"
+                                  Data="M10,1 L15,6 M12.5,3.5 L4,12 L1,15 L2,12 L10.5,3.5 Z" />
+                        </Button>
+                    </Grid>
                     <TextBlock Text="Рамка" FontWeight="SemiBold" Margin="0,18,0,8"/>
                     <!-- The colour picked above belongs to the outline of a mark; what stands inside
                          a region, and the colour of that, moved to the fill button of the panel. -->

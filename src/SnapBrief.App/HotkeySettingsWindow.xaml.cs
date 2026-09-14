@@ -4,9 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using SnapBrief.Windows;
 
 namespace SnapBrief.App;
@@ -17,8 +15,11 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
 {
     public bool CaptureEnabled { get; init; } = true;
     public bool FullscreenSaveEnabled { get; init; }
-    /// <summary>Shift + Print Screen, what "save the whole screen" carries until it is changed.</summary>
-    public const string DefaultFullscreenSaveId = "custom:4:44";
+    /// <summary>
+    /// Ctrl + Alt + Shift + S, what "save the whole screen" carries until it is changed. Only the
+    /// default moves: a file that already holds an id is read as it was written.
+    /// </summary>
+    public const string DefaultFullscreenSaveId = "custom:7:83";
     public string FullscreenSaveId { get; init; } = DefaultFullscreenSaveId;
     public bool ShowNotifications { get; init; } = true;
     public bool RememberRegion { get; init; }
@@ -51,7 +52,7 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// </summary>
     public bool ConfirmSessionDiscard { get; init; } = true;
     public string AnnotationColor { get; init; } = "#FF3B30";
-    /// <summary>Which set of twelve colours the editor offers: standard, pastel or neon.</summary>
+    /// <summary>Which set of twelve colours the editor offers: standard, pastel or the user's own.</summary>
     public string AnnotationPalette { get; init; } = "standard";
     /// <summary>Which half of the pencil capsule is armed: pen or highlight.</summary>
     public string AnnotationPencil { get; init; } = "pen";
@@ -319,11 +320,20 @@ public partial class HotkeySettingsWindow : Window
         InitializeComponent();
         CaptureField.HotkeyId = settings.CaptureId;
         FullscreenField.HotkeyId = settings.FullscreenSaveId;
+        // The two fields of this window are each other's neighbours: a combination one of them
+        // holds is refused in the other while it is being pressed.
+        CaptureField.ConflictsWith = [FullscreenField];
+        FullscreenField.ConflictsWith = [CaptureField];
         CaptureEnabledBox.IsChecked = settings.CaptureEnabled;
         FullscreenEnabledBox.IsChecked = settings.FullscreenSaveEnabled;
+        // A shortcut switched off has no combination to show, and the chip beside it offers one.
+        CaptureEnabledBox.Checked += (_, _) => UpdateShortcutState();
+        CaptureEnabledBox.Unchecked += (_, _) => UpdateShortcutState();
+        FullscreenEnabledBox.Checked += (_, _) => UpdateShortcutState();
+        FullscreenEnabledBox.Unchecked += (_, _) => UpdateShortcutState();
+        UpdateShortcutState();
+        LoadStartupState();
         NotificationsBox.IsChecked = settings.ShowNotifications;
-        RememberBox.IsChecked = settings.RememberRegion;
-        CursorBox.IsChecked = settings.CaptureCursor;
         AutoSaveBox.IsChecked = settings.AutoSaveCaptures;
         SoundsBox.IsChecked = settings.PlaySounds;
         VolumeSlider.Value = Math.Clamp(settings.SoundVolume, 0, 100);
@@ -334,53 +344,56 @@ public partial class HotkeySettingsWindow : Window
         FormatBox.SelectedIndex = settings.SaveFormat == "jpeg" ? 1 : 0;
         QualitySlider.Value = Math.Clamp(settings.JpegQuality, 1, 100);
         DirectoryBox.Text = settings.SaveDirectory;
-        LanguageBox.SelectedIndex = settings.Language == "en" ? 1 : 0;
-        SelectedTheme = ThemeService.NormalizeTheme(settings.Theme);
-        BuildAccentRow(settings.AccentId);
+        RussianSegment.IsChecked = settings.Language != "en";
+        EnglishSegment.IsChecked = settings.Language == "en";
+        AppearanceTab.SelectedTheme = ThemeService.NormalizeTheme(settings.Theme);
+        AppearanceTab.SelectedAccent = ThemeService.Normalize(settings.AccentId);
+        // The row of annotation palettes is the same preference the popover of the editor holds, so
+        // it is read and written as the editor reads and writes it.
+        AppearanceTab.SelectedPalette = OverlayEditorWindow.ParseAnnotationPalette(settings.AnnotationPalette).Id;
         QualitySlider.ValueChanged += (_, _) => UpdateQuality();
         FormatBox.SelectionChanged += (_, _) => UpdateQuality();
         // The captions built in code follow the language picked in this window, not the one it opened with.
-        LanguageBox.SelectionChanged += (_, _) => _language = LanguageBox.SelectedIndex == 1 ? "en" : "ru";
+        RussianSegment.Checked += (_, _) => _language = "ru";
+        EnglishSegment.Checked += (_, _) => _language = "en";
         UpdateQuality();
         Loaded += (_, _) => ApplyLanguage(settings.Language);
+        // The appearance tab repaints the application while it is being looked at and saves nothing;
+        // walking away from the window has to put back the pair it was opened with.
+        Closed += (_, _) => { if (Result is null) ThemeService.Apply(_original.Theme, _original.AccentId); };
     }
 
-    // The swatches show the accents themselves, so their colours are read from the accent
-    // dictionaries rather than written down a second time here.
-    private void BuildAccentRow(string? accentId)
+    // The startup entry is a registry value, not a preference of the settings file: it is read when
+    // the window opens and written when it saves. A profile that keeps the key closed to us (a
+    // policy, a locked account) leaves the box disabled with a line saying so, the way the wizard
+    // does, instead of offering a switch that does nothing.
+    private void LoadStartupState()
     {
-        var selected = ThemeService.Normalize(accentId);
-        foreach (var accent in ThemeService.Accents)
+        try { StartupBox.IsChecked = WindowsStartupService.IsEnabled(); }
+        catch (Exception)
         {
-            var dot = new RadioButton
-            {
-                Style = (Style)FindResource("AccentDot"), Tag = accent, GroupName = "Accent",
-                Background = new SolidColorBrush((Color)ThemeService.LoadAccent(accent)["AccentColor"]),
-                IsChecked = accent == selected
-            };
-            AccentRow.Children.Add(dot);
+            StartupBox.IsEnabled = false;
+            StartupUnavailableText.Visibility = Visibility.Visible;
         }
-        RefreshAccentNames();
     }
 
-    // A swatch has no caption of its own, so the screen reader gets one built in code; it is rebuilt
-    // with the window, because the name of the colour is translated as well.
-    private void RefreshAccentNames()
+    private void ApplyStartup()
     {
-        foreach (var dot in AccentRow.Children.OfType<RadioButton>())
-            if (dot.Tag is string accent)
-                System.Windows.Automation.AutomationProperties.SetName(dot,
-                    string.Format(UiLanguage.Text("Акцент: {0}", _language), UiLanguage.Text(accent, _language)));
+        if (!StartupBox.IsEnabled) return;
+        try { WindowsStartupService.SetEnabled(StartupBox.IsChecked == true); }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"{UiLanguage.Text("Не удалось изменить автозапуск", _language)}: {ex.Message}");
+        }
     }
 
     /// <summary>
     /// The theme this window will save. It opens on the one the file carries, normalised, so a value
-    /// nothing answers to is healed by a save instead of being kept; the appearance tab sets it.
+    /// nothing answers to is healed by a save instead of being kept; the appearance tab holds it.
     /// </summary>
-    internal string SelectedTheme { get; set; } = ThemeService.DefaultTheme;
+    internal string SelectedTheme => AppearanceTab.SelectedTheme;
 
-    internal string SelectedAccent =>
-        AccentRow.Children.OfType<RadioButton>().FirstOrDefault(dot => dot.IsChecked == true)?.Tag as string ?? ThemeService.DefaultAccent;
+    internal string SelectedAccent => AppearanceTab.SelectedAccent;
 
     // The quality caption is built in code, so it has to be rebuilt every time the window is translated.
     internal void ApplyLanguage(string language)
@@ -389,8 +402,60 @@ public partial class HotkeySettingsWindow : Window
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
         FullscreenField.ApplyLanguage(language);
-        RefreshAccentNames();
+        UpdateShortcutState();
+        AppearanceTab.ApplyLanguage(language);
         UpdateQuality();
+    }
+
+    /// <summary>
+    /// The combinations the chip has offered and Windows refused to register. A shortcut another
+    /// application holds fails at the registration and nowhere earlier, so the queue learns about it
+    /// only after a save was attempted, and the chip moves on to the next candidate.
+    /// </summary>
+    private readonly List<string> _refusedByWindows = [];
+
+    /// <summary>The combination the chip put into the field, if the user took one.</summary>
+    private string? _suggested;
+
+    // What the chip offers: the first combination of the queue that neither field holds and nothing
+    // has refused. Null means the queue is exhausted and the chip has nothing to say.
+    private string? SuggestedShortcut() =>
+        HotkeyRules.SuggestFree([CaptureField.HotkeyId, .. _refusedByWindows]);
+
+    // A shortcut that is switched off shows "not assigned", and the one for the whole screen also
+    // shows the chip that switches it on.
+    private void UpdateShortcutState()
+    {
+        CaptureField.IsAssigned = CaptureEnabledBox.IsChecked == true;
+        FullscreenField.IsAssigned = FullscreenEnabledBox.IsChecked == true;
+        var suggestion = FullscreenField.IsAssigned ? null : SuggestedShortcut();
+        SuggestChip.Visibility = suggestion is null ? Visibility.Collapsed : Visibility.Visible;
+        if (suggestion is null) return;
+        var label = HotkeySettings.Find(suggestion, HotkeySettings.DefaultFullscreenSaveId).Label;
+        SuggestChip.Tag = suggestion;
+        SuggestChip.Content = string.Format(UiLanguage.Text("Предложить: {0}", _language), label);
+    }
+
+    // Print Screen is held by the snipping tool on most of Windows 11, and nothing says so until the
+    // registration fails. A combination the chip put there and Windows would not take is dropped
+    // again: the shortcut goes back to "not assigned" and the chip offers the next candidate.
+    private void RefuseSuggestion()
+    {
+        if (FullscreenEnabledBox.IsChecked != true || _suggested is null ||
+            !HotkeyRules.SameGesture(FullscreenField.HotkeyId, _suggested)) return;
+        _refusedByWindows.Add(_suggested);
+        FullscreenEnabledBox.IsChecked = false;
+        UpdateShortcutState();
+    }
+
+    private void OnSuggestShortcut(object sender, RoutedEventArgs e)
+    {
+        if (SuggestChip.Tag is not string suggestion) return;
+        _suggested = suggestion;
+        FullscreenField.HotkeyId = suggestion;
+        FullscreenEnabledBox.IsChecked = true;
+        ErrorText.Visibility = Visibility.Collapsed;
+        UpdateShortcutState();
     }
 
     // The volume belongs to the sounds: with them off there is nothing to make quieter.
@@ -409,6 +474,11 @@ public partial class HotkeySettingsWindow : Window
     private void OnHotkeyChanged(object? sender, EventArgs e)
     {
         ErrorText.Visibility = Visibility.Collapsed;
+        // A combination pressed into a field that was switched off is a request for that shortcut:
+        // it would otherwise be recorded and go on showing "not assigned".
+        if (ReferenceEquals(sender, CaptureField)) CaptureEnabledBox.IsChecked = true;
+        if (ReferenceEquals(sender, FullscreenField)) FullscreenEnabledBox.IsChecked = true;
+        UpdateShortcutState();
         SaveButton.Focus();
     }
     private void OnBrowseDirectory(object sender, RoutedEventArgs e)
@@ -423,6 +493,16 @@ public partial class HotkeySettingsWindow : Window
         {
             if (string.IsNullOrWhiteSpace(DirectoryBox.Text))
                 throw new InvalidOperationException(UiLanguage.Text("Укажите папку сохранения.", _language));
+            // A shortcut recorded before the neighbouring field took it is caught here, by the
+            // gesture the two ids parse to, and not by the registration: Windows only refuses the
+            // second one while both are switched on, and its message blames another application.
+            if (CaptureEnabledBox.IsChecked == true && FullscreenEnabledBox.IsChecked == true &&
+                HotkeyRules.SameGesture(CaptureField.HotkeyId, FullscreenField.HotkeyId))
+            {
+                CaptureField.ShowConflict();
+                FullscreenField.ShowConflict();
+                throw new InvalidOperationException("Одно сочетание на два действия. Поменяй одно из них.");
+            }
             var directory = Path.GetFullPath(DirectoryBox.Text);
             Result = _original with
             {
@@ -430,19 +510,61 @@ public partial class HotkeySettingsWindow : Window
                 CaptureEnabled = CaptureEnabledBox.IsChecked == true,
                 FullscreenSaveEnabled = FullscreenEnabledBox.IsChecked == true,
                 ShowNotifications = NotificationsBox.IsChecked == true,
-                RememberRegion = RememberBox.IsChecked == true, CaptureCursor = CursorBox.IsChecked == true,
+                // RememberRegion and CaptureCursor have no row of their own any more: the two
+                // preferences travel from the file this window was opened with, untouched.
                 AutoSaveCaptures = AutoSaveBox.IsChecked == true,
                 PlaySounds = SoundsBox.IsChecked == true, SoundVolume = (int)VolumeSlider.Value,
                 ClearStackAfterPaste = ClearStackBox.IsChecked == true,
                 SaveFormat = FormatBox.SelectedIndex == 1 ? "jpeg" : "png",
                 JpegQuality = (int)QualitySlider.Value, SaveDirectory = directory,
-                Theme = SelectedTheme, AccentId = SelectedAccent,
-                Language = LanguageBox.SelectedIndex == 1 ? "en" : "ru"
+                Theme = SelectedTheme, AccentId = SelectedAccent, AnnotationPalette = AppearanceTab.SelectedPalette,
+                Language = EnglishSegment.IsChecked == true ? "en" : "ru"
             };
+            ApplyStartup();
             var error = TryApply?.Invoke(Result);
-            if (error is not null) throw new InvalidOperationException(error);
+            if (error is not null) { RefuseSuggestion(); throw new InvalidOperationException(error); }
             DialogResult = true;
         }
         catch (Exception ex) { ErrorText.Text = UiLanguage.Text(ex.Message, _language); ErrorText.Visibility = Visibility.Visible; Result = null; }
+    }
+
+    /// <summary>
+    /// The smoke check of the save block: one combination written into both fields is refused, both
+    /// of them go red and nothing is saved. The same keys are given as a preset and as a custom id,
+    /// so the check also proves the comparison is by gesture and not by text.
+    /// </summary>
+    internal static void RunSettingsRulesProbe(HotkeySettings settings)
+    {
+        // A clean installation: the shortcut of the whole screen is off, the field says so, and the
+        // chip offers the first combination of the queue.
+        var clean = new HotkeySettingsWindow(HotkeySettings.Default);
+        clean.ApplyLanguage("ru");
+        if (clean.FullscreenField.IsAssigned || clean.SuggestChip.Visibility != Visibility.Visible ||
+            (string?)clean.SuggestChip.Content != "Предложить: Print Screen")
+            throw new InvalidOperationException("A shortcut that is off must say so and be offered a free combination.");
+        clean.OnSuggestShortcut(clean.SuggestChip, new RoutedEventArgs());
+        if (clean.FullscreenEnabledBox.IsChecked != true || clean.FullscreenField.HotkeyId != "print-screen" ||
+            clean.SuggestChip.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("The chip must switch the shortcut on with the combination it offers.");
+        // Windows refused to register it: the offer is withdrawn and the queue moves on.
+        clean.RefuseSuggestion();
+        if (clean.FullscreenEnabledBox.IsChecked != false || clean.SuggestChip.Visibility != Visibility.Visible ||
+            (string?)clean.SuggestChip.Content != $"Предложить: {HotkeySettings.Find(HotkeySettings.DefaultFullscreenSaveId).Label}")
+            throw new InvalidOperationException("A suggestion Windows refused must give way to the next candidate.");
+
+        var window = new HotkeySettingsWindow(settings);
+        window.ApplyLanguage("ru");
+        window.CaptureField.HotkeyId = "ctrl-alt-s";
+        window.FullscreenField.HotkeyId = "custom:3:83";
+        window.CaptureEnabledBox.IsChecked = true;
+        window.FullscreenEnabledBox.IsChecked = true;
+        window.OnSave(window, new RoutedEventArgs());
+        if (window.Result is not null || window.DialogResult is not null)
+            throw new InvalidOperationException("One combination for two actions must not be saved.");
+        if (!window.CaptureField.ShowsConflict || !window.FullscreenField.ShowsConflict)
+            throw new InvalidOperationException("One combination for two actions must turn both fields red.");
+        if (window.ErrorText.Visibility != Visibility.Visible ||
+            window.ErrorText.Text != "Одно сочетание на два действия. Поменяй одно из них.")
+            throw new InvalidOperationException("One combination for two actions must be explained under the tabs.");
     }
 }

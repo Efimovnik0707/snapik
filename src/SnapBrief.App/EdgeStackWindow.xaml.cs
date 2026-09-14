@@ -1307,7 +1307,11 @@ public partial class EdgeStackWindow : Window
                             ClearStackAfterPaste = candidate.ClearStackAfterPaste,
                             SaveFormat = candidate.SaveFormat, JpegQuality = candidate.JpegQuality,
                             SaveDirectory = candidate.SaveDirectory, Language = candidate.Language,
-                            Theme = candidate.Theme, AccentId = candidate.AccentId
+                            Theme = candidate.Theme, AccentId = candidate.AccentId,
+                            // The appearance tab offers the palette of the editor as well, so this
+                            // field belongs to the dialog too; the colours of the own palette stay
+                            // with the editor, the only place they are picked.
+                            AnnotationPalette = candidate.AnnotationPalette
                         });
                         if (!merged) return UiLanguage.Text("Не удалось сохранить настройки");
                         ThemeService.Apply(_settings.Theme, _settings.AccentId);

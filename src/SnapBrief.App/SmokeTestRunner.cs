@@ -34,7 +34,7 @@ public static class SmokeTestRunner
             ConfirmSessionDiscard = false, StackHeight = 300,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationFontSize = 28,
             AnnotationShape = "ellipse", AnnotationFill = "translucent",
-            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "neon", AnnotationPencil = "highlight",
+            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "custom", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion,
@@ -94,16 +94,27 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("The stored fill colour and outline flag must be read back, with an outline and no own colour by default.");
         // The palette is remembered by its name; a name nobody knows falls back to the standard set,
         // and the colour the editor starts with has to belong to that set.
-        if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "neon" ||
+        if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "custom" ||
             OverlayEditorWindow.ParseAnnotationPalette("rainbow").Id != "standard" ||
             OverlayEditorWindow.ParseAnnotationPalette("1").Id != "standard" ||
+            // A file that was written by 1.3.2 on the palette that no longer exists reads as the
+            // standard set, the way any other name nobody knows does.
+            OverlayEditorWindow.ParseAnnotationPalette("neon").Id != "standard" ||
             OverlayEditorWindow.ParseAnnotationPalette(null).Id != "standard" ||
             HotkeySettings.Default.AnnotationPalette != "standard" ||
             OverlayEditorWindow.Palettes.Length != 3 ||
-            OverlayEditorWindow.Palettes.Any(palette => palette.Colors.Length != 12 || palette.Quick.Length != 5) ||
+            OverlayEditorWindow.Palettes.Any(palette => palette.Id != "custom" && (palette.Colors.Length != 12 || palette.Quick.Length != 5)) ||
             !OverlayEditorWindow.Palettes[0].Colors.Contains(HotkeySettings.Default.AnnotationColor) ||
             OverlayEditorWindow.ParseAnnotationColor(HotkeySettings.Default.AnnotationColor) != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("The stored palette must be read back, and the default colour must belong to the standard palette.");
+        // The own palette carries the colours of the file, newest first, and the five newest of them
+        // are the quick row; a hand-written file longer than the row is cut to it.
+        var ownColours = new[] { "#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7" };
+        var ownPalette = OverlayEditorWindow.PaletteFor(HotkeySettings.Default with { AnnotationPalette = "custom", CustomPaletteColors = ownColours });
+        if (ownPalette.Id != "custom" || !ownPalette.Colors.SequenceEqual(ownColours) ||
+            !ownPalette.Quick.SequenceEqual(ownColours.Take(5)) ||
+            OverlayEditorWindow.CustomPalette(Enumerable.Repeat("#2F8CFF", 20)).Colors.Length != HotkeySettings.MaxCustomPaletteColors)
+            throw new InvalidOperationException("The own palette must be built out of the colours the settings carry.");
         // The size a caption is typed in is remembered next to the colour and the widths.
         if (restoredSettings.AnnotationFontSize != 28 ||
             HotkeySettings.Default.AnnotationFontSize != TextMarkMetrics.DefaultFontSize ||
@@ -210,6 +221,7 @@ public static class SmokeTestRunner
         }
         ThemeService.Apply("dark", "blue");
         WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
+        WithoutBindingErrors("The colour spectrum", Controls.ColorSpectrum.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
         {
             var window = new HotkeySettingsWindow(restoredSettings);
@@ -238,12 +250,28 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("JPEG quality must be hidden while the PNG format is selected.");
         // The field owns the hotkey now: what is written into it comes back, and the label is shown
         // as one capsule per key.
-        if (settingsWindow.SelectedAccent != "violet")
-            throw new InvalidOperationException("The accent row must show the accent the settings were opened with.");
+        // The appearance tab is where the theme and the accent live now; the window opens on the
+        // pair the file carries and shows the row of annotation palettes the wizard does not.
+        if (settingsWindow.SelectedAccent != "violet" || settingsWindow.SelectedTheme != restoredSettings.Theme ||
+            !settingsWindow.AppearanceTab.ShowPaletteRow)
+            throw new InvalidOperationException("The appearance tab must show the theme and the accent the settings were opened with.");
         settingsWindow.CaptureField.HotkeyId = "custom:2:65";
+        // These settings hold the capture shortcut switched off: the field shows that it is not
+        // assigned, and the capsules come back with the tick.
+        if (settingsWindow.CaptureField.KeyCaps.Children.Count != 1)
+            throw new InvalidOperationException("A shortcut that is switched off must not show a combination.");
+        settingsWindow.CaptureEnabledBox.IsChecked = true;
         if (settingsWindow.CaptureField.HotkeyId != "custom:2:65" || settingsWindow.CaptureField.KeyCaps.Children.Count != 2 ||
             settingsWindow.FullscreenField.KeyCaps.Children.Count != HotkeySettings.Find(restoredSettings.FullscreenSaveId).Label.Split(" + ").Length)
             throw new InvalidOperationException("The hotkey field must keep the id it is given and show one capsule per key.");
+        WithoutBindingErrors("The shortcut rules of the settings", () => HotkeySettingsWindow.RunSettingsRulesProbe(restoredSettings));
+        // The palette of the editor is offered in the settings as well, over the same preference.
+        WithoutBindingErrors("The palette row of the settings", () =>
+        {
+            var window = new HotkeySettingsWindow(HotkeySettings.Default with { AnnotationPalette = "pastel" });
+            if (window.AppearanceTab.SelectedPalette != "pastel")
+                throw new InvalidOperationException("The settings must open on the annotation palette the file carries.");
+        });
         if ((Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentHoverBrush")).Color ||
             (Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentPressedBrush")).Color)
             throw new InvalidOperationException("The primary button must keep the accent while hovered and pressed.");
