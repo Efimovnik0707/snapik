@@ -334,8 +334,6 @@ public partial class HotkeySettingsWindow : Window
         UpdateShortcutState();
         LoadStartupState();
         NotificationsBox.IsChecked = settings.ShowNotifications;
-        RememberBox.IsChecked = settings.RememberRegion;
-        CursorBox.IsChecked = settings.CaptureCursor;
         AutoSaveBox.IsChecked = settings.AutoSaveCaptures;
         SoundsBox.IsChecked = settings.PlaySounds;
         VolumeSlider.Value = Math.Clamp(settings.SoundVolume, 0, 100);
@@ -509,7 +507,8 @@ public partial class HotkeySettingsWindow : Window
                 CaptureEnabled = CaptureEnabledBox.IsChecked == true,
                 FullscreenSaveEnabled = FullscreenEnabledBox.IsChecked == true,
                 ShowNotifications = NotificationsBox.IsChecked == true,
-                RememberRegion = RememberBox.IsChecked == true, CaptureCursor = CursorBox.IsChecked == true,
+                // RememberRegion and CaptureCursor have no row of their own any more: the two
+                // preferences travel from the file this window was opened with, untouched.
                 AutoSaveCaptures = AutoSaveBox.IsChecked == true,
                 PlaySounds = SoundsBox.IsChecked == true, SoundVolume = (int)VolumeSlider.Value,
                 ClearStackAfterPaste = ClearStackBox.IsChecked == true,
