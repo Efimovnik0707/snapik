@@ -2,11 +2,13 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:SnapBrief.App"
+        xmlns:core="clr-namespace:SnapBrief.Core.Exporting;assembly=SnapBrief.Core"
         Title="{local:UiText SnapBrief — Лента снимков}" AutomationProperties.Name="{local:UiText SnapBrief — Лента снимков}"
         Width="208" MinHeight="128" SizeToContent="Height"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
         BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="False" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">
     <Window.Resources>
+        <local:StripDepthConverter x:Key="StripDepth" />
         <Style x:Key="StackButton" TargetType="Button">
             <Setter Property="Height" Value="36" /><Setter Property="Padding" Value="10,0" />
             <Setter Property="Foreground" Value="#EEF2F8" /><Setter Property="Background" Value="#242A33" />
@@ -149,6 +151,7 @@
                  height, not a maximum: the window is on SizeToContent and has to follow the grip
                  even when the list holds one card. PositionAtEdge sets it for every showing. -->
             <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" Height="372" Margin="0,7,0,8" Padding="0,0,0,52"
+                     AlternationCount="{x:Static core:SentCaptureRules.MaxStripCaptures}"
                      Background="Transparent" BorderThickness="0" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True"
                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel"
@@ -197,9 +200,18 @@
                         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><ContentPresenter /></ControlTemplate></Setter.Value></Setter>
+                        <!-- The card above is drawn over the card below, so its shadow falls into the seam
+                             instead of onto the photograph of its neighbour: the depth descends with the
+                             index. It is a setter of this style and not a Panel.SetZIndex from the code,
+                             because a value set from code is a local one — it would beat the two triggers
+                             below, and with VirtualizationMode="Recycling" it would stay on a container
+                             that has since been handed to another capture. -->
+                        <Setter Property="Panel.ZIndex" Value="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource Self}, Converter={StaticResource StripDepth}}" />
                         <Style.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Panel.ZIndex" Value="20" /></Trigger>
-                            <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="Panel.ZIndex" Value="30" /></DataTrigger>
+                            <!-- Above every card of the strip, whatever its index: the depths below are
+                                 zero and negative, these two are the only positive ones. -->
+                            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Panel.ZIndex" Value="10000" /></Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="Panel.ZIndex" Value="10001" /></DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </ListBox.ItemContainerStyle>
@@ -207,11 +219,13 @@
                         <DataTemplate>
                             <Border x:Name="ThumbCard" Margin="0,0,8,-48" Height="78" CornerRadius="11" Background="#242A33"
                                     BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True" MouseEnter="OnCaptureThumbMouseEnter">
-                                <!-- The shadow goes up (Direction 90), not down as a shadow usually does: the cards
-                                     overlap by 48 px, and the next card is drawn over this one, so a shadow cast
-                                     downwards would be covered by it. The visible seam is the top edge of the card
-                                     above, and that is where the stack has to be readable. -->
-                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="3" Opacity="0.5" Direction="90" /></Border.Effect>
+                                <!-- The shadow goes down (Direction 270), the way a shadow usually does. The cards
+                                     overlap by 48 px and the one above is drawn over the one below (see the depth
+                                     in the container style), so the visible seam is the bottom edge of the upper
+                                     card and the shadow falls into it, onto the plate of its neighbour. It used to
+                                     go up, onto the photograph of the card above, where nothing but the very first
+                                     seam of the strip was readable. -->
+                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="10" ShadowDepth="4" Opacity="0.55" Direction="270" /></Border.Effect>
                                 <Grid>
                                     <Button x:Name="ThumbContent" Padding="0" Background="Transparent" BorderThickness="0" Click="OnOpenCaptureClick" Tag="{Binding}" ToolTip="Открыть снимок">
                                         <Grid>

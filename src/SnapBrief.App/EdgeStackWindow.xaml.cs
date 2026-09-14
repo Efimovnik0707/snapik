@@ -1715,3 +1715,16 @@ public partial class EdgeStackWindow : Window
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
 }
+
+// The depth of a card of the strip from its place in it: the first card is drawn over the second,
+// the second over the third, and so on down the stack, so the shadow of every card falls into the
+// seam below it. The index comes from ItemsControl.AlternationIndex, which is why the strip declares
+// an AlternationCount of MaxStripCaptures: within that count the index is the place of the card.
+public sealed class StripDepthConverter : System.Windows.Data.IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+        value is int index ? -index : 0;
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+        throw new NotSupportedException("The depth of a card is read from its index, never written back.");
+}
