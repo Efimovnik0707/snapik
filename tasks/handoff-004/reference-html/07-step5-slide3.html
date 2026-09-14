@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"><title>SnapBrief · 07-step5-slide3</title>
+  </head>
+<body style="background:#0E1116; padding:20px; display:inline-block;">
+
+
+  <style>
+    body { margin: 0; font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-size: 13px; color: #EEF2F8; }
+    a { color: #2F8CFF; } a:hover { color: #7AB8FF; }
+    svg { display: block; }
+
+    @keyframes sel { 0%, 4% { width: 0; height: 0; opacity: 0; } 6% { opacity: 1; } 16%, 100% { width: var(--rw); height: var(--rh); opacity: 1; } }
+    @keyframes pop { 0%, 18% { opacity: 0; transform: scale(.6); } 22%, 100% { opacity: 1; transform: scale(1); } }
+    @keyframes type { 0%, 22% { max-width: 0; } 32%, 100% { max-width: 140px; } }
+    @keyframes pop2 { 0%, 34% { opacity: 0; transform: scale(.6); } 38%, 100% { opacity: 1; transform: scale(1); } }
+    @keyframes type2 { 0%, 38% { max-width: 0; } 48%, 100% { max-width: 140px; } }
+    @keyframes arrow { 0%, 52% { opacity: 0; } 58%, 100% { opacity: 1; } }
+    @keyframes msg { 0%, 60% { opacity: 0; transform: translateY(8px); } 68%, 100% { opacity: 1; transform: translateY(0); } }
+    @keyframes kl2 { 0%, 18% { opacity: 0; transform: translateX(-8px); } 23%, 100% { opacity: 1; transform: translateX(0); } }
+    @keyframes kl3 { 0%, 34% { opacity: 0; transform: translateX(-8px); } 39%, 100% { opacity: 1; transform: translateX(0); } }
+    @keyframes kl4 { 0%, 56% { opacity: 0; transform: translateX(-8px); } 61%, 100% { opacity: 1; transform: translateX(0); } }
+    @keyframes bar { 0% { width: 0; } 100% { width: 100%; } }
+    .sel { animation: sel 9s infinite; transform-origin: top left; }
+    .b1 { animation: pop 9s infinite; transform-origin: left center; } .t1 { animation: type 9s infinite; }
+    .b2 { animation: pop2 9s infinite; transform-origin: left center; } .t2 { animation: type2 9s infinite; }
+    .arrow { animation: arrow 9s infinite; } .msg { animation: msg 9s infinite; }
+    .l2 { animation: kl2 9s infinite; } .l3 { animation: kl3 9s infinite; } .l4 { animation: kl4 9s infinite; }
+    .bar { animation: bar 9s linear infinite; }
+
+    @keyframes cur-move { 0%, 6% { opacity: 0; transform: translate(40px, 30px); } 10% { opacity: 1; } 24% { transform: translate(0, 0); } 28%, 32% { transform: translate(0,0) scale(.85); } 36%, 100% { transform: translate(0,0) scale(1); opacity: 1; } }
+    @keyframes open { 0%, 30% { opacity: 0; transform: scale(.9); } 40%, 100% { opacity: 1; transform: scale(1); } }
+    .cur-move { animation: cur-move 9s infinite; transform-origin: top left; }
+    .open { animation: open 9s infinite; transform-origin: center; }
+
+  </style><style>*{animation-delay:-8.6s !important; animation-play-state:paused !important;}</style>
+
+<div style="width: 620px; height: 600px; background: #171B22; border: 1px solid #354052; border-radius: 16px; padding: 20px 24px 24px 24px; box-sizing: border-box; display: flex; flex-direction: column;">
+  <div style="height: 28px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-size: 12px; color: #6F7A8A;">SnapBrief</span>
+    <div style="display: flex; gap: 4px;">
+      <div title="Свернуть" style="width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center;"><svg width="10" height="2" viewBox="0 0 10 2"><path d="M0,1 L10,1" stroke="#8F9AAA" stroke-width="1.5" stroke-linecap="round"></path></svg></div>
+      <div title="Закрыть" style="width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center;"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0,0 L10,10 M10,0 L0,10" stroke="#8F9AAA" stroke-width="1.5" stroke-linecap="round" fill="none"></path></svg></div>
+    </div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+    <div style="width: 480px; margin-bottom: 12px;"><div style="font-size: 24px; font-weight: 600; line-height: 30px; margin-bottom: 4px;">Как пользоваться</div><div style="font-size: 14px; color: #A9B4C2; line-height: 21px;">Открыть снимок снова</div></div>
+    <div style="width: 480px; border: 1px solid #2A3240; border-radius: 12px; background: #12161D; height: 210px; position: relative; overflow: hidden; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; padding: 0 12px; box-sizing: border-box;"><div class="open" style="position: relative; width: 210px; height: 180px; border-radius: 8px; background: #2A3140; overflow: hidden; flex-shrink: 0;">
+      <div style="position: absolute; left: 10px; top: 10px; right: 10px; bottom: 10px; border-radius: 6px; background: #E9EDF2;">
+        <div style="position: absolute; left: 0; right: 0; top: 0; height: 16px; background: #FFFFFF; border-bottom: 1px solid #DDE2EA; border-radius: 6px 6px 0 0;"></div>
+        <div style="position: absolute; left: 14px; top: 28px; width: 40%; height: 6px; border-radius: 3px; background: #C9D0DA;"></div>
+        <div style="position: absolute; left: 14px; top: 42px; width: 62%; height: 6px; border-radius: 3px; background: #D9DEE6;"></div>
+        <div style="position: absolute; left: 14px; top: 58px; right: 14px; bottom: 12px; border-radius: 5px; background: #FFFFFF; border: 1px solid #DDE2EA;"></div>
+      </div>
+      <div class="" style="position: absolute; left: 26px; top: 40px; width: 140px; height: 104px; border: 2px solid #2F8CFF; box-sizing: border-box; box-shadow: 0 0 0 999px rgba(10,13,18,0.62);"></div>
+      <div style="position: absolute; left: 36px; top: 52px; display: flex; align-items: center; gap: 4px;"><span style="display: inline-block; padding: 0 5px; border-radius: 7px; background: #2F8CFF; color: #FFF; font-size: 8px; font-weight: 700; line-height: 13px; white-space: nowrap;">A1</span><div style="padding: 3px 7px; border-radius: 7px; background: rgba(23,26,32,0.97); border: 1px solid #3A424E; font-size: 10px; white-space: nowrap;">Кнопку ярче</div></div><div style="position: absolute; left: 36px; top: 104px; display: flex; align-items: center; gap: 4px;"><span style="display: inline-block; padding: 0 5px; border-radius: 7px; background: #2F8CFF; color: #FFF; font-size: 8px; font-weight: 700; line-height: 13px; white-space: nowrap;">A2</span><div style="padding: 3px 7px; border-radius: 7px; background: rgba(23,26,32,0.97); border: 1px solid #3A424E; font-size: 10px; white-space: nowrap;">Убрать блок</div></div>
+    </div><div class="open" style="width: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="36" height="18" viewBox="0 0 36 18"><path d="M34,9 L6,9 M13,3 L6,9 L13,15" stroke="#2F8CFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg></div><div style="position: relative; width: 206px; height: 180px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><div class="" style="width: 124px; border-radius: 10px; background: rgba(23,26,32,0.96); border: 1px solid #2A3240; padding: 8px; box-sizing: border-box; box-shadow: 0 6px 18px rgba(0,0,0,.45);">
+      <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 6px;"><div style="width: 5px; height: 5px; border-radius: 3px; background: #2F8CFF;"></div><span style="font-size: 9px; font-weight: 600;">SnapBrief</span><span style="padding: 0 4px; border-radius: 6px; background: #2B3440; font-size: 7px; color: #BFC8D6; line-height: 11px;">3</span><div style="margin-left: auto; display: flex; align-items: center; gap: 2px;"><div style="width: 14px; height: 14px; border-radius: 4px; background: transparent;  box-sizing: border-box; display: flex; align-items: center; justify-content: center;"><svg width="7" height="8" viewBox="0 0 8 9"><path d="M1,2 L7,2 M3,2 L3,1 L5,1 L5,2 M2,2 L2.5,8 L5.5,8 L6,2" stroke="#BFC8D6" stroke-width="1" fill="none"></path></svg></div><div style="width: 14px; height: 14px; border-radius: 4px; background: transparent;  box-sizing: border-box; display: flex; align-items: center; justify-content: center;"><svg width="9" height="2" viewBox="0 0 14 3"><circle cx="2.5" cy="1.5" r="1.5" fill="#BFC8D6"></circle><circle cx="7.5" cy="1.5" r="1.5" fill="#BFC8D6"></circle><circle cx="12.5" cy="1.5" r="1.5" fill="#BFC8D6"></circle></svg></div><div style="width: 14px; height: 14px; border-radius: 4px; background: transparent;  box-sizing: border-box; display: flex; align-items: center; justify-content: center;"><svg width="7" height="2" viewBox="0 0 7 2"><path d="M0,1 L7,1" stroke="#BFC8D6" stroke-width="1.4" stroke-linecap="round"></path></svg></div><div style="width: 14px; height: 14px; border-radius: 4px; background: transparent;  box-sizing: border-box; display: flex; align-items: center; justify-content: center;"><svg width="6" height="6" viewBox="0 0 10 10"><path d="M0,0 L10,10 M10,0 L0,10" stroke="#BFC8D6" stroke-width="1.5" fill="none"></path></svg></div></div></div>
+      <div class="" style="position: relative; height: 82px;"><div class="" style="position: absolute; left: 0; top: 0px; width: 108px; height: 40px; border-radius: 7px; background: #E9EDF2; border: 2px solid #2F8CFF; box-shadow: 0 3px 10px rgba(0,0,0,.5); z-index: 3; box-sizing: border-box; overflow: hidden;"><div style="position: absolute; left: 6px; top: 6px; width: 40%; height: 3px; border-radius: 2px; background: #C9D0DA;"></div><div style="position: absolute; left: 0; right: 0; bottom: 0; height: 15px; background: rgba(23,26,32,.9); display: flex; align-items: center; padding: 0 5px; gap: 4px;"><div style="width: 11px; height: 11px; border-radius: 6px; background: #2F8CFF; color: #FFF; font-size: 6px; font-weight: 700; display: flex; align-items: center; justify-content: center;">A</div><svg width="6" height="6" viewBox="0 0 10 10"><path d="M1,1 L9,1 L9,7 L5,7 L2,9 L2,7 L1,7 Z" stroke="#AEB8C7" stroke-width="1.2" stroke-linejoin="round" fill="none"></path></svg><span style="font-size: 6px; color: #DCE3ED;">2</span></div></div><div class="" style="position: absolute; left: 0; top: 20px; width: 108px; height: 40px; border-radius: 7px; background: #E9EDF2; border: 1px solid #46505E; box-shadow: 0 3px 10px rgba(0,0,0,.5); z-index: 2; box-sizing: border-box; overflow: hidden;"><div style="position: absolute; left: 6px; top: 6px; width: 40%; height: 3px; border-radius: 2px; background: #C9D0DA;"></div><div style="position: absolute; left: 0; right: 0; bottom: 0; height: 15px; background: rgba(23,26,32,.9); display: flex; align-items: center; padding: 0 5px; gap: 4px;"><div style="width: 11px; height: 11px; border-radius: 6px; background: #2F8CFF; color: #FFF; font-size: 6px; font-weight: 700; display: flex; align-items: center; justify-content: center;">B</div><svg width="6" height="6" viewBox="0 0 10 10"><path d="M1,1 L9,1 L9,7 L5,7 L2,9 L2,7 L1,7 Z" stroke="#AEB8C7" stroke-width="1.2" stroke-linejoin="round" fill="none"></path></svg><span style="font-size: 6px; color: #DCE3ED;">1</span></div></div><div class="" style="position: absolute; left: 0; top: 40px; width: 108px; height: 40px; border-radius: 7px; background: #E9EDF2; border: 1px solid #46505E; box-shadow: 0 3px 10px rgba(0,0,0,.5); z-index: 1; box-sizing: border-box; overflow: hidden;"><div style="position: absolute; left: 6px; top: 6px; width: 40%; height: 3px; border-radius: 2px; background: #C9D0DA;"></div><div style="position: absolute; left: 0; right: 0; bottom: 0; height: 15px; background: rgba(23,26,32,.9); display: flex; align-items: center; padding: 0 5px; gap: 4px;"><div style="width: 11px; height: 11px; border-radius: 6px; background: #2F8CFF; color: #FFF; font-size: 6px; font-weight: 700; display: flex; align-items: center; justify-content: center;">C</div><svg width="6" height="6" viewBox="0 0 10 10"><path d="M1,1 L9,1 L9,7 L5,7 L2,9 L2,7 L1,7 Z" stroke="#AEB8C7" stroke-width="1.2" stroke-linejoin="round" fill="none"></path></svg><span style="font-size: 6px; color: #DCE3ED;">0</span></div></div></div>
+      <div style="margin-top: 6px; height: 20px; border-radius: 6px; background: #2F8CFF; font-size: 8px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px;"><svg width="9" height="8" viewBox="0 0 18 15"><path d="M2,5 L2,3 L6,3 L7,1.5 L11,1.5 L12,3 L16,3 L16,13 L2,13 Z M9,5 A3,3 0 1 0 9,11 A3,3 0 1 0 9,5" stroke="#FFF" stroke-width="1.6" stroke-linejoin="round" fill="none"></path></svg>Новый снимок</div>
+    </div><svg class="cur-move" style="position: absolute; left: 84px; top: 56px; z-index: 9;" width="12" height="16" viewBox="0 0 10 14"><path d="M0,0 L0,13 L3.2,10 L5.2,14 L7.2,13 L5.2,9.2 L9.4,9.2 Z" fill="#EEF2F8" stroke="#171B22" stroke-width="1"></path></svg></div><div style="position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: #2A3240;"><div class="bar" style="height: 2px; background: #2F8CFF; opacity: .7;"></div></div></div>
+    <div style="width: 480px; display: flex; flex-direction: column; gap: 10px;"><div style="display: flex; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 20px;"><div style="width: 22px; height: 22px; border-radius: 11px; background: #2F8CFF; color: #FFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">1</div><span>Каждый снимок хранит свои комментарии.</span></div><div class="l2" style="display: flex; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 20px;"><div style="width: 22px; height: 22px; border-radius: 11px; background: #2F8CFF; color: #FFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">2</div><span>Клик по снимку в ленте — он открывается снова, всё на месте.</span></div><div class="l3" style="display: flex; align-items: flex-start; gap: 12px; font-size: 14px; line-height: 20px;"><div style="width: 22px; height: 22px; border-radius: 11px; background: #2F8CFF; color: #FFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">3</div><span>Поправь и закрой — изменения останутся в ленте.</span></div></div>
+    <div style="margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 14px; padding-top: 10px;">
+      <div style="width: 30px; height: 30px; border-radius: 8px; background: #21262F; border: 1px solid #39424F; display: flex; align-items: center; justify-content: center;"><svg width="8" height="12" viewBox="0 0 8 12"><path d="M7,1 L2,6 L7,11" stroke="#EEF2F8" stroke-width="1.5" stroke-linecap="round" fill="none"></path></svg></div>
+      <div style="display: flex; gap: 8px; align-items: center;"><div style="width: 8px; height: 8px; border-radius: 4px; background: #3A4553;"></div><div style="width: 8px; height: 8px; border-radius: 4px; background: #3A4553;"></div><div style="width: 8px; height: 8px; border-radius: 4px; background: #2F8CFF;"></div><div style="width: 8px; height: 8px; border-radius: 4px; background: #3A4553;"></div></div>
+      <div style="width: 30px; height: 30px; border-radius: 8px; background: #21262F; border: 1px solid #39424F; display: flex; align-items: center; justify-content: center;"><svg width="8" height="12" viewBox="0 0 8 12"><path d="M1,1 L6,6 L1,11" stroke="#EEF2F8" stroke-width="1.5" stroke-linecap="round" fill="none"></path></svg></div>
+    </div>
+  </div>
+  <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <span style="color: #8F9AAA;">Шаг 5 из 5</span>
+      <span style="color: #6F7A8A; font-size: 12px;">Пропустить настройку</span>
+    </div>
+    <div style="display: flex; gap: 8px;"><div style="height: 34px; min-width: 96px; padding: 0 14px; border-radius: 7px; color: #EEF2F8; box-sizing: border-box; display: flex; align-items: center; justify-content: center;">Назад</div><div style="height: 34px; min-width: 96px; padding: 0 14px; border-radius: 7px; background: #2F8CFF; color: #FFFFFF; font-weight: 600; box-sizing: border-box; display: flex; align-items: center; justify-content: center;">Начать</div></div>
+  </div>
+</div>
+
+</body>
+</html>

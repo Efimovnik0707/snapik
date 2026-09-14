@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"><title>SnapBrief · 09-gradient-themes</title>
+  </head>
+<body style="background:#0E1116; padding:20px; display:inline-block;">
+
+
+  <style>
+    body { margin: 0; font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-size: 13px; color: #EEF2F8; }
+    a { color: #2F8CFF; } a:hover { color: #7AB8FF; }
+    svg { display: block; }
+  </style><style>*{animation-delay:-8.6s !important; animation-play-state:paused !important;}</style>
+
+<!-- ПРИМЕРКА: как выглядит «градиентная тема» на реальных панелях (лента + панель разметки) — 4 варианта + для сравнения тёмная и стекло -->
+<div style="width: 1000px; height: 720px; background: #101318; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <div style="font-size: 21px; font-weight: 600;">Градиент как тема: примерка</div>
+    <div style="font-size: 13px; color: #9AA7B8;">В каждой карточке: рабочий стол → лента снимков и панель разметки в этой теме. Кнопка «Готово» и номера — акцент, он остаётся отдельной настройкой.</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; flex: 1;">
+
+    <!-- 1. Тёмная (сейчас) -->
+    <div style="border-radius: 12px; background: #1E2430; position: relative; overflow: hidden; border: 1px solid #2A3240;">
+      <div style="position: absolute; left: 14px; top: 14px; padding: 3px 8px; border-radius: 5px; background: rgba(0,0,0,.5); font-size: 11px; color: #C6CEDA;">Тёмная (сейчас)</div>
+      <div style="position: absolute; left: 20px; top: 48px; width: 150px; height: 100px; border-radius: 8px; background: #F4F6F9;"></div>
+      <div style="position: absolute; right: 16px; top: 44px; width: 96px; border-radius: 12px; background: rgba(23,26,32,0.95); padding: 8px; box-sizing: border-box; box-shadow: 0 5px 20px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 5px;">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 6px; height: 6px; border-radius: 3px; background: #2F8CFF;"></div><span style="font-size: 9px; font-weight: 600;">SnapBrief</span></div>
+        <div style="height: 34px; border-radius: 7px; background: #242A33; border: 1px solid #46505E;"></div>
+        <div style="height: 34px; border-radius: 7px; background: #242A33; border: 1px solid #46505E; margin-top: -22px;"></div>
+        <div style="height: 22px; border-radius: 7px; background: #2F8CFF; font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center;">Новый снимок</div>
+      </div>
+      <div style="position: absolute; left: 20px; bottom: 18px; padding: 6px; border-radius: 12px; background: rgba(23,26,32,0.95); box-shadow: 0 5px 20px rgba(0,0,0,.4); display: flex; gap: 4px; align-items: center;">
+        <div style="width: 22px; height: 22px; border-radius: 6px; background: #253B58; border: 1px solid #2F8CFF; box-sizing: border-box;"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: #29303A;"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: #29303A;"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: #29303A;"></div>
+        <div style="width: 1px; height: 16px; background: #3A424E; margin: 0 3px;"></div>
+        <div style="height: 22px; padding: 0 8px; border-radius: 6px; background: #2F8CFF; font-size: 9px; font-weight: 600; display: flex; align-items: center;">Готово</div>
+      </div>
+    </div>
+
+    <!-- 2. Стекло -->
+    <div style="border-radius: 12px; background: linear-gradient(135deg, #3A4A6B 0%, #5B4A66 55%, #2F5A66 100%); position: relative; overflow: hidden; border: 1px solid #2A3240;">
+      <div style="position: absolute; left: 14px; top: 14px; padding: 3px 8px; border-radius: 5px; background: rgba(0,0,0,.5); font-size: 11px; color: #C6CEDA;">Стекло</div>
+      <div style="position: absolute; left: 20px; top: 48px; width: 150px; height: 100px; border-radius: 8px; background: #F4F6F9;"></div>
+      <div style="position: absolute; right: 16px; top: 44px; width: 96px; border-radius: 12px; background: rgba(60,66,84,0.55); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.22); padding: 8px; box-sizing: border-box; box-shadow: 0 5px 20px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: 5px;">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 6px; height: 6px; border-radius: 3px; background: #2F8CFF;"></div><span style="font-size: 9px; font-weight: 600;">SnapBrief</span></div>
+        <div style="height: 34px; border-radius: 7px; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.22);"></div>
+        <div style="height: 34px; border-radius: 7px; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.22); margin-top: -22px;"></div>
+        <div style="height: 22px; border-radius: 7px; background: #2F8CFF; font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center;">Новый снимок</div>
+      </div>
+      <div style="position: absolute; left: 20px; bottom: 18px; padding: 6px; border-radius: 12px; background: rgba(60,66,84,0.55); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.22); display: flex; gap: 4px; align-items: center;">
+        <div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(47,140,255,0.35); border: 1px solid #2F8CFF; box-sizing: border-box;"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.12);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.12);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.12);"></div>
+        <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.25); margin: 0 3px;"></div>
+        <div style="height: 22px; padding: 0 8px; border-radius: 6px; background: #2F8CFF; font-size: 9px; font-weight: 600; display: flex; align-items: center;">Готово</div>
+      </div>
+    </div>
+
+    <!-- 3. Градиент «Ночь» (тёмный сине-фиолетовый) -->
+    <div style="border-radius: 12px; background: #1E2430; position: relative; overflow: hidden; border: 1px solid #2A3240;">
+      <div style="position: absolute; left: 14px; top: 14px; padding: 3px 8px; border-radius: 5px; background: rgba(0,0,0,.5); font-size: 11px; color: #C6CEDA;">Градиент · Ночь</div>
+      <div style="position: absolute; left: 20px; top: 48px; width: 150px; height: 100px; border-radius: 8px; background: #F4F6F9;"></div>
+      <div style="position: absolute; right: 16px; top: 44px; width: 96px; border-radius: 12px; background: linear-gradient(160deg, #1F2A4A 0%, #2A1F4A 100%); border: 1px solid rgba(140,150,255,0.25); padding: 8px; box-sizing: border-box; box-shadow: 0 5px 20px rgba(0,0,0,.45); display: flex; flex-direction: column; gap: 5px;">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 6px; height: 6px; border-radius: 3px; background: #7C8CFF;"></div><span style="font-size: 9px; font-weight: 600;">SnapBrief</span></div>
+        <div style="height: 34px; border-radius: 7px; background: rgba(255,255,255,0.08); border: 1px solid rgba(140,150,255,0.25);"></div>
+        <div style="height: 34px; border-radius: 7px; background: rgba(255,255,255,0.08); border: 1px solid rgba(140,150,255,0.25); margin-top: -22px;"></div>
+        <div style="height: 22px; border-radius: 7px; background: linear-gradient(135deg, #5B7CFF, #9B6CFF); font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center;">Новый снимок</div>
+      </div>
+      <div style="position: absolute; left: 20px; bottom: 18px; padding: 6px; border-radius: 12px; background: linear-gradient(90deg, #1F2A4A 0%, #2A1F4A 100%); border: 1px solid rgba(140,150,255,0.25); box-shadow: 0 5px 20px rgba(0,0,0,.45); display: flex; gap: 4px; align-items: center;">
+        <div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(124,140,255,0.3); border: 1px solid #7C8CFF; box-sizing: border-box;"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div>
+        <div style="width: 1px; height: 16px; background: rgba(140,150,255,0.3); margin: 0 3px;"></div>
+        <div style="height: 22px; padding: 0 8px; border-radius: 6px; background: linear-gradient(135deg, #5B7CFF, #9B6CFF); font-size: 9px; font-weight: 600; display: flex; align-items: center;">Готово</div>
+      </div>
+    </div>
+
+    <!-- 4. Градиент «Закат» -->
+    <div style="border-radius: 12px; background: #1E2430; position: relative; overflow: hidden; border: 1px solid #2A3240;">
+      <div style="position: absolute; left: 14px; top: 14px; padding: 3px 8px; border-radius: 5px; background: rgba(0,0,0,.5); font-size: 11px; color: #C6CEDA;">Градиент · Закат</div>
+      <div style="position: absolute; left: 20px; top: 48px; width: 150px; height: 100px; border-radius: 8px; background: #F4F6F9;"></div>
+      <div style="position: absolute; right: 16px; top: 44px; width: 96px; border-radius: 12px; background: linear-gradient(160deg, #3D2436 0%, #4A2A22 100%); border: 1px solid rgba(255,160,120,0.25); padding: 8px; box-sizing: border-box; box-shadow: 0 5px 20px rgba(0,0,0,.45); display: flex; flex-direction: column; gap: 5px;">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 6px; height: 6px; border-radius: 3px; background: #FF8C6B;"></div><span style="font-size: 9px; font-weight: 600;">SnapBrief</span></div>
+        <div style="height: 34px; border-radius: 7px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,160,120,0.25);"></div>
+        <div style="height: 34px; border-radius: 7px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,160,120,0.25); margin-top: -22px;"></div>
+        <div style="height: 22px; border-radius: 7px; background: linear-gradient(135deg, #FF8C42, #FF4D6D); font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center;">Новый снимок</div>
+      </div>
+      <div style="position: absolute; left: 20px; bottom: 18px; padding: 6px; border-radius: 12px; background: linear-gradient(90deg, #3D2436 0%, #4A2A22 100%); border: 1px solid rgba(255,160,120,0.25); box-shadow: 0 5px 20px rgba(0,0,0,.45); display: flex; gap: 4px; align-items: center;">
+        <div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,140,107,0.3); border: 1px solid #FF8C6B; box-sizing: border-box;"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div>
+        <div style="width: 1px; height: 16px; background: rgba(255,160,120,0.3); margin: 0 3px;"></div>
+        <div style="height: 22px; padding: 0 8px; border-radius: 6px; background: linear-gradient(135deg, #FF8C42, #FF4D6D); font-size: 9px; font-weight: 600; display: flex; align-items: center;">Готово</div>
+      </div>
+    </div>
+
+    <!-- 5. Градиент «Море» -->
+    <div style="border-radius: 12px; background: #1E2430; position: relative; overflow: hidden; border: 1px solid #2A3240;">
+      <div style="position: absolute; left: 14px; top: 14px; padding: 3px 8px; border-radius: 5px; background: rgba(0,0,0,.5); font-size: 11px; color: #C6CEDA;">Градиент · Море</div>
+      <div style="position: absolute; left: 20px; top: 48px; width: 150px; height: 100px; border-radius: 8px; background: #F4F6F9;"></div>
+      <div style="position: absolute; right: 16px; top: 44px; width: 96px; border-radius: 12px; background: linear-gradient(160deg, #163A44 0%, #1B3A2C 100%); border: 1px solid rgba(80,220,200,0.25); padding: 8px; box-sizing: border-box; box-shadow: 0 5px 20px rgba(0,0,0,.45); display: flex; flex-direction: column; gap: 5px;">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 6px; height: 6px; border-radius: 3px; background: #3FD6C0;"></div><span style="font-size: 9px; font-weight: 600;">SnapBrief</span></div>
+        <div style="height: 34px; border-radius: 7px; background: rgba(255,255,255,0.08); border: 1px solid rgba(80,220,200,0.25);"></div>
+        <div style="height: 34px; border-radius: 7px; background: rgba(255,255,255,0.08); border: 1px solid rgba(80,220,200,0.25); margin-top: -22px;"></div>
+        <div style="height: 22px; border-radius: 7px; background: linear-gradient(135deg, #28BE80, #00C8DC); font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center;">Новый снимок</div>
+      </div>
+      <div style="position: absolute; left: 20px; bottom: 18px; padding: 6px; border-radius: 12px; background: linear-gradient(90deg, #163A44 0%, #1B3A2C 100%); border: 1px solid rgba(80,220,200,0.25); box-shadow: 0 5px 20px rgba(0,0,0,.45); display: flex; gap: 4px; align-items: center;">
+        <div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(63,214,192,0.3); border: 1px solid #3FD6C0; box-sizing: border-box;"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.08);"></div>
+        <div style="width: 1px; height: 16px; background: rgba(80,220,200,0.3); margin: 0 3px;"></div>
+        <div style="height: 22px; padding: 0 8px; border-radius: 6px; background: linear-gradient(135deg, #28BE80, #00C8DC); font-size: 9px; font-weight: 600; display: flex; align-items: center;">Готово</div>
+      </div>
+    </div>
+
+    <!-- 6. Светлая + градиент «Рассвет» -->
+    <div style="border-radius: 12px; background: #E8ECF2; position: relative; overflow: hidden; border: 1px solid #2A3240;">
+      <div style="position: absolute; left: 14px; top: 14px; padding: 3px 8px; border-radius: 5px; background: rgba(0,0,0,.5); font-size: 11px; color: #C6CEDA;">Светлая · Рассвет</div>
+      <div style="position: absolute; left: 20px; top: 48px; width: 150px; height: 100px; border-radius: 8px; background: #FFFFFF; border: 1px solid #DDE2EA;"></div>
+      <div style="position: absolute; right: 16px; top: 44px; width: 96px; border-radius: 12px; background: linear-gradient(160deg, #FFF4EC 0%, #F1ECFF 100%); border: 1px solid rgba(0,0,0,0.08); padding: 8px; box-sizing: border-box; box-shadow: 0 5px 20px rgba(0,0,0,.15); display: flex; flex-direction: column; gap: 5px; color: #172033;">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 6px; height: 6px; border-radius: 3px; background: #FF8C42;"></div><span style="font-size: 9px; font-weight: 600;">SnapBrief</span></div>
+        <div style="height: 34px; border-radius: 7px; background: #FFFFFF; border: 1px solid #E3E7ED;"></div>
+        <div style="height: 34px; border-radius: 7px; background: #FFFFFF; border: 1px solid #E3E7ED; margin-top: -22px;"></div>
+        <div style="height: 22px; border-radius: 7px; background: linear-gradient(135deg, #FF8C42, #AF81FF); color: #FFF; font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center;">Новый снимок</div>
+      </div>
+      <div style="position: absolute; left: 20px; bottom: 18px; padding: 6px; border-radius: 12px; background: linear-gradient(90deg, #FFF4EC 0%, #F1ECFF 100%); border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 5px 20px rgba(0,0,0,.15); display: flex; gap: 4px; align-items: center;">
+        <div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255,140,66,0.2); border: 1px solid #FF8C42; box-sizing: border-box;"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(0,0,0,0.05);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(0,0,0,0.05);"></div><div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(0,0,0,0.05);"></div>
+        <div style="width: 1px; height: 16px; background: rgba(0,0,0,0.12); margin: 0 3px;"></div>
+        <div style="height: 22px; padding: 0 8px; border-radius: 6px; background: linear-gradient(135deg, #FF8C42, #AF81FF); color: #FFF; font-size: 9px; font-weight: 600; display: flex; align-items: center;">Готово</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
