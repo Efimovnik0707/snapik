@@ -29,6 +29,7 @@ internal static class UiLanguage
         ["Каждый готовый снимок сразу ложится в папку сохранения"] = "Every finished capture goes straight into the save folder",
         ["JPEG легче, PNG точнее"] = "JPEG is lighter, PNG is sharper",
         ["Куда падают снимки и пакеты"] = "Where the captures and the packages land",
+        ["Открывать при включении компьютера"] = "Open when the computer starts",
         ["Язык"] = "Language", ["Вид"] = "Appearance", ["Акцент"] = "Accent", ["Акцент: {0}"] = "Accent: {0}",
         ["синий"] = "blue", ["фиолетовый"] = "violet",
         // The identifier of an accent and the word for it have drifted apart on purpose: "teal" is

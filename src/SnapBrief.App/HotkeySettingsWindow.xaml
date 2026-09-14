@@ -18,6 +18,12 @@
   </Grid>
   <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
    <TabItem Header="Общие"><StackPanel Margin="0,10,0,0">
+    <!-- The same switch the wizard and the tray carry, over the same registry value; a profile that
+         keeps it closed to us says so instead of leaving a box that does nothing. -->
+    <StackPanel Margin="0,0,0,16">
+     <CheckBox x:Name="StartupBox" Content="Открывать при включении компьютера" Margin="0"/>
+     <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="22,5,0,0" Visibility="Collapsed"/>
+    </StackPanel>
     <CheckBox x:Name="NotificationsBox" Content="Показывать уведомления" ToolTip="Всплывающее окно у часов: «Скопировано», «Сохранено»"/>
     <CheckBox x:Name="RememberBox" Content="Предлагать ту же область, что в прошлый раз"/>
     <CheckBox x:Name="CursorBox" Content="Показывать курсор мыши на скриншоте"/>

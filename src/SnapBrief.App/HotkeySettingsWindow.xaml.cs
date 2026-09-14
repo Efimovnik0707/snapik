@@ -332,6 +332,7 @@ public partial class HotkeySettingsWindow : Window
         FullscreenEnabledBox.Checked += (_, _) => UpdateShortcutState();
         FullscreenEnabledBox.Unchecked += (_, _) => UpdateShortcutState();
         UpdateShortcutState();
+        LoadStartupState();
         NotificationsBox.IsChecked = settings.ShowNotifications;
         RememberBox.IsChecked = settings.RememberRegion;
         CursorBox.IsChecked = settings.CaptureCursor;
@@ -359,6 +360,30 @@ public partial class HotkeySettingsWindow : Window
         // The appearance tab repaints the application while it is being looked at and saves nothing;
         // walking away from the window has to put back the pair it was opened with.
         Closed += (_, _) => { if (Result is null) ThemeService.Apply(_original.Theme, _original.AccentId); };
+    }
+
+    // The startup entry is a registry value, not a preference of the settings file: it is read when
+    // the window opens and written when it saves. A profile that keeps the key closed to us (a
+    // policy, a locked account) leaves the box disabled with a line saying so, the way the wizard
+    // does, instead of offering a switch that does nothing.
+    private void LoadStartupState()
+    {
+        try { StartupBox.IsChecked = WindowsStartupService.IsEnabled(); }
+        catch (Exception)
+        {
+            StartupBox.IsEnabled = false;
+            StartupUnavailableText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ApplyStartup()
+    {
+        if (!StartupBox.IsEnabled) return;
+        try { WindowsStartupService.SetEnabled(StartupBox.IsChecked == true); }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"{UiLanguage.Text("Не удалось изменить автозапуск", _language)}: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -493,6 +518,7 @@ public partial class HotkeySettingsWindow : Window
                 Theme = SelectedTheme, AccentId = SelectedAccent,
                 Language = EnglishSegment.IsChecked == true ? "en" : "ru"
             };
+            ApplyStartup();
             var error = TryApply?.Invoke(Result);
             if (error is not null) { RefuseSuggestion(); throw new InvalidOperationException(error); }
             DialogResult = true;
