@@ -238,8 +238,11 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("JPEG quality must be hidden while the PNG format is selected.");
         // The field owns the hotkey now: what is written into it comes back, and the label is shown
         // as one capsule per key.
-        if (settingsWindow.SelectedAccent != "violet")
-            throw new InvalidOperationException("The accent row must show the accent the settings were opened with.");
+        // The appearance tab is where the theme and the accent live now; the window opens on the
+        // pair the file carries and shows the row of annotation palettes the wizard does not.
+        if (settingsWindow.SelectedAccent != "violet" || settingsWindow.SelectedTheme != restoredSettings.Theme ||
+            !settingsWindow.AppearanceTab.ShowPaletteRow)
+            throw new InvalidOperationException("The appearance tab must show the theme and the accent the settings were opened with.");
         settingsWindow.CaptureField.HotkeyId = "custom:2:65";
         // These settings hold the capture shortcut switched off: the field shows that it is not
         // assigned, and the capsules come back with the tick.

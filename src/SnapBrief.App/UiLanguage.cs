@@ -21,8 +21,16 @@ internal static class UiLanguage
         ["Показывать курсор мыши на скриншоте"] = "Show the mouse pointer in the screenshot",
         ["Звуки"] = "Sounds", ["Громкость"] = "Volume", ["Автоматически сохранять готовые снимки"] = "Automatically save completed captures",
         ["Укажите папку сохранения."] = "Choose a save folder.", ["Автосохранение не выполнено"] = "Auto-save failed",
-        ["Язык"] = "Language", ["Акцент"] = "Accent", ["Акцент: {0}"] = "Accent: {0}",
-        ["синий"] = "blue", ["бирюзовый"] = "teal", ["фиолетовый"] = "violet", ["коралловый"] = "coral",
+        // The tooltips of the settings rows; they are translated on the way through UiLanguage.Apply.
+        ["Всплывающее окно у часов: «Скопировано», «Сохранено»"] = "A pop-up by the clock: \"Copied\", \"Saved\"",
+        ["Щелчок затвора при снимке и тихие тики ленты"] = "The shutter click on a capture and the quiet ticks of the strip",
+        ["Насколько громко звучит интерфейс"] = "How loud the interface sounds are",
+        ["После Ctrl+V лента очищается сама, снимки удаляются"] = "After Ctrl+V the strip clears itself and the captures are deleted",
+        ["Каждый готовый снимок сразу ложится в папку сохранения"] = "Every finished capture goes straight into the save folder",
+        ["JPEG легче, PNG точнее"] = "JPEG is lighter, PNG is sharper",
+        ["Куда падают снимки и пакеты"] = "Where the captures and the packages land",
+        ["Язык"] = "Language", ["Вид"] = "Appearance", ["Акцент"] = "Accent", ["Акцент: {0}"] = "Accent: {0}",
+        ["синий"] = "blue", ["фиолетовый"] = "violet",
         // The identifier of an accent and the word for it have drifted apart on purpose: "teal" is
         // shown as green and "coral" as orange, and renaming the identifiers would cost a migration.
         ["зелёный"] = "green", ["оранжевый"] = "orange",
