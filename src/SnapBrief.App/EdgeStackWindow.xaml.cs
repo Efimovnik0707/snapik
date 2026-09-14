@@ -75,6 +75,7 @@ public partial class EdgeStackWindow : Window
     private double _resizeStartMinHeight;
     private Point _resizeStartPointer;
     // The strip as it was before it collapsed, so the capsule gives back the same window.
+    private bool _softLimitWarned;
     private bool _capsuleMode;
     private double _expandedWidth;
     private double _expandedListHeight;
@@ -552,6 +553,7 @@ public partial class EdgeStackWindow : Window
                 if (result.Capture is null) { addNext = false; continue; }
                 Captures.Add(result.Capture);
                 Renumber();
+                NoteStripGrowth();
                 InvalidatePrepared();
                 // The shutter belongs to the moment of the capture, so it plays before the package
                 // travels to the clipboard and not after that wait.
@@ -569,13 +571,25 @@ public partial class EdgeStackWindow : Window
         }
     }
 
-    // The strip holds ten captures, sent ones included: they take the same disk and the same memory,
-    // and the letters of the strip stay inside A..J. Every way of adding a capture goes through here.
+    // The strip holds twenty-six captures, sent ones included: they take the same disk and the same
+    // memory, and the letters of the strip stay inside A..Z. Every way of adding a capture goes
+    // through here, and the number of the toast comes from the constant, never from the sentence.
     private bool StripIsFull(int adding = 1)
     {
         if (Captures.Count + adding <= SentCaptureRules.MaxStripCaptures) return false;
-        ShowToast(UiLanguage.Text("В ленте максимум 10 снимков. Отправьте или удалите лишние"));
+        ShowToast(string.Format(UiLanguage.Text("В ленте максимум {0} снимков. Отправьте или удалите лишние"), SentCaptureRules.MaxStripCaptures));
         return true;
+    }
+
+    // The soft limit, said once. Twenty-six captures fit the strip, but a chat usually takes about
+    // twenty images in one paste, so the strip warns when it goes past that number and says nothing
+    // more until it has come back down to it. Every way of adding a capture calls this after adding.
+    private void NoteStripGrowth()
+    {
+        if (Captures.Count <= SentCaptureRules.SoftStripWarning) { _softLimitWarned = false; return; }
+        if (_softLimitWarned) return;
+        _softLimitWarned = true;
+        ShowToast(UiLanguage.Text("Чаты обычно принимают до 20 картинок за раз"));
     }
 
     private async void OnRemoveCaptureClick(object sender, RoutedEventArgs e)
@@ -1046,7 +1060,7 @@ public partial class EdgeStackWindow : Window
             try { Captures.Add(await _workspace.AddImageAsync(SessionWorkspace.LoadBitmap(path))); imported++; }
             catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
         }
-        Renumber(); InvalidatePrepared();
+        Renumber(); NoteStripGrowth(); InvalidatePrepared();
         var saved = await SaveAsync();
         // The clipboard package follows the stack even when the session file could not be written:
         // a receipt left pointing at the previous package makes the next Ctrl+V rotate the session.
@@ -1054,7 +1068,7 @@ public partial class EdgeStackWindow : Window
         if (imported > 0) await RefreshOwnedClipboardAsync();
         // A failed import must survive the next status update, a successful one has to stay readable for a few seconds.
         if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
-        else if (truncated) ShowToast(UiLanguage.Text("В ленте максимум 10 снимков. Отправьте или удалите лишние"));
+        else if (truncated) ShowToast(string.Format(UiLanguage.Text("В ленте максимум {0} снимков. Отправьте или удалите лишние"), SentCaptureRules.MaxStripCaptures));
         else if (saved) ShowToast(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
     }
 
@@ -1065,7 +1079,7 @@ public partial class EdgeStackWindow : Window
         if (!Clipboard.ContainsImage() || Clipboard.GetImage() is not { } image) { SetStatus(UiLanguage.Text("В буфере нет изображения."), true); return; }
         image.Freeze();
         Captures.Add(await _workspace.AddImageAsync(image));
-        Renumber(); InvalidatePrepared();
+        Renumber(); NoteStripGrowth(); InvalidatePrepared();
         var saved = await SaveAsync();
         await RefreshOwnedClipboardAsync();
         if (saved) ShowToast(UiLanguage.Text("Изображение добавлено."));
@@ -1734,7 +1748,7 @@ public partial class EdgeStackWindow : Window
         if (StripIsFull()) return;
         var removed = _removed.Pop();
         Captures.Insert(Math.Clamp(removed.Index, 0, Captures.Count), removed.Capture);
-        Renumber(); InvalidatePrepared(); if (await SaveAsync()) ShowToast(UiLanguage.Text("Снимок восстановлен.")); await RefreshOwnedClipboardAsync();
+        Renumber(); NoteStripGrowth(); InvalidatePrepared(); if (await SaveAsync()) ShowToast(UiLanguage.Text("Снимок восстановлен.")); await RefreshOwnedClipboardAsync();
     }
 
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
