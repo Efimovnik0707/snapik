@@ -222,7 +222,7 @@
      <controls:AppearancePicker x:Name="Appearance" HorizontalAlignment="Center"/>
     </StackPanel>
 
-    <StackPanel x:Name="Step5" Style="{StaticResource StepPanel}" Width="480" Visibility="Collapsed">
+    <StackPanel x:Name="Step5" Style="{StaticResource StepPanel}" Width="480" Margin="0" Visibility="Collapsed">
      <!-- The heading of this step belongs to the slides: it carries the name of the slide under it,
           and the tray opens the same control without the rest of the wizard. -->
      <controls:HowToSlides x:Name="HowTo"/>

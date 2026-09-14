@@ -67,6 +67,81 @@
    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="SlideProgress" Storyboard.TargetProperty="Width">
     <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:9" Value="478"/>
    </DoubleAnimationUsingKeyFrames>
+   <RectAnimationUsingKeyFrames Storyboard.TargetName="Shade2Hole" Storyboard.TargetProperty="Rect">
+    <DiscreteRectKeyFrame KeyTime="0:0:0" Value="22,40,0,0"/>
+    <DiscreteRectKeyFrame KeyTime="0:0:0.36" Value="22,40,0,0"/>
+    <SplineRectKeyFrame KeyTime="0:0:1.44" Value="22,40,100,78" KeySpline="0.25,0.1 0.25,1"/>
+   </RectAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Shade2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.36" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:0.54" Value="0.62"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Frame2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.36" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:0.54" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Frame2" Storyboard.TargetProperty="Width">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.36" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:1.44" Value="100" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Frame2" Storyboard.TargetProperty="Height">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.36" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:1.44" Value="78" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark2A" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:1.98" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark2AScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.6"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0.6"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:1.98" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark2AScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.6"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0.6"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:1.98" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark2APlaque" Storyboard.TargetProperty="MaxWidth">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:1.98" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.88" Value="140" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Strip2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:3.42" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Strip2Scale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.6"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="0.6"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.42" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Strip2Scale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.6"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="0.6"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.42" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Arrow2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:4.68" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:5.22" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Bubble2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:5.4" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:6.12" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Bubble2Move" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="8"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:5.4" Value="8"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:6.12" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S2Row2" Storyboard.TargetProperty="Opacity">
     <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0"/>
     <SplineDoubleKeyFrame KeyTime="0:0:2.07" Value="1" KeySpline="0.25,0.1 0.25,1"/>
@@ -97,6 +172,50 @@
    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="SlideProgress" Storyboard.TargetProperty="Width">
     <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:9" Value="478"/>
    </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor3" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.54" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:0.9" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor3Move" Storyboard.TargetProperty="X">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="40"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.54" Value="40"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.16" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor3Move" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="30"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.54" Value="30"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.16" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor3Scale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.52" Value="0.85" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="0.85"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.24" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor3Scale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.52" Value="0.85" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="0.85"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.24" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Shot3" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.7" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.6" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Shot3Scale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.9"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.7" Value="0.9"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.6" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Shot3Scale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.9"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.7" Value="0.9"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.6" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S3Row2" Storyboard.TargetProperty="Opacity">
     <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0"/>
     <SplineDoubleKeyFrame KeyTime="0:0:2.07" Value="1" KeySpline="0.25,0.1 0.25,1"/>
@@ -118,6 +237,121 @@
   <Storyboard x:Key="Slide4Loop" Duration="0:0:9" RepeatBehavior="Forever">
    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="SlideProgress" Storyboard.TargetProperty="Width">
     <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><LinearDoubleKeyFrame KeyTime="0:0:9" Value="478"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4Left" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.72" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:1.08" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4LeftMove" Storyboard.TargetProperty="X">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="-30"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.72" Value="-30"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.16" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4LeftMove" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="40"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.72" Value="40"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.16" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4LeftScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.52" Value="0.85" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="0.85"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.6" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4LeftScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.52" Value="0.85" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="0.85"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.6" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4Right" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.72" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:1.08" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4RightMove" Storyboard.TargetProperty="X">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="-30"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.72" Value="-30"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.16" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4RightMove" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="40"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0.72" Value="40"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.16" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4RightScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.52" Value="0.85" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="0.85"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.6" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Cursor4RightScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.52" Value="0.85" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="0.85"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.6" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ClearCards" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.78" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ClearCardsScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.78" Value="0.85" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ClearCardsScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.78" Value="0.85" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FoldPanel" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.96" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:6.12" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:7.02" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FoldPanelScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.96" Value="0.15" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:6.12" Value="0.15"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:7.02" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FoldPanelScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.96" Value="0.15" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:6.12" Value="0.15"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:7.02" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Capsule" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:4.14" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:5.94" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:6.48" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="CapsuleScale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.4"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0.4"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:4.14" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:5.94" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:6.48" Value="0.4" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="CapsuleScale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.4"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:3.6" Value="0.4"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:4.14" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+    <DiscreteDoubleKeyFrame KeyTime="0:0:5.94" Value="1"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:6.48" Value="0.4" KeySpline="0.25,0.1 0.25,1"/>
    </DoubleAnimationUsingKeyFrames>
    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="S4Row2" Storyboard.TargetProperty="Opacity">
     <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0"/>
@@ -155,13 +389,520 @@
   </StackPanel>
 
   <Border Width="480" Height="210" CornerRadius="12" Background="#12161D" BorderBrush="#2A3240" BorderThickness="1"
-          ClipToBounds="True" Margin="0,0,0,16">
+          ClipToBounds="True" Margin="0,0,0,14">
    <Grid>
     <Grid Margin="12,0">
      <controls:CaptureSceneSmall x:Name="Scene1" VerticalAlignment="Center"/>
-     <Grid x:Name="Scene2" Visibility="Collapsed"/>
-     <Grid x:Name="Scene3" Visibility="Collapsed"/>
-     <Grid x:Name="Scene4" Visibility="Collapsed"/>
+     <!-- Three captures at once: the same screen, the strip that gathers them, and one message that
+          carries the lot. The strip drawn here is a picture of the real one, not the real one. -->
+     <Grid x:Name="Scene2" Visibility="Collapsed">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" TextBlock.TextAlignment="Left">
+       <Border Width="210" Height="180" CornerRadius="8" Background="#2A3140" ClipToBounds="True">
+        <Canvas Width="210" Height="180">
+         <Border Canvas.Left="10" Canvas.Top="10" Width="190" Height="160" CornerRadius="6" Background="#E9EDF2" ClipToBounds="True">
+          <Canvas Width="190" Height="160">
+           <Border Canvas.Left="0" Canvas.Top="0" Width="190" Height="16" CornerRadius="6,6,0,0" Background="#FFFFFF" BorderBrush="#DDE2EA" BorderThickness="0,0,0,1"/>
+           <Rectangle Canvas.Left="14" Canvas.Top="28" Width="76" Height="6" RadiusX="3" RadiusY="3" Fill="#C9D0DA"/>
+           <Rectangle Canvas.Left="14" Canvas.Top="42" Width="118" Height="6" RadiusX="3" RadiusY="3" Fill="#D9DEE6"/>
+           <Border Canvas.Left="14" Canvas.Top="58" Width="162" Height="90" CornerRadius="5" Background="#FFFFFF" BorderBrush="#DDE2EA" BorderThickness="1"/>
+          </Canvas>
+         </Border>
+         <Path x:Name="Shade2" Fill="#0A0D12" Opacity="0">
+          <Path.Data>
+           <CombinedGeometry GeometryCombineMode="Exclude">
+            <CombinedGeometry.Geometry1><RectangleGeometry Rect="0,0,210,180"/></CombinedGeometry.Geometry1>
+            <CombinedGeometry.Geometry2><RectangleGeometry x:Name="Shade2Hole" Rect="22,40,0,0"/></CombinedGeometry.Geometry2>
+           </CombinedGeometry>
+          </Path.Data>
+         </Path>
+         <Rectangle x:Name="Frame2" Canvas.Left="22" Canvas.Top="40" Width="0" Height="0" Opacity="0"
+                    Stroke="{DynamicResource AccentBrush}" StrokeThickness="2"/>
+         <StackPanel x:Name="Mark2A" Canvas.Left="30" Canvas.Top="50" Orientation="Horizontal" Opacity="0" RenderTransformOrigin="0,0.5">
+          <StackPanel.RenderTransform><ScaleTransform x:Name="Mark2AScale" ScaleX="0.6" ScaleY="0.6"/></StackPanel.RenderTransform>
+          <Border CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0" VerticalAlignment="Center">
+           <TextBlock Text="A1" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="13" VerticalAlignment="Center"/>
+          </Border>
+          <Border x:Name="Mark2APlaque" MaxWidth="0" ClipToBounds="True" CornerRadius="7" Padding="0,3" Margin="4,0,0,0" VerticalAlignment="Center"
+                  Background="#F7171A20" BorderBrush="#3A424E" BorderThickness="1">
+           <TextBlock Text="Кнопку ярче" FontSize="10" Foreground="#EEF2F8" Margin="7,0"/>
+          </Border>
+         </StackPanel>
+         <Border x:Name="Strip2" Canvas.Left="118" Canvas.Top="6" Width="86" CornerRadius="10" Padding="8" Opacity="0"
+                 Background="#F5171A20" BorderBrush="#2A3240" BorderThickness="1" RenderTransformOrigin="1,0">
+          <Border.RenderTransform><ScaleTransform x:Name="Strip2Scale" ScaleX="0.6" ScaleY="0.6"/></Border.RenderTransform>
+          <StackPanel>
+           <Grid Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+             <Ellipse Width="5" Height="5" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+             <TextBlock Text="SnapBrief" FontSize="9" FontWeight="SemiBold" Foreground="#EEF2F8" VerticalAlignment="Center"/>
+             <Border CornerRadius="6" Background="#2B3440" Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center">
+              <TextBlock Text="3" FontSize="7" Foreground="#BFC8D6" LineHeight="11"/>
+             </Border>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+             <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Margin="0,0,2,0"
+                   Data="M1,3 L9,3 M3.5,3 L3.5,1.5 L6.5,1.5 L6.5,3 M2,3 L2,10 L8,10 L8,3"/>
+             <Path Width="7" Height="8" Stretch="Uniform" Fill="#BFC8D6" Margin="0,0,2,0"
+                   Data="M1,4 A1,1 0 1 1 1,6 A1,1 0 1 1 1,4 M5,4 A1,1 0 1 1 5,6 A1,1 0 1 1 5,4 M9,4 A1,1 0 1 1 9,6 A1,1 0 1 1 9,4"/>
+             <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Margin="0,0,2,0" Data="M1,6 L9,6"/>
+             <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Data="M2,3 L8,9 M8,3 L2,9"/>
+            </StackPanel>
+           </Grid>
+           <Canvas Width="70" Height="82" HorizontalAlignment="Center">
+            <Border Canvas.Top="40" Width="70" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="68" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="27" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="68" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="C" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="0" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+            <Border Canvas.Top="20" Width="70" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="68" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="27" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="68" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="B" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="1" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+            <Border Canvas.Top="0" Width="70" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="68" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="27" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="68" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="A" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="1" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+           </Canvas>
+           <Border Height="20" CornerRadius="6" Background="{DynamicResource AccentBrush}" Margin="0,6,0,0">
+            <TextBlock Text="Новый снимок" FontSize="8" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+           </Border>
+          </StackPanel>
+         </Border>
+        </Canvas>
+       </Border>
+       <Grid Width="38">
+        <Path x:Name="Arrow2" Opacity="0" Width="36" Height="18" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Data="M2,9 L30,9 M23,3 L30,9 L23,15" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2"
+              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+       </Grid>
+       <Border Width="206" Height="180" CornerRadius="8" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1" ClipToBounds="True">
+        <DockPanel>
+         <Border DockPanel.Dock="Top" Height="24" BorderBrush="#2A3240" BorderThickness="0,0,0,1" Padding="9,0">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+           <Ellipse Width="12" Height="12" Fill="#4E5A6B" VerticalAlignment="Center"/>
+           <TextBlock Text="Чат" FontSize="10" FontWeight="SemiBold" Foreground="#C6CEDA" VerticalAlignment="Center" Margin="6,0,0,0"/>
+           <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="119,0,0,0">
+            <Ellipse Width="3" Height="3" Fill="#6F7A8A" Margin="0,0,3,0"/>
+            <Ellipse Width="3" Height="3" Fill="#6F7A8A" Margin="0,0,3,0"/>
+            <Ellipse Width="3" Height="3" Fill="#6F7A8A"/>
+           </StackPanel>
+          </StackPanel>
+         </Border>
+         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Height="24" Margin="7,0,7,7">
+          <Border Width="190" CornerRadius="6" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1" Padding="8,0,4,0">
+           <Grid>
+            <TextBlock Text="Текст…" FontSize="9" Foreground="#6F7A8A" VerticalAlignment="Center"/>
+            <Border CornerRadius="4" Padding="7,2" HorizontalAlignment="Right" VerticalAlignment="Center"
+                    Background="#253B58" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
+             <TextBlock Text="Ctrl + V" FontSize="9" FontWeight="SemiBold" Foreground="#EEF2F8"/>
+            </Border>
+           </Grid>
+          </Border>
+         </StackPanel>
+         <Grid Margin="7">
+          <Border x:Name="Bubble2" Width="171" Opacity="0" VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                  CornerRadius="9,9,3,9" Background="#253B58" Padding="6" ClipToBounds="True">
+           <Border.RenderTransform><TranslateTransform x:Name="Bubble2Move" Y="8"/></Border.RenderTransform>
+           <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+             <Grid Width="49" Height="30" Margin="0,0,4,0">
+              <Border CornerRadius="4" Background="#E9EDF2" BorderBrush="#DDE2EA" BorderThickness="1"/>
+              <Border CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4">
+               <TextBlock Text="A" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="11"/>
+              </Border>
+             </Grid>
+             <Grid Width="49" Height="30" Margin="0,0,4,0">
+              <Border CornerRadius="4" Background="#E9EDF2" BorderBrush="#DDE2EA" BorderThickness="1"/>
+              <Border CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4">
+               <TextBlock Text="B" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="11"/>
+              </Border>
+             </Grid>
+             <Grid Width="49" Height="30">
+              <Border CornerRadius="4" Background="#E9EDF2" BorderBrush="#DDE2EA" BorderThickness="1"/>
+              <Border CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4">
+               <TextBlock Text="C" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="11"/>
+              </Border>
+             </Grid>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+             <TextBlock Text="Снимок A" FontSize="9" LineHeight="12" FontWeight="SemiBold" Foreground="#9AB8E8"/>
+             <TextBlock Text=" — " FontSize="9" LineHeight="12" Foreground="#EEF2F8"/>
+             <TextBlock Text="Кнопку ярче" FontSize="9" LineHeight="12" Foreground="#EEF2F8"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+             <TextBlock Text="Снимок B" FontSize="9" LineHeight="12" FontWeight="SemiBold" Foreground="#9AB8E8"/>
+             <TextBlock Text=" — " FontSize="9" LineHeight="12" Foreground="#EEF2F8"/>
+             <TextBlock Text="Убрать блок" FontSize="9" LineHeight="12" Foreground="#EEF2F8"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+             <TextBlock Text="Снимок C" FontSize="9" LineHeight="12" FontWeight="SemiBold" Foreground="#9AB8E8"/>
+             <TextBlock Text=" — " FontSize="9" LineHeight="12" Foreground="#EEF2F8"/>
+             <TextBlock Text="Как на первом" FontSize="9" LineHeight="12" Foreground="#EEF2F8"/>
+            </StackPanel>
+           </StackPanel>
+          </Border>
+         </Grid>
+        </DockPanel>
+       </Border>
+      </StackPanel>
+     </Grid>
+
+     <!-- A capture opened again: the pointer goes to the card in the strip, and the capture comes
+          back with its frame and its comments already on it. -->
+     <Grid x:Name="Scene3" Visibility="Collapsed">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" TextBlock.TextAlignment="Left">
+       <StackPanel x:Name="Shot3" Orientation="Horizontal" Opacity="0" RenderTransformOrigin="0.5,0.5">
+        <StackPanel.RenderTransform><ScaleTransform x:Name="Shot3Scale" ScaleX="0.9" ScaleY="0.9"/></StackPanel.RenderTransform>
+        <Border Width="210" Height="180" CornerRadius="8" Background="#2A3140" ClipToBounds="True">
+         <Canvas Width="210" Height="180">
+          <Border Canvas.Left="10" Canvas.Top="10" Width="190" Height="160" CornerRadius="6" Background="#E9EDF2" ClipToBounds="True">
+           <Canvas Width="190" Height="160">
+            <Border Canvas.Left="0" Canvas.Top="0" Width="190" Height="16" CornerRadius="6,6,0,0" Background="#FFFFFF" BorderBrush="#DDE2EA" BorderThickness="0,0,0,1"/>
+            <Rectangle Canvas.Left="14" Canvas.Top="28" Width="76" Height="6" RadiusX="3" RadiusY="3" Fill="#C9D0DA"/>
+            <Rectangle Canvas.Left="14" Canvas.Top="42" Width="118" Height="6" RadiusX="3" RadiusY="3" Fill="#D9DEE6"/>
+            <Border Canvas.Left="14" Canvas.Top="58" Width="162" Height="90" CornerRadius="5" Background="#FFFFFF" BorderBrush="#DDE2EA" BorderThickness="1"/>
+           </Canvas>
+          </Border>
+          <Path Fill="#0A0D12" Opacity="0.62">
+           <Path.Data>
+            <CombinedGeometry GeometryCombineMode="Exclude">
+             <CombinedGeometry.Geometry1><RectangleGeometry Rect="0,0,210,180"/></CombinedGeometry.Geometry1>
+             <CombinedGeometry.Geometry2><RectangleGeometry Rect="26,40,140,104"/></CombinedGeometry.Geometry2>
+            </CombinedGeometry>
+           </Path.Data>
+          </Path>
+          <Rectangle Canvas.Left="26" Canvas.Top="40" Width="140" Height="104" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2"/>
+          <StackPanel Canvas.Left="36" Canvas.Top="52" Orientation="Horizontal">
+           <Border CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0" VerticalAlignment="Center">
+            <TextBlock Text="A1" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="13" VerticalAlignment="Center"/>
+           </Border>
+           <Border CornerRadius="7" Padding="7,3" Margin="4,0,0,0" VerticalAlignment="Center"
+                   Background="#F7171A20" BorderBrush="#3A424E" BorderThickness="1">
+            <TextBlock Text="Кнопку ярче" FontSize="10" Foreground="#EEF2F8"/>
+           </Border>
+          </StackPanel>
+          <StackPanel Canvas.Left="36" Canvas.Top="104" Orientation="Horizontal">
+           <Border CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0" VerticalAlignment="Center">
+            <TextBlock Text="A2" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="13" VerticalAlignment="Center"/>
+           </Border>
+           <Border CornerRadius="7" Padding="7,3" Margin="4,0,0,0" VerticalAlignment="Center"
+                   Background="#F7171A20" BorderBrush="#3A424E" BorderThickness="1">
+            <TextBlock Text="Убрать блок" FontSize="10" Foreground="#EEF2F8"/>
+           </Border>
+          </StackPanel>
+         </Canvas>
+        </Border>
+        <Grid Width="38">
+         <Path Width="36" Height="18" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"
+               Data="M34,9 L6,9 M13,3 L6,9 L13,15" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2"
+               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+        </Grid>
+       </StackPanel>
+       <Grid Width="206" Height="180">
+        <Border Width="124" CornerRadius="10" Padding="8" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="#F5171A20" BorderBrush="#2A3240" BorderThickness="1">
+         <StackPanel>
+          <Grid Margin="0,0,0,6">
+           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Ellipse Width="5" Height="5" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBlock Text="SnapBrief" FontSize="9" FontWeight="SemiBold" Foreground="#EEF2F8" VerticalAlignment="Center"/>
+            <Border CornerRadius="6" Background="#2B3440" Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center">
+             <TextBlock Text="3" FontSize="7" Foreground="#BFC8D6" LineHeight="11"/>
+            </Border>
+           </StackPanel>
+           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Margin="0,0,2,0"
+                  Data="M1,3 L9,3 M3.5,3 L3.5,1.5 L6.5,1.5 L6.5,3 M2,3 L2,10 L8,10 L8,3"/>
+            <Path Width="7" Height="8" Stretch="Uniform" Fill="#BFC8D6" Margin="0,0,2,0"
+                  Data="M1,4 A1,1 0 1 1 1,6 A1,1 0 1 1 1,4 M5,4 A1,1 0 1 1 5,6 A1,1 0 1 1 5,4 M9,4 A1,1 0 1 1 9,6 A1,1 0 1 1 9,4"/>
+            <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Margin="0,0,2,0" Data="M1,6 L9,6"/>
+            <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Data="M2,3 L8,9 M8,3 L2,9"/>
+           </StackPanel>
+          </Grid>
+          <Canvas Width="108" Height="82" HorizontalAlignment="Center">
+           <Border Canvas.Top="40" Width="108" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+            <Canvas Width="106" Height="38">
+             <Rectangle Canvas.Left="6" Canvas.Top="6" Width="42" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+             <Border Canvas.Left="0" Canvas.Top="23" Width="106" Height="15" Background="#E6171A20">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+               <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                <TextBlock Text="C" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+               </Border>
+               <TextBlock Text="0" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+              </StackPanel>
+             </Border>
+            </Canvas>
+           </Border>
+           <Border Canvas.Top="20" Width="108" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+            <Canvas Width="106" Height="38">
+             <Rectangle Canvas.Left="6" Canvas.Top="6" Width="42" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+             <Border Canvas.Left="0" Canvas.Top="23" Width="106" Height="15" Background="#E6171A20">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+               <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                <TextBlock Text="B" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+               </Border>
+               <TextBlock Text="1" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+              </StackPanel>
+             </Border>
+            </Canvas>
+           </Border>
+           <Border Canvas.Top="0" Width="108" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" ClipToBounds="True">
+            <Canvas Width="104" Height="36">
+             <Rectangle Canvas.Left="6" Canvas.Top="5" Width="42" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+             <Border Canvas.Left="0" Canvas.Top="21" Width="104" Height="15" Background="#E6171A20">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+               <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                <TextBlock Text="A" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+               </Border>
+               <TextBlock Text="2" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+              </StackPanel>
+             </Border>
+            </Canvas>
+           </Border>
+          </Canvas>
+          <Border Height="20" CornerRadius="6" Background="{DynamicResource AccentBrush}" Margin="0,6,0,0">
+           <TextBlock Text="Новый снимок" FontSize="8" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+         </StackPanel>
+        </Border>
+        <Path x:Name="Cursor3" Width="12" Height="16" Stretch="Uniform" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="84,56,0,0"
+              Fill="#EEF2F8" Stroke="#171B22" StrokeThickness="1" Data="M0,0 L0,13 L3.2,10 L5.2,14 L7.2,13 L5.2,9.2 L9.4,9.2 Z"
+              RenderTransformOrigin="0,0">
+         <Path.RenderTransform>
+          <TransformGroup>
+           <ScaleTransform x:Name="Cursor3Scale"/>
+           <TranslateTransform x:Name="Cursor3Move" X="40" Y="30"/>
+          </TransformGroup>
+         </Path.RenderTransform>
+        </Path>
+       </Grid>
+      </StackPanel>
+     </Grid>
+
+     <!-- Two halves of the same strip: on the left it is emptied, on the right it is folded into the
+          capsule and opened again. The two pointers move together. -->
+     <Grid x:Name="Scene4" Visibility="Collapsed">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" TextBlock.TextAlignment="Left">
+       <Border Width="214" Height="180" CornerRadius="8" Background="#1E2430" ClipToBounds="True">
+        <Grid>
+         <Border Width="150" CornerRadius="10" Padding="8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0"
+                 Background="#F5171A20" BorderBrush="#2A3240" BorderThickness="1">
+          <StackPanel>
+           <Grid Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+             <Ellipse Width="5" Height="5" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+             <TextBlock Text="SnapBrief" FontSize="9" FontWeight="SemiBold" Foreground="#EEF2F8" VerticalAlignment="Center"/>
+             <Border CornerRadius="6" Background="#2B3440" Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center">
+              <TextBlock Text="3" FontSize="7" Foreground="#BFC8D6" LineHeight="11"/>
+             </Border>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+             <Border Width="14" Height="14" CornerRadius="4" Margin="0,0,2,0" Background="#253B58" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
+              <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1"
+                    Data="M1,3 L9,3 M3.5,3 L3.5,1.5 L6.5,1.5 L6.5,3 M2,3 L2,10 L8,10 L8,3"/>
+             </Border>
+             <Path Width="7" Height="8" Stretch="Uniform" Fill="#BFC8D6" Margin="0,0,2,0"
+                   Data="M1,4 A1,1 0 1 1 1,6 A1,1 0 1 1 1,4 M5,4 A1,1 0 1 1 5,6 A1,1 0 1 1 5,4 M9,4 A1,1 0 1 1 9,6 A1,1 0 1 1 9,4"/>
+             <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Margin="0,0,2,0" Data="M1,6 L9,6"/>
+             <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Data="M2,3 L8,9 M8,3 L2,9"/>
+            </StackPanel>
+           </Grid>
+           <Canvas x:Name="ClearCards" Width="134" Height="82" HorizontalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+            <Canvas.RenderTransform><ScaleTransform x:Name="ClearCardsScale"/></Canvas.RenderTransform>
+            <Border Canvas.Top="40" Width="134" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="132" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="52" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="115" Canvas.Top="4" Width="13" Height="13" CornerRadius="7" Background="#F2171A20">
+               <Path Width="6" Height="6" Stretch="Uniform" Stroke="#FFFFFF" StrokeThickness="1.3" Data="M1,1 L7,7 M7,1 L1,7"/>
+              </Border>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="132" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="C" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="0" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+            <Border Canvas.Top="20" Width="134" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="132" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="52" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="132" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="B" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="1" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+            <Border Canvas.Top="0" Width="134" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="132" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="52" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="132" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="A" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="2" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+           </Canvas>
+           <Border Height="20" CornerRadius="6" Background="{DynamicResource AccentBrush}" Margin="0,6,0,0">
+            <TextBlock Text="Новый снимок" FontSize="8" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+           </Border>
+          </StackPanel>
+         </Border>
+         <TextBlock Text="Очистить ленту" FontSize="9" Foreground="#8F9AAA" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10,0,0,8"/>
+         <Path x:Name="Cursor4Left" Width="12" Height="16" Stretch="Uniform" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="136,14,0,0"
+               Fill="#EEF2F8" Stroke="#171B22" StrokeThickness="1" Data="M0,0 L0,13 L3.2,10 L5.2,14 L7.2,13 L5.2,9.2 L9.4,9.2 Z"
+               RenderTransformOrigin="0,0">
+          <Path.RenderTransform>
+           <TransformGroup>
+            <ScaleTransform x:Name="Cursor4LeftScale"/>
+            <TranslateTransform x:Name="Cursor4LeftMove" X="-30" Y="40"/>
+           </TransformGroup>
+          </Path.RenderTransform>
+         </Path>
+        </Grid>
+       </Border>
+
+       <Grid Width="26"/>
+
+       <Border Width="214" Height="180" CornerRadius="8" Background="#1E2430" ClipToBounds="True">
+        <Grid>
+         <Border x:Name="FoldPanel" Width="150" CornerRadius="10" Padding="8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0"
+                 Background="#F5171A20" BorderBrush="#2A3240" BorderThickness="1" RenderTransformOrigin="1,0">
+          <Border.RenderTransform><ScaleTransform x:Name="FoldPanelScale"/></Border.RenderTransform>
+          <StackPanel>
+           <Grid Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+             <Ellipse Width="5" Height="5" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+             <TextBlock Text="SnapBrief" FontSize="9" FontWeight="SemiBold" Foreground="#EEF2F8" VerticalAlignment="Center"/>
+             <Border CornerRadius="6" Background="#2B3440" Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center">
+              <TextBlock Text="3" FontSize="7" Foreground="#BFC8D6" LineHeight="11"/>
+             </Border>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+             <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Margin="0,0,2,0"
+                   Data="M1,3 L9,3 M3.5,3 L3.5,1.5 L6.5,1.5 L6.5,3 M2,3 L2,10 L8,10 L8,3"/>
+             <Path Width="7" Height="8" Stretch="Uniform" Fill="#BFC8D6" Margin="0,0,2,0"
+                   Data="M1,4 A1,1 0 1 1 1,6 A1,1 0 1 1 1,4 M5,4 A1,1 0 1 1 5,6 A1,1 0 1 1 5,4 M9,4 A1,1 0 1 1 9,6 A1,1 0 1 1 9,4"/>
+             <Border Width="14" Height="14" CornerRadius="4" Margin="0,0,2,0" Background="#253B58" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
+              <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Data="M1,6 L9,6"/>
+             </Border>
+             <Path Width="7" Height="8" Stretch="Uniform" Stroke="#BFC8D6" StrokeThickness="1" Data="M2,3 L8,9 M8,3 L2,9"/>
+            </StackPanel>
+           </Grid>
+           <Canvas Width="134" Height="82" HorizontalAlignment="Center">
+            <Border Canvas.Top="40" Width="134" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="132" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="52" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="132" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="C" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="0" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+            <Border Canvas.Top="20" Width="134" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="132" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="52" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="132" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="B" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="1" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+            <Border Canvas.Top="0" Width="134" Height="40" CornerRadius="7" Background="#E9EDF2" BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True">
+             <Canvas Width="132" Height="38">
+              <Rectangle Canvas.Left="6" Canvas.Top="6" Width="52" Height="3" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+              <Border Canvas.Left="0" Canvas.Top="23" Width="132" Height="15" Background="#E6171A20">
+               <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                <Border Width="11" Height="11" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+                 <TextBlock Text="A" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="2" FontSize="6" Foreground="#DCE3ED" VerticalAlignment="Center" Margin="4,0,0,0"/>
+               </StackPanel>
+              </Border>
+             </Canvas>
+            </Border>
+           </Canvas>
+           <Border Height="20" CornerRadius="6" Background="{DynamicResource AccentBrush}" Margin="0,6,0,0">
+            <TextBlock Text="Новый снимок" FontSize="8" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+           </Border>
+          </StackPanel>
+         </Border>
+         <!-- Where the strip goes when it is folded: the capsule appears in the corner the panel left. -->
+         <Border x:Name="Capsule" Height="28" CornerRadius="14" Padding="5,0,9,0" Opacity="0"
+                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0"
+                 Background="#F5171A20" BorderBrush="#2A3240" BorderThickness="1" RenderTransformOrigin="1,0">
+          <Border.RenderTransform><ScaleTransform x:Name="CapsuleScale" ScaleX="0.4" ScaleY="0.4"/></Border.RenderTransform>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+           <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentBrush}">
+            <Path Width="10" Height="9" Stretch="Uniform" Stroke="#FFFFFF" StrokeThickness="1"
+                  Data="M1,3 L3,3 L4,1.5 L7,1.5 L8,3 L10,3 L10,8 L1,8 Z M5.5,5.5 A1.4,1.4 0 1 1 5.5,5.6"/>
+           </Border>
+           <TextBlock Text="Новый снимок" FontSize="9" FontWeight="SemiBold" Foreground="#EEF2F8" VerticalAlignment="Center" Margin="5,0,0,0"/>
+           <Border CornerRadius="6" Background="#2B3440" Padding="4,0" Margin="5,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="3" FontSize="7" Foreground="#BFC8D6" LineHeight="11"/>
+           </Border>
+           <Path Width="8" Height="5" Stretch="None" Margin="5,0,0,0" VerticalAlignment="Center" Data="M1,4 L4,1 L7,4"
+                 Stroke="#BFC8D6" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+          </StackPanel>
+         </Border>
+         <TextBlock Text="Свернуть в капсулу" FontSize="9" Foreground="#8F9AAA" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10,0,0,8"/>
+         <Path x:Name="Cursor4Right" Width="12" Height="16" Stretch="Uniform" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="152,14,0,0"
+               Fill="#EEF2F8" Stroke="#171B22" StrokeThickness="1" Data="M0,0 L0,13 L3.2,10 L5.2,14 L7.2,13 L5.2,9.2 L9.4,9.2 Z"
+               RenderTransformOrigin="0,0">
+          <Path.RenderTransform>
+           <TransformGroup>
+            <ScaleTransform x:Name="Cursor4RightScale"/>
+            <TranslateTransform x:Name="Cursor4RightMove" X="-30" Y="40"/>
+           </TransformGroup>
+          </Path.RenderTransform>
+         </Path>
+        </Grid>
+       </Border>
+      </StackPanel>
+     </Grid>
     </Grid>
     <!-- How much of the loop is left, along the bottom edge of the scene. -->
     <Grid Height="2" VerticalAlignment="Bottom">
@@ -171,7 +912,7 @@
    </Grid>
   </Border>
 
-  <Grid Margin="0,0,0,16">
+  <Grid Margin="0,0,0,2">
    <StackPanel x:Name="SlideCaptions1">
     <Grid Style="{StaticResource CaptionRow}">
      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>

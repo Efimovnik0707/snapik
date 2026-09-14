@@ -125,7 +125,9 @@ internal static class UiLanguage
         // The words inside the drawings: they are read, so they are translated, and the smoke run
         // sweeps them together with the rest of the wizard.
         ["Кнопку ярче"] = "Make the button brighter", ["Убрать блок"] = "Drop this block",
-        ["Чат"] = "Chat", ["Снимок A"] = "Capture A", ["Текст…"] = "Message…",
+        ["Чат"] = "Chat", ["Снимок A"] = "Capture A", ["Снимок B"] = "Capture B", ["Снимок C"] = "Capture C",
+        ["Как на первом"] = "Same as the first one", ["Текст…"] = "Message…",
+        ["Свернуть в капсулу"] = "Collapse into the capsule",
         ["Чтобы всегда был под рукой"] = "So it is always at hand",
         ["Два переключателя — и SnapBrief не придётся искать."] = "Two switches, and you will never have to look for SnapBrief.",
         ["Открывать при включении компьютера"] = "Open when the computer starts",
