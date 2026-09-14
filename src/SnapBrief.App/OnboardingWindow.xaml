@@ -1,4 +1,4 @@
-﻿<Window x:Class="SnapBrief.App.OnboardingWindow"
+<Window x:Class="SnapBrief.App.OnboardingWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:SnapBrief.App" xmlns:controls="clr-namespace:SnapBrief.App.Controls"
  Title="SnapBrief" Width="620" Height="600" ResizeMode="CanMinimize" WindowStyle="None" AllowsTransparency="False" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextBrush}"
  WindowStartupLocation="Manual" ShowInTaskbar="True" Topmost="False">
@@ -46,7 +46,9 @@
    <Setter Property="Padding" Value="16"/><Setter Property="Margin" Value="0,0,0,12"/>
   </Style>
   <!-- The switch of the startup entry: the same state a checkbox carried, said the way the rest of
-       Windows says it. The knob slides rather than jumps, so the change is seen where it happens. -->
+       Windows says it. The knob slides rather than jumps, so the change is seen where it happens.
+       The knob takes the tone of the text and not white: the track of a switch that is off is a
+       faint line under a light theme, and a white knob on it would not be seen at all. -->
   <Style x:Key="WizardToggle" TargetType="ToggleButton">
    <Setter Property="Width" Value="40"/><Setter Property="Height" Value="22"/>
    <Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -55,7 +57,7 @@
      <ControlTemplate TargetType="ToggleButton">
       <Grid Background="Transparent">
        <Border x:Name="Track" CornerRadius="11" Background="{DynamicResource DividerBrush}"/>
-       <Border x:Name="Knob" Width="18" Height="18" CornerRadius="9" Background="#FFFFFF" HorizontalAlignment="Left" Margin="2,0,0,0">
+       <Border x:Name="Knob" Width="18" Height="18" CornerRadius="9" Background="{DynamicResource TextBrush}" HorizontalAlignment="Left" Margin="2,0,0,0">
         <Border.RenderTransform><TranslateTransform x:Name="KnobMove"/></Border.RenderTransform>
        </Border>
       </Grid>
