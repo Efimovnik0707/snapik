@@ -13,7 +13,6 @@ namespace SnapBrief.App.Controls;
 /// </summary>
 public sealed class CommentListEntry : Border
 {
-    private static readonly Brush HoverBrush = new SolidColorBrush(Color.FromRgb(41, 48, 58));
     private readonly TextBlock _badge = new()
     {
         Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeights.Bold,
@@ -21,19 +20,21 @@ public sealed class CommentListEntry : Border
     };
     private readonly TextBlock _text = new()
     {
-        Foreground = new SolidColorBrush(Color.FromRgb(238, 242, 248)), FontSize = 12,
-        TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center
+        FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center
     };
     private readonly TextBlock _relation = new()
     {
-        Foreground = new SolidColorBrush(Color.FromRgb(143, 154, 170)), FontSize = 11,
-        Margin = new Thickness(0, 3, 0, 0), Visibility = Visibility.Collapsed
+        FontSize = 11, Margin = new Thickness(0, 3, 0, 0), Visibility = Visibility.Collapsed
     };
     private bool _current;
 
     public CommentListEntry(Guid annotationId)
     {
         AnnotationId = annotationId;
+        // The row is painted by the theme, and by resource and not by colour: the theme may change
+        // while the panel is open, and the text of a row would keep the tone of the old one.
+        _text.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        _relation.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
         Padding = new Thickness(7, 6, 7, 6);
         Margin = new Thickness(0, 0, 0, 4);
         CornerRadius = new CornerRadius(9);
@@ -52,7 +53,7 @@ public sealed class CommentListEntry : Border
         row.Children.Add(badgeHost);
         row.Children.Add(lines);
         Child = row;
-        MouseEnter += (_, _) => { if (!_current) Background = HoverBrush; };
+        MouseEnter += (_, _) => { if (!_current) SetResourceReference(BackgroundProperty, "HoverBrush"); };
         MouseLeave += (_, _) => { if (!_current) Background = Brushes.Transparent; };
         MouseLeftButtonUp += (_, e) => { Activated?.Invoke(this, EventArgs.Empty); e.Handled = true; };
     }

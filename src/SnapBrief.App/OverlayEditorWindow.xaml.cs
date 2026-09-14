@@ -1084,14 +1084,17 @@ public partial class OverlayEditorWindow : Window
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var title = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) };
+        var capKey = new TextBlock { Text = key, FontSize = 11, FontWeight = FontWeights.SemiBold };
+        capKey.SetResourceReference(ForegroundProperty, "TextMutedBrush");
         var capsule = new Border
         {
             Padding = new Thickness(6, 1, 6, 1), CornerRadius = new CornerRadius(5),
-            Background = new SolidColorBrush(Color.FromRgb(37, 44, 54)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(70, 83, 102)), BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock { Text = key, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(185, 195, 209)) }
+            Child = capKey
         };
+        capsule.SetResourceReference(BackgroundProperty, "ElevatedBrush");
+        capsule.SetResourceReference(BorderBrushProperty, "ElevatedLineBrush");
         Grid.SetColumn(capsule, 1);
         row.Children.Add(title);
         row.Children.Add(capsule);
@@ -1208,15 +1211,17 @@ public partial class OverlayEditorWindow : Window
         _addNoteButton.Width = _addNoteButton.Height = _addNoteButton.MinWidth = 24;
         _addNoteButton.Padding = new Thickness(0);
         _addNoteButton.Margin = new Thickness(0);
-        _addNoteButton.Background = new SolidColorBrush(Color.FromArgb(244, 23, 26, 32));
+        _addNoteButton.SetResourceReference(BackgroundProperty, "SurfaceBrush");
         _addNoteButton.Visibility = Visibility.Collapsed;
         _addNoteButton.ToolTip = UiLanguage.Text("Добавить комментарий");
-        _addNoteButton.Content = new System.Windows.Shapes.Path
+        var addNoteGlyph = new System.Windows.Shapes.Path
         {
-            Stroke = new SolidColorBrush(Color.FromRgb(217, 222, 232)), StrokeThickness = 1.6,
+            StrokeThickness = 1.6,
             StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
             Data = Geometry.Parse("M5,0 L5,10 M0,5 L10,5")
         };
+        addNoteGlyph.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "TextBrush");
+        _addNoteButton.Content = addNoteGlyph;
         System.Windows.Automation.AutomationProperties.SetName(_addNoteButton, UiLanguage.Text("Добавить комментарий"));
         _addNoteButton.Click += (_, _) => { if (Surface.SelectedAnnotation is { } selected) OpenAnnotationNote(selected); };
         CaptureHandleLayer.Children.Add(_addNoteButton);
@@ -1328,9 +1333,11 @@ public partial class OverlayEditorWindow : Window
         var note = new TextBox
         {
             MinHeight = 32, MaxHeight = 78, Text = annotation.Note, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
-            Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), CaretBrush = Brushes.White,
+            Background = Brushes.Transparent, BorderThickness = new Thickness(0),
             Padding = new Thickness(7, 5, 7, 5), Tag = annotation
         };
+        note.SetResourceReference(ForegroundProperty, "TextBrush");
+        note.SetResourceReference(System.Windows.Controls.Primitives.TextBoxBase.CaretBrushProperty, "TextBrush");
         // The selection of the text takes the accent thinned down, and takes it as a resource: the
         // accent may change while the pill is open.
         note.SetResourceReference(System.Windows.Controls.Primitives.TextBoxBase.SelectionBrushProperty, "AccentSoftBrush");
@@ -1343,10 +1350,11 @@ public partial class OverlayEditorWindow : Window
         note.GotKeyboardFocus += (_, _) => Surface.SelectAnnotation(annotation.Id);
         var closePath = new System.Windows.Shapes.Path
         {
-            Stroke = new SolidColorBrush(Color.FromRgb(217, 222, 232)), StrokeThickness = 1.5,
+            StrokeThickness = 1.5,
             StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
             Data = Geometry.Parse("M1,1 L9,9 M9,1 L1,9")
         };
+        closePath.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "TextBrush");
         var close = new Button
         {
             Width = 27, Height = 27, Padding = new Thickness(7), Background = Brushes.Transparent,
@@ -1361,9 +1369,10 @@ public partial class OverlayEditorWindow : Window
         var border = new Border
         {
             Tag = annotation.Id, Width = 200, MinHeight = 40, Padding = new Thickness(6), CornerRadius = new CornerRadius(13),
-            Background = new SolidColorBrush(Color.FromArgb(244, 23, 26, 32)), Child = grid,
+            Child = grid,
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 14, ShadowDepth = 4, Opacity = .42 }
         };
+        border.SetResourceReference(BackgroundProperty, "SurfaceBrush");
         void Expand(bool expanded)
         {
             if (expanded)
