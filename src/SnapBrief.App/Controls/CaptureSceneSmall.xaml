@@ -1,0 +1,188 @@
+<UserControl x:Class="SnapBrief.App.Controls.CaptureSceneSmall"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="454" Height="180" Focusable="False" IsTabStop="False">
+ <UserControl.Resources>
+  <!-- One drawing for the first step and for the first slide: they show the same thing with the same
+       timings and differ only in what is around them. Nine seconds, the frame of the capture, two
+       marks that type themselves out, and the message that lands in the chat; the picture is done at
+       6.12 s and holds for the rest of the loop. The numbers come from the reference, where one per
+       cent of the loop is 0.09 s. -->
+  <Storyboard x:Key="SceneLoop" Duration="0:0:9" RepeatBehavior="Forever">
+   <RectAnimationUsingKeyFrames Storyboard.TargetName="ShadeHole" Storyboard.TargetProperty="Rect">
+    <DiscreteRectKeyFrame KeyTime="0:0:0" Value="26,40,0,0"/>
+    <DiscreteRectKeyFrame KeyTime="0:0:0.36" Value="26,40,0,0"/>
+    <SplineRectKeyFrame KeyTime="0:0:1.44" Value="26,40,140,104" KeySpline="0.25,0.1 0.25,1"/>
+   </RectAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Shade" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:0.36" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:0.54" Value="0.62"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Frame" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:0.36" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:0.54" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Frame" Storyboard.TargetProperty="Width">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:0.36" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:1.44" Value="140" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Frame" Storyboard.TargetProperty="Height">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:0.36" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:1.44" Value="104" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark1" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:1.98" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark1Scale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.6"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0.6"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:1.98" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark1Scale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.6"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.62" Value="0.6"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:1.98" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <!-- The plaque is cut off on the right as it grows, and the badge beside it does not move: what
+        grows is the room the text is allowed, not the text. -->
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark1Plaque" Storyboard.TargetProperty="MaxWidth">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:1.98" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:2.88" Value="140" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark2" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:3.42" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark2Scale" Storyboard.TargetProperty="ScaleX">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.6"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="0.6"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.42" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark2Scale" Storyboard.TargetProperty="ScaleY">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0.6"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.06" Value="0.6"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:3.42" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Mark2Plaque" Storyboard.TargetProperty="MaxWidth">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:3.42" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:4.32" Value="140" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="SceneArrow" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:4.68" Value="0"/>
+    <LinearDoubleKeyFrame KeyTime="0:0:5.22" Value="1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="Bubble" Storyboard.TargetProperty="Opacity">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/><DiscreteDoubleKeyFrame KeyTime="0:0:5.4" Value="0"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:6.12" Value="1" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+   <DoubleAnimationUsingKeyFrames Storyboard.TargetName="BubbleMove" Storyboard.TargetProperty="Y">
+    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="8"/><DiscreteDoubleKeyFrame KeyTime="0:0:5.4" Value="8"/>
+    <SplineDoubleKeyFrame KeyTime="0:0:6.12" Value="0" KeySpline="0.25,0.1 0.25,1"/>
+   </DoubleAnimationUsingKeyFrames>
+  </Storyboard>
+ </UserControl.Resources>
+
+ <!-- The step around this one centres its text; inside the drawing every line is read from the left. -->
+ <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" TextBlock.TextAlignment="Left">
+  <!-- The screen the capture is taken from: a page, the frame the user drags, and the two marks. -->
+  <Border Width="210" Height="180" CornerRadius="8" Background="#2A3140" ClipToBounds="True">
+   <Canvas Width="210" Height="180">
+    <Border Canvas.Left="10" Canvas.Top="10" Width="190" Height="160" CornerRadius="6" Background="#E9EDF2" ClipToBounds="True">
+     <Canvas Width="190" Height="160">
+      <Border Canvas.Left="0" Canvas.Top="0" Width="190" Height="16" CornerRadius="6,6,0,0" Background="#FFFFFF" BorderBrush="#DDE2EA" BorderThickness="0,0,0,1"/>
+      <Rectangle Canvas.Left="14" Canvas.Top="28" Width="76" Height="6" RadiusX="3" RadiusY="3" Fill="#C9D0DA"/>
+      <Rectangle Canvas.Left="14" Canvas.Top="42" Width="118" Height="6" RadiusX="3" RadiusY="3" Fill="#D9DEE6"/>
+      <Border Canvas.Left="14" Canvas.Top="58" Width="162" Height="90" CornerRadius="5" Background="#FFFFFF" BorderBrush="#DDE2EA" BorderThickness="1"/>
+     </Canvas>
+    </Border>
+    <!-- The shade is a layer with a hole in it, and the hole is the frame: in the reference it is a
+         shadow of the frame itself, which WPF has no equivalent of. -->
+    <Path x:Name="Shade" Fill="#0A0D12" Opacity="0">
+     <Path.Data>
+      <CombinedGeometry GeometryCombineMode="Exclude">
+       <CombinedGeometry.Geometry1><RectangleGeometry Rect="0,0,210,180"/></CombinedGeometry.Geometry1>
+       <CombinedGeometry.Geometry2><RectangleGeometry x:Name="ShadeHole" Rect="26,40,0,0"/></CombinedGeometry.Geometry2>
+      </CombinedGeometry>
+     </Path.Data>
+    </Path>
+    <Rectangle x:Name="Frame" Canvas.Left="26" Canvas.Top="40" Width="0" Height="0" Opacity="0"
+               Stroke="{DynamicResource AccentBrush}" StrokeThickness="2"/>
+    <StackPanel x:Name="Mark1" Canvas.Left="36" Canvas.Top="52" Orientation="Horizontal" Opacity="0" RenderTransformOrigin="0,0.5">
+     <StackPanel.RenderTransform><ScaleTransform x:Name="Mark1Scale" ScaleX="0.6" ScaleY="0.6"/></StackPanel.RenderTransform>
+     <Border CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0" VerticalAlignment="Center">
+      <TextBlock Text="A1" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="13" VerticalAlignment="Center"/>
+     </Border>
+     <Border x:Name="Mark1Plaque" MaxWidth="0" ClipToBounds="True" CornerRadius="7" Padding="0,3" Margin="4,0,0,0" VerticalAlignment="Center"
+             Background="#F7171A20" BorderBrush="#3A424E" BorderThickness="1">
+      <TextBlock Text="Кнопку ярче" FontSize="10" Foreground="#EEF2F8" Margin="7,0"/>
+     </Border>
+    </StackPanel>
+    <StackPanel x:Name="Mark2" Canvas.Left="36" Canvas.Top="104" Orientation="Horizontal" Opacity="0" RenderTransformOrigin="0,0.5">
+     <StackPanel.RenderTransform><ScaleTransform x:Name="Mark2Scale" ScaleX="0.6" ScaleY="0.6"/></StackPanel.RenderTransform>
+     <Border CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0" VerticalAlignment="Center">
+      <TextBlock Text="A2" FontSize="8" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="13" VerticalAlignment="Center"/>
+     </Border>
+     <Border x:Name="Mark2Plaque" MaxWidth="0" ClipToBounds="True" CornerRadius="7" Padding="0,3" Margin="4,0,0,0" VerticalAlignment="Center"
+             Background="#F7171A20" BorderBrush="#3A424E" BorderThickness="1">
+      <TextBlock Text="Убрать блок" FontSize="10" Foreground="#EEF2F8" Margin="7,0"/>
+     </Border>
+    </StackPanel>
+   </Canvas>
+  </Border>
+
+  <Grid Width="38">
+   <Path x:Name="SceneArrow" Opacity="0" Width="36" Height="18" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"
+         Data="M2,9 L30,9 M23,3 L30,9 L23,15" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2"
+         StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+  </Grid>
+
+  <!-- Where the capture lands: one message carrying the picture and the comments under it. -->
+  <Border Width="206" Height="180" CornerRadius="8" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1" ClipToBounds="True">
+   <DockPanel>
+    <Border DockPanel.Dock="Top" Height="24" BorderBrush="#2A3240" BorderThickness="0,0,0,1" Padding="9,0">
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <Ellipse Width="12" Height="12" Fill="#4E5A6B" VerticalAlignment="Center"/>
+      <TextBlock Text="Чат" FontSize="10" FontWeight="SemiBold" Foreground="#C6CEDA" VerticalAlignment="Center" Margin="6,0,0,0"/>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="119,0,0,0">
+       <Ellipse Width="3" Height="3" Fill="#6F7A8A" Margin="0,0,3,0"/>
+       <Ellipse Width="3" Height="3" Fill="#6F7A8A" Margin="0,0,3,0"/>
+       <Ellipse Width="3" Height="3" Fill="#6F7A8A"/>
+      </StackPanel>
+     </StackPanel>
+    </Border>
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Height="24" Margin="7,0,7,7">
+     <Border Width="190" CornerRadius="6" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1" Padding="8,0,4,0">
+      <Grid>
+       <TextBlock Text="Текст…" FontSize="9" Foreground="#6F7A8A" VerticalAlignment="Center"/>
+       <Border CornerRadius="4" Padding="7,2" HorizontalAlignment="Right" VerticalAlignment="Center"
+               Background="#253B58" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1">
+        <TextBlock Text="Ctrl + V" FontSize="9" FontWeight="SemiBold" Foreground="#EEF2F8"/>
+       </Border>
+      </Grid>
+     </Border>
+    </StackPanel>
+    <Grid Margin="7">
+     <Border x:Name="Bubble" Width="171" Opacity="0" VerticalAlignment="Bottom" HorizontalAlignment="Right"
+             CornerRadius="9,9,3,9" Background="#253B58" Padding="6" ClipToBounds="True">
+      <Border.RenderTransform><TranslateTransform x:Name="BubbleMove" Y="8"/></Border.RenderTransform>
+      <StackPanel>
+       <Border Height="50" CornerRadius="5" Background="#E9EDF2" BorderBrush="#DDE2EA" BorderThickness="1" ClipToBounds="True" Margin="0,0,0,4">
+        <Canvas Width="157" Height="48">
+         <Rectangle Canvas.Left="8" Canvas.Top="7" Width="63" Height="4" RadiusX="2" RadiusY="2" Fill="#C9D0DA"/>
+         <Rectangle Canvas.Left="8" Canvas.Top="15" Width="94" Height="4" RadiusX="2" RadiusY="2" Fill="#D9DEE6"/>
+         <Border Canvas.Left="8" Canvas.Top="25" Width="141" Height="17" CornerRadius="4" Background="#FFFFFF" BorderBrush="#DDE2EA" BorderThickness="1"/>
+         <Border Canvas.Left="8" Canvas.Top="14" CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0">
+          <TextBlock Text="A1" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="11"/>
+         </Border>
+         <Border Canvas.Left="8" Canvas.Top="33" CornerRadius="7" Background="{DynamicResource AccentBrush}" Padding="5,0">
+          <TextBlock Text="A2" FontSize="6" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="11"/>
+         </Border>
+        </Canvas>
+       </Border>
+       <TextBlock Text="Снимок A" FontSize="9" LineHeight="12" FontWeight="SemiBold" Foreground="#9AB8E8"/>
+       <TextBlock x:Name="BubbleLine1" FontSize="9" LineHeight="12" Foreground="#EEF2F8"/>
+       <TextBlock x:Name="BubbleLine2" FontSize="9" LineHeight="12" Foreground="#EEF2F8"/>
+      </StackPanel>
+     </Border>
+    </Grid>
+   </DockPanel>
+  </Border>
+ </StackPanel>
+</UserControl>

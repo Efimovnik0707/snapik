@@ -20,6 +20,9 @@ public partial class App : Application
         base.OnStartup(e);
         var options = LaunchOptions.Parse(e.Args);
         StartupTrace.Write(options, "App.OnStartup entered");
+        // Before any window exists: the shortcuts of the installer carry the same identity, and the
+        // taskbar only puts the pinned icon and the running window together when the two agree.
+        TaskbarPinService.NameThisProcess(message => StartupTrace.Write(options, message));
         if (!options.SmokeTest)
         {
             _singleInstance = new Mutex(true, "Local\\SnapBrief.Desktop.SingleInstance", out var createdNew);

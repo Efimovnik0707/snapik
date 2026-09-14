@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using WinForms = System.Windows.Forms;
 
 namespace SnapBrief.App;
 
@@ -17,12 +18,17 @@ namespace SnapBrief.App;
 public partial class OnboardingWindow : Window
 {
     /// <summary>Bumping this shows the wizard again to everyone who has already seen the older one.</summary>
-    internal const int CurrentVersion = 2;
-    private const int StepCount = 4;
+    internal const int CurrentVersion = 3;
+    private const int StepCount = 5;
     private readonly HotkeySettings _settings;
     // The tray opens the slides alone: no language, no shortcut, no steps, one "Done" button.
     private readonly bool _howToOnly;
     private string _appliedCaptureId;
+    // The free combination the chip of step 2 offers, or null while nothing refuses the current one.
+    private string? _suggestedCaptureId;
+    // The theme and the accent the wizard opened with, to go back to if the user skips the setup.
+    private readonly string _openedTheme;
+    private readonly string _openedAccent;
     private string _language;
     private int _step;
 
@@ -50,13 +56,22 @@ public partial class OnboardingWindow : Window
         _language = SuggestedLanguage(settingsFileExists, settings, CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
         InitializeComponent();
         CaptureField.HotkeyId = settings.CaptureId;
-        CaptureField.HotkeyChanged += (_, _) => { ErrorText.Visibility = Visibility.Collapsed; HowTo.KeyLabel = HotkeySettings.Find(CaptureField.HotkeyId).Label; };
-        HowTo.KeyLabel = HotkeySettings.Find(settings.CaptureId).Label;
+        CaptureField.HotkeyChanged += (_, _) =>
+        {
+            ErrorText.Visibility = Visibility.Collapsed;
+            RefreshCaptureConflict();
+        };
+        // The look the wizard was opened with: "Skip setup" puts it back, whatever step 4 was playing
+        // with, and the candidate carries what is on screen at the end.
+        _openedTheme = settings.Theme;
+        _openedAccent = settings.AccentId;
+        Appearance.SelectedTheme = settings.Theme;
+        Appearance.SelectedAccent = settings.AccentId;
         RussianSegment.Checked += (_, _) => SelectLanguage("ru");
         EnglishSegment.Checked += (_, _) => SelectLanguage("en");
         // The slides from the tray hide the startup step, and reading the registry for a step nobody
         // sees puts an error in the log (and the "unavailable" line on that hidden step) for nothing.
-        if (!howToOnly) LoadStartupState();
+        if (!howToOnly) { LoadStartupState(); LoadPinState(); }
         if (howToOnly) StartButton.Content = UiLanguage.Text("Готово", _language);
         ShowStep(howToOnly ? StepCount - 1 : 0);
         ApplyLanguage(_language);
@@ -67,11 +82,37 @@ public partial class OnboardingWindow : Window
         Loaded += (_, _) => { Activate(); if (_step == StepCount - 1) HowTo.Focus(); };
     }
 
+    /// <summary>
+    /// The wizard opens on the monitor the user is on, not on the primary one, and never taller than
+    /// the working area of that monitor. It is done here rather than in Loaded: the handle the scale
+    /// of the monitor is read through exists by now, and the window has not been drawn yet.
+    /// </summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        try
+        {
+            var monitor = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
+            var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+            var topLeft = transform.Transform(new Point(monitor.Left, monitor.Top));
+            var area = transform.Transform(new Point(monitor.Width, monitor.Height));
+            MaxHeight = Math.Max(MinimumUsefulHeight, area.Y - 40);
+            var height = Math.Min(Height, MaxHeight);
+            Left = topLeft.X + (area.X - Width) / 2;
+            Top = topLeft.Y + (area.Y - height) / 2;
+        }
+        catch (Exception ex) { Trace?.Invoke($"Onboarding placement: {ex}"); }
+    }
+
+    /// <summary>Below this the wizard would be a strip of chrome; the content scrolls instead.</summary>
+    private const double MinimumUsefulHeight = 360;
+
     // The window can go away without any button: the cross, Alt+F4, the taskbar, "Get started".
     // Every one of them counts as "seen", and every one of them has to release the loop of step 4 —
     // stopping it is not enough, the clock it left on this window has to be removed as well.
     protected override void OnClosed(EventArgs e)
     {
+        WelcomeScene.Halt();
         HowTo.Stop();
         MarkPassed?.Invoke();
         base.OnClosed(e);
@@ -117,8 +158,11 @@ public partial class OnboardingWindow : Window
         EnglishSegment.IsChecked = language == "en";
         UiLanguage.Apply(this, language);
         CaptureField.ApplyLanguage(language);
+        WelcomeScene.ApplyLanguage(language);
+        Appearance.ApplyLanguage(language);
         HowTo.ApplyLanguage(language);
         RefreshStepCaption();
+        RefreshCaptureConflict();
     }
 
     internal void GoToStep(int index) => ShowStep(index);
@@ -133,26 +177,34 @@ public partial class OnboardingWindow : Window
     {
         _step = Math.Clamp(index, 0, StepCount - 1);
         ErrorText.Visibility = Visibility.Collapsed;
-        var panels = new[] { Step1, Step2, Step3, Step4 };
+        var panels = new[] { Step1, Step2, Step3, Step4, Step5 };
         for (var i = 0; i < panels.Length; i++) panels[i].Visibility = i == _step ? Visibility.Visible : Visibility.Collapsed;
         var last = _step == StepCount - 1;
+        // The switch is asked for once and belongs to the first step alone; it is held by its own
+        // visibility rather than by the panel around it, so that the slides from the tray hide it too.
+        LanguageToggle.Visibility = _step == 0 ? Visibility.Visible : Visibility.Collapsed;
         BackButton.Visibility = _step == 0 ? Visibility.Collapsed : Visibility.Visible;
         NextButton.Visibility = last ? Visibility.Collapsed : Visibility.Visible;
         StartButton.Visibility = last ? Visibility.Visible : Visibility.Collapsed;
         NextButton.IsDefault = !last;
         StartButton.IsDefault = last;
         RefreshStepCaption();
+        NextButton.IsEnabled = true;
+        RefreshCaptureConflict();
         // The slides only run while their step is on screen, and they take the focus with them, so
-        // the arrows reach them however the step was arrived at.
+        // the arrows reach them however the step was arrived at. The scene of the first step is the
+        // same: a loop nobody is looking at keeps repainting a hidden panel.
+        if (_step == 0) WelcomeScene.Play();
+        else WelcomeScene.Halt();
         if (last) { HowTo.Start(); HowTo.Focus(); }
         else HowTo.Stop();
         if (!_howToOnly) return;
         // Everything the tray does not need: the wizard is only the slides here, and its one button
         // says "Done" instead of "Get started".
-        LanguageToggle.Visibility = Visibility.Collapsed;
         BackButton.Visibility = Visibility.Collapsed;
         NextButton.Visibility = Visibility.Collapsed;
         StepText.Visibility = Visibility.Collapsed;
+        SkipLink.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>
@@ -175,6 +227,43 @@ public partial class OnboardingWindow : Window
         base.OnPreviewKeyDown(e);
     }
 
+    /// <summary>
+    /// What the shortcut of the step is refused for, as the Russian key of the message, or null when
+    /// nothing refuses it. The rules are the shared ones (W0-8); the wizard only asks them.
+    /// </summary>
+    private string? CaptureRefusal()
+    {
+        var id = CaptureField.HotkeyId;
+        if (HotkeyRules.TryParseCustom(id, out var modifiers, out var virtualKey) &&
+            HotkeyRules.IsSystemReserved((ModifierKeys)modifiers, virtualKey))
+            return "Это сочетание занято Windows";
+        return HotkeyRules.SameGesture(id, _settings.FullscreenSaveId) ? "Уже занято" : null;
+    }
+
+    // The refusal is shown under the field, "Next" stops until it is gone, and a free combination is
+    // offered beside it, so that the user is never left to invent one.
+    private void RefreshCaptureConflict()
+    {
+        var refusal = CaptureRefusal();
+        CaptureConflictText.Text = refusal is null ? string.Empty : UiLanguage.Text(refusal, _language);
+        CaptureConflictText.Visibility = refusal is null ? Visibility.Collapsed : Visibility.Visible;
+        _suggestedCaptureId = refusal is null ? null : HotkeyRules.SuggestFree([_settings.FullscreenSaveId, _settings.PasteId]);
+        SuggestChipText.Text = _suggestedCaptureId is null
+            ? string.Empty
+            : string.Format(UiLanguage.Text("Предложить: {0}", _language), HotkeySettings.Find(_suggestedCaptureId).Label);
+        SuggestChip.Visibility = _suggestedCaptureId is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_step == 1) NextButton.IsEnabled = refusal is null;
+    }
+
+    private void OnSuggestFreeShortcut(object sender, MouseButtonEventArgs e)
+    {
+        if (_suggestedCaptureId is null) return;
+        // The field reports what the user records, never what is written into it, so the refusal is
+        // asked about again here.
+        CaptureField.HotkeyId = _suggestedCaptureId;
+        RefreshCaptureConflict();
+    }
+
     private void RefreshStepCaption() =>
         StepText.Text = string.Format(UiLanguage.Text("Шаг {0} из {1}", _language), _step + 1, StepCount);
 
@@ -195,7 +284,11 @@ public partial class OnboardingWindow : Window
     // Only the three fields the wizard owns are new; everything else travels from the file it was
     // opened with, and the strip merges the candidate into the file as it is at that moment.
     private HotkeySettings Candidate(string captureId) =>
-        _settings with { CaptureId = captureId, Language = _language, OnboardingVersion = CurrentVersion };
+        _settings with
+        {
+            CaptureId = captureId, Language = _language, OnboardingVersion = CurrentVersion,
+            Theme = Appearance.SelectedTheme, AccentId = Appearance.SelectedAccent
+        };
 
     // The shortcut is applied when the user leaves its step and again at the finish: the wizard has
     // no "cancel", so what is on screen is what the settings file gets.
@@ -211,6 +304,44 @@ public partial class OnboardingWindow : Window
         }
         _appliedCaptureId = captureId;
         return true;
+    }
+
+    // What the card says before anything is pressed: the icon may be on the taskbar already (then the
+    // button has nothing to do), or this machine may have no way of putting it there (then the three
+    // lines take the place of the button straight away).
+    private void LoadPinState()
+    {
+        try
+        {
+            if (TaskbarPinService.IsPinned()) { ShowPinned(); return; }
+            if (!TaskbarPinService.CanTry()) ShowPinInstructions();
+        }
+        catch (Exception ex) { Trace?.Invoke($"Onboarding pin state: {ex}"); }
+    }
+
+    private async void OnPinToTaskbar(object sender, RoutedEventArgs e)
+    {
+        PinButton.IsEnabled = false;
+        var result = await TaskbarPinService.TryPinAsync(Trace);
+        PinButton.IsEnabled = true;
+        if (result is TaskbarPinService.PinResult.Pinned or TaskbarPinService.PinResult.AlreadyPinned) ShowPinned();
+        else ShowPinInstructions();
+    }
+
+    private void ShowPinned()
+    {
+        PinButton.Visibility = Visibility.Collapsed;
+        PinInstructions.Visibility = Visibility.Collapsed;
+        PinDone.Visibility = Visibility.Visible;
+        PinSubtitle.Text = UiLanguage.Text("Готово: иконка SnapBrief теперь на панели задач", _language);
+        PinSubtitle.SetResourceReference(ForegroundProperty, "PinnedBrush");
+    }
+
+    private void ShowPinInstructions()
+    {
+        PinButton.Visibility = Visibility.Collapsed;
+        PinDone.Visibility = Visibility.Collapsed;
+        PinInstructions.Visibility = Visibility.Visible;
     }
 
     private bool ApplyStartup()
@@ -229,7 +360,7 @@ public partial class OnboardingWindow : Window
 
     private void OnNext(object sender, RoutedEventArgs e)
     {
-        if (_step == 1 && !Apply(CaptureField.HotkeyId)) return;
+        if (_step == 1 && (CaptureRefusal() is not null || !Apply(CaptureField.HotkeyId))) return;
         ShowStep(_step + 1);
     }
 
@@ -245,11 +376,27 @@ public partial class OnboardingWindow : Window
     // user typed and left behind.
     private void OnSkip(object sender, RoutedEventArgs e)
     {
-        if (!_howToOnly) Apply(_appliedCaptureId);
+        if (!_howToOnly)
+        {
+            // Step 4 repaints the application as it is clicked, so skipping the setup has to paint it
+            // back: what was tried out was never chosen.
+            Appearance.SelectedTheme = _openedTheme;
+            Appearance.SelectedAccent = _openedAccent;
+            ThemeService.Apply(_openedTheme, _openedAccent);
+            Apply(_appliedCaptureId);
+        }
         Close();
     }
 
+    // The text at the bottom left and the cross in the header mean the same thing and do the same
+    // thing; the text says it in words, and says it on every step.
+    private void OnSkipLink(object sender, MouseButtonEventArgs e) => OnSkip(sender, e);
+
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
+
+    // "Minimize" is the window, not the wizard: nothing is applied and nothing is marked, the window
+    // goes to the taskbar and comes back from it.
+    private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     // Smoke probe: the wizard is built, laid out, translated both ways and walked through every
     // step, so a broken template or a string without an English pair fails the run.

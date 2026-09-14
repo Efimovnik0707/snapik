@@ -288,14 +288,33 @@ public static class SmokeTestRunner
             return window;
         });
         if (onboarding.Step != 0 || onboarding.SelectedLanguage != "ru" ||
-            onboarding.Step1.Visibility != Visibility.Visible || onboarding.Step4.Visibility != Visibility.Collapsed)
+            onboarding.Step1.Visibility != Visibility.Visible || onboarding.Step5.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("The wizard must come back to its first step after the probe.");
-        if (onboarding.HowTo.KeyLabel != HotkeySettings.Find(restoredSettings.CaptureId).Label ||
-            onboarding.CaptureField.HotkeyId != restoredSettings.CaptureId)
-            throw new InvalidOperationException("The wizard must open on the shortcut the settings hold, and the hint must show it.");
-        onboarding.GoToStep(3);
-        if (onboarding.Step4.Visibility != Visibility.Visible || onboarding.StepText.Text != "Шаг 4 из 4")
+        if (onboarding.CaptureField.HotkeyId != restoredSettings.CaptureId)
+            throw new InvalidOperationException("The wizard must open on the shortcut the settings hold.");
+        onboarding.GoToStep(4);
+        if (onboarding.Step5.Visibility != Visibility.Visible || onboarding.StepText.Text != "Шаг 5 из 5")
             throw new InvalidOperationException("The last step must show the animated hint and its own number.");
+        // The three levels of the window: the language belongs to the first step alone, and the way
+        // out belongs to every step.
+        if (onboarding.LanguageToggle.Visibility == Visibility.Visible || onboarding.SkipLink.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("The language switch must be hidden away from the first step, and \"Skip setup\" must stay on every step.");
+        onboarding.GoToStep(0);
+        if (onboarding.LanguageToggle.Visibility != Visibility.Visible || onboarding.SkipLink.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("The first step must show the language switch, and \"Skip setup\" with it.");
+        // Step 2 asks the shared rules before the registration does: the combination the fullscreen
+        // save already holds is refused where it is typed, "Next" stops, and a free one is offered.
+        onboarding.CaptureField.HotkeyId = restoredSettings.FullscreenSaveId;
+        onboarding.GoToStep(1);
+        if (onboarding.CaptureConflictText.Visibility != Visibility.Visible || onboarding.NextButton.IsEnabled ||
+            onboarding.SuggestChip.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("A shortcut the fullscreen save already holds must be refused on the step, with a free one offered beside it.");
+        onboarding.CaptureField.HotkeyId = restoredSettings.CaptureId;
+        onboarding.GoToStep(1);
+        if (onboarding.CaptureConflictText.Visibility == Visibility.Visible || !onboarding.NextButton.IsEnabled ||
+            onboarding.CaptureField.KeyCaps.Children.Count != HotkeySettings.Find(restoredSettings.CaptureId).Label.Split(" + ").Length)
+            throw new InvalidOperationException("The shortcut of the settings must pass the step and show one capsule per key.");
+        onboarding.GoToStep(0);
         // The wizard is built for the checks above and belongs to nobody afterwards; the probe cannot
         // close it itself, because those checks read the window it returns.
         onboarding.Close();
@@ -829,10 +848,11 @@ public static class SmokeTestRunner
                 return window;
             });
             var hidden = wizard.Step1.Visibility != Visibility.Visible && wizard.Step2.Visibility != Visibility.Visible &&
-                wizard.Step3.Visibility != Visibility.Visible && wizard.LanguageToggle.Visibility != Visibility.Visible &&
+                wizard.Step3.Visibility != Visibility.Visible && wizard.Step4.Visibility != Visibility.Visible &&
+                wizard.LanguageToggle.Visibility != Visibility.Visible &&
                 wizard.BackButton.Visibility != Visibility.Visible && wizard.NextButton.Visibility != Visibility.Visible &&
-                wizard.StepText.Visibility != Visibility.Visible;
-            var shown = wizard.Step4.Visibility == Visibility.Visible && wizard.StartButton.Visibility == Visibility.Visible &&
+                wizard.StepText.Visibility != Visibility.Visible && wizard.SkipLink.Visibility != Visibility.Visible;
+            var shown = wizard.Step5.Visibility == Visibility.Visible && wizard.StartButton.Visibility == Visibility.Visible &&
                 wizard.HowTo.Slide == 0;
             var titled = wizard.SelectedLanguage == language && wizard.StartButton.Content as string == caption;
             wizard.Close();
@@ -884,10 +904,10 @@ public static class SmokeTestRunner
             window.UpdateLayout();
             return window;
         });
-        var label = wizard.HowTo.KeyLabel;
+        var label = HotkeySettings.Find(wizard.CaptureField.HotkeyId).Label;
         wizard.Close();
         if (label != HotkeySettings.Choices[0].Label)
-            throw new InvalidOperationException("A wizard opened on a shortcut without a modifier must show the default one on its capsule.");
+            throw new InvalidOperationException("A wizard opened on a shortcut without a modifier must show the default one in its field.");
     }
 
     // The arrow keys of the slides: they move one slide, they are eaten so that nothing else reads
@@ -930,11 +950,14 @@ public static class SmokeTestRunner
     {
         foreach (var (russian, english) in new[]
         {
-            ("Добро пожаловать", "Welcome"), ("Язык интерфейса", "Interface language"),
-            ("Первый снимок", "The first capture"), ("Обведи место", "Frame the spot"),
-            ("Снимки остаются в ленте", "The captures stay in the strip"), ("Слайд {0} из {1}", "Slide {0} of {1}"),
-            ("SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями.",
-                "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.")
+            ("Выдели. Прокомментируй. Отправь.", "Select. Comment. Send."), ("Язык интерфейса", "Interface language"),
+            ("Пропустить настройку", "Skip setup"), ("Свернуть", "Minimize"),
+            ("Чтобы всегда был под рукой", "So it is always at hand"), ("Закреплено", "Pinned"),
+            ("Как будет выглядеть", "How it will look"), ("Слайд {0} из {1}", "Slide {0} of {1}"),
+            ("Снимок с комментариями", "A capture with comments"), ("Лента снимков", "The capture strip"),
+            ("Выдели область экрана, которую хочешь снять.", "Select the part of the screen you want to capture."),
+            ("Скриншотер для одной задачи: несколько снимков с заметками — и сразу в дело. В чат с ИИ, в мессенджер, в письмо, в задачу.",
+                "A screenshot tool for one task: a few captures with notes, ready to use straight away. In an AI chat, a messenger, an email, a ticket.")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"The wizard is not translated both ways for \"{russian}\".");

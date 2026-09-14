@@ -136,26 +136,55 @@ internal static class UiLanguage
         ["Буфер не обновлён"] = "The clipboard was not updated",
         ["Шаг {0} из {1}"] = "Step {0} of {1}",
         ["Назад"] = "Back", ["Далее"] = "Next", ["Начать"] = "Get started", ["Пропустить"] = "Skip",
-        ["Добро пожаловать"] = "Welcome", ["Язык интерфейса"] = "Interface language",
-        ["SnapBrief делает скриншот по твоей клавише и кладёт его в чат с ИИ вместе с комментариями."] =
-            "SnapBrief takes a screenshot on your own shortcut and puts it into an AI chat together with your comments.",
+        // The wizard is an ordinary window now: it has a header of its own, and the header minimizes.
+        ["Свернуть"] = "Minimize", ["Пропустить настройку"] = "Skip setup",
+        ["Выдели. Прокомментируй. Отправь."] = "Select. Comment. Send.",
+        ["Скриншотер для одной задачи: несколько снимков с заметками — и сразу в дело. В чат с ИИ, в мессенджер, в письмо, в задачу."] =
+            "A screenshot tool for one task: a few captures with notes, ready to use straight away. In an AI chat, a messenger, an email, a ticket.",
+        // The words inside the drawings: they are read, so they are translated, and the smoke run
+        // sweeps them together with the rest of the wizard.
+        ["Кнопку ярче"] = "Make the button brighter", ["Убрать блок"] = "Drop this block",
+        ["Чат"] = "Chat", ["Снимок A"] = "Capture A", ["Снимок B"] = "Capture B", ["Снимок C"] = "Capture C",
+        ["Как на первом"] = "Same as the first one", ["Текст…"] = "Message…",
+        ["Свернуть в капсулу"] = "Collapse into the capsule",
+        ["Чтобы всегда был под рукой"] = "So it is always at hand",
+        ["Два переключателя — и SnapBrief не придётся искать."] = "Two switches, and you will never have to look for SnapBrief.",
+        ["Открывать при включении компьютера"] = "Open when the computer starts",
+        ["Ждёт в углу экрана, клавиша работает сразу"] = "It waits in the corner of the screen, the shortcut works right away",
+        ["Иконка внизу экрана, клик открывает ленту"] = "An icon at the bottom of the screen, a click opens the strip",
+        ["Закрепить"] = "Pin", ["Закреплено"] = "Pinned",
+        ["Готово: иконка SnapBrief теперь на панели задач"] = "Done: the SnapBrief icon is on the taskbar now",
+        ["Открой «Пуск»"] = "Open Start", ["Нажми правой кнопкой на SnapBrief"] = "Right-click SnapBrief",
+        ["Выбери «Закрепить на панели задач»"] = "Choose \"Pin to taskbar\"",
+        ["Уже занято"] = "Already taken", ["Это сочетание занято Windows"] = "Windows keeps this shortcut",
+        ["Предложить: {0}"] = "Suggest: {0}",
+        ["Как будет выглядеть"] = "How it will look",
+        ["Нажми — окно сразу перекрасится. Поменять можно в любой момент в настройках."] =
+            "Click and the window repaints at once. You can change it any time in the settings.",
+        ["Язык интерфейса"] = "Interface language",
         ["Клавиша для снимка"] = "The capture shortcut",
         ["Нажми на поле и введи своё сочетание"] = "Click the field and press your own shortcut",
-        ["Запуск и панель задач"] = "Startup and the taskbar",
-        ["Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»"] =
-            "To keep the strip within reach, pin SnapBrief: open Start, right-click SnapBrief and choose \"Pin to taskbar\"",
-        ["Повторный запуск ярлыка не открывает второе окно, а показывает ленту."] = "Starting the shortcut again does not open a second window, it shows the strip.",
         ["Автозапуск недоступен"] = "Autostart is unavailable",
         ["Закрепить на панели задач"] = "Pin to taskbar",
-        ["Как пользоваться"] = "How it works", ["Нажми клавишу"] = "Press the shortcut", ["Выдели область"] = "Select an area",
-        ["Добавь комментарии"] = "Add comments", ["Вставь в чат: Ctrl+V"] = "Paste into the chat: Ctrl+V",
-        ["Первый снимок"] = "The first capture", ["Ещё снимок"] = "Another capture",
-        ["До 10 снимков в ленте"] = "Up to 10 captures in the strip", ["Один Ctrl+V отправляет все"] = "One Ctrl+V sends them all",
-        ["Обведи место"] = "Frame the spot", ["Поставь отметку"] = "Drop a marker",
-        ["Напиши, что не так"] = "Write what is wrong", ["В чат уходит текст с номерами"] = "The chat gets the text with the numbers",
-        ["Снимки остаются в ленте"] = "The captures stay in the strip", ["Отправленные помечены"] = "The sent ones are marked",
-        ["Новый снимок снова яркий"] = "A new capture is bright again", ["«Очистить», когда закончил"] = "\"Clear\" when you are done",
-        ["Предыдущий слайд"] = "Previous slide", ["Следующий слайд"] = "Next slide", ["Слайд {0} из {1}"] = "Slide {0} of {1}"
+        ["Как пользоваться"] = "How it works",
+        ["Предыдущий слайд"] = "Previous slide", ["Следующий слайд"] = "Next slide", ["Слайд {0} из {1}"] = "Slide {0} of {1}",
+        // The four slides: the name of each and the lines that appear under it one after another.
+        ["Снимок с комментариями"] = "A capture with comments", ["Несколько снимков сразу"] = "Several captures at once",
+        ["Открыть снимок снова"] = "Open a capture again", ["Лента снимков"] = "The capture strip",
+        ["Выдели область экрана, которую хочешь снять."] = "Select the part of the screen you want to capture.",
+        ["Поставь комментарии там, где удобно — сколько нужно."] = "Put comments wherever you like, as many as you need.",
+        ["Ctrl+V в любой чат — картинка и комментарии вставятся вместе."] = "Ctrl+V into any chat, and the picture and the comments go in together.",
+        ["Сделай несколько снимков подряд."] = "Take several captures one after another.",
+        ["Все они собираются в ленту у края экрана."] = "They all gather into the strip at the edge of the screen.",
+        ["У каждого — свои комментарии."] = "Each one keeps its own comments.",
+        ["Ctrl+V — и вся пачка уходит одним сообщением."] = "Ctrl+V, and the whole batch goes as one message.",
+        ["Каждый снимок хранит свои комментарии."] = "Every capture keeps its own comments.",
+        ["Клик по снимку в ленте — он открывается снова, всё на месте."] = "Click a capture in the strip and it opens again, with everything in place.",
+        ["Поправь и закрой — изменения останутся в ленте."] = "Fix it and close it, the changes stay in the strip.",
+        ["Лента живёт, пока открыта. Закроешь — снимки удалятся."] = "The strip lives while it is open. Close it and the captures are gone.",
+        ["Сохранить — «Сохранить пакет…», или включи автосохранение в папку."] = "To keep them, use \"Save package…\", or switch on auto-saving to a folder.",
+        ["Мешает — сверни в капсулу, клик разворачивает обратно."] = "In the way? Collapse it into the capsule, a click opens it again.",
+        ["Лишний снимок — крестик. Всё сразу — «Очистить»."] = "One capture too many: the cross. All of them: \"Clear\"."
     };
     /// <summary>Every English value, for the smoke check that no two Russian keys share one: the way
     /// back (English to Russian) is a search by value, and a duplicate would answer with the wrong key.</summary>

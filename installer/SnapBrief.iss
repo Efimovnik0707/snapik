@@ -59,9 +59,14 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "build-info.json,*.pdb"
 
 [Icons]
-Name: "{group}\SnapBrief"; Filename: "{app}\SnapBrief.exe"
+; Both shortcuts carry the identity the application names itself with at startup
+; (TaskbarPinService.AppUserModelId). Without it the pinned icon and the running window are two
+; different applications to the taskbar, and a shortcut started from the desktop gets a button of
+; its own beside the pinned one. The shortcut in the Start menu is also what the pinning API reads
+; the identity from, so it has to be there and it has to agree.
+Name: "{group}\SnapBrief"; Filename: "{app}\SnapBrief.exe"; AppUserModelID: "YesWorkflow.SnapBrief"
 Name: "{group}\{cm:UninstallProgram,SnapBrief}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\SnapBrief"; Filename: "{app}\SnapBrief.exe"; Tasks: desktopicon
+Name: "{autodesktop}\SnapBrief"; Filename: "{app}\SnapBrief.exe"; AppUserModelID: "YesWorkflow.SnapBrief"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\SnapBrief.exe"; Description: "{cm:LaunchProgram,SnapBrief}"; Flags: nowait postinstall skipifsilent
