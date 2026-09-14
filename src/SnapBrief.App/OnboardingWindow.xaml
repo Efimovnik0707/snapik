@@ -9,7 +9,6 @@
   <WindowChrome CaptionHeight="0" GlassFrameThickness="0" ResizeBorderThickness="0" CornerRadius="0"/>
  </WindowChrome.WindowChrome>
  <Window.Resources>
-  <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#EEF2F8"/></Style>
   <!-- One layout for every step: the same width, the same heading, the same buttons. The styles are
        local to the wizard on purpose - the shared dictionary is the light theme, and this window is dark. -->
   <Style x:Key="StepPanel" TargetType="StackPanel">
@@ -31,9 +30,48 @@
    <Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#6F7A8A"/>
    <Setter Property="Cursor" Value="Hand"/><Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
-  <Style x:Key="StepBodyText" TargetType="TextBlock">
-   <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="#EEF2F8"/>
-   <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,10"/>
+  <!-- One card per promise of the step: an icon, what it does, and the one control that does it. -->
+  <Style x:Key="StepCard" TargetType="Border">
+   <Setter Property="Background" Value="#1B212B"/><Setter Property="BorderBrush" Value="#33404F"/>
+   <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="12"/>
+   <Setter Property="Padding" Value="16"/><Setter Property="Margin" Value="0,0,0,12"/>
+  </Style>
+  <!-- The switch of the startup entry: the same state a checkbox carried, said the way the rest of
+       Windows says it. The knob slides rather than jumps, so the change is seen where it happens. -->
+  <Style x:Key="WizardToggle" TargetType="ToggleButton">
+   <Setter Property="Width" Value="40"/><Setter Property="Height" Value="22"/>
+   <Setter Property="Cursor" Value="Hand"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ToggleButton">
+      <Grid Background="Transparent">
+       <Border x:Name="Track" CornerRadius="11" Background="#39424F"/>
+       <Border x:Name="Knob" Width="18" Height="18" CornerRadius="9" Background="#FFFFFF" HorizontalAlignment="Left" Margin="2,0,0,0">
+        <Border.RenderTransform><TranslateTransform x:Name="KnobMove"/></Border.RenderTransform>
+       </Border>
+      </Grid>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsChecked" Value="True">
+        <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Trigger.EnterActions>
+         <BeginStoryboard>
+          <Storyboard><DoubleAnimation Storyboard.TargetName="KnobMove" Storyboard.TargetProperty="X" To="18" Duration="0:0:0.12"/></Storyboard>
+         </BeginStoryboard>
+        </Trigger.EnterActions>
+        <Trigger.ExitActions>
+         <BeginStoryboard>
+          <Storyboard><DoubleAnimation Storyboard.TargetName="KnobMove" Storyboard.TargetProperty="X" To="0" Duration="0:0:0.12"/></Storyboard>
+         </BeginStoryboard>
+        </Trigger.ExitActions>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="Track" Property="Opacity" Value="0.45"/>
+        <Setter TargetName="Knob" Property="Opacity" Value="0.45"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
   </Style>
   <Style x:Key="WizardButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
    <Setter Property="Height" Value="34"/><Setter Property="MinHeight" Value="34"/><Setter Property="MinWidth" Value="96"/>
@@ -106,55 +144,26 @@
     </StackPanel>
 
     <StackPanel x:Name="Step3" Style="{StaticResource StepPanel}" Visibility="Collapsed">
-     <TextBlock Text="Запуск и панель задач" Style="{StaticResource StepTitle}"/>
-     <CheckBox x:Name="StartupBox" Content="{local:UiText Запускать с Windows}" Margin="0,0,0,22"/>
-     <!-- Shown only when the startup entry cannot be read or written: a checkbox that is grey for no
-          visible reason looks like a bug. -->
-     <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" Style="{StaticResource StepSubtitle}" Visibility="Collapsed" Margin="24,-14,0,20"/>
-     <!-- Windows does not let an application pin itself to the taskbar, so the step shows the manual
-          path instead of opening a folder: Start, right-click on SnapBrief, "Pin to taskbar". Shapes
-          only, no bitmaps, and no animation - the moving picture lives on the next step. -->
-     <Viewbox Stretch="Uniform" Width="360" Height="132" HorizontalAlignment="Left" Margin="0,0,0,16">
-      <Canvas Width="360" Height="132">
-       <Rectangle Canvas.Left="0" Canvas.Top="108" Width="360" Height="24" RadiusX="6" RadiusY="6" Fill="#1B212B"/>
-       <Rectangle Canvas.Left="118" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
-       <Rectangle Canvas.Left="140" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
-       <Rectangle Canvas.Left="162" Canvas.Top="113" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#2C3746"/>
-       <Rectangle Canvas.Left="14" Canvas.Top="113" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
-       <Rectangle Canvas.Left="24" Canvas.Top="113" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
-       <Rectangle Canvas.Left="14" Canvas.Top="123" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
-       <Rectangle Canvas.Left="24" Canvas.Top="123" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#8F9AAA"/>
-       <Border Canvas.Left="8" Canvas.Top="8" Width="176" Height="96" CornerRadius="10" Background="#1B212B" BorderBrush="#33404F" BorderThickness="1">
-        <StackPanel Margin="12,10,0,0">
-         <Rectangle Width="96" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,0,0,10"/>
-         <Border Height="22" Width="148" CornerRadius="5" HorizontalAlignment="Left" Background="{DynamicResource AccentSoftBrush}">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="7,0,0,0">
-           <Ellipse Width="10" Height="10" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-           <Rectangle Width="70" Height="7" RadiusX="3" RadiusY="3" Fill="#8F9AAA" VerticalAlignment="Center"/>
-          </StackPanel>
-         </Border>
-         <Rectangle Width="82" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="0,10,0,0"/>
-        </StackPanel>
+     <TextBlock Text="Чтобы всегда был под рукой" Style="{StaticResource StepTitle}"/>
+     <TextBlock Text="Два переключателя — и SnapBrief не придётся искать." Style="{StaticResource StepSubtitle}"/>
+     <Border Style="{StaticResource StepCard}">
+      <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Border Width="40" Height="40" CornerRadius="10" Background="#253B58">
+        <Path Width="20" Height="20" Stretch="None" Data="M10,2 A8,8 0 1 1 4.3,4.3 M10,2 L10,7 M10,2 L6,4"
+              Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
        </Border>
-       <Border Canvas.Left="150" Canvas.Top="34" Width="184" Height="70" CornerRadius="8" Background="#222A35" BorderBrush="#3A4553" BorderThickness="1">
-        <StackPanel Margin="6,5,6,0">
-         <Rectangle Width="104" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="6,6,0,7"/>
-         <Border Height="20" CornerRadius="4" Background="#2E3A49">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
-           <Path Width="11" Height="13" Stretch="Uniform" Fill="#EEF2F8" VerticalAlignment="Center" Margin="0,0,6,0"
-                 Data="M3,0 L9,0 L8,1.6 L8,5 L11,7.6 L11,8.8 L6.6,8.8 L6.6,13 L5.4,13 L5.4,8.8 L1,8.8 L1,7.6 L4,5 L4,1.6 Z"/>
-           <TextBlock Text="Закрепить на панели задач" FontSize="10" Foreground="#EEF2F8" VerticalAlignment="Center"/>
-          </StackPanel>
-         </Border>
-         <Rectangle Width="88" Height="7" RadiusX="3" RadiusY="3" Fill="#2C3746" HorizontalAlignment="Left" Margin="6,7,0,0"/>
-        </StackPanel>
-       </Border>
-       <Ellipse Canvas.Left="146" Canvas.Top="56" Width="9" Height="9" Fill="{DynamicResource AccentBrush}" Opacity="0.9"/>
-       <Path Canvas.Left="142" Canvas.Top="52" Fill="#EEF2F8" Stroke="#171B22" StrokeThickness="1" Data="M0,0 L0,13 L3.2,10 L5.2,14 L7.2,13 L5.2,9.2 L9.4,9.2 Z"/>
-      </Canvas>
-     </Viewbox>
-     <TextBlock Text="Чтобы лента всегда была под рукой, закрепи SnapBrief: открой Пуск, нажми правой кнопкой на SnapBrief и выбери «Закрепить на панели задач»" Style="{StaticResource StepBodyText}"/>
-     <TextBlock Text="Повторный запуск ярлыка не открывает второе окно, а показывает ленту." Style="{StaticResource StepSubtitle}"/>
+       <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,14,0">
+        <TextBlock Text="Открывать при включении компьютера" FontSize="14" FontWeight="SemiBold" Foreground="#EEF2F8" TextWrapping="Wrap"/>
+        <TextBlock Text="Ждёт в углу экрана, клавиша работает сразу" FontSize="12" Foreground="#8F9AAA" TextWrapping="Wrap" Margin="0,3,0,0"/>
+        <!-- Shown only when the startup entry cannot be read or written: a switch that is grey for no
+             visible reason looks like a bug. -->
+        <TextBlock x:Name="StartupUnavailableText" Text="Автозапуск недоступен" FontSize="12" Foreground="#FF9B95" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,6,0,0"/>
+       </StackPanel>
+       <ToggleButton x:Name="StartupBox" Grid.Column="2" Style="{StaticResource WizardToggle}" VerticalAlignment="Center"
+                     AutomationProperties.Name="{local:UiText Открывать при включении компьютера}"/>
+      </Grid>
+     </Border>
     </StackPanel>
 
     <StackPanel x:Name="Step4" Style="{StaticResource StepPanel}" Width="520" Visibility="Collapsed">

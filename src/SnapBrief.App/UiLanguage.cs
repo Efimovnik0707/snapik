@@ -126,6 +126,10 @@ internal static class UiLanguage
         // sweeps them together with the rest of the wizard.
         ["Кнопку ярче"] = "Make the button brighter", ["Убрать блок"] = "Drop this block",
         ["Чат"] = "Chat", ["Снимок A"] = "Capture A", ["Текст…"] = "Message…",
+        ["Чтобы всегда был под рукой"] = "So it is always at hand",
+        ["Два переключателя — и SnapBrief не придётся искать."] = "Two switches, and you will never have to look for SnapBrief.",
+        ["Открывать при включении компьютера"] = "Open when the computer starts",
+        ["Ждёт в углу экрана, клавиша работает сразу"] = "It waits in the corner of the screen, the shortcut works right away",
         ["Уже занято"] = "Already taken", ["Это сочетание занято Windows"] = "Windows keeps this shortcut",
         ["Предложить: {0}"] = "Suggest: {0}",
         ["Как будет выглядеть"] = "How it will look",
