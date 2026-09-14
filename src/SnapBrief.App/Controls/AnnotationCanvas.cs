@@ -608,10 +608,10 @@ public sealed class AnnotationCanvas : FrameworkElement
                 case EditorTool.Blur:
                     // The preview of a blur that is still being drawn shows the shape it will take.
                     DrawBoxShape(dc, new SolidColorBrush(Color.FromArgb(54, 255, 255, 255)),
-                        new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), item.Shape, rect, scale);
+                        AccentPalette.Pen(1.5), item.Shape, rect, scale);
                     break;
                 case EditorTool.Crop:
-                    dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(24, 47, 140, 255)), new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5) { DashStyle = DashStyles.Dash }, rect);
+                    dc.DrawRectangle(AccentPalette.Wash(24), new Pen(AccentPalette.Brush, 1.5) { DashStyle = DashStyles.Dash }, rect);
                     break;
                 case EditorTool.Text:
                     // The mark being typed is drawn by the text box on top of it, not here.
@@ -629,7 +629,7 @@ public sealed class AnnotationCanvas : FrameworkElement
 
         if (drawLabel && !string.IsNullOrEmpty(item.Label))
         {
-            var badgeBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255));
+            var badgeBrush = AccentPalette.Brush;
             var badge = BadgeOf(item, target);
             // A badge dragged away from its mark keeps one hair line back to it.
             if (item.NoteOffset is not null)
@@ -661,9 +661,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             var bottomRight = Map(bounds.BottomRight);
             var selectedRect = new Rect(topLeft, bottomRight);
 
-            dc.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromRgb(49, 92, 245)), 1) { DashStyle = DashStyles.Dash }, selectedRect);
+            dc.DrawRectangle(null, new Pen(AccentPalette.Brush, 1) { DashStyle = DashStyles.Dash }, selectedRect);
             foreach (var corner in ResizeGeometry.Corners(selectedRect))
-                dc.DrawRectangle(Brushes.White, new Pen(new SolidColorBrush(Color.FromRgb(47, 140, 255)), 1.5), new Rect(corner.X - 4, corner.Y - 4, 8, 8));
+                dc.DrawRectangle(Brushes.White, AccentPalette.Pen(1.5), new Rect(corner.X - 4, corner.Y - 4, 8, 8));
         }
     }
 

@@ -1592,7 +1592,7 @@ public partial class EdgeStackWindow : Window
             {
                 Kind = i == 0 ? EditorTool.Rectangle : EditorTool.Arrow,
                 Points = [new Point(650, 360), new Point(980, 520)],
-                Color = Color.FromRgb(47, 140, 255), Thickness = 4,
+                Color = OverlayEditorWindow.DefaultAnnotationColor, Thickness = 4,
                 Note = i == 0 ? "Увеличить кнопку" : "Перенести пункт выше"
             });
             Captures.Add(capture);

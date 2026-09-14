@@ -140,7 +140,7 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
 
         if (!string.IsNullOrEmpty(displayLabel))
         {
-            var badgeBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255));
+            var badgeBrush = AccentPalette.Brush;
             var badge = ExportBadge(item, displayLabel, width, height, offsetY);
             // The pill the user dragged moved this badge: the picture the agent receives shows the
             // same place, with one hair line back to the mark.

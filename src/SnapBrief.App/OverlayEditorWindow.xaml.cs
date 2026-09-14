@@ -730,7 +730,7 @@ public partial class OverlayEditorWindow : Window
         {
             Kind = EditorTool.Arrow,
             Points = [new Point(source.Image.PixelWidth * .2, source.Image.PixelHeight * .2), new Point(source.Image.PixelWidth * .55, source.Image.PixelHeight * .48)],
-            Color = Color.FromRgb(47, 140, 255),
+            Color = DefaultAnnotationColor,
             Thickness = 4
         };
         capture.Annotations.Add(annotation);
@@ -1328,8 +1328,11 @@ public partial class OverlayEditorWindow : Window
         {
             MinHeight = 32, MaxHeight = 78, Text = annotation.Note, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
             Background = Brushes.Transparent, Foreground = Brushes.White, BorderThickness = new Thickness(0), CaretBrush = Brushes.White,
-            SelectionBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255)), Padding = new Thickness(7, 5, 7, 5), Tag = annotation
+            Padding = new Thickness(7, 5, 7, 5), Tag = annotation
         };
+        // The selection of the text takes the accent thinned down, and takes it as a resource: the
+        // accent may change while the pill is open.
+        note.SetResourceReference(System.Windows.Controls.Primitives.TextBoxBase.SelectionBrushProperty, "AccentSoftBrush");
         note.TextChanged += (_, _) =>
         {
             if (_settingUp) return;

@@ -13,8 +13,6 @@ namespace SnapBrief.App.Controls;
 /// </summary>
 public sealed class CommentListEntry : Border
 {
-    private static readonly Brush BadgeBrush = new SolidColorBrush(Color.FromRgb(47, 140, 255));
-    private static readonly Brush CurrentBrush = new SolidColorBrush(Color.FromArgb(56, 47, 140, 255));
     private static readonly Brush HoverBrush = new SolidColorBrush(Color.FromRgb(41, 48, 58));
     private readonly TextBlock _badge = new()
     {
@@ -43,7 +41,7 @@ public sealed class CommentListEntry : Border
         Cursor = Cursors.Hand;
         var badgeHost = new Border
         {
-            Width = 25, Height = 25, CornerRadius = new CornerRadius(13), Background = BadgeBrush,
+            Width = 25, Height = 25, CornerRadius = new CornerRadius(13), Background = AccentPalette.Brush,
             Child = _badge, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 8, 0)
         };
         var lines = new StackPanel();
@@ -78,7 +76,14 @@ public sealed class CommentListEntry : Border
     public bool IsCurrent
     {
         get => _current;
-        set { _current = value; Background = value ? CurrentBrush : Brushes.Transparent; }
+        // The row of the note the hand is on takes the accent thinned down, as a resource and not as
+        // a colour: the accent can change while the panel is open, and the row has to follow it.
+        set
+        {
+            _current = value;
+            if (value) SetResourceReference(BackgroundProperty, "AccentSoftBrush");
+            else Background = Brushes.Transparent;
+        }
     }
 
     public event EventHandler? Activated;
