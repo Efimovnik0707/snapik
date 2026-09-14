@@ -1,51 +1,66 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 
 namespace SnapBrief.App;
 
 /// <summary>
-/// Swaps the accent dictionary in the application resources. The windows read the accent through
-/// DynamicResource, so replacing the dictionary repaints them without rebuilding anything. Only the
-/// dark theme exists in this phase; the parameter is kept so the call sites already pass it.
+/// Swaps the two dictionaries the look of the application is made of: the palette of the theme and
+/// the accent. The windows read both through DynamicResource, so replacing a dictionary repaints
+/// them without rebuilding anything and without a restart. Neither call saves anything: the owner of
+/// the settings writes the pair it wants kept.
 /// </summary>
 internal static class ThemeService
 {
     internal const string DefaultTheme = "dark";
     internal const string DefaultAccent = "blue";
+    internal static IReadOnlyList<string> Themes { get; } = ["dark", "light", "glass", "night", "sunset", "sea", "dawn"];
     // Placeholder accents until the palettes from the designer arrive.
     internal static IReadOnlyList<string> Accents { get; } = ["blue", "teal", "violet", "coral"];
+    private static ResourceDictionary? _theme;
     private static ResourceDictionary? _accent;
 
     internal static string CurrentTheme { get; private set; } = DefaultTheme;
     internal static string CurrentAccent { get; private set; } = DefaultAccent;
 
-    internal static ResourceDictionary Load(string? accentId) =>
-        new() { Source = new Uri($"Themes/Accents/{FileName(accentId)}.xaml", UriKind.Relative) };
+    /// <summary>
+    /// The palette of a theme, read without applying it: the cards of the gallery show the theme
+    /// they stand for while another one is on screen.
+    /// </summary>
+    internal static ResourceDictionary LoadTheme(string? themeId) =>
+        new() { Source = new Uri($"Themes/Palettes/{FileName(NormalizeTheme(themeId))}.xaml", UriKind.Relative) };
+
+    internal static ResourceDictionary LoadAccent(string? accentId) =>
+        new() { Source = new Uri($"Themes/Accents/{FileName(Normalize(accentId))}.xaml", UriKind.Relative) };
 
     internal static void Apply(string? theme, string? accentId)
     {
         if (Application.Current is not { } application) return;
-        var dictionary = Load(accentId);
         var merged = application.Resources.MergedDictionaries;
-        // The dictionary merged from App.xaml is the one replaced on the first call.
-        var index = _accent is not null
-            ? merged.IndexOf(_accent)
-            : merged.ToList().FindIndex(entry => entry.Source?.OriginalString.Contains("/Accents/", StringComparison.OrdinalIgnoreCase) == true);
-        if (index >= 0) merged[index] = dictionary; else merged.Add(dictionary);
-        _accent = dictionary;
-        // Phase 1 has one theme: anything stored in the settings resolves to "dark".
-        CurrentTheme = DefaultTheme;
+        Swap(merged, LoadTheme(theme), ref _theme, "/Palettes/");
+        Swap(merged, LoadAccent(accentId), ref _accent, "/Accents/");
+        CurrentTheme = NormalizeTheme(theme);
         CurrentAccent = Normalize(accentId);
     }
+
+    // The dictionary merged from App.xaml is the one replaced on the first call; every call after
+    // that replaces the one this service put there, so the list never grows a second palette.
+    private static void Swap(Collection<ResourceDictionary> merged, ResourceDictionary dictionary, ref ResourceDictionary? current, string folder)
+    {
+        var index = current is not null
+            ? merged.IndexOf(current)
+            : merged.ToList().FindIndex(entry => entry.Source?.OriginalString.Contains(folder, StringComparison.OrdinalIgnoreCase) == true);
+        if (index >= 0) merged[index] = dictionary; else merged.Add(dictionary);
+        current = dictionary;
+    }
+
+    internal static string NormalizeTheme(string? themeId) =>
+        Themes.FirstOrDefault(theme => string.Equals(theme, themeId, StringComparison.OrdinalIgnoreCase)) ?? DefaultTheme;
 
     internal static string Normalize(string? accentId) =>
         Accents.FirstOrDefault(accent => string.Equals(accent, accentId, StringComparison.OrdinalIgnoreCase)) ?? DefaultAccent;
 
-    private static string FileName(string? accentId)
-    {
-        var accent = Normalize(accentId);
-        return string.Concat(char.ToUpperInvariant(accent[0]), accent[1..]);
-    }
+    private static string FileName(string id) => string.Concat(char.ToUpperInvariant(id[0]), id[1..]);
 }

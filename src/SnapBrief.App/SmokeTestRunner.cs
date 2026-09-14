@@ -162,10 +162,25 @@ public static class SmokeTestRunner
         if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(43, 179, 163))
             throw new InvalidOperationException("Applying an accent must replace the accent brushes of the application.");
         var accentKeys = ThemeService.Accents
-            .Select(accent => ThemeService.Load(accent).Keys.Cast<object>().Select(key => key.ToString()!).OrderBy(key => key, StringComparer.Ordinal).ToArray())
+            .Select(accent => KeysOf(ThemeService.LoadAccent(accent)))
             .ToArray();
         if (accentKeys.Any(keys => !keys.SequenceEqual(accentKeys[0])))
             throw new InvalidOperationException("The accent dictionaries must all define the same keys.");
+        // The palette of the theme is swapped whole in the same way, and answers to the same rule:
+        // a key present in one palette and missing from another would resolve under one theme and
+        // leave a DynamicResource unresolved under the next.
+        var themeKeys = ThemeService.Themes.Select(theme => KeysOf(ThemeService.LoadTheme(theme))).ToArray();
+        if (themeKeys.Any(keys => !keys.SequenceEqual(themeKeys[0])))
+            throw new InvalidOperationException("The theme palettes must all define the same keys.");
+        ThemeService.Apply("sea", "blue");
+        if (Application.Current.Resources["SurfaceBrush"] is not LinearGradientBrush sea ||
+            sea.GradientStops.Count != 2 || sea.GradientStops[0].Color != Color.FromRgb(0x16, 0x3A, 0x44) ||
+            sea.GradientStops[1].Color != Color.FromRgb(0x1B, 0x3A, 0x2C) ||
+            Application.Current.Resources.MergedDictionaries.Count(entry => entry.Source?.OriginalString.Contains("/Palettes/", StringComparison.Ordinal) == true) != 1)
+            throw new InvalidOperationException("Applying a theme must replace the previous palette, not add another one.");
+        ThemeService.Apply("nothing-like-a-theme", "blue");
+        if (ThemeService.CurrentTheme != "dark" || Application.Current.Resources["SurfaceBrush"] is not SolidColorBrush)
+            throw new InvalidOperationException("A theme nothing answers to must fall back to the dark palette.");
         ThemeService.Apply("dark", "blue");
         if ((Application.Current.Resources["AccentBrush"] as SolidColorBrush)?.Color != Color.FromRgb(47, 140, 255) ||
             Application.Current.Resources.MergedDictionaries.Count(entry => entry.Source?.OriginalString.Contains("/Accents/", StringComparison.Ordinal) == true) != 1)
@@ -717,6 +732,10 @@ public static class SmokeTestRunner
         if (File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "Audio", "shutter-2-050s.mp3")))
             throw new InvalidOperationException("The shutter that was replaced is still shipped next to the assembly.");
     }
+
+    // The keys of a dictionary that is swapped whole, sorted so that two of them can be compared.
+    private static string[] KeysOf(ResourceDictionary dictionary) =>
+        dictionary.Keys.Cast<object>().Select(key => key.ToString()!).OrderBy(key => key, StringComparer.Ordinal).ToArray();
 
     // The strip is bounded by the monitor it opens on, not by a number: a width stored on a large
     // screen is pulled back inside the working area of a small one, and a drag that goes past the

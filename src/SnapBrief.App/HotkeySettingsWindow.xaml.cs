@@ -321,7 +321,7 @@ public partial class HotkeySettingsWindow : Window
             var dot = new RadioButton
             {
                 Style = (Style)FindResource("AccentDot"), Tag = accent, GroupName = "Accent",
-                Background = new SolidColorBrush((Color)ThemeService.Load(accent)["AccentColor"]),
+                Background = new SolidColorBrush((Color)ThemeService.LoadAccent(accent)["AccentColor"]),
                 IsChecked = accent == selected
             };
             AccentRow.Children.Add(dot);
