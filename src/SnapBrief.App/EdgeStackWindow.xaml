@@ -85,9 +85,11 @@
             </ControlTemplate></Setter.Value></Setter>
             <Style.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#303845" /></Trigger></Style.Triggers>
         </Style>
+        <!-- The bar carries neither width nor margin of its own any more: both of them belong to the
+             template of the ScrollViewer below, which lays the bar over the cards instead of beside
+             them. A bar that lives in a column of its own takes its width away from the cards the
+             moment the strip overflows, and the cards visibly narrow. -->
         <Style x:Key="StackScrollBar" TargetType="ScrollBar">
-            <Setter Property="Width" Value="7" />
-            <Setter Property="Margin" Value="5,2,0,2" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -99,7 +101,7 @@
                                     <Thumb>
                                         <Thumb.Template>
                                             <ControlTemplate TargetType="Thumb">
-                                                <Border x:Name="Grip" Background="#657083" CornerRadius="4" />
+                                                <Border x:Name="Grip" Background="#657083" CornerRadius="2" />
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="#8A96A9" /></Trigger>
                                                     <Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource FocusBrush}" /></Trigger>
@@ -152,7 +154,42 @@
                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel"
                      PreviewMouseLeftButtonDown="OnCaptureListMouseDown" PreviewMouseMove="OnCaptureListMouseMove"
                      PreviewMouseWheel="OnCaptureListMouseWheel" Drop="OnCaptureListDrop">
-                <ListBox.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource StackScrollBar}" /></ListBox.Resources>
+                <ListBox.Resources>
+                    <Style TargetType="ScrollBar" BasedOn="{StaticResource StackScrollBar}" />
+                    <!-- The bar lies over the cards, not beside them: the presenter and the bar share one
+                         cell of the Grid, so the width the cards are given never changes when the strip
+                         starts to overflow. The room for the bar is reserved by the card itself, which
+                         keeps 8 px of its own right margin whether the bar is there or not.
+                         The name PART_VerticalScrollBar is what makes the wheel and the drag of the grip
+                         work without a line of code: ScrollViewer looks the bar up by that name and
+                         subscribes to its Scroll itself. -->
+                    <Style TargetType="ScrollViewer">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ScrollViewer">
+                                    <Grid Background="Transparent">
+                                        <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
+                                                                CanContentScroll="{TemplateBinding CanContentScroll}"
+                                                                ContentTemplate="{TemplateBinding ContentTemplate}" />
+                                        <!-- Four pixels at rest and six under the pointer: the grip fills the bar,
+                                             so the width of the bar is the width of the grip. -->
+                                        <ScrollBar x:Name="PART_VerticalScrollBar" Orientation="Vertical" HorizontalAlignment="Right"
+                                                   Width="4" Margin="0,2,1,2"
+                                                   Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
+                                                   ViewportSize="{TemplateBinding ViewportHeight}"
+                                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar" Storyboard.TargetProperty="Width" To="6" Duration="0:0:0.12" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></Trigger.EnterActions>
+                                            <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar" Storyboard.TargetProperty="Width" To="4" Duration="0:0:0.12" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></Trigger.ExitActions>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.Resources>
                 <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
@@ -168,7 +205,7 @@
                 </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border x:Name="ThumbCard" Margin="0,0,0,-48" Height="78" CornerRadius="11" Background="#242A33"
+                            <Border x:Name="ThumbCard" Margin="0,0,8,-48" Height="78" CornerRadius="11" Background="#242A33"
                                     BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True" MouseEnter="OnCaptureThumbMouseEnter">
                                 <!-- The shadow goes up (Direction 90), not down as a shadow usually does: the cards
                                      overlap by 48 px, and the next card is drawn over this one, so a shadow cast
@@ -214,15 +251,15 @@
                                 <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True">
                                     <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#718096" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
-                                    <DataTrigger.EnterActions><BeginStoryboard><Storyboard><ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin" To="0,4,0,4" Duration="0:0:0.18" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></DataTrigger.EnterActions>
-                                    <DataTrigger.ExitActions><BeginStoryboard><Storyboard><ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin" To="0,0,0,-48" Duration="0:0:0.16" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></DataTrigger.ExitActions>
+                                    <DataTrigger.EnterActions><BeginStoryboard><Storyboard><ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin" To="0,4,8,4" Duration="0:0:0.18" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions><BeginStoryboard><Storyboard><ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin" To="0,0,8,-48" Duration="0:0:0.16" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></DataTrigger.ExitActions>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=ThumbCard}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
+                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,8,4" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
+                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,8,4" />
                                     <Setter TargetName="ThumbCard" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
