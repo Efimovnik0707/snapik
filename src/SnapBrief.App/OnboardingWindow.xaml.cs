@@ -31,6 +31,9 @@ public partial class OnboardingWindow : Window
     private readonly string _openedAccent;
     private string _language;
     private int _step;
+    // Whether "Get started" or "Skip setup" is closing the window, so that every other way of closing
+    // it can be answered as a skip.
+    private bool _closedByButton;
 
     /// <summary>
     /// Applies what the wizard has collected (the shortcut is registered here, so a conflict is
@@ -237,7 +240,11 @@ public partial class OnboardingWindow : Window
         if (HotkeyRules.TryParseCustom(id, out var modifiers, out var virtualKey) &&
             HotkeyRules.IsSystemReserved((ModifierKeys)modifiers, virtualKey))
             return "Это сочетание занято Windows";
-        return HotkeyRules.SameGesture(id, _settings.FullscreenSaveId) ? "Уже занято" : null;
+        // The fullscreen shortcut only holds its combination while its own switch is on: off, it keeps
+        // the default id in the file and would otherwise refuse the same combination on a clean install.
+        return _settings.FullscreenSaveEnabled && HotkeyRules.SameGesture(id, _settings.FullscreenSaveId)
+            ? "Уже занято"
+            : null;
     }
 
     // The refusal is shown under the field, "Next" stops until it is gone, and a free combination is
@@ -368,6 +375,7 @@ public partial class OnboardingWindow : Window
     {
         // Nothing was collected in the slides-only mode, so nothing is written back from it.
         if (!_howToOnly && (!Apply(CaptureField.HotkeyId) || !ApplyStartup())) return;
+        _closedByButton = true;
         Close();
     }
 
@@ -376,16 +384,33 @@ public partial class OnboardingWindow : Window
     // user typed and left behind.
     private void OnSkip(object sender, RoutedEventArgs e)
     {
-        if (!_howToOnly)
+        _closedByButton = true;
+        SkipSetup();
+        Close();
+    }
+
+    // Alt+F4 and the taskbar close the window without touching either button, and they mean the same
+    // as "Skip setup": the theme of step 4 is applied to the running application as it is clicked,
+    // and leaving it applied but unsaved would repaint the session for a setup nobody finished.
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_closedByButton) SkipSetup();
+        base.OnClosing(e);
+    }
+
+    private void SkipSetup()
+    {
+        if (_howToOnly) return;
+        // Step 4 repaints the application as it is clicked, so skipping the setup has to paint it
+        // back: what was tried out was never chosen. A wizard nobody painted in repaints nothing:
+        // the look of the application is not the wizard's to set on the way out.
+        if (Appearance.SelectedTheme != _openedTheme || Appearance.SelectedAccent != _openedAccent)
         {
-            // Step 4 repaints the application as it is clicked, so skipping the setup has to paint it
-            // back: what was tried out was never chosen.
             Appearance.SelectedTheme = _openedTheme;
             Appearance.SelectedAccent = _openedAccent;
             ThemeService.Apply(_openedTheme, _openedAccent);
-            Apply(_appliedCaptureId);
         }
-        Close();
+        Apply(_appliedCaptureId);
     }
 
     // The text at the bottom left and the cross in the header mean the same thing and do the same

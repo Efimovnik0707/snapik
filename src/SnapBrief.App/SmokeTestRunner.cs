@@ -272,8 +272,11 @@ public static class SmokeTestRunner
             if (window.AppearanceTab.SelectedPalette != "pastel")
                 throw new InvalidOperationException("The settings must open on the annotation palette the file carries.");
         });
-        if ((Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentHoverBrush")).Color ||
-            (Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton) as SolidColorBrush)?.Color != ((SolidColorBrush)settingsWindow.FindResource("AccentPressedBrush")).Color)
+        // The brushes are compared as brushes and not as colours: a gradient accent hands out a
+        // LinearGradientBrush, and a cast to SolidColorBrush would drop the run instead of the check.
+        // DynamicResource hands the resource itself to the property, so the two are the same object.
+        if (!ReferenceEquals(Controls.ButtonChrome.GetHoverBackground(settingsWindow.SaveButton), settingsWindow.FindResource("AccentHoverBrush")) ||
+            !ReferenceEquals(Controls.ButtonChrome.GetPressedBackground(settingsWindow.SaveButton), settingsWindow.FindResource("AccentPressedBrush")))
             throw new InvalidOperationException("The primary button must keep the accent while hovered and pressed.");
         // The package dialog holds its own folder; without one it starts where single captures go.
         if (restoredSettings.PackageDirectory() != Path.Combine(root, "packages") ||
@@ -344,7 +347,7 @@ public static class SmokeTestRunner
             ("Показать ленту", "Show the strip"), ("Очистить ленту", "Clear the strip"),
             ("Удалить снимки сессии?", "Delete the captures of this session?"), ("Больше не спрашивать", "Do not ask again"),
             ("В ленте максимум {0} снимков. Отправьте или удалите лишние", "The strip holds at most {0} captures. Paste or delete some first."),
-            ("Чаты обычно принимают до 20 картинок за раз", "Chats usually take up to 20 images at a time"),
+            ("Чаты обычно принимают до {0} картинок за раз", "Chats usually take up to {0} images at a time"),
             ("Снимки этой сессии будут удалены. Чтобы сохранить, нажмите «Сохранить пакет…» в меню •••",
                 "The captures of this session will be deleted. To keep them, use \"Save package…\" in the ••• menu."),
             ("SnapBrief — Лента снимков", "SnapBrief — Capture strip")

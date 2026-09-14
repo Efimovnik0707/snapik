@@ -154,6 +154,11 @@ finally {
     }
 }
 
+# The framework the application is actually built for, read from the project so that build-info
+# cannot drift away from it the next time the moniker moves.
+$appTargetFramework = ([xml](Get-Content -LiteralPath $appProject -Raw)).Project.PropertyGroup.TargetFramework |
+    Where-Object { $_ } | Select-Object -First 1
+if (-not $appTargetFramework) { throw "Could not read TargetFramework from $appProject." }
 $sdkVersion = (& $dotnet --version).Trim()
 $exeInfo = Get-Item -LiteralPath $publishedExe
 $dllInfo = Get-Item -LiteralPath $publishedDll
@@ -161,7 +166,7 @@ $buildInfo = [ordered]@{
     schemaVersion = 1
     builtAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     configuration = 'Release'
-    targetFramework = 'net10.0-windows'
+    targetFramework = $appTargetFramework
     runtimeIdentifier = 'win-x64'
     selfContained = $true
     dotnetSdkVersion = $sdkVersion

@@ -589,7 +589,7 @@ public partial class EdgeStackWindow : Window
         if (Captures.Count <= SentCaptureRules.SoftStripWarning) { _softLimitWarned = false; return; }
         if (_softLimitWarned) return;
         _softLimitWarned = true;
-        ShowToast(UiLanguage.Text("Чаты обычно принимают до 20 картинок за раз"));
+        ShowToast(string.Format(UiLanguage.Text("Чаты обычно принимают до {0} картинок за раз"), SentCaptureRules.SoftStripWarning));
     }
 
     private async void OnRemoveCaptureClick(object sender, RoutedEventArgs e)

@@ -643,7 +643,9 @@ public sealed class AnnotationCanvas : FrameworkElement
             // The anchor of the leader, on screen only: includeSelection is what separates the canvas
             // from RenderAnnotated, and a circle without a number explains nothing to whoever receives
             // the picture. The export draws the leader and the badge, and neither needs a handle.
-            if (includeSelection && item.Kind == EditorTool.Comment)
+            // While the note sits on its mark there is no leader, and the anchor would only cover the
+            // number in the badge, so it is drawn for a note dragged away.
+            if (includeSelection && item.Kind == EditorTool.Comment && item.NoteOffset is not null)
             {
                 var anchor = Map(item.Points[0]);
                 var radius = _anchorHover == item.Id ? AnchorHoverRadius : AnchorRadius;
@@ -764,10 +766,11 @@ public sealed class AnnotationCanvas : FrameworkElement
     // free for the next drawing, except where the mark is opaque and there is nothing to draw into.
     // The circle at the point a comment is attached to: the visible end of the leader, and the only
     // way to move that end without moving the note with it. A comment without a number has no badge
-    // and no leader yet, so it has no anchor either.
+    // and no leader yet, so it has no anchor either. Only the select tool takes it: with a box, an
+    // arrow, a pencil or a text armed, a press seven pixels from a pin has to draw, not drag.
     private AnnotationItem? FindLeaderAnchor(Point point)
     {
-        if (Annotations is null || Image is null || Tool == EditorTool.Comment) return null;
+        if (Annotations is null || Image is null || Tool != EditorTool.Select) return null;
         return Annotations.Reverse().FirstOrDefault(item =>
             item.Kind == EditorTool.Comment && !string.IsNullOrEmpty(item.Label) && item.Points.Count > 0 &&
             (point - ToDisplay(item.Points[0])).Length <= AnchorHoverRadius);

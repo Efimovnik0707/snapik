@@ -168,7 +168,12 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
                 FullscreenSaveId = Find(stored.FullscreenSaveId, DefaultFullscreenSaveId).Id,
                 CustomPaletteColors = KeepPaletteColors(stored.CustomPaletteColors)
             };
-            migrated = settings != stored;
+            // The palette is compared by its colours and not by the array that holds them: a record
+            // compares arrays by reference, and a file carrying "CustomPaletteColors": [] deserialises
+            // into an array of its own, which would count as a migration and rewrite settings.json on
+            // every start.
+            migrated = settings != (stored with { CustomPaletteColors = settings.CustomPaletteColors }) ||
+                !settings.CustomPaletteColors.SequenceEqual(stored.CustomPaletteColors ?? []);
             return true;
         }
         catch { return false; }

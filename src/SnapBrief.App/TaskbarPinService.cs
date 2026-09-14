@@ -55,8 +55,12 @@ internal static class TaskbarPinService
     /// </summary>
     internal static bool CanTry() => !TurnedOff() && !BlockedByPolicy() && (SupportsTaskbarManager() || SupportsPinnedList());
 
-    /// <summary>Whether the icon is on the taskbar already, read from the folder the shell keeps it in.</summary>
-    internal static bool IsPinned() => PinnedShortcuts().Any(IsOurShortcut);
+    /// <summary>
+    /// Whether the icon is on the taskbar already, read from the folder the shell keeps it in. A
+    /// smoke run, a demo and the override answer "not pinned" without looking: the probe has to see
+    /// the same step on every machine, pinned icon or not.
+    /// </summary>
+    internal static bool IsPinned() => !TurnedOff() && PinnedShortcuts().Any(IsOurShortcut);
 
     /// <summary>
     /// Tries once, and answers with what the system says afterwards rather than with an HRESULT: on
