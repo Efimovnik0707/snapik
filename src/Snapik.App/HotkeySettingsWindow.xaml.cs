@@ -99,15 +99,18 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public static HotkeySettings Default { get; } = new("ctrl-alt-s", "ctrl-alt-v") { SettingsVersion = CurrentSettingsVersion };
 
     /// <summary>
-    /// Brings a file written by an older build up to the current version. Today it is one rule: the
-    /// volume that used to be the default becomes the new one, and anything the user picked is left
-    /// alone. Applied while loading, and written back once, so it cannot run on every start.
+    /// Brings a file written by an older build up to the current version. Two rules so far: the
+    /// volume that used to be the default becomes the new one, and the retired light theme becomes
+    /// the dark one; anything the user picked is left alone, because each rule asks the version it
+    /// was introduced in. Applied while loading, and written back once, so it cannot run on every
+    /// start.
     /// </summary>
     internal static HotkeySettings Migrate(HotkeySettings stored) =>
         SettingsMigration.NeedsMigration(stored.SettingsVersion)
             ? stored with
             {
                 SoundVolume = SettingsMigration.SoundVolume(stored.SettingsVersion, stored.SoundVolume),
+                Theme = SettingsMigration.Theme(stored.SettingsVersion, stored.Theme),
                 SettingsVersion = CurrentSettingsVersion
             }
             : stored;

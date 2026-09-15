@@ -1,3 +1,5 @@
+using System;
+
 namespace Snapik.App;
 
 /// <summary>
@@ -8,7 +10,7 @@ namespace Snapik.App;
 internal static class SettingsMigration
 {
     /// <summary>The schema version a file gets once every rule below has been applied to it.</summary>
-    internal const int CurrentVersion = 1;
+    internal const int CurrentVersion = 2;
 
     /// <summary>How loud the interface sounds are on a machine that has never chosen.</summary>
     internal const int DefaultSoundVolume = 40;
@@ -20,6 +22,18 @@ internal static class SettingsMigration
 
     internal static bool NeedsMigration(int storedVersion) => storedVersion < CurrentVersion;
 
+    // Every rule asks the version it was introduced in and not the current one. A shared threshold
+    // would mean that raising the version for the theme runs the volume rule a second time over the
+    // files of version 1, and everybody who set 60 by hand after the first migration is quietly
+    // taken back down to 40.
     internal static int SoundVolume(int storedVersion, int storedVolume) =>
-        NeedsMigration(storedVersion) && storedVolume == PreviousDefaultSoundVolume ? DefaultSoundVolume : storedVolume;
+        storedVersion < 1 && storedVolume == PreviousDefaultSoundVolume ? DefaultSoundVolume : storedVolume;
+
+    /// <summary>
+    /// Version 2 retires the flat light palette: the dawn theme is the light one now. Such a file
+    /// would open dark anyway, because an unknown theme falls back there; the rule is what makes the
+    /// file say so too, so the card the settings show is the theme that is on screen.
+    /// </summary>
+    internal static string Theme(int storedVersion, string storedTheme) =>
+        storedVersion < 2 && string.Equals(storedTheme, "light", StringComparison.OrdinalIgnoreCase) ? "dark" : storedTheme;
 }
