@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -686,7 +686,9 @@ public partial class EdgeStackWindow : Window
         Capsule.Visibility = Visibility.Collapsed;
         Shell.Visibility = Visibility.Visible;
         WidthGrip.Visibility = Visibility.Visible;
-        CornerGrip.Visibility = Visibility.Visible;
+        // The list, the hint and the corner grip belong to the state of the strip, not to the mode:
+        // an empty strip unfolds back into an empty strip, without a grip that has nothing to pull.
+        UpdateEmptyState();
         SizeToContent = SizeToContent.Height;
         MinHeight = _expandedMinHeight;
         Width = _expandedWidth;
@@ -1078,6 +1080,9 @@ public partial class EdgeStackWindow : Window
             catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
         }
         Renumber(); NoteStripGrowth(); InvalidatePrepared();
+        // The chip of a card is written in the markup, so a card born after the strip was translated
+        // carries Russian until the next showing of the window: the new ones are translated here.
+        UiLanguage.Apply(this);
         var saved = await SaveAsync();
         // The clipboard package follows the stack even when the session file could not be written:
         // a receipt left pointing at the previous package makes the next Ctrl+V rotate the session.
@@ -1263,13 +1268,7 @@ public partial class EdgeStackWindow : Window
     // among them: a theme picked in the wizard used to live until the next start and no longer.
     private bool WriteOnboarding(HotkeySettings candidate, bool merge)
     {
-        if (merge)
-            return MutateSettings(stored => stored with
-            {
-                CaptureId = candidate.CaptureId, Language = candidate.Language,
-                Theme = candidate.Theme, AccentId = candidate.AccentId,
-                OnboardingVersion = candidate.OnboardingVersion
-            });
+        if (merge) return MutateSettings(stored => MergeOnboarding(stored, candidate));
         try { candidate.Save(_settingsPath); _settings = candidate; return true; }
         catch (Exception ex)
         {
@@ -1277,6 +1276,17 @@ public partial class EdgeStackWindow : Window
             return false;
         }
     }
+
+    /// <summary>
+    /// The five fields the wizard owns, put on top of the file as it is now. It is a rule of its own
+    /// so that the smoke can read it without a strip window: the list of fields is the whole bug.
+    /// </summary>
+    internal static HotkeySettings MergeOnboarding(HotkeySettings stored, HotkeySettings candidate) => stored with
+    {
+        CaptureId = candidate.CaptureId, Language = candidate.Language,
+        Theme = candidate.Theme, AccentId = candidate.AccentId,
+        OnboardingVersion = candidate.OnboardingVersion
+    };
 
     // The wizard counts as passed the moment its window is gone, however it was closed, and the
     // version is written on its own: a shortcut that stayed in conflict keeps the user on its step,
@@ -1341,7 +1351,7 @@ public partial class EdgeStackWindow : Window
                     catch (Exception ex)
                     {
                         _hotkeys?.Unregister("capture");
-        _hotkeys?.Unregister("fullscreen-save");
+                        _hotkeys?.Unregister("fullscreen-save");
                         StartupTrace.Write(_options, $"Hotkey settings ({HotkeySettings.Find(candidate.CaptureId).Label}): {ex}");
                         if (ex is Win32Exception { NativeErrorCode: 1409 })
                             return UiLanguage.Text("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.");
@@ -1362,7 +1372,7 @@ public partial class EdgeStackWindow : Window
         finally
         {
             _hotkeys?.Unregister("capture");
-        _hotkeys?.Unregister("fullscreen-save");
+            _hotkeys?.Unregister("fullscreen-save");
             _ = RegisterHotkeys();
         }
     }

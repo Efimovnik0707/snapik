@@ -1216,9 +1216,6 @@ public static class SmokeTestRunner
         ThemeService.Apply("dark", "blue");
     }
 
-    // Twelve accents, six solid ones and then six gradients: the row shows them in that order, and
-    // the divider it draws between the halves is placed by the flag rather than by a name, so a
-    // rearrangement cannot leave it in the middle of a half.
     // The wizard is placed before it is shown, on the monitor the pointer is on, and that monitor may
     // have a scale of its own: the height it may take is the working area in the units of that
     // monitor, less a finger of air. The placement needs a real monitor; the arithmetic does not.
@@ -1230,6 +1227,9 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("The wizard must fit the working area of the monitor it opens on, whatever its scale.");
     }
 
+    // Twelve accents, six solid ones and then six gradients: the row shows them in that order, and
+    // the divider it draws between the halves is placed by the flag rather than by a name, so a
+    // rearrangement cannot leave it in the middle of a half.
     private static void VerifyTheAccentsOfTheRound()
     {
         string[] expected =
@@ -1334,9 +1334,22 @@ public static class SmokeTestRunner
     private static void VerifyTheWizardKeepsItsAppearance(string root)
     {
         var path = Path.Combine(root, "onboarding-appearance.json");
-        (HotkeySettings.Default with { Theme = "sea", AccentId = "rose-violet" }).Save(path);
+        var stored = HotkeySettings.Default with { Theme = "dark", AccentId = "blue", Language = "ru", SoundVolume = 55 };
+        stored.Save(path);
+        var candidate = stored with
+        {
+            Theme = "sea", AccentId = "rose-violet", Language = "en",
+            OnboardingVersion = OnboardingWindow.CurrentVersion
+        };
+        // The very merge the strip writes the wizard with, against a file that is already there.
+        EdgeStackWindow.MergeOnboarding(HotkeySettings.Load(path), candidate).Save(path);
         var read = HotkeySettings.Load(path);
-        if (read.Theme != "sea" || read.AccentId != "rose-violet")
-            throw new InvalidOperationException("The theme and the accent the wizard collects must survive the settings file.");
+        if (read.Theme != "sea" || read.AccentId != "rose-violet" || read.Language != "en" ||
+            read.OnboardingVersion != OnboardingWindow.CurrentVersion)
+            throw new InvalidOperationException(
+                $"The wizard must write the look it collected into the file: \"{read.Theme}\", \"{read.AccentId}\", \"{read.Language}\".");
+        // And only what it owns: a volume the user set by hand is not the wizard's to touch.
+        if (read.SoundVolume != 55)
+            throw new InvalidOperationException("The merge of the wizard must leave the fields it does not own alone.");
     }
 }

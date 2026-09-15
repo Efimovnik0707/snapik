@@ -337,8 +337,8 @@ public partial class OverlayEditorWindow : Window
             throw new InvalidOperationException("Arming the highlighter again must bring its own width back.");
         window.SelectToolMode(EditorTool.Rectangle);
 
-        // The fill has a button and a popover of its own now: the four fills, the twelve swatches of
-        // the fill colour, and the switch that hides the outline in the colour popover beside it.
+        // The fill has a button and a popover of its own: the four fills and the twelve swatches of
+        // the fill colour. The outline follows the fill and has no switch of its own any more.
         window.SelectToolMode(EditorTool.Arrow);
         window.OnFillButtonClick(window.FillButton, new RoutedEventArgs());
         // The swatches of the fill are built as the popover opens, the way the colour popover builds
@@ -1686,10 +1686,13 @@ public partial class OverlayEditorWindow : Window
         OneToOneSegment.IsChecked = Surface.ViewScale is not null;
     }
 
+    // Both handlers end with the switch: a press on the segment that is already in force changes no
+    // scale, the canvas raises nothing, and the segments would be left showing neither of the two.
     private void OnFitScaleClick(object sender, RoutedEventArgs e)
     {
         Surface.ViewOffset = default;
         Surface.ViewScale = null;
+        SyncScaleSwitch();
     }
 
     private void OnOneToOneScaleClick(object sender, RoutedEventArgs e)
@@ -1701,6 +1704,7 @@ public partial class OverlayEditorWindow : Window
             (_capture.Image.PixelWidth - _cropRect.Width) / 2,
             (_capture.Image.PixelHeight - _cropRect.Height) / 2);
         Surface.ViewScale = 1;
+        SyncScaleSwitch();
     }
 
     // The scale changed, by the switch or by the wheel: the segments follow it, the pills that left

@@ -110,18 +110,20 @@ public partial class OnboardingWindow : Window
             // and the wizard ends up either taller than the working area or clamped to a scrollbar.
             var work = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
             PlaceOn(handle, work, MonitorMetrics.Scale(work.Left, work.Top), "opened");
+            _placed = true;
         }
         catch (Exception ex) { Trace?.Invoke($"Onboarding placement: {ex}"); }
     }
 
-    // Whether the window has already answered the first WM_DPICHANGED; the second one and everything
-    // after it belongs to whoever is dragging the window between monitors.
+    // Whether the window has been placed at all. It goes up the moment the placement succeeds, so
+    // that a WM_DPICHANGED from a user dragging the wizard between monitors is not answered with a
+    // jump back to the centre of the new one.
     private bool _placed;
 
     /// <summary>
-    /// Moving the window to a monitor of another scale makes Windows send WM_DPICHANGED, and WPF
-    /// re-lays the window out by the rectangle it proposes, which moves the centre by a few pixels.
-    /// That is evened out once, by the scale the window now really has, and never again.
+    /// The only case left for WM_DPICHANGED: the placement above did not happen (the monitor could
+    /// not be read), and the window has to be put somewhere by the scale it now really has. A window
+    /// that was placed answers nothing, and the user keeps it where they dragged it.
     /// </summary>
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {

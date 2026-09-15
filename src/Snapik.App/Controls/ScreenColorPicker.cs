@@ -220,8 +220,14 @@ internal static class ScreenColorPicker
                 System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
             try
             {
+                var length = locked.Stride * _bitmap.Height;
+                var pixels = new byte[length];
+                Marshal.Copy(locked.Scan0, pixels, 0, length);
+                // CopyFromScreen leaves the alpha channel as it found it, and the desktop has no
+                // transparency to give: an alpha of zero would make the glass of the loupe see-through.
+                for (var i = 3; i < length; i += 4) pixels[i] = 0xFF;
                 var source = BitmapSource.Create(_bitmap.Width, _bitmap.Height, 96, 96, PixelFormats.Pbgra32, null,
-                    locked.Scan0, locked.Stride * _bitmap.Height, locked.Stride);
+                    pixels, locked.Stride);
                 source.Freeze();
                 return source;
             }

@@ -67,8 +67,15 @@ public partial class AppearancePicker : UserControl
         StandardPalette.IsChecked = true;
         ApplyLanguage(_language);
         // Loaded and Unloaded come in pairs and come again, so the hook is taken once and given back
-        // every time the control leaves the tree.
-        Loaded += (_, _) => { _source ??= PresentationSource.FromVisual(this) as HwndSource; _source?.AddHook(OnWindowMessage); };
+        // every time the control leaves the tree. The hook is removed before it is added: a second
+        // Loaded without an Unloaded between them would leave two hooks and page the gallery twice
+        // on one turn of the wheel.
+        Loaded += (_, _) =>
+        {
+            _source ??= PresentationSource.FromVisual(this) as HwndSource;
+            _source?.RemoveHook(OnWindowMessage);
+            _source?.AddHook(OnWindowMessage);
+        };
         Unloaded += (_, _) => { _source?.RemoveHook(OnWindowMessage); _source = null; };
     }
 
