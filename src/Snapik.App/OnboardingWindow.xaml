@@ -4,7 +4,9 @@
  WindowStartupLocation="Manual" ShowInTaskbar="True" Topmost="False">
  <!-- The window keeps its own header (a name, "minimize" and a cross), so the system chrome is off;
       transparency is off with it: WindowChrome, hardware acceleration and the glass theme all need
-      an opaque window. The rounded corner is left to the inner border, the outer one to DWM. -->
+      an opaque window. There is exactly one corner, and the window does not draw it: DwmWindowCorners
+      asks the desktop manager for it in OnSourceInitialized. On Windows 10 the ask is refused and the
+      window is square all the way through, which is what it should be there. -->
  <WindowChrome.WindowChrome>
   <WindowChrome CaptionHeight="0" GlassFrameThickness="0" ResizeBorderThickness="0" CornerRadius="0"/>
  </WindowChrome.WindowChrome>
@@ -101,7 +103,7 @@
    <Setter Property="controls:ButtonChrome.PressedBackground" Value="{DynamicResource PressedBrush}"/>
   </Style>
  </Window.Resources>
- <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" CornerRadius="16" Padding="24,20,24,24">
+ <Border Background="{DynamicResource SurfaceBrush}" BorderThickness="0" CornerRadius="0" Padding="24,20,24,24">
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <!-- The header belongs to the window and to nothing else: the name of the application, "minimize"

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using WinForms = System.Windows.Forms;
 
@@ -88,11 +89,13 @@ public partial class OnboardingWindow : Window
     /// <summary>
     /// The wizard opens on the monitor the user is on, not on the primary one, and never taller than
     /// the working area of that monitor. It is done here rather than in Loaded: the handle the scale
-    /// of the monitor is read through exists by now, and the window has not been drawn yet.
+    /// of the monitor is read through exists by now, and the window has not been drawn yet. The one
+    /// corner of the window is asked for here too, for the same reason: it needs the handle.
     /// </summary>
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        Trace?.Invoke($"Onboarding corners: rounded={DwmWindowCorners.Round(new WindowInteropHelper(this).Handle)}");
         try
         {
             var monitor = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
