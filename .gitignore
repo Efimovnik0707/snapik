@@ -8,6 +8,8 @@ TestResults/
 artifacts/
 .tmp/
 macos/.build/
+macos/.build-transport/
+macos/.build*/
 macos/*.xcodeproj/xcuserdata/
 macos/DerivedData/
 *.swp
