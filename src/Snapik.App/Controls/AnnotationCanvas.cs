@@ -34,6 +34,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     private Guid? _anchorHover;
     private int _blurCacheKey;
     private BitmapSource? _blurCache;
+    private double? _viewScale;
+    private Point? _panStart;
+    private Vector _panOrigin;
 
     public static readonly DependencyProperty ImageProperty = DependencyProperty.Register(
         nameof(Image), typeof(BitmapSource), typeof(AnnotationCanvas), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -63,7 +66,42 @@ public sealed class AnnotationCanvas : FrameworkElement
     public Guid? EditingTextId { get; set; }
     public double ImagePadding { get; set; } = 28;
 
+    /// <summary>
+    /// Null is "fit": the picture is scaled down to the canvas and centred, the way it always was.
+    /// Anything else is the scale in canvas units per pixel of the picture, and the picture stands
+    /// where <see cref="ViewOffset"/> holds it. Everything the canvas measures is counted from the
+    /// rectangle those two decide, so the marks follow without a line of their own.
+    /// </summary>
+    public double? ViewScale
+    {
+        get => _viewScale;
+        set
+        {
+            if (Nullable.Equals(_viewScale, value)) return;
+            _viewScale = value;
+            // At its own size the picture must show its own pixels: with smoothing on, the seam
+            // between two monitors is spread over two of them.
+            RenderOptions.SetBitmapScalingMode(this, value is null ? BitmapScalingMode.Unspecified : BitmapScalingMode.NearestNeighbor);
+            InvalidateVisual();
+            ViewChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>How far the picture is scrolled, in canvas units. Ignored while fitting.</summary>
+    public Vector ViewOffset { get; set; }
+
+    /// <summary>The scale the picture is shown at while fitting: the floor of Ctrl and the wheel.</summary>
+    public double FitScale => Image is null || Image.PixelWidth <= 0 || Image.PixelHeight <= 0
+        ? 1
+        : Math.Min(Math.Max(1, ActualWidth - ImagePadding * 2) / Image.PixelWidth,
+                   Math.Max(1, ActualHeight - ImagePadding * 2) / Image.PixelHeight);
+
+    /// <summary>Space is held down: the next press drags the picture instead of drawing on it.</summary>
+    public bool Panning { get; set; }
+
     public event EventHandler<AnnotationItem>? AnnotationCreated;
+    /// <summary>The scale or the offset changed: the switch beside the panel says which is in force.</summary>
+    public event EventHandler? ViewChanged;
     public event EventHandler<AnnotationItem>? AnnotationActivated;
     public event EventHandler<AnnotationItem?>? SelectionChanged;
     public event EventHandler? AnnotationChanged;
@@ -149,7 +187,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         base.OnRender(dc);
         if (Image is null) return;
 
-        _imageRect = FitRect(Image.PixelWidth, Image.PixelHeight, ActualWidth, ActualHeight, ImagePadding);
+        _imageRect = ViewScale is { } viewScale ? ScaledRect(viewScale) : FitRect(Image.PixelWidth, Image.PixelHeight, ActualWidth, ActualHeight, ImagePadding);
         dc.DrawRectangle(Brushes.White, null, _imageRect);
         dc.DrawImage(ApplyBlurAnnotations(Image), _imageRect);
 
@@ -183,6 +221,14 @@ public sealed class AnnotationCanvas : FrameworkElement
     internal void BeginGesture(Point point, int clickCount = 1)
     {
         if (Image is null) return;
+        // Space held down turns the press into a drag of the picture itself, wherever it lands.
+        if (Panning && ViewScale is not null)
+        {
+            _panStart = point;
+            _panOrigin = ViewOffset;
+            CaptureMouse();
+            return;
+        }
         if (!_imageRect.Contains(point)) return;
 
         // The eraser draws nothing: it removes the mark under the pointer and tells the window,
@@ -280,6 +326,14 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     internal void UpdateGesture(Point displayPoint, bool pressed)
     {
+        // The picture travels under the pointer, and nothing else moves: the marks keep the pixels
+        // of the capture they were put on.
+        if (_panStart is { } panStart && pressed)
+        {
+            ViewOffset = _panOrigin - (displayPoint - panStart);
+            InvalidateVisual();
+            return;
+        }
         // The anchor travels and its badge stays: the note keeps the place it was put in, so the
         // offset of the badge gives back exactly what the anchor takes, and the leader grows between
         // the two. A note that was never moved has no offset to compensate, and its badge follows.
@@ -341,6 +395,8 @@ public sealed class AnnotationCanvas : FrameworkElement
     // ordinary arrow everywhere else.
     private void UpdateCursor(Point displayPoint)
     {
+        // Space is held: whatever stands under the pointer, the next press drags the picture.
+        if (Panning && ViewScale is not null) { Cursor = Cursors.Hand; return; }
         if (Tool == EditorTool.Eraser)
         {
             var hover = EraseTarget(displayPoint);
@@ -382,6 +438,12 @@ public sealed class AnnotationCanvas : FrameworkElement
     // left behind. A gesture that ends properly must have nothing left for it to drop.
     internal void EndGesture()
     {
+        if (_panStart is not null)
+        {
+            _panStart = null;
+            ReleaseMouseCapture();
+            return;
+        }
         if (_anchorDrag is not null)
         {
             var moved = _anchorMoved;
@@ -439,6 +501,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        _panStart = null;
         if (_anchorDrag is not null)
         {
             _anchorDrag = null;
@@ -960,6 +1023,46 @@ public sealed class AnnotationCanvas : FrameworkElement
         var right = Math.Clamp((int)Math.Ceiling(bounds.Right), left, width);
         var bottom = Math.Clamp((int)Math.Ceiling(bounds.Bottom), top, height);
         return new Int32Rect(left, top, right - left, bottom - top);
+    }
+
+    // The picture at a scale of its own: the offset is held first, so no edge of it ever comes
+    // inside the canvas, and a picture shorter than the canvas is centred along that axis.
+    private Rect ScaledRect(double scale)
+    {
+        var image = new Size(Image!.PixelWidth, Image.PixelHeight);
+        ViewOffset = EditorGeometry.ClampOffset(image, scale, new Size(ActualWidth, ActualHeight), ViewOffset);
+        return new Rect(-ViewOffset.X, -ViewOffset.Y, image.Width * scale, image.Height * scale);
+    }
+
+    // The wheel belongs to the picture only while it is shown at a scale of its own: fitted, there
+    // is nothing to scroll and nothing to zoom into.
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        if (Image is null || ViewScale is not { } scale) return;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            // A tenth of the scale per notch, between "fit" and the picture at its own size: the
+            // switch beside the panel promises those two ends and nothing beyond them.
+            var wanted = Math.Clamp(scale * Math.Pow(1.1, e.Delta / 120.0), FitScale, 1);
+            // Back at the scale the picture is fitted with, the mode goes back to fitting, and the
+            // switch beside the panel moves to its left segment by itself.
+            if (wanted <= FitScale) { ViewOffset = default; ViewScale = null; }
+            else
+            {
+                ViewOffset = EditorGeometry.ZoomAround(e.GetPosition(this), ViewOffset, scale, wanted);
+                ViewScale = wanted;
+                InvalidateVisual();
+            }
+        }
+        else
+        {
+            var travel = e.Delta * -0.6;
+            ViewOffset += Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? new Vector(travel, 0) : new Vector(0, travel);
+            InvalidateVisual();
+        }
+        // The wheel must not reach the window behind the canvas, which would scroll something else.
+        e.Handled = true;
     }
 
     private static Rect FitRect(double imageWidth, double imageHeight, double width, double height, double padding)
