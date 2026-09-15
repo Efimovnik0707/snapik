@@ -4,6 +4,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 
 namespace Snapik.App.Controls;
@@ -52,6 +54,11 @@ public partial class AppearancePicker : UserControl
     /// <summary>The card the gallery starts at, counted by the control itself.</summary>
     private int _firstCard;
 
+    /// <summary>The sideways wheel of a touchpad; WPF has no event of its own for it.</summary>
+    private const int WmMouseHWheel = 0x020E;
+
+    private HwndSource? _source;
+
     public AppearancePicker()
     {
         InitializeComponent();
@@ -59,6 +66,10 @@ public partial class AppearancePicker : UserControl
         BuildAccentRow();
         StandardPalette.IsChecked = true;
         ApplyLanguage(_language);
+        // Loaded and Unloaded come in pairs and come again, so the hook is taken once and given back
+        // every time the control leaves the tree.
+        Loaded += (_, _) => { _source ??= PresentationSource.FromVisual(this) as HwndSource; _source?.AddHook(OnWindowMessage); };
+        Unloaded += (_, _) => { _source?.RemoveHook(OnWindowMessage); _source = null; };
     }
 
     public event EventHandler? ThemeChanged;
@@ -186,11 +197,17 @@ public partial class AppearancePicker : UserControl
 
     private void BuildAccentRow()
     {
+        var dividerPlaced = false;
         foreach (var accent in ThemeService.Accents)
         {
-            // The four gradients follow the four solid ones, with a hairline between the two halves.
-            if (accent == "blue-violet")
+            // The gradients follow the solid ones, with a hairline between the two halves. Where the
+            // line goes is asked of the dictionaries and not of a name: the row was rearranged this
+            // round, and a name in a condition here would have been the one place left behind.
+            if (!dividerPlaced && ThemeService.IsGradientAccent(accent))
+            {
                 AccentRow.Children.Add(Divider());
+                dividerPlaced = true;
+            }
             var dot = new RadioButton
             {
                 Style = (Style)FindResource("AccentDot"), Tag = accent, GroupName = "AppearanceAccent",
@@ -202,9 +219,11 @@ public partial class AppearancePicker : UserControl
         MarkSelectedDot();
     }
 
+    // Four pixels on each side, the same as the gap between two dots: twelve dots of 28 with a step
+    // of 10 and this line come to 455 px, and the row of the wizard is 520 wide.
     private Border Divider()
     {
-        var line = new Border { Width = 1, Height = 22, Margin = new Thickness(4, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
+        var line = new Border { Width = 1, Height = 22, Margin = new Thickness(4, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
         line.SetResourceReference(Border.BackgroundProperty, "DividerBrush");
         return line;
     }
@@ -237,6 +256,9 @@ public partial class AppearancePicker : UserControl
     private static TextBlock? NameOf(Button card) =>
         (card.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault();
 
+    // The frame marks the theme in force wherever its card stands; the gallery itself is not moved
+    // for it. It opens at the first card, so the row reads from its beginning and the way on is the
+    // obvious one, even when the theme in force is the last of the six.
     private void MarkSelectedCard()
     {
         foreach (var card in ThemeCards.Children.OfType<Button>())
@@ -244,7 +266,6 @@ public partial class AppearancePicker : UserControl
             if (card.Tag as string == _theme) card.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
             else card.BorderBrush = Brushes.Transparent;
         }
-        BringSelectedCardIntoView();
     }
 
     private void MarkSelectedDot()
@@ -291,14 +312,28 @@ public partial class AppearancePicker : UserControl
         MarkChevrons();
     }
 
-    // A card already on screen is left where it is: choosing a theme must not pull the gallery back
-    // from where the chevrons have taken it.
-    private void BringSelectedCardIntoView()
+    // The wheel pages the gallery instead of the window behind it. Handled in the preview phase on
+    // purpose: the gallery scrolls horizontally only, so without this the wheel walks up to the
+    // scroll viewer of the wizard and scrolls the step.
+    private void OnGalleryWheel(object sender, MouseWheelEventArgs e)
     {
-        var index = ThemeService.Themes.ToList().IndexOf(_theme);
-        if (index < 0 || Gallery is null) return;
-        if (index < _firstCard) PageBy(index - _firstCard);
-        else if (index >= _firstCard + VisibleCards) PageBy(index - VisibleCards + 1 - _firstCard);
+        if (e.Delta == 0) return;
+        PageBy(e.Delta > 0 ? -1 : 1);
+        e.Handled = true;
+    }
+
+    // A touchpad sends the sideways swipe as WM_MOUSEHWHEEL, which WPF has no event for, so it is
+    // taken off the window the control currently lives in. The control is shown twice, in the wizard
+    // and in the settings, and each copy keeps the hook of its own window while it is loaded.
+    private IntPtr OnWindowMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (message != WmMouseHWheel || !Gallery.IsMouseOver) return IntPtr.Zero;
+        var delta = (short)((wParam.ToInt64() >> 16) & 0xFFFF);
+        if (delta == 0) return IntPtr.Zero;
+        // The sign is the other way round from the wheel: a swipe to the right goes forward.
+        PageBy(delta > 0 ? 1 : -1);
+        handled = true;
+        return IntPtr.Zero;
     }
 
     // The preview is the whole point of the control: the click paints the application, and nothing
@@ -344,6 +379,15 @@ public partial class AppearancePicker : UserControl
             throw new InvalidOperationException("The appearance picker must show a card per theme and a dot per accent.");
         if (picker.PaletteBlock.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("The palette row must be off until the owner of the control asks for it.");
+        // One hairline in the row, and it stands immediately before the first dot that paints with a
+        // gradient. This is what catches a rearranged row and a dictionary with an unexpected brush.
+        var row = picker.AccentRow.Children.Cast<UIElement>().ToList();
+        var divider = row.FindIndex(item => item is Border);
+        if (divider < 0 || divider + 1 >= row.Count || row.Count(item => item is Border) != 1)
+            throw new InvalidOperationException("The row of accents must carry exactly one divider, and a dot after it.");
+        if (row[divider + 1] is not RadioButton { Tag: string first } || !ThemeService.IsGradientAccent(first) ||
+            row.Take(divider).Any(item => item is RadioButton { Tag: string solid } && ThemeService.IsGradientAccent(solid)))
+            throw new InvalidOperationException("The divider must stand between the solid accents and the gradients.");
         picker.ShowPaletteRow = true;
         picker.SelectedPalette = "pastel";
         if (picker.PaletteBlock.Visibility != Visibility.Visible || picker.PastelPalette.IsChecked != true)
@@ -396,6 +440,29 @@ public partial class AppearancePicker : UserControl
         picker.UpdateLayout();
         if (picker._firstCard != lastPage - 1 || !picker.NextTheme.IsEnabled)
             throw new InvalidOperationException("The gallery must page back from the end.");
+
+        // The gallery opens at the first card whatever the theme in force is: the frame marks the
+        // card, it does not pull the strip to it. The wheel and the sideways swipe of a touchpad go
+        // through the same paging as the chevrons, so the paging itself is what is checked here.
+        picker.SelectedTheme = ThemeService.Themes[0];
+        picker.PageBy(-picker.ThemeCards.Children.Count);
+        picker.UpdateLayout();
+        picker.SelectedTheme = ThemeService.Themes[^1];
+        picker.UpdateLayout();
+        if (picker._firstCard != 0 || picker.Gallery.HorizontalOffset != 0)
+            throw new InvalidOperationException("Choosing a theme must leave the gallery at the card it stands on.");
+        var marked = picker.ThemeCards.Children.OfType<Button>()
+            .Where(card => !ReferenceEquals(card.BorderBrush, Brushes.Transparent)).ToList();
+        if (marked.Count != 1 || marked[0].Tag as string != ThemeService.Themes[^1])
+            throw new InvalidOperationException("The frame must stand on the theme in force wherever its card is.");
+        picker.PageBy(1);
+        picker.UpdateLayout();
+        if (picker._firstCard != 1)
+            throw new InvalidOperationException("One notch of the wheel must move the gallery by one card.");
+        picker.PageBy(picker.ThemeCards.Children.Count);
+        picker.UpdateLayout();
+        if (picker._firstCard != lastPage || picker.NextTheme.IsEnabled)
+            throw new InvalidOperationException("The wheel must stop at the last page, the same as the chevron.");
 
         picker.ApplyLanguage("ru");
         if (NameOf(sea)?.Text != "Море")

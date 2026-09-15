@@ -82,7 +82,7 @@
             <!-- The gallery scrolls, it does not wrap: six cards of 132 px do not fit into 520, and
                  the chevrons move it by one card at a time. -->
             <ScrollViewer x:Name="Gallery" Grid.Column="1" Margin="8,0" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
-                          ScrollChanged="OnGalleryScrolled">
+                          ScrollChanged="OnGalleryScrolled" PreviewMouseWheel="OnGalleryWheel">
                 <StackPanel x:Name="ThemeCards" Orientation="Horizontal" />
             </ScrollViewer>
             <Button x:Name="NextTheme" Grid.Column="2" Style="{StaticResource Chevron}" Click="OnNextTheme">

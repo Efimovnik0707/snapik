@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
+using Drawing = System.Drawing;
 using WinForms = System.Windows.Forms;
 
 namespace Snapik.App;
@@ -26,9 +29,12 @@ public partial class OnboardingWindow : Window
     private string _appliedCaptureId;
     // The free combination the chip of step 2 offers, or null while nothing refuses the current one.
     private string? _suggestedCaptureId;
-    // The theme and the accent the wizard opened with, to go back to if the user skips the setup.
+    // The theme, the accent and the language the wizard opened with, to go back to if the user skips
+    // the setup. The language is one of the three: the switch of step 1 writes it into the candidate
+    // like everything else, and "Skip setup" has to touch nothing at all.
     private readonly string _openedTheme;
     private readonly string _openedAccent;
+    private readonly string _openedLanguage;
     private string _language;
     private int _step;
     // Whether "Get started" or "Skip setup" is closing the window, so that every other way of closing
@@ -57,6 +63,7 @@ public partial class OnboardingWindow : Window
         _howToOnly = howToOnly;
         _appliedCaptureId = settings.CaptureId;
         _language = SuggestedLanguage(settingsFileExists, settings, CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+        _openedLanguage = _language;
         InitializeComponent();
         CaptureField.HotkeyId = settings.CaptureId;
         CaptureField.HotkeyChanged += (_, _) =>
@@ -88,24 +95,76 @@ public partial class OnboardingWindow : Window
     /// <summary>
     /// The wizard opens on the monitor the user is on, not on the primary one, and never taller than
     /// the working area of that monitor. It is done here rather than in Loaded: the handle the scale
-    /// of the monitor is read through exists by now, and the window has not been drawn yet.
+    /// of the monitor is read through exists by now, and the window has not been drawn yet. The one
+    /// corner of the window is asked for here too, for the same reason: it needs the handle.
     /// </summary>
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        var handle = new WindowInteropHelper(this).Handle;
+        Trace?.Invoke($"Onboarding corners: rounded={DwmWindowCorners.Round(handle)}");
         try
         {
-            var monitor = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
-            var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
-            var topLeft = transform.Transform(new Point(monitor.Left, monitor.Top));
-            var area = transform.Transform(new Point(monitor.Width, monitor.Height));
-            MaxHeight = Math.Max(MinimumUsefulHeight, area.Y - 40);
-            var height = Math.Min(Height, MaxHeight);
-            Left = topLeft.X + (area.X - Width) / 2;
-            Top = topLeft.Y + (area.Y - height) / 2;
+            // The scale is taken from the monitor the window is going to and not from the one it was
+            // created on: with two monitors of different scales the second answer is the wrong one,
+            // and the wizard ends up either taller than the working area or clamped to a scrollbar.
+            var work = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
+            PlaceOn(handle, work, MonitorMetrics.Scale(work.Left, work.Top), "opened");
         }
         catch (Exception ex) { Trace?.Invoke($"Onboarding placement: {ex}"); }
     }
+
+    // Whether the window has already answered the first WM_DPICHANGED; the second one and everything
+    // after it belongs to whoever is dragging the window between monitors.
+    private bool _placed;
+
+    /// <summary>
+    /// Moving the window to a monitor of another scale makes Windows send WM_DPICHANGED, and WPF
+    /// re-lays the window out by the rectangle it proposes, which moves the centre by a few pixels.
+    /// That is evened out once, by the scale the window now really has, and never again.
+    /// </summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        if (_placed) return;
+        _placed = true;
+        try
+        {
+            var handle = new WindowInteropHelper(this).Handle;
+            PlaceOn(handle, WinForms.Screen.FromHandle(handle).WorkingArea, VisualTreeHelper.GetDpi(this).DpiScaleX, "re-aligned");
+        }
+        catch (Exception ex) { Trace?.Invoke($"Onboarding placement: {ex}"); }
+    }
+
+    // The position is set in physical pixels through SetWindowPos rather than through Left and Top:
+    // those two are read in the scale of the monitor the window belongs to at that moment, and that
+    // is exactly the monitor this is trying to leave.
+    private void PlaceOn(IntPtr handle, Drawing.Rectangle work, double scale, string reason)
+    {
+        MaxHeight = UsefulHeight(work.Height, scale, MinimumUsefulHeight);
+        var height = Math.Min(Height, MaxHeight);
+        SetWindowPos(handle, IntPtr.Zero,
+            CenteredStart(work.Left, work.Width, Width, scale),
+            CenteredStart(work.Top, work.Height, height, scale),
+            0, 0, SwpNoSize | SwpNoZOrder | SwpNoActivate);
+        Trace?.Invoke($"Onboarding placement: {reason} on monitor={work}, scale={scale}, MaxHeight={MaxHeight}, height={height}");
+    }
+
+    /// <summary>
+    /// Where the window starts along one axis, in physical pixels: the working area of the monitor it
+    /// opens on, less the window itself measured at the scale of that monitor. Arithmetic on its own,
+    /// so the half of the placement that can be checked without a second monitor is checked.
+    /// </summary>
+    internal static int CenteredStart(int workStart, int workLength, double windowLength, double scale) =>
+        workStart + (int)Math.Round((workLength - windowLength * (scale > 0 ? scale : 1)) / 2);
+
+    private const int SwpNoSize = 0x0001;
+    private const int SwpNoZOrder = 0x0004;
+    private const int SwpNoActivate = 0x0010;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, int flags);
 
     /// <summary>Below this the wizard would be a strip of chrome; the content scrolls instead.</summary>
     private const double MinimumUsefulHeight = 360;
@@ -419,14 +478,16 @@ public partial class OnboardingWindow : Window
             Appearance.SelectedAccent = _openedAccent;
             ThemeService.Apply(_openedTheme, _openedAccent);
         }
+        // The switch of step 1 changes the language of the running application at once, and the
+        // candidate carries whatever it is at the end. Skipping the setup puts the language back the
+        // same way the theme goes back: nothing the wizard was played with is kept.
+        if (_language != _openedLanguage) ApplyLanguage(_openedLanguage);
         Apply(_appliedCaptureId);
     }
 
     // The text at the bottom left and the cross in the header mean the same thing and do the same
     // thing; the text says it in words, and says it on every step.
     private void OnSkipLink(object sender, MouseButtonEventArgs e) => OnSkip(sender, e);
-
-    private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
 
     // "Minimize" is the window, not the wizard: nothing is applied and nothing is marked, the window
     // goes to the taskbar and comes back from it.

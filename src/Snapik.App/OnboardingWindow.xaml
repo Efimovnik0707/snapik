@@ -4,9 +4,15 @@
  WindowStartupLocation="Manual" ShowInTaskbar="True" Topmost="False">
  <!-- The window keeps its own header (a name, "minimize" and a cross), so the system chrome is off;
       transparency is off with it: WindowChrome, hardware acceleration and the glass theme all need
-      an opaque window. The rounded corner is left to the inner border, the outer one to DWM. -->
+      an opaque window. There is exactly one corner, and the window does not draw it: DwmWindowCorners
+      asks the desktop manager for it in OnSourceInitialized. On Windows 10 the ask is refused and the
+      window is square all the way through, which is what it should be there. -->
  <WindowChrome.WindowChrome>
-  <WindowChrome CaptionHeight="0" GlassFrameThickness="0" ResizeBorderThickness="0" CornerRadius="0"/>
+  <!-- The top belt of the window (20 px of padding plus the 28 px header) is the system caption, so
+       the whole of it drags the window, corners and side fields included. The aero caption buttons
+       are off: invisible ones sit exactly where "minimize" and the cross are, and they would eat
+       the clicks. -->
+  <WindowChrome CaptionHeight="48" GlassFrameThickness="0" ResizeBorderThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
  </WindowChrome.WindowChrome>
  <Window.Resources>
   <!-- One layout for every step: the same width, the same heading, the same buttons. The styles are
@@ -101,18 +107,18 @@
    <Setter Property="controls:ButtonChrome.PressedBackground" Value="{DynamicResource PressedBrush}"/>
   </Style>
  </Window.Resources>
- <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" CornerRadius="16" Padding="24,20,24,24">
+ <Border Background="{DynamicResource SurfaceBrush}" BorderThickness="0" CornerRadius="0" Padding="24,20,24,24">
   <Grid>
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <!-- The header belongs to the window and to nothing else: the name of the application, "minimize"
-        and the cross. It reads as a header, so it is also what the window is dragged by. -->
-   <Grid Height="28" Margin="0,0,0,14" Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
+        and the cross. It reads as a header, and the system caption above drags the window for it. -->
+   <Grid Height="28" Margin="0,0,0,14" Background="Transparent">
     <TextBlock Text="Snapik" FontSize="12" Foreground="{DynamicResource TextFaintBrush}" VerticalAlignment="Center"/>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-     <Button x:Name="MinimizeButton" Style="{StaticResource WizardIconButton}" Margin="0,0,4,0" VerticalAlignment="Center" Click="OnMinimize" ToolTip="Свернуть" AutomationProperties.Name="{local:UiText Свернуть}">
+     <Button x:Name="MinimizeButton" Style="{StaticResource WizardIconButton}" Margin="0,0,4,0" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True" Click="OnMinimize" ToolTip="Свернуть" AutomationProperties.Name="{local:UiText Свернуть}">
       <Path Data="M0,1 L10,1" Stroke="{DynamicResource TextMutedBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
      </Button>
-     <Button x:Name="SkipButton" Style="{StaticResource WizardIconButton}" VerticalAlignment="Center" Click="OnSkip" ToolTip="Закрыть" AutomationProperties.Name="{local:UiText Закрыть}">
+     <Button x:Name="SkipButton" Style="{StaticResource WizardIconButton}" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True" Click="OnSkip" ToolTip="Закрыть" AutomationProperties.Name="{local:UiText Закрыть}">
       <Path Data="M0,0 L10,10 M10,0 L0,10" Stroke="{DynamicResource TextMutedBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
      </Button>
     </StackPanel>

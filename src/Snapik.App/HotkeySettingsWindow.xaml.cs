@@ -493,6 +493,17 @@ public partial class HotkeySettingsWindow : Window
         if (dialog.ShowDialog(this) == true) DirectoryBox.Text = dialog.FolderName;
     }
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
+
+    // The link asks for the wizard and leaves; the strip opens it, because two modal windows one on
+    // top of the other are not what the user asked for. The result is "false" and not "true": edits
+    // made in the dialog and not saved are dropped, so the wizard reads the file from the disk and
+    // shows one state instead of two.
+    private void OnRunOnboarding(object sender, MouseButtonEventArgs e)
+    {
+        OnboardingRequested = true;
+        DialogResult = false;
+    }
+
     private void OnSave(object sender, RoutedEventArgs e)
     {
         try
@@ -572,5 +583,15 @@ public partial class HotkeySettingsWindow : Window
         if (window.ErrorText.Visibility != Visibility.Visible ||
             window.ErrorText.Text != "Одно сочетание на два действия. Поменяй одно из них.")
             throw new InvalidOperationException("One combination for two actions must be explained under the tabs.");
+
+        // The link asks for the wizard and saves nothing: the flag the strip reads goes up, and the
+        // settings the user was typing stay where they were, unsaved. The window of the probe was
+        // never shown as a dialog, so WPF refuses the "false" the link hands back after that; the
+        // refusal is the only part of the link a run without a screen cannot see.
+        var tour = new HotkeySettingsWindow(settings);
+        try { tour.OnRunOnboarding(tour.RunOnboardingLink, new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)); }
+        catch (InvalidOperationException) { }
+        if (!tour.OnboardingRequested || tour.Result is not null)
+            throw new InvalidOperationException("The link to the wizard must ask for it and save nothing.");
     }
 }
