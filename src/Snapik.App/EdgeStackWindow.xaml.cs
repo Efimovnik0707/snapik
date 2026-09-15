@@ -91,7 +91,7 @@ public partial class EdgeStackWindow : Window
         var dataRoot = options.DataDirectory;
         if (options.Demo && string.IsNullOrWhiteSpace(dataRoot)) dataRoot = Path.Combine(Path.GetTempPath(), "Snapik", $"demo-{Environment.ProcessId}");
         _workspace = new SessionWorkspace(dataRoot);
-        _settingsPath = Path.Combine(options.DataDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Snapik"), "settings.json");
+        _settingsPath = Path.Combine(options.DataDirectory ?? AppDataPaths.LocalRoot, "settings.json");
         // The one read of the settings that may also write: a file from an older build is brought
         // up to date here, once, and every other read in the application stays a read.
         _settings = HotkeySettings.LoadAndMigrate(_settingsPath);

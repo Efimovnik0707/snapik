@@ -4,6 +4,9 @@ import Foundation
 import SnapikCore
 
 let options = CommandLineOptions.parseCurrentProcess()
+// Before the first write into the data folder: an update over SnapBrief 1.4.0 finds its settings
+// and sessions under the old name and they have to be carried over first.
+if options.dataDirectory == nil { SnapikPaths.carryOverLegacyData() }
 StartupLog.write(options, "App.OnStartup entered")
 
 if !options.smokeTest, options.captureTestPath == nil {

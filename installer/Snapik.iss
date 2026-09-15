@@ -24,6 +24,11 @@ AppPublisherURL=https://getsnapik.com
 AppSupportURL=https://getsnapik.com
 VersionInfoVersion={#AppFileVersion}
 DefaultDirName={localappdata}\Programs\Snapik
+; An update over SnapBrief 1.4.0 keeps the same AppId, so Inno would offer the folder and the
+; Start menu group of the old name. Both are replaced by the ones of the new name, and the
+; leftovers are removed in [InstallDelete].
+UsePreviousAppDir=no
+UsePreviousGroup=no
 DefaultGroupName=Snapik
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
@@ -41,7 +46,7 @@ SolidCompression=yes
 LZMAUseSeparateProcess=yes
 WizardStyle=modern
 CloseApplications=yes
-CloseApplicationsFilter=Snapik.exe
+CloseApplicationsFilter=Snapik.exe,SnapBrief.exe
 RestartApplications=no
 ; The installer never asks for a language: it takes the one of the system, exactly like the
 ; application does. Startup is not asked for either, the wizard of the first run owns that switch.
@@ -56,6 +61,14 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+
+[InstallDelete]
+; The 1.4.0 installation carried the old name. Its program folder and shortcuts go away; the
+; data folder in %LOCALAPPDATA% stays, the application carries it over on the first start.
+Type: filesandordirs; Name: "{localappdata}\Programs\SnapBrief"
+Type: filesandordirs; Name: "{autoprograms}\SnapBrief"
+Type: files; Name: "{group}\SnapBrief*"
+Type: files; Name: "{autodesktop}\SnapBrief.lnk"
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "build-info.json,*.pdb"
@@ -81,6 +94,22 @@ Filename: "taskkill.exe"; Parameters: "/IM Snapik.exe /F"; Flags: runhidden; Run
 ; executable that is gone. A [Registry] line with "deletevalue" was rejected: it would also switch
 ; the setting off on every install over an existing one.
 Filename: "reg.exe"; Parameters: "delete ""HKCU\Software\Microsoft\Windows\CurrentVersion\Run"" /v Snapik /f"; Flags: runhidden; RunOnceId: "DropAutostart"
+; And the one of the old name, in case this install came over SnapBrief 1.4.0 and the
+; application never got a chance to carry it over.
+Filename: "reg.exe"; Parameters: "delete ""HKCU\Software\Microsoft\Windows\CurrentVersion\Run"" /v SnapBrief /f"; Flags: runhidden; RunOnceId: "DropLegacyAutostart"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+
+[Code]
+// The build being replaced is not in {app} when the update comes from SnapBrief 1.4.0: it sits in
+// the folder of the old name, where Inno's own "close applications" never looks. Both names are
+// stopped by hand before a single file is touched.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}	askkill.exe'), '/IM SnapBrief.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}	askkill.exe'), '/IM Snapik.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;

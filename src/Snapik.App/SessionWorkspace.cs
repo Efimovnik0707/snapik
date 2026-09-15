@@ -29,11 +29,11 @@ public sealed class SessionWorkspace
 
     public SessionWorkspace(string? explicitRoot = null)
     {
-        _root = Path.GetFullPath(explicitRoot ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Snapik", "sessions"));
+        _root = Path.GetFullPath(explicitRoot ?? Path.Combine(AppDataPaths.LocalRoot, "sessions"));
         _store = new JsonSessionStore(_root);
         _assets = new SessionAssetStore(_store);
         _currentPointer = Path.Combine(_root, "current-session.txt");
-        SettingsPath = Path.Combine(explicitRoot ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Snapik"), "settings.json");
+        SettingsPath = Path.Combine(explicitRoot ?? AppDataPaths.LocalRoot, "settings.json");
         SessionId = Guid.NewGuid();
         _createdAtUtc = DateTimeOffset.UtcNow;
     }

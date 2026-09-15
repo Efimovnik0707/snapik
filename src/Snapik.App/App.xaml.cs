@@ -19,6 +19,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
         var options = LaunchOptions.Parse(e.Args);
+        // Before the first write into the data folder: an update over SnapBrief 1.4.0 finds its
+        // settings and sessions under the old name and they have to be carried over first.
+        if (options.DataDirectory is null) AppDataPaths.CarryOverLegacyData();
         StartupTrace.Write(options, "App.OnStartup entered");
         // Before any window exists: the shortcuts of the installer carry the same identity, and the
         // taskbar only puts the pinned icon and the running window together when the two agree.
@@ -55,6 +58,7 @@ public partial class App : Application
 
         try
         {
+            WindowsStartupService.CarryOverLegacyValue();
             StartupTrace.Write(options, "Constructing EdgeStackWindow");
             System.Windows.Window window = new EdgeStackWindow(options);
             StartupTrace.Write(options, "Primary window constructed");
@@ -91,7 +95,7 @@ public partial class App : Application
 public static class StartupTrace
 {
     public static string GetDataRoot(LaunchOptions options) => options.DataDirectory
-        ?? (options.Demo ? Path.Combine(Path.GetTempPath(), "Snapik", $"demo-{Environment.ProcessId}") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Snapik", "sessions"));
+        ?? (options.Demo ? Path.Combine(Path.GetTempPath(), "Snapik", $"demo-{Environment.ProcessId}") : Path.Combine(AppDataPaths.LocalRoot, "sessions"));
 
     public static void Write(LaunchOptions options, string message)
     {
