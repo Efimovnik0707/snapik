@@ -16,6 +16,14 @@ extension OverlayEditorController {
     func commit(addNext: Bool) {
         guard let capture, !busyCrop, !isModalOpen, captureResizeCorner < 0, canvasView?.manipulating != true else { return }
 
+        // The letters of a caption still being typed belong to the mark, not to the field over it:
+        // the capture must not leave with the field holding them (SPEC-DELTA-3 §1.4 E-6).
+        if isEditingText { commitTextEdit() }
+        // The panel writes what the next capture starts with even when this one is finished by the
+        // global shortcut, which never closes a popover (`FlushAppearanceDefaults`,
+        // `OverlayEditorWindow.Appearance.cs:651-656`).
+        commitAppearanceSession()
+
         rememberCurrentRegionIfNeeded()
 
         // R1 fix: this edit is being kept, so the pre-edit backup (if any) written by

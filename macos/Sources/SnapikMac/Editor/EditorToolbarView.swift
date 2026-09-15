@@ -311,6 +311,7 @@ final class EditorToolbarView: NSView {
 
     private var toolButtons: [ToolbarToggleButtonView] = []
     private var dotViews: [ToolbarColorDotView] = []
+    private var dotHexes: [String] = []
     private var placementOrder: [NSView] = []
 
     var onToolSelected: ((EditorTool) -> Void)?
@@ -401,8 +402,15 @@ final class EditorToolbarView: NSView {
         redoButton.isEnabled = canRedo
     }
 
-    /// Port of `BuildColorDots` (`Appearance.cs:220-240`): the quick row of the active palette.
+    /// Port of `BuildColorDots` (`Appearance.cs:220-240`): the quick row of the active palette. The
+    /// row is rebuilt only when the palette behind it changed — every sync of the panel calls this,
+    /// and a colour dragged through the spectrum syncs on every move of the mouse.
     func setQuickColors(_ hexes: [String], current: NSColor) {
+        guard dotHexes != hexes else {
+            setCurrentQuickColor(current)
+            return
+        }
+        dotHexes = hexes
         for dot in dotViews { dot.removeFromSuperview() }
         dotViews = hexes.compactMap { hex in
             guard let color = EditorAppearance.color(fromHex: hex) else { return nil }
