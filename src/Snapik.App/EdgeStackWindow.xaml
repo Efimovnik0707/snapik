@@ -27,7 +27,7 @@
              why every icon below binds its Stroke (or Fill) to the Foreground of its own button: one
              trigger then repaints the plate and the icon together. -->
         <Style x:Key="IconButton" TargetType="Button">
-            <Setter Property="Width" Value="26" /><Setter Property="Height" Value="26" /><Setter Property="Padding" Value="0" />
+            <Setter Property="Width" Value="22" /><Setter Property="Height" Value="22" /><Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
             <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" /><Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
@@ -137,13 +137,14 @@
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Grid.Row="0" Height="28" MouseLeftButtonDown="OnHeaderMouseDown">
-                <!-- Four columns of the same 30 px: a button of 26 sits in the middle of each and
-                     keeps a gap of four from its neighbour. -->
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
+                <!-- Four columns of 22, the width of the button itself and no gap between them:
+                     four times thirty took 120 of the 184 the panel has, and "Snapik 26" did not fit
+                     in what was left. Eighty-eight now, and 96 for the title. -->
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="22" /><ColumnDefinition Width="22" /><ColumnDefinition Width="22" /><ColumnDefinition Width="22" /></Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" Margin="1,0,7,0" />
-                    <TextBlock Foreground="{DynamicResource TextBrush}" FontSize="12" FontWeight="SemiBold" Text="Snapik" />
-                    <Border Margin="7,0,0,0" Padding="6,2" CornerRadius="8" Background="{DynamicResource ElevatedBrush}">
+                    <TextBlock Foreground="{DynamicResource TextBrush}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="Snapik" />
+                    <Border Margin="7,0,0,0" Padding="5,2" CornerRadius="8" Background="{DynamicResource ElevatedBrush}">
                         <TextBlock x:Name="CountText" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" Text="0" />
                     </Border>
                 </StackPanel>
