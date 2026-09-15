@@ -29,9 +29,12 @@ public partial class OnboardingWindow : Window
     private string _appliedCaptureId;
     // The free combination the chip of step 2 offers, or null while nothing refuses the current one.
     private string? _suggestedCaptureId;
-    // The theme and the accent the wizard opened with, to go back to if the user skips the setup.
+    // The theme, the accent and the language the wizard opened with, to go back to if the user skips
+    // the setup. The language is one of the three: the switch of step 1 writes it into the candidate
+    // like everything else, and "Skip setup" has to touch nothing at all.
     private readonly string _openedTheme;
     private readonly string _openedAccent;
+    private readonly string _openedLanguage;
     private string _language;
     private int _step;
     // Whether "Get started" or "Skip setup" is closing the window, so that every other way of closing
@@ -60,6 +63,7 @@ public partial class OnboardingWindow : Window
         _howToOnly = howToOnly;
         _appliedCaptureId = settings.CaptureId;
         _language = SuggestedLanguage(settingsFileExists, settings, CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+        _openedLanguage = _language;
         InitializeComponent();
         CaptureField.HotkeyId = settings.CaptureId;
         CaptureField.HotkeyChanged += (_, _) =>
@@ -474,6 +478,10 @@ public partial class OnboardingWindow : Window
             Appearance.SelectedAccent = _openedAccent;
             ThemeService.Apply(_openedTheme, _openedAccent);
         }
+        // The switch of step 1 changes the language of the running application at once, and the
+        // candidate carries whatever it is at the end. Skipping the setup puts the language back the
+        // same way the theme goes back: nothing the wizard was played with is kept.
+        if (_language != _openedLanguage) ApplyLanguage(_openedLanguage);
         Apply(_appliedCaptureId);
     }
 

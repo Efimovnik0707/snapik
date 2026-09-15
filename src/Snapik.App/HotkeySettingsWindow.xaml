@@ -36,6 +36,10 @@
      <RadioButton x:Name="RussianSegment" Style="{StaticResource SegmentButton}" GroupName="SettingsLanguage" Content="Русский"/>
      <RadioButton x:Name="EnglishSegment" Style="{StaticResource SegmentButton}" GroupName="SettingsLanguage" Content="English"/>
     </StackPanel>
+    <!-- The way back into the wizard, which otherwise opens once in the life of the installation.
+         It reads as a way out and not as a button, the same as "Skip setup" in the wizard itself. -->
+    <TextBlock x:Name="RunOnboardingLink" Text="Пройти знакомство заново" FontSize="12" Foreground="{DynamicResource TextFaintBrush}"
+               Cursor="Hand" HorizontalAlignment="Left" Margin="0,18,0,0" MouseLeftButtonDown="OnRunOnboarding"/>
    </StackPanel></TabItem>
    <TabItem Header="Клавиши"><StackPanel Margin="0,10,0,0">
     <CheckBox x:Name="CaptureEnabledBox" Content="Сделать скриншот" Margin="0,0,0,7"/>
