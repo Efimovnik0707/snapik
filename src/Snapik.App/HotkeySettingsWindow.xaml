@@ -1,4 +1,4 @@
-<Window x:Class="Snapik.App.HotkeySettingsWindow"
+﻿<Window x:Class="Snapik.App.HotkeySettingsWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Snapik.App" xmlns:controls="clr-namespace:Snapik.App.Controls"
  Title="Настройки Snapik" Width="620" Height="520" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="{DynamicResource TextBrush}"
  WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
@@ -40,8 +40,8 @@
    <TabItem Header="Клавиши"><StackPanel Margin="0,10,0,0">
     <CheckBox x:Name="CaptureEnabledBox" Content="Сделать скриншот" Margin="0,0,0,7"/>
     <controls:HotkeyField x:Name="CaptureField" Margin="0,0,0,20" HotkeyChanged="OnHotkeyChanged" AutomationProperties.Name="{local:UiText Сделать скриншот}"/>
-    <CheckBox x:Name="FullscreenEnabledBox" Content="Скриншот всего экрана в папку" Margin="0,0,0,7"/>
-    <controls:HotkeyField x:Name="FullscreenField" HotkeyChanged="OnHotkeyChanged" AutomationProperties.Name="{local:UiText Скриншот всего экрана в папку}"/>
+    <CheckBox x:Name="FullscreenEnabledBox" Content="Снимок всего экрана" Margin="0,0,0,7"/>
+    <controls:HotkeyField x:Name="FullscreenField" HotkeyChanged="OnHotkeyChanged" AutomationProperties.Name="{local:UiText Снимок всего экрана}"/>
     <!-- The shortcut of the whole screen is off until it is asked for, and the chip is the asking:
          it carries the first free combination and switches the shortcut on with it. -->
     <Button x:Name="SuggestChip" Style="{StaticResource BaseButton}" Background="{DynamicResource ElevatedBrush}" BorderBrush="{DynamicResource ElevatedLineBrush}"

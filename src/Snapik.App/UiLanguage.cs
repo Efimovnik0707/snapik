@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -48,7 +48,7 @@ internal static class UiLanguage
         ["Цвет · рамки, кнопки, номера отметок"] = "Color · frames, buttons, marker numbers",
         ["так будут выглядеть отметки"] = "this is how the marks will look",
         ["Палитра отметок"] = "Marker palette",
-        ["Сделать скриншот"] = "Take a screenshot", ["Скриншот всего экрана в папку"] = "Save the whole screen to a folder",
+        ["Сделать скриншот"] = "Take a screenshot", ["Снимок всего экрана"] = "Capture the whole screen",
         ["Формат"] = "Format", ["Папка сохранения"] = "Save folder", ["Выбрать папку"] = "Choose folder",
         ["Качество JPEG: {0} % (меньше, легче файл)"] = "JPEG quality: {0} % (lower means a smaller file)",
         ["Сохранить"] = "Save", ["Отмена"] = "Cancel", ["Закрыть"] = "Close",

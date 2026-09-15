@@ -322,7 +322,7 @@ public static class SmokeTestRunner
         foreach (var (russian, english) in new[]
         {
             ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
-            ("Скриншот всего экрана в папку", "Save the whole screen to a folder"), ("Предлагать ту же область, что в прошлый раз", "Offer the same area as last time"),
+            ("Снимок всего экрана", "Capture the whole screen"), ("Предлагать ту же область, что в прошлый раз", "Offer the same area as last time"),
             ("Показывать курсор мыши на скриншоте", "Show the mouse pointer in the screenshot"), ("Звуки", "Sounds"),
             ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close"), ("Громкость", "Volume"),
             ("Все снимки уже отправлены. Сделайте новый снимок.", "Every capture was already sent. Take a new one."),
