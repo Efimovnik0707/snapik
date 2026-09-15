@@ -70,7 +70,11 @@ enum SmokeTestRunner {
         check("toolbar placement avoids narrow-selection obscuring", toolbarPlacementOk)
 
         // 1. Settings round-trip with every non-default value (SPEC §8.4 point 2).
-        var custom = HotkeySettings(captureId: "custom:6:75", pasteId: HotkeySettings.default.pasteId)
+        // Built from the defaults and not from the two-argument initializer: the defaults carry the
+        // current schema version, and a settings object that does not is migrated as it is read
+        // (SPEC-DELTA-3 §2.2), which is exactly what this round-trip must not mistake for a loss.
+        var custom = HotkeySettings.default
+        custom.captureId = "custom:6:75"
         custom.captureEnabled = false
         custom.fullscreenSaveEnabled = true
         custom.fullscreenSaveId = "custom:4:44"
