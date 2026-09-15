@@ -574,6 +574,9 @@ public static class SmokeTestRunner
         // in roots of their own, so they cannot touch the session this run is building.
         await VerifySessionPurgeAsync(Path.Combine(root, "purge-probe"));
         await VerifySessionDiscardAsync(Path.Combine(root, "discard-probe"));
+        await VerifyAWholeScreenCaptureNamesItselfAsync(Path.Combine(root, "fullscreen-probe"));
+        await VerifyAFileFromDiskReachesTheStripAsync(Path.Combine(root, "import-probe"));
+        VerifyTheWizardKeepsItsAppearance(root);
         var success = paths.Count == 3
             && preparedFilesOnDisk
             && decoded.All(bitmap => bitmap.PixelWidth == 1920 && bitmap.PixelHeight == 1128)
@@ -1281,5 +1284,58 @@ public static class SmokeTestRunner
         for (var i = 0; i < pixels.Length; i += 4)
             if (pixels[i] > 210 && pixels[i + 1] > 210 && pixels[i + 2] > 210 && pixels[i + 3] == 255) return true;
         return false;
+    }
+
+    // A capture of the whole screen goes into the strip like any other, which leaves the text as the
+    // only place that says what it is: a capture nobody wrote a word about used to be left out of
+    // prompt.md altogether, and the kind now speaks for it. The number of monitors travels with it.
+    private static async Task VerifyAWholeScreenCaptureNamesItselfAsync(string probeRoot)
+    {
+        var workspace = new SessionWorkspace(probeRoot);
+        var capture = await workspace.AddImageAsync(SessionWorkspace.CreateDemoBitmap(0, 400, 300));
+        capture.Kind = Snapik.Core.Models.CaptureKind.Fullscreen;
+        capture.MonitorCount = 2;
+        var prepared = await workspace.PrepareAsync([capture], string.Empty, null);
+        if (!prepared.Manifest.PromptText.Contains("Снимок A — весь экран.", StringComparison.Ordinal))
+            throw new InvalidOperationException($"A whole-screen capture must name itself in prompt.md: \"{prepared.Manifest.PromptText}\".");
+        var reloaded = await new SessionWorkspace(probeRoot).LoadCurrentAsync();
+        if (reloaded.Count != 1 || reloaded[0].Kind != Snapik.Core.Models.CaptureKind.Fullscreen || reloaded[0].MonitorCount != 2)
+            throw new InvalidOperationException("The kind of a capture and the number of monitors it covered must survive the session file.");
+    }
+
+    // The import of a file from disk, the whole way: a real PNG, the decoder, and the encoding into
+    // the session that happens in the thread pool. The frame the decoder returns belongs to the UI
+    // thread and freezing it does not change that, which is how the import threw in 1.4.0; the
+    // bitmap comes back as a copy now. The name of the file reaches prompt.md the way the kind does.
+    private static async Task VerifyAFileFromDiskReachesTheStripAsync(string probeRoot)
+    {
+        Directory.CreateDirectory(probeRoot);
+        var path = Path.Combine(probeRoot, "IMG_0512.png");
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(CreatePrivacyBitmap(160, 120)));
+        await using (var file = File.Create(path)) encoder.Save(file);
+
+        var workspace = new SessionWorkspace(probeRoot);
+        var loaded = SessionWorkspace.LoadBitmap(path);
+        var capture = await workspace.AddImageAsync(loaded);
+        capture.Kind = Snapik.Core.Models.CaptureKind.Import;
+        capture.Title = Path.GetFileName(path);
+        if (!loaded.IsFrozen || capture.Image.PixelWidth != 160 || capture.Image.PixelHeight != 120)
+            throw new InvalidOperationException("A file imported from disk must reach the strip frozen and at its own size.");
+        var prepared = await workspace.PrepareAsync([capture], string.Empty, null);
+        if (!prepared.Manifest.PromptText.Contains("Снимок A — IMG_0512.png.", StringComparison.Ordinal))
+            throw new InvalidOperationException($"An imported file must name itself in prompt.md: \"{prepared.Manifest.PromptText}\".");
+    }
+
+    // The appearance the wizard collects is written to settings.json along with everything else it
+    // owns: the theme picked on its fourth step used to be applied at once and forgotten by the next
+    // start, because the merge that saves the wizard carried three fields and neither of these two.
+    private static void VerifyTheWizardKeepsItsAppearance(string root)
+    {
+        var path = Path.Combine(root, "onboarding-appearance.json");
+        (HotkeySettings.Default with { Theme = "sea", AccentId = "rose-violet" }).Save(path);
+        var read = HotkeySettings.Load(path);
+        if (read.Theme != "sea" || read.AccentId != "rose-violet")
+            throw new InvalidOperationException("The theme and the accent the wizard collects must survive the settings file.");
     }
 }

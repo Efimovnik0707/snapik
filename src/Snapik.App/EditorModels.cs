@@ -195,17 +195,30 @@ public sealed class CaptureItem : INotifyPropertyChanged
     private string _title = string.Empty;
     private CaptureKind _kind = CaptureKind.Region;
     private int _monitorCount;
+    private string _displayLabel = "A";
+
+    // The card of the strip is bound to this object and to nothing else: the list used to be told
+    // to rebuild its containers (Items.Refresh) after every renumbering, and a rebuild resets the
+    // scroll offset and hands recycled containers the wrong indices. The letter and the number of
+    // notes announce themselves instead, and the list is left alone.
+    public CaptureItem() => Annotations.CollectionChanged += (_, _) => OnPropertyChanged(nameof(NoteCount));
 
     public Guid Id { get; init; } = Guid.NewGuid();
     public required BitmapSource Image { get; set; }
     public required string SourcePath { get; set; }
     public ObservableCollection<AnnotationItem> Annotations { get; } = [];
-    public string DisplayLabel { get; set; } = "A";
+
+    public string DisplayLabel
+    {
+        get => _displayLabel;
+        set { if (_displayLabel == value) return; _displayLabel = value; OnPropertyChanged(); }
+    }
 
     public string Note
     {
         get => _note;
-        set { if (_note == value) return; _note = value; OnPropertyChanged(); }
+        // The note of the capture is one of the notes the badge counts, so the count changes with it.
+        set { if (_note == value) return; _note = value; OnPropertyChanged(); OnPropertyChanged(nameof(NoteCount)); }
     }
 
     public bool IsSelected
