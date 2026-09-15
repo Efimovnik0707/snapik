@@ -20,13 +20,19 @@ public enum ArrowDrawing {
     public static func shaft(from start: CGPoint, to end: CGPoint, style: String) -> [CGPoint] {
         guard style == "curved" else { return [start, end] }
         let control = controlPoint(from: start, to: end)
-        return (0..<17).map { index in
+        var points: [CGPoint] = []
+        points.reserveCapacity(17)
+        for index in 0..<17 {
             let t = CGFloat(index) / 16
-            let inverse = 1 - t
-            return CGPoint(
-                x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
-                y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y)
+            let inverse: CGFloat = 1 - t
+            let a: CGFloat = inverse * inverse
+            let b: CGFloat = 2 * inverse * t
+            let c: CGFloat = t * t
+            let x: CGFloat = a * start.x + b * control.x + c * end.x
+            let y: CGFloat = a * start.y + b * control.y + c * end.y
+            points.append(CGPoint(x: x, y: y))
         }
+        return points
     }
 
     /// `style` is `AnnotationItem.arrowStyle` (`"straight"`/`"curved"`/`"bold"`/`"wide"`); any

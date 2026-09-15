@@ -344,19 +344,17 @@ extension OverlayEditorController {
         let work = layoutWorkArea(screenIndex: screenIndex)
         var occupied: [CGRect] = []
 
-        let ordered = capture.annotations
-            .filter { chipViews[$0.id]?.isExpanded == true }
-            .enumerated()
-            .sorted { lhs, rhs in
-                func rank(_ annotation: EditorAnnotation) -> Int {
-                    if annotation.id == expandedChipId { return 0 }
-                    return annotation.noteOffset != nil ? 1 : 2
-                }
-                let lr = rank(lhs.element)
-                let rr = rank(rhs.element)
-                return lr == rr ? lhs.offset < rhs.offset : lr < rr
-            }
-            .map(\.element)
+        // Read out here and not inside the comparator: `sorted(by:)` takes a plain closure, and the
+        // state of the controller cannot be reached from one.
+        let expanded = expandedChipId
+        let visible = capture.annotations.filter { chipViews[$0.id]?.isExpanded == true }
+        let ranked: [(rank: Int, order: Int, annotation: EditorAnnotation)] = visible.enumerated().map { index, annotation in
+            let rank = annotation.id == expanded ? 0 : (annotation.noteOffset != nil ? 1 : 2)
+            return (rank, index, annotation)
+        }
+        let ordered = ranked
+            .sorted { lhs, rhs in lhs.rank == rhs.rank ? lhs.order < rhs.order : lhs.rank < rhs.rank }
+            .map(\.annotation)
 
         for annotation in ordered {
             guard let chip = chipViews[annotation.id] else { continue }

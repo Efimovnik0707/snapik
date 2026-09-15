@@ -95,7 +95,8 @@ final class AppearanceSwatchWrapView: NSView {
 /// One segment of a segmented row (`SegmentButton`): a rounded cell that fills with the accent while
 /// it is the chosen one, carrying either a caption or a drawn sample.
 final class EditorSegmentView: NSView {
-    let tag: String
+    /// Not `tag`: `NSView` already has one, and it is an `Int`.
+    let segmentTag: String
     var isChosen = false { didSet { needsDisplay = true } }
     var isEnabled = true {
         didSet {
@@ -112,7 +113,7 @@ final class EditorSegmentView: NSView {
     override var isFlipped: Bool { true }
 
     init(tag: String, caption: String? = nil, tooltip: String? = nil) {
-        self.tag = tag
+        segmentTag = tag
         self.caption = caption
         super.init(frame: .zero)
         toolTip = tooltip ?? caption
@@ -172,7 +173,7 @@ final class EditorSegmentedRowView: NSView {
     }
 
     func choose(_ tag: String) {
-        for segment in segments { segment.isChosen = segment.tag == tag }
+        for segment in segments { segment.isChosen = segment.segmentTag == tag }
     }
 
     override func layout() {

@@ -82,7 +82,7 @@ final class CommentListEntryView: NSView {
     func height(forWidth width: CGFloat) -> CGFloat {
         let textWidth = max(40, width - Self.padding.left - Self.padding.right - Self.badgeSize - 8)
         let textHeight = textLabel.stringValue.isEmpty ? 0 : textLabel.sizeThatFits(NSSize(width: textWidth, height: .greatestFiniteMagnitude)).height
-        let relationHeight = relationLabel.isHidden ? 0 : 16 + 3
+        let relationHeight: CGFloat = relationLabel.isHidden ? 0 : 19
         return max(Self.badgeSize, textHeight + relationHeight) + Self.padding.top + Self.padding.bottom
     }
 
