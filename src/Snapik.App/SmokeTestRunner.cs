@@ -350,7 +350,12 @@ public static class SmokeTestRunner
             ("Чаты обычно принимают до {0} картинок за раз", "Chats usually take up to {0} images at a time"),
             ("Снимки этой сессии будут удалены. Чтобы сохранить, нажмите «Сохранить пакет…» в меню •••",
                 "The captures of this session will be deleted. To keep them, use \"Save package…\" in the ••• menu."),
-            ("Snapik — Лента снимков", "Snapik — Capture strip")
+            ("Snapik — Лента снимков", "Snapik — Capture strip"),
+            // The strings of the 1.5.0 round that travel both ways: the wizard link of the settings,
+            // the chip of a card, the caption of the editor and the scale switch.
+            ("Пройти знакомство заново", "Take the tour again"), ("Светлая · Рассвет", "Light · Dawn"),
+            ("экран", "screen"), ("импорт", "import"), ("весь экран", "whole screen"),
+            ("По ширине · {0} %", "Fit width · {0} %"), ("По высоте · {0} %", "Fit height · {0} %")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");

@@ -37,8 +37,12 @@ internal static class UiLanguage
         ["зелёный"] = "green", ["оранжевый"] = "orange",
         ["сине-фиолетовый"] = "blue to violet", ["оранжево-розовый"] = "orange to rose",
         ["зелёно-бирюзовый"] = "green to cyan", ["янтарно-розовый"] = "amber to pink",
+        ["розовый"] = "rose", ["бирюзовый"] = "cyan",
+        ["розово-фиолетовый"] = "rose to violet", ["бирюзово-синий"] = "cyan to blue",
         ["Тёмная"] = "Dark", ["Светлая"] = "Light", ["Стекло"] = "Glass",
         ["Ночь"] = "Night", ["Закат"] = "Sunset", ["Море"] = "Sea", ["Рассвет"] = "Dawn",
+        // The light theme is the dawn one now, and its card says both words at once.
+        ["Светлая · Рассвет"] = "Light · Dawn",
         ["Тема: {0}"] = "Theme: {0}", ["Предыдущая тема"] = "Previous theme", ["Следующая тема"] = "Next theme",
         ["Тема · фон и панели"] = "Theme · background and panels",
         ["Цвет · рамки, кнопки, номера отметок"] = "Color · frames, buttons, marker numbers",
@@ -180,7 +184,17 @@ internal static class UiLanguage
         ["Лента живёт, пока открыта. Закроешь — снимки удалятся."] = "The strip lives while it is open. Close it and the captures are gone.",
         ["Сохранить — «Сохранить пакет…», или включи автосохранение в папку."] = "To keep them, use \"Save package…\", or switch on auto-saving to a folder.",
         ["Мешает — сверни в капсулу, клик разворачивает обратно."] = "In the way? Collapse it into the capsule, a click opens it again.",
-        ["Лишний снимок — крестик. Всё сразу — «Очистить»."] = "One capture too many: the cross. All of them: \"Clear\"."
+        ["Лишний снимок — крестик. Всё сразу — «Очистить»."] = "One capture too many: the cross. All of them: \"Clear\".",
+        // The strings of the 1.5.0 round: the wizard link in the settings, the empty strip, the chip
+        // of a card and the caption of the editor, the scale switch and the button of the palette.
+        ["Пройти знакомство заново"] = "Take the tour again",
+        ["Нажми {0} или «Новый снимок»"] = "Press {0} or \"New capture\"",
+        ["Нажми «Новый снимок»"] = "Press \"New capture\"",
+        ["экран"] = "screen", ["импорт"] = "import",
+        ["Не удалось снять экран"] = "The screen could not be captured",
+        ["весь экран"] = "whole screen", ["мониторов: {0}"] = "monitors: {0}",
+        ["По ширине · {0} %"] = "Fit width · {0} %", ["По высоте · {0} %"] = "Fit height · {0} %",
+        ["Добавить цвет в свою палитру"] = "Add the colour to my palette"
     };
     /// <summary>Every English value, for the smoke check that no two Russian keys share one: the way
     /// back (English to Russian) is a search by value, and a duplicate would answer with the wrong key.</summary>
