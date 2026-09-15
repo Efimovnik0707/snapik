@@ -20,18 +20,21 @@ public sealed class PromptGenerator
             var capture = session.Captures[captureIndex];
             var captureLabel = CaptureLabels.ForIndex(captureIndex);
             var labeledAnnotations = CaptureLabels.ForNotedAnnotations(captureLabel, capture).ToArray();
+            // A whole-screen shot has no title of its own, and without a word the receiver cannot
+            // tell it from a region: the kind speaks for it and counts as content of its own.
+            var title = ExportText.HasContent(capture.Title) ? capture.Title : KindTitle(capture.Kind);
             // A capture the user said nothing about adds nothing to the text: the image speaks for
             // itself, and a bare "Снимок A." line would only pollute the receiving prompt. Letters
             // still come from the position in the package, so the badges keep matching the text.
-            if (!ExportText.HasContent(capture.Title) && !ExportText.HasContent(capture.Note) && labeledAnnotations.Length == 0)
+            if (!ExportText.HasContent(title) && !ExportText.HasContent(capture.Note) && labeledAnnotations.Length == 0)
             {
                 continue;
             }
 
             var section = new StringBuilder($"Снимок {captureLabel}");
-            if (ExportText.HasContent(capture.Title))
+            if (ExportText.HasContent(title))
             {
-                section.Append(" — ").Append(capture.Title);
+                section.Append(" — ").Append(title);
             }
 
             section.Append('.');
@@ -59,4 +62,8 @@ public sealed class PromptGenerator
 
         return string.Join("\n\n", sections);
     }
+
+    // prompt.md is Russian from the first line to the last, so the word for the kind is a literal
+    // here and does not travel through the interface table.
+    private static string? KindTitle(CaptureKind kind) => kind == CaptureKind.Fullscreen ? "весь экран" : null;
 }

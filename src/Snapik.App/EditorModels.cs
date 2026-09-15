@@ -190,6 +190,9 @@ public sealed class CaptureItem : INotifyPropertyChanged
     private string _note = string.Empty;
     private bool _isSelected;
     private bool _isSent;
+    private string _title = string.Empty;
+    private CaptureKind _kind = CaptureKind.Region;
+    private int _monitorCount;
 
     public Guid Id { get; init; } = Guid.NewGuid();
     public required BitmapSource Image { get; set; }
@@ -216,15 +219,35 @@ public sealed class CaptureItem : INotifyPropertyChanged
         set { if (_isSent == value) return; _isSent = value; OnPropertyChanged(); }
     }
 
+    // Where the capture came from, how many monitors it covered and the name of the file it was
+    // imported from: the chip of the card and the caption of the editor are bound to all three.
+    public CaptureKind Kind
+    {
+        get => _kind;
+        set { if (_kind == value) return; _kind = value; OnPropertyChanged(); }
+    }
+
+    public int MonitorCount
+    {
+        get => _monitorCount;
+        set { var clamped = Math.Max(0, value); if (_monitorCount == clamped) return; _monitorCount = clamped; OnPropertyChanged(); }
+    }
+
+    public string Title
+    {
+        get => _title;
+        set { if (_title == value) return; _title = value; OnPropertyChanged(); }
+    }
+
     public int NoteCount => Annotations.Count(a => !string.IsNullOrWhiteSpace(a.Note)) + (string.IsNullOrWhiteSpace(Note) ? 0 : 1);
 
-    public CaptureSnapshot Snapshot() => new(Id, Image, SourcePath, DisplayLabel, Note, Annotations.Select(a => a.Clone()).ToList());
+    public CaptureSnapshot Snapshot() => new(Id, Image, SourcePath, DisplayLabel, Note, Kind, MonitorCount, Title, Annotations.Select(a => a.Clone()).ToList());
 
     public CaptureItem DeepClone()
     {
         // The sent flag travels with the copy: a capture restored through "Undo" must not come back
         // as unsent and land in the next package a second time.
-        var clone = new CaptureItem { Id = Id, Image = Image, SourcePath = SourcePath, DisplayLabel = DisplayLabel, Note = Note, IsSelected = IsSelected, IsSent = IsSent };
+        var clone = new CaptureItem { Id = Id, Image = Image, SourcePath = SourcePath, DisplayLabel = DisplayLabel, Note = Note, IsSelected = IsSelected, IsSent = IsSent, Kind = Kind, MonitorCount = MonitorCount, Title = Title };
         foreach (var annotation in Annotations.Select(a => a.Clone())) clone.Annotations.Add(annotation);
         return clone;
     }
@@ -236,16 +259,22 @@ public sealed class CaptureItem : INotifyPropertyChanged
         Image.PixelHeight,
         Image.DpiX > 0 ? Image.DpiX : 96,
         Image.DpiY > 0 ? Image.DpiY : 96,
-        string.Empty,
+        Title,
         Note,
         Annotations.Select(a => a.ToCore(Image.PixelWidth, Image.PixelHeight)).ToImmutableArray())
     {
-        Sent = IsSent
+        Sent = IsSent,
+        Kind = Kind,
+        MonitorCount = MonitorCount
     };
 
     public static CaptureItem FromCore(CoreCapture item, BitmapSource image)
     {
-        var capture = new CaptureItem { Id = item.Id, SourcePath = item.SourceImagePath, Image = image, Note = item.Note, IsSent = item.Sent };
+        var capture = new CaptureItem
+        {
+            Id = item.Id, SourcePath = item.SourceImagePath, Image = image, Note = item.Note, IsSent = item.Sent,
+            Kind = item.Kind, MonitorCount = item.MonitorCount, Title = item.Title
+        };
         foreach (var annotation in item.Annotations)
             capture.Annotations.Add(AnnotationItem.FromCore(annotation, image.PixelWidth, image.PixelHeight));
         return capture;
@@ -257,6 +286,9 @@ public sealed class CaptureItem : INotifyPropertyChanged
         SourcePath = snapshot.SourcePath;
         DisplayLabel = snapshot.DisplayLabel;
         Note = snapshot.Note;
+        Kind = snapshot.Kind;
+        MonitorCount = snapshot.MonitorCount;
+        Title = snapshot.Title;
         Annotations.Clear();
         foreach (var annotation in snapshot.Annotations.Select(a => a.Clone())) Annotations.Add(annotation);
     }
@@ -265,6 +297,6 @@ public sealed class CaptureItem : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
-public sealed record CaptureSnapshot(Guid CaptureId, BitmapSource Image, string SourcePath, string DisplayLabel, string Note, IReadOnlyList<AnnotationItem> Annotations);
+public sealed record CaptureSnapshot(Guid CaptureId, BitmapSource Image, string SourcePath, string DisplayLabel, string Note, CaptureKind Kind, int MonitorCount, string Title, IReadOnlyList<AnnotationItem> Annotations);
 
 public sealed record PreparedPackage(Guid ExportId, IReadOnlyList<string> ImagePaths, string PromptText, string DirectoryPath);
