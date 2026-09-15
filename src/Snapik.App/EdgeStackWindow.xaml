@@ -132,11 +132,11 @@
     <!-- The margin is the field the shadow of the window needs: a blur of 24 and a depth of 5 want
          12 + 5 px, and ten of them cut the shadow off at the edge of the window. It is the same 20
          the capsule and the grips keep, and it is StripResizeGeometry.ShadowMargin. -->
-    <Border x:Name="Shell" Margin="20" Padding="10" CornerRadius="16" Background="{DynamicResource SurfaceBrush}">
+    <Border x:Name="Shell" Margin="20" Padding="10" CornerRadius="16" Background="{DynamicResource SurfaceBrush}" MouseLeftButtonDown="OnShellMouseDown">
         <Border.Effect><DropShadowEffect Color="{DynamicResource ShadowColor}" BlurRadius="24" ShadowDepth="5" Opacity="{DynamicResource ShadowOpacity}" /></Border.Effect>
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-            <Grid Grid.Row="0" Height="28" MouseLeftButtonDown="OnHeaderMouseDown">
+            <Grid Grid.Row="0" Height="28" Background="Transparent">
                 <!-- Four columns of 22, the width of the button itself and no gap between them:
                      four times thirty took 120 of the 184 the panel has, and "Snapik 26" did not fit
                      in what was left. Eighty-eight now, and 96 for the title. -->

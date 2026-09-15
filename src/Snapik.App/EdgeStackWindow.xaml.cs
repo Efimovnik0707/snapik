@@ -1686,7 +1686,15 @@ public partial class EdgeStackWindow : Window
         action?.Invoke();
     }
 
-    private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
+    // The strip is dragged by any free spot of the panel, not by the header alone: the paddings, the
+    // gaps between the cards and the header itself, which is transparent and therefore hit-tested
+    // whole. Everything that wants a press of its own takes it before this: the buttons, the cards,
+    // the two grips and the scrollbar. A double click is let through, it is not the start of a drag.
+    private void OnShellMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || e.ClickCount > 1) return;
+        DragMove();
+    }
 
     private void OnCaptureThumbMouseEnter(object sender, MouseEventArgs e) => UiSoundService.Tick(_settings);
 
