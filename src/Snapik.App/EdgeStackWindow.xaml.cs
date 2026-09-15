@@ -1349,7 +1349,6 @@ public partial class EdgeStackWindow : Window
     {
         var labels = SentCaptureRules.StripLabels([.. Captures.Select(capture => capture.IsSent)]);
         for (var i = 0; i < Captures.Count; i++) if (labels[i] is { } label) Captures[i].DisplayLabel = label;
-        CaptureList?.Items.Refresh();
         var pending = PendingCaptures.Count;
         CountText.Text = pending.ToString();
         // The capsule shows the same number as the header: what is still waiting to be pasted.
@@ -1683,7 +1682,6 @@ public partial class EdgeStackWindow : Window
 
         _busy = true;
         capture.IsSelected = true;
-        CaptureList.Items.Refresh();
         var stackHidden = false;
         var requestNext = false;
         try
@@ -1710,7 +1708,6 @@ public partial class EdgeStackWindow : Window
         finally
         {
             capture.IsSelected = false;
-            CaptureList.Items.Refresh();
             _busy = false;
             if (stackHidden) ShowStackWithoutActivation();
         }
@@ -1837,17 +1834,4 @@ public partial class EdgeStackWindow : Window
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmFlush();
-}
-
-// The depth of a card of the strip from its place in it: the first card is drawn over the second,
-// the second over the third, and so on down the stack, so the shadow of every card falls into the
-// seam below it. The index comes from ItemsControl.AlternationIndex, which is why the strip declares
-// an AlternationCount of MaxStripCaptures: within that count the index is the place of the card.
-public sealed class StripDepthConverter : System.Windows.Data.IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
-        value is int index ? -index : 0;
-
-    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
-        throw new NotSupportedException("The depth of a card is read from its index, never written back.");
 }
