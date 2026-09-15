@@ -205,6 +205,7 @@ public static class SmokeTestRunner
         }
         ThemeService.Apply("dark", "blue");
         VerifyTheThemesOfTheRound();
+        VerifyTheAccentsOfTheRound();
         WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
         WithoutBindingErrors("The colour spectrum", Controls.ColorSpectrum.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
@@ -1207,6 +1208,33 @@ public static class SmokeTestRunner
             bar.EndPoint != new Point(1, 0))
             throw new InvalidOperationException("Glass must be the gradient of the reference, and its bar the same gradient laid sideways.");
         ThemeService.Apply("dark", "blue");
+    }
+
+    // Twelve accents, six solid ones and then six gradients: the row shows them in that order, and
+    // the divider it draws between the halves is placed by the flag rather than by a name, so a
+    // rearrangement cannot leave it in the middle of a half.
+    private static void VerifyTheAccentsOfTheRound()
+    {
+        string[] expected =
+        [
+            "blue", "teal", "violet", "coral", "rose", "cyan",
+            "blue-violet", "orange-rose", "green-cyan", "amber-pink", "rose-violet", "cyan-blue"
+        ];
+        if (!ThemeService.Accents.SequenceEqual(expected))
+            throw new InvalidOperationException("The row of accents must hold the twelve of the round, in the order of the reference.");
+        for (var i = 0; i < expected.Length; i++)
+        {
+            var gradient = ThemeService.IsGradientAccent(expected[i]);
+            if (gradient != i >= 6)
+                throw new InvalidOperationException($"The accent \"{expected[i]}\" stands on the wrong side of the divider.");
+            if (!gradient) continue;
+            // What needs a single Color (an alpha mix, the exported PNG) reads AccentFlatColor, and
+            // for a gradient that has to be the stop the eye starts at.
+            var dictionary = ThemeService.LoadAccent(expected[i]);
+            if (dictionary["AccentBrush"] is not LinearGradientBrush brush ||
+                (Color)dictionary["AccentFlatColor"] != brush.GradientStops[0].Color)
+                throw new InvalidOperationException($"The flat colour of \"{expected[i]}\" must be the first stop of its gradient.");
+        }
     }
 
     private static byte[] PixelAt(System.Windows.Media.Imaging.BitmapSource bitmap, int x, int y)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 
 namespace Snapik.App;
 
@@ -20,10 +21,12 @@ internal static class ThemeService
     // still says "light" is migrated to "dark" on the way in, and anything NormalizeTheme cannot
     // find falls back to the same place.
     internal static IReadOnlyList<string> Themes { get; } = ["dark", "glass", "night", "sunset", "sea", "dawn"];
-    // Four solid accents and four gradients; "teal" is called green in the interface and "coral"
-    // orange, because the file carries the identifier and renaming it would need a migration.
+    // Six solid accents and six gradients, in the order of the row: the solid ones first, then the
+    // gradients. "teal" is called green in the interface and "coral" orange, because the file
+    // carries the identifier and renaming it would need a migration.
     internal static IReadOnlyList<string> Accents { get; } =
-        ["blue", "teal", "violet", "coral", "blue-violet", "orange-rose", "green-cyan", "amber-pink"];
+        ["blue", "teal", "violet", "coral", "rose", "cyan",
+         "blue-violet", "orange-rose", "green-cyan", "amber-pink", "rose-violet", "cyan-blue"];
     private static ResourceDictionary? _theme;
     private static ResourceDictionary? _accent;
 
@@ -66,6 +69,13 @@ internal static class ThemeService
 
     internal static string Normalize(string? accentId) =>
         Accents.FirstOrDefault(accent => string.Equals(accent, accentId, StringComparison.OrdinalIgnoreCase)) ?? DefaultAccent;
+
+    /// <summary>
+    /// Whether an accent paints with a gradient. The dictionary is the only source of that: a name
+    /// in a list would be a second one, and the two would drift apart the next time the row is
+    /// rearranged. The row of dots uses it to put its divider in exactly one place.
+    /// </summary>
+    internal static bool IsGradientAccent(string? accentId) => LoadAccent(accentId)["AccentBrush"] is GradientBrush;
 
     // "blue-violet" is one identifier and one file: BlueViolet.xaml.
     private static string FileName(string id) =>

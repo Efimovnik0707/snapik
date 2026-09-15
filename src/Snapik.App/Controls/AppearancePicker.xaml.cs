@@ -40,8 +40,10 @@ public partial class AppearancePicker : UserControl
     private static readonly Dictionary<string, string> AccentNames = new()
     {
         ["blue"] = "синий", ["teal"] = "зелёный", ["violet"] = "фиолетовый", ["coral"] = "оранжевый",
+        ["rose"] = "розовый", ["cyan"] = "бирюзовый",
         ["blue-violet"] = "сине-фиолетовый", ["orange-rose"] = "оранжево-розовый",
-        ["green-cyan"] = "зелёно-бирюзовый", ["amber-pink"] = "янтарно-розовый"
+        ["green-cyan"] = "зелёно-бирюзовый", ["amber-pink"] = "янтарно-розовый",
+        ["rose-violet"] = "розово-фиолетовый", ["cyan-blue"] = "бирюзово-синий"
     };
 
     /// <summary>A card and the gap after it: what one press of a chevron moves the gallery by.</summary>
