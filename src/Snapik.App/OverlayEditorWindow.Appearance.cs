@@ -35,7 +35,9 @@ public partial class OverlayEditorWindow
     };
     internal static readonly double[] HighlightThicknessPresets = [8, 12, 16, 24];
     private static bool HasColor(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Arrow or EditorTool.Pen or EditorTool.Highlight or EditorTool.Text;
-    private static bool HasStroke(EditorTool tool) => HasColor(tool) && tool != EditorTool.Text;
+    // The tools drawn with a stroke, written out and depending on nothing else: a caption has a size
+    // instead of a thickness, and a comment pin has neither.
+    private static bool HasStroke(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Arrow or EditorTool.Pen or EditorTool.Highlight;
     // The frame is shared by a region and by a blur: one shape is remembered for both. What stands
     // inside the frame belongs to the region alone, a blur has its own picture inside it.
     private static bool HasShape(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Blur;
@@ -113,18 +115,6 @@ public partial class OverlayEditorWindow
             _activeThickness = value;
         }
         Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
-    }
-
-    // What one click on the panel changes: the outline while the mark has one, the fill otherwise,
-    // so a click stays meaningful for a black concealing box as well.
-    private bool PanelPaintsFill
-    {
-        get
-        {
-            var selected = Surface.SelectedAnnotation;
-            var tool = selected?.Kind ?? Surface.Tool;
-            return HasFill(tool) && !(selected?.HasOutline ?? _activeHasOutline);
-        }
     }
 
     private void OpenAppearance()
@@ -253,13 +243,11 @@ public partial class OverlayEditorWindow
         var thickness = selected?.Thickness ?? ActiveThicknessFor(tool);
         // The next mark takes the thickness of the tool in the hand, not of the mark under the cursor.
         Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
-        var outline = selected?.HasOutline ?? _activeHasOutline;
         var fillColor = (selected is not null ? selected.FillColor : _activeFillColor) ?? color;
-        // The circle on the panel and the dots beside it work on the colour that is actually seen:
-        // the outline while there is one, the fill of a frame without an outline.
-        var mainColor = PanelPaintsFill ? fillColor : color;
+        // The circle on the panel and the dots beside it carry the colour of the mark itself; what
+        // stands inside a frame has a row of its own in the fill popover.
         AppearanceButton.IsEnabled = HasColor(tool);
-        ColorSwatch.Fill = new SolidColorBrush(mainColor);
+        ColorSwatch.Fill = new SolidColorBrush(color);
         // A tool without a stroke leaves the last thickness on the button, dimmed by the disabled
         // state of the style: an empty caption is what used to make the panel jump.
         ThicknessButton.IsEnabled = HasStroke(tool);
@@ -319,12 +307,9 @@ public partial class OverlayEditorWindow
         // colour that is in force: the HEX field and the markers say the same thing.
         var own = _activePalette.Id == "custom";
         SpectrumBlock.Visibility = EyedropperButton.Visibility = own ? Visibility.Visible : Visibility.Collapsed;
-        if (own) Spectrum.SelectedColor = mainColor;
+        if (own) Spectrum.SelectedColor = color;
         foreach (System.Windows.Controls.Primitives.ToggleButton segment in PaletteRow.Children)
             segment.IsChecked = (string)segment.Tag == _activePalette.Id;
-        // The switch that hides the outline of a frame; the fill of that frame lives on the panel now.
-        OutlineRow.IsEnabled = HasFill(tool);
-        OutlineSegment.IsChecked = outline;
         // The chevron half of a split button carries the state of its own tool, so the capsule
         // reads as one control.
         var accent = (Brush)FindResource("AccentSoftBrush");
@@ -332,11 +317,10 @@ public partial class OverlayEditorWindow
         ArrowMenuButton.Background = Surface.Tool == EditorTool.Arrow ? accent : Brushes.Transparent;
         PenMenuButton.Background = Surface.Tool is EditorTool.Pen or EditorTool.Highlight ? accent : Brushes.Transparent;
         ColorDots.IsEnabled = HasColor(tool);
-        // The dots paint the colour that is actually seen, the same one the circle on the panel
-        // shows, so the one that is outlined has to be compared against that one: against the
-        // outline of a frame that has one, against its fill for a frame that conceals.
+        // The dots paint the colour of the mark, the same one the circle on the panel shows, so the
+        // one that is ringed is the one that matches it.
         foreach (Button dot in ColorDots.Children)
-            ((Ellipse)dot.Content).Stroke = (Color)dot.Tag == mainColor
+            ((Ellipse)dot.Content).Stroke = (Color)dot.Tag == color
                 ? Brushes.White
                 : new SolidColorBrush(Color.FromRgb(120, 130, 146));
         // The size of a caption: the button carries it, the popover shows it, and the canvas takes
@@ -368,7 +352,7 @@ public partial class OverlayEditorWindow
         FillButtonPreview.Fill = fill switch
         {
             AnnotationFill.Solid => new SolidColorBrush(fillColor),
-            AnnotationFill.Translucent => new SolidColorBrush(Color.FromArgb(0x59, fillColor.R, fillColor.G, fillColor.B)),
+            AnnotationFill.Translucent => new SolidColorBrush(Color.FromArgb(0x40, fillColor.R, fillColor.G, fillColor.B)),
             AnnotationFill.Blur => (Brush)FindResource("BlurFillPreview"),
             _ => Brushes.Transparent
         };
@@ -376,7 +360,7 @@ public partial class OverlayEditorWindow
     }
 
     private void ApplyAppearance(Color? color, double? thickness, AnnotationShape? shape = null, AnnotationFill? fill = null,
-        string? arrowStyle = null, Color? fillColor = null, bool? hasOutline = null, double? fontSize = null,
+        string? arrowStyle = null, Color? fillColor = null, double? fontSize = null,
         AnnotationLineStyle? lineStyle = null)
     {
         var selected = Surface.SelectedAnnotation;
@@ -386,7 +370,6 @@ public partial class OverlayEditorWindow
         if (shape is { } s && HasShape(tool)) { _appearanceDefaultsChanged |= s != _activeShape; _activeShape = s; Surface.ActiveShape = s; if (selected is not null) { selected.Shape = s; _appearanceChanged = true; } }
         if (fill is { } f && HasFill(tool)) { _appearanceDefaultsChanged |= f != _activeFill; _activeFill = f; Surface.ActiveFill = f; if (selected is not null) { selected.Fill = f; _appearanceChanged = true; } }
         if (fillColor is { } fc && HasFill(tool)) { _appearanceDefaultsChanged |= fc != _activeFillColor; _activeFillColor = fc; Surface.ActiveFillColor = fc; if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; } }
-        if (hasOutline is { } outline && HasFill(tool)) { _appearanceDefaultsChanged |= outline != _activeHasOutline; _activeHasOutline = outline; Surface.ActiveHasOutline = outline; if (selected is not null) { selected.HasOutline = outline; _appearanceChanged = true; } }
         if (arrowStyle is { } style && tool == EditorTool.Arrow) { Surface.ActiveArrowStyle = style; if (selected is not null) { selected.ArrowStyle = style; _appearanceChanged = true; } }
         if (lineStyle is { } line && HasLineStyle(tool)) { _activeLineStyle = line; Surface.ActiveLineStyle = line; if (selected is not null) { selected.LineStyle = line; _appearanceChanged = true; } }
         if (fontSize is { } size && HasFontSize(tool))
@@ -418,15 +401,11 @@ public partial class OverlayEditorWindow
         if (pushEntry) { _lastSnapshot = SnapshotState(); SyncAppearance(); }
     }
 
-    // A colour picked in the colour popover paints the outline of a mark; a colour picked on the
-    // panel paints the one that is actually seen, which is the fill of a frame without an outline.
+    // A colour picked in the colour popover and a colour picked on the panel mean the same thing,
+    // the colour of the mark itself; what stands inside a frame is picked in the fill popover.
     private void ApplyPickedColor(Color color) => ApplyAppearance(color, null);
 
-    private void ApplyQuickColor(Color color)
-    {
-        if (PanelPaintsFill) ApplyAppearanceNow(null, null, fillColor: color);
-        else ApplyAppearanceNow(color, null);
-    }
+    private void ApplyQuickColor(Color color) => ApplyAppearanceNow(color, null);
 
     // The name of a fill, for the value beside the title of the popover; the same four words the
     // segments carry in their tooltips.
@@ -466,12 +445,6 @@ public partial class OverlayEditorWindow
         if (_syncingAppearance || sender is not System.Windows.Controls.Primitives.ToggleButton { Tag: string tag } ||
             !Enum.TryParse<AnnotationFill>(tag, out var fill)) return;
         ApplyAppearance(null, null, fill: fill);
-    }
-
-    private void OnOutlineClick(object sender, RoutedEventArgs e)
-    {
-        if (_syncingAppearance || sender is not System.Windows.Controls.Primitives.ToggleButton segment) return;
-        ApplyAppearance(null, null, hasOutline: segment.IsChecked == true);
     }
 
     private void OnPaletteClick(object sender, RoutedEventArgs e)
@@ -655,8 +628,10 @@ public partial class OverlayEditorWindow
         SaveAppearanceDefaults();
     }
 
-    // The editor window is created again for every capture, so the whole panel (colour, thickness,
-    // shape and fill) lives in the settings file and becomes the defaults for the next one.
+    // The editor window is created again for every capture, so what the panel remembers lives in the
+    // settings file: the colour, the thickness, the size of the letters, the palette and the pencil.
+    // The frame, its fill and the colour of that fill are not remembered; every capture starts with
+    // a rectangle, an outline and nothing inside it.
     private void SaveAppearanceDefaults()
     {
         try
@@ -670,10 +645,6 @@ public partial class OverlayEditorWindow
                 AnnotationThickness = Math.Clamp(_activeThickness, 1, 16),
                 AnnotationHighlightThickness = Math.Clamp(_activeHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness),
                 AnnotationFontSize = TextMarkMetrics.Clamp(_activeFontSize),
-                AnnotationShape = _activeShape.ToString().ToLowerInvariant(),
-                AnnotationFill = _activeFill.ToString().ToLowerInvariant(),
-                AnnotationFillColor = _activeFillColor is { } fillColor ? $"#{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : string.Empty,
-                AnnotationOutline = _activeHasOutline,
                 AnnotationPalette = _activePalette.Id,
                 CustomPaletteColors = [.. _customColors],
                 AnnotationPencil = _activePencil == EditorTool.Highlight ? "highlight" : "pen"
@@ -688,26 +659,6 @@ public partial class OverlayEditorWindow
         try { return !string.IsNullOrWhiteSpace(value) && ColorConverter.ConvertFromString(value) is Color color ? color : DefaultAnnotationColor; }
         catch (Exception) { return DefaultAnnotationColor; }
     }
-
-    // A settings file written by hand, or by a build that knew other names, falls back to the frame
-    // the editor started with. Only a name counts: Enum.TryParse also reads "2" as a value, and a
-    // number in the file must not quietly become a shape.
-    internal static AnnotationShape ParseAnnotationShape(string? value) =>
-        Enum.TryParse<AnnotationShape>(value, ignoreCase: true, out var shape) &&
-        string.Equals(shape.ToString(), value, StringComparison.OrdinalIgnoreCase) ? shape : AnnotationShape.Rectangle;
-
-    // An empty value is a real preference: "the fill takes the colour of the outline". Only a value
-    // that cannot be read at all falls back to it as well.
-    internal static Color? ParseAnnotationFillColor(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        try { return ColorConverter.ConvertFromString(value) is Color color ? color : null; }
-        catch (Exception) { return null; }
-    }
-
-    internal static AnnotationFill ParseAnnotationFill(string? value) =>
-        Enum.TryParse<AnnotationFill>(value, ignoreCase: true, out var fill) &&
-        string.Equals(fill.ToString(), value, StringComparison.OrdinalIgnoreCase) ? fill : AnnotationFill.None;
 
     // Anything but "highlight" leaves the capsule on the pen, the mode it has always started with.
     internal static EditorTool ParseAnnotationPencil(string? value) =>

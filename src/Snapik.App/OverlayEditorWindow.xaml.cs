@@ -46,6 +46,8 @@ public partial class OverlayEditorWindow : Window
     private double _activeThickness = DefaultAnnotationThickness;
     private double _activeHighlightThickness = DefaultHighlightThickness;
     private double _activeFontSize = TextMarkMetrics.DefaultFontSize;
+    // The frame, its fill and the colour of that fill start over with every capture: "a frame, no
+    // fill, a rectangle" is where the editor opens, whatever the last capture was drawn with.
     private Snapik.Core.Models.AnnotationShape _activeShape = Snapik.Core.Models.AnnotationShape.Rectangle;
     private Snapik.Core.Models.AnnotationFill _activeFill = Snapik.Core.Models.AnnotationFill.None;
     // The pattern the next stroke is drawn with. It lives as long as the editor window does and is
@@ -53,7 +55,6 @@ public partial class OverlayEditorWindow : Window
     // the settings is a change of their format, and this round declares none for the pattern.
     private Snapik.Core.Models.AnnotationLineStyle _activeLineStyle = Snapik.Core.Models.AnnotationLineStyle.Solid;
     private Color? _activeFillColor;
-    private bool _activeHasOutline = true;
     private PaletteSet _activePalette = Palettes[0];
     private EditorTool _activePencil = EditorTool.Pen;
     private Guid? _commentParentId;
@@ -79,10 +80,6 @@ public partial class OverlayEditorWindow : Window
         _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
         _activeHighlightThickness = Math.Clamp(preferences.AnnotationHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness);
         _activeFontSize = TextMarkMetrics.Clamp(preferences.AnnotationFontSize);
-        _activeShape = ParseAnnotationShape(preferences.AnnotationShape);
-        _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
-        _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
-        _activeHasOutline = preferences.AnnotationOutline;
         InitializePalette(preferences);
         _activePencil = ParseAnnotationPencil(preferences.AnnotationPencil);
         _capture = existing?.DeepClone();
@@ -359,16 +356,13 @@ public partial class OverlayEditorWindow : Window
             throw new InvalidOperationException("A swatch of the fill popover must paint the fill and leave the outline alone.");
         window.FillPopup.IsOpen = false;
         window.OpenAppearance();
-        window.OutlineSegment.IsChecked = false;
-        window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
-        if (window.Surface.ActiveHasOutline || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Black)
-            throw new InvalidOperationException("A region without an outline must show the colour of its fill on the panel.");
-        // One click on a panel dot now paints what is actually seen: the fill of a frame without an outline.
+        // The circle and the dots of the panel belong to the colour of the mark, whatever stands
+        // inside it: one click on a dot paints that colour and leaves the fill where it was.
         window.ApplyQuickColor(Colors.White);
-        if (window.Surface.ActiveFillColor != Colors.White || window.Surface.ActiveColor != outlineColor)
-            throw new InvalidOperationException("A dot on the panel must paint the colour the mark actually shows.");
-        window.OutlineSegment.IsChecked = true;
-        window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
+        if (window.Surface.ActiveColor != Colors.White || window.Surface.ActiveFillColor != Colors.Black ||
+            ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.White)
+            throw new InvalidOperationException("A dot on the panel must paint the colour of the mark, not its fill.");
+        window.ApplyQuickColor(outlineColor);
         window.OnFillClick(window.FillNoneSegment, new RoutedEventArgs());
 
         // A colour reaches a mark only while it is selected; with nothing selected it belongs to the
@@ -1005,7 +999,6 @@ public partial class OverlayEditorWindow : Window
         Surface.ActiveLineStyle = _activeLineStyle;
         Surface.ActiveFill = _activeFill;
         Surface.ActiveFillColor = _activeFillColor;
-        Surface.ActiveHasOutline = _activeHasOutline;
         Surface.ActiveFontSize = _activeFontSize;
         // A caption read out of a session carries the anchor and the size, and the box it takes is
         // measured from them here, once, before anything asks what it covers.

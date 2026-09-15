@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Snapik.Core.Models;
 
@@ -69,9 +70,13 @@ public sealed record AnnotationItem(
     // what every mark written before the field carried.
     public string? FillColor { get; init; }
 
-    // Whether the outline of the box is drawn at all. A solid fill without an outline is how a mark
-    // conceals; absent means the outline is drawn, exactly as it always was.
-    public bool HasOutline { get; init; } = true;
+    // Read but never written any more: a build before 1.5.0 put "do not draw the frame" here. The
+    // only value that still means anything is false on a rectangle, and it means "a solid fill of
+    // one colour". The name of the key is spelled out because the camelCase policy would otherwise
+    // write "legacyHasOutline" and the old files would stop being read.
+    [JsonPropertyName("hasOutline")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyHasOutline { get; init; }
 
     // The size a text mark is typed in, in the pixels of the capture, so the screen and the export
     // show the same letters. Absent means 20, which is what a mark written before the field gets;

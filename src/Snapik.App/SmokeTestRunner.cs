@@ -33,8 +33,7 @@ public static class SmokeTestRunner
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
             ConfirmSessionDiscard = false, StackHeight = 300,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationFontSize = 28,
-            AnnotationShape = "ellipse", AnnotationFill = "translucent",
-            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "custom", AnnotationPencil = "highlight",
+            AnnotationPalette = "custom", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion,
@@ -77,21 +76,6 @@ public static class SmokeTestRunner
         if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
             OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("Stored annotation colour must be read back, an invalid one must fall back to the default.");
-        // The shape and the fill of the frame are remembered next to the colour and the thickness,
-        // so the whole panel comes back the same way for the next capture.
-        if (OverlayEditorWindow.ParseAnnotationShape(restoredSettings.AnnotationShape) != Snapik.Core.Models.AnnotationShape.Ellipse ||
-            OverlayEditorWindow.ParseAnnotationFill(restoredSettings.AnnotationFill) != Snapik.Core.Models.AnnotationFill.Translucent ||
-            OverlayEditorWindow.ParseAnnotationShape("hexagon") != Snapik.Core.Models.AnnotationShape.Rectangle ||
-            OverlayEditorWindow.ParseAnnotationFill("2") != Snapik.Core.Models.AnnotationFill.None)
-            throw new InvalidOperationException("Stored frame shape and fill must be read back, unknown ones must fall back to the defaults.");
-        // The colour inside the frame and the outline switch travel with them; an empty colour is the
-        // preference "the fill takes the colour of the outline", not a broken value.
-        if (OverlayEditorWindow.ParseAnnotationFillColor(restoredSettings.AnnotationFillColor) != Color.FromRgb(16, 24, 32) ||
-            restoredSettings.AnnotationOutline ||
-            OverlayEditorWindow.ParseAnnotationFillColor(string.Empty) is not null ||
-            OverlayEditorWindow.ParseAnnotationFillColor("not a colour") is not null ||
-            !HotkeySettings.Default.AnnotationOutline || HotkeySettings.Default.AnnotationFillColor != string.Empty)
-            throw new InvalidOperationException("The stored fill colour and outline flag must be read back, with an outline and no own colour by default.");
         // The palette is remembered by its name; a name nobody knows falls back to the standard set,
         // and the colour the editor starts with has to belong to that set.
         if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "custom" ||
@@ -420,14 +404,14 @@ public static class SmokeTestRunner
             Thickness = 6
         });
 
-        // Concealing is a region with a solid black fill and no outline now, and a region can also be
-        // filled with blur: both are checked on the exported PNG of the privacy capture below.
+        // Concealing is a region with a solid black fill now, and its outline takes the colour of
+        // that fill; a region can also be filled with blur, and both are checked on the exported PNG
+        // of the privacy capture below.
         captures[2].Annotations.Add(new AnnotationItem
         {
             Kind = EditorTool.Rectangle,
             Fill = Snapik.Core.Models.AnnotationFill.Solid,
             FillColor = Colors.Black,
-            HasOutline = false,
             Points = [new Point(200, 600), new Point(600, 800)],
             Color = Color.FromRgb(255, 59, 48),
             Thickness = 6
@@ -512,12 +496,14 @@ public static class SmokeTestRunner
         // exactly as the removed tool did.
         var filledConcealPixel = PixelAt(decoded[2], 400, 48 + 700);
         var concealedByFill = filledConcealPixel[3] == 255 && filledConcealPixel[0] < 8 && filledConcealPixel[1] < 8 && filledConcealPixel[2] < 8;
-        // A region filled with blur: the picture inside it is blurred and the outline is still drawn.
+        // A region filled with blur: the picture inside it is blurred and no outline is drawn over
+        // it any more, because the outline of a filled region is the colour of its fill and a blur
+        // has no colour of its own.
         var blurFillSourceCenter = PixelAt(captures[2].Image, 400, 300);
         var blurFillExportCenter = PixelAt(decoded[2], 400, 48 + 300);
         var blurFillOutlinePixel = PixelAt(decoded[2], 200, 48 + 300);
         var blurFilledRegionExported = !blurFillSourceCenter.SequenceEqual(blurFillExportCenter)
-            && blurFillOutlinePixel[0] == 48 && blurFillOutlinePixel[1] == 59 && blurFillOutlinePixel[2] == 255;
+            && !(blurFillOutlinePixel[0] == 48 && blurFillOutlinePixel[1] == 59 && blurFillOutlinePixel[2] == 255);
         var ovalSourceCenter = PixelAt(captures[1].Image, 400, 350);
         var ovalExportCenter = PixelAt(decoded[1], 400, 48 + 350);
         var ovalSourceCorner = PixelAt(captures[1].Image, 205, 205);
@@ -1028,24 +1014,31 @@ public static class SmokeTestRunner
     }
 
     // A mark written by a build that still had the conceal tool comes back as a region with a solid
-    // black fill and no outline, and is written back in that shape; the fill also survives the clone
-    // the undo history is made of.
+    // black fill and is written back in that shape; a frame that carried "hasOutline": false comes
+    // back the same way, in the colour of its own stroke. The fill survives the clone the undo
+    // history is made of, and nothing writes the old field out again.
     private static void VerifyLegacyRedactionReadsAsAFilledRegion()
     {
         var legacy = Snapik.Core.Models.AnnotationItem.Create(Snapik.Core.Models.AnnotationKind.Redaction,
             [new Snapik.Core.Models.NormalizedPoint(0.1, 0.1), new Snapik.Core.Models.NormalizedPoint(0.4, 0.4)]);
         var migrated = AnnotationItem.FromCore(legacy, 1000, 800);
         if (migrated.Kind != EditorTool.Rectangle || migrated.Fill != Snapik.Core.Models.AnnotationFill.Solid ||
-            migrated.FillColor != Colors.Black || migrated.HasOutline)
-            throw new InvalidOperationException("A legacy redaction must read as a black region without an outline.");
+            migrated.FillColor != Colors.Black)
+            throw new InvalidOperationException("A legacy redaction must read as a black filled region.");
         var written = migrated.ToCore(1000, 800);
         if (written.Kind != Snapik.Core.Models.AnnotationKind.Rectangle ||
             written.Fill != Snapik.Core.Models.AnnotationFill.Solid ||
-            written.FillColor != "#FF000000" || written.HasOutline)
-            throw new InvalidOperationException("A migrated redaction must be written back as a filled region without an outline.");
+            written.FillColor != "#FF000000" || written.LegacyHasOutline is not null)
+            throw new InvalidOperationException("A migrated redaction must be written back as a filled region and without the old flag.");
         var clone = migrated.Clone();
-        if (clone.FillColor != migrated.FillColor || clone.HasOutline != migrated.HasOutline || clone.Fill != migrated.Fill)
+        if (clone.FillColor != migrated.FillColor || clone.Fill != migrated.Fill)
             throw new InvalidOperationException("The fill of a region must survive the clone the undo history is made of.");
+        var flagged = Snapik.Core.Models.AnnotationItem.Create(Snapik.Core.Models.AnnotationKind.Rectangle,
+            [new Snapik.Core.Models.NormalizedPoint(0.1, 0.1), new Snapik.Core.Models.NormalizedPoint(0.4, 0.4)],
+            strokeColor: "#FF112233") with { LegacyHasOutline = false };
+        var filled = AnnotationItem.FromCore(flagged, 1000, 800);
+        if (filled.Fill != Snapik.Core.Models.AnnotationFill.Solid || filled.FillColor != Color.FromRgb(0x11, 0x22, 0x33))
+            throw new InvalidOperationException("A frame written without an outline must read as a solid fill of one colour.");
     }
 
     // A binding that cannot resolve its path is not an exception: WPF writes it to the trace and

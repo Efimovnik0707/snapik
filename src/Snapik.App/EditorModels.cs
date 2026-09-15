@@ -62,9 +62,6 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     // drawn before the fill had a colour of its own still reads.
     public Color? FillColor { get; set; }
 
-    // A frame without an outline: a solid fill and no outline is what the conceal tool used to draw.
-    public bool HasOutline { get; set; } = true;
-
     // The size a text mark is typed in, in the pixels of the capture.
     public double FontSize { get; set; } = TextMarkMetrics.DefaultFontSize;
 
@@ -91,7 +88,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Id = Id,
         Kind = Kind,
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle, NoteOffset = NoteOffset,
-        Shape = Shape, Fill = Fill, FillColor = FillColor, HasOutline = HasOutline, FontSize = FontSize,
+        Shape = Shape, Fill = Fill, FillColor = FillColor, FontSize = FontSize,
         LineStyle = LineStyle,
         Points = [.. Points],
         AdditionalPathSegments = AdditionalPathSegments.Select(segment => segment.ToList()).ToList(),
@@ -126,7 +123,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     {
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
         NoteOffset = NoteOffset is { } offset ? new NormalizedPoint(offset.X / imageWidth, offset.Y / imageHeight) : null,
-        Shape = Shape, Fill = Fill, HasOutline = HasOutline, FontSize = FontSize, LineStyle = LineStyle,
+        Shape = Shape, Fill = Fill, FontSize = FontSize, LineStyle = LineStyle,
         FillColor = FillColor is { } fillColor ? $"#{fillColor.A:X2}{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : null,
         PathSegments = AdditionalPathSegments.Count == 0 ? [] : new[] { Points }.Concat(AdditionalPathSegments)
             .Select(segment => segment.Select(p => new NormalizedPoint(Math.Clamp(p.X / imageWidth, 0, 1), Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray())
@@ -141,15 +138,20 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         // The tool is gone; what it drew is a region with a solid black fill and no outline, and it
         // is written back in that shape the next time the session is saved.
         var redaction = item.Kind == AnnotationKind.Redaction;
+        // The other source of such files is the frame a build before 1.5.0 wrote with
+        // "hasOutline": false. It meant "a solid fill of one colour", and that is the only thing the
+        // field still means; the colour of that fill is its own if the file carries one, the colour
+        // of the stroke otherwise.
+        var solidNoOutline = item.Kind == AnnotationKind.Rectangle && item.LegacyHasOutline == false;
+        var stroke = (Color)ColorConverter.ConvertFromString(item.StrokeColor);
         return new()
         {
         Id = item.Id,
         ParentAnnotationId = item.ParentAnnotationId, ArrowStyle = item.ArrowStyle,
         NoteOffset = item.NoteOffset is { } offset ? new Point(offset.X * imageWidth, offset.Y * imageHeight) : null,
         Shape = item.Shape,
-        Fill = redaction ? AnnotationFill.Solid : item.Fill,
-        FillColor = redaction ? Colors.Black : ParseFillColor(item.FillColor),
-        HasOutline = !redaction && item.HasOutline,
+        Fill = redaction || solidNoOutline ? AnnotationFill.Solid : item.Fill,
+        FillColor = redaction ? Colors.Black : ParseFillColor(item.FillColor) ?? (solidNoOutline ? stroke : null),
         FontSize = item.FontSize,
         LineStyle = item.LineStyle,
         Kind = item.Kind switch
@@ -165,7 +167,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         },
         Points = segments.Count > 0 ? segments[0] : item.Points.Select(p => new Point(p.X * imageWidth, p.Y * imageHeight)).ToList(),
         AdditionalPathSegments = segments.Skip(1).ToList(),
-        Color = (Color)ColorConverter.ConvertFromString(item.StrokeColor),
+        Color = stroke,
         Thickness = item.Thickness,
         Text = item.Text,
         Note = item.Note

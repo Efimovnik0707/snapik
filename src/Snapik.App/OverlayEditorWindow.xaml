@@ -307,12 +307,6 @@
                                   Data="M10,1 L15,6 M12.5,3.5 L4,12 L1,15 L2,12 L10.5,3.5 Z" />
                         </Button>
                     </Grid>
-                    <TextBlock Text="Рамка" FontWeight="SemiBold" Margin="0,18,0,8"/>
-                    <!-- The colour picked above belongs to the outline of a mark; what stands inside
-                         a region, and the colour of that, moved to the fill button of the panel. -->
-                    <Border x:Name="OutlineRow" Background="{DynamicResource ElevatedBrush}" CornerRadius="8" Padding="3">
-                        <ToggleButton x:Name="OutlineSegment" Style="{StaticResource SegmentButton}" Click="OnOutlineClick" FontSize="12" Content="Показывать рамку" AutomationProperties.Name="{local:UiText Показывать рамку}" />
-                    </Border>
                 </StackPanel>
             </Border>
         </Popup>
@@ -410,7 +404,7 @@
                                 <Rectangle Width="20" Height="14" Fill="{DynamicResource TextBrush}" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
                             </ToggleButton>
                             <ToggleButton x:Name="FillTranslucentSegment" Style="{StaticResource SegmentButton}" Tag="Translucent" Click="OnFillClick" ToolTip="Полупрозрачная заливка" AutomationProperties.Name="{local:UiText Полупрозрачная заливка}">
-                                <Rectangle Width="20" Height="14" Fill="#59D9DEE8" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
+                                <Rectangle Width="20" Height="14" Fill="#40D9DEE8" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />
                             </ToggleButton>
                             <ToggleButton x:Name="FillBlurSegment" Style="{StaticResource SegmentButton}" Tag="Blur" Click="OnFillClick" ToolTip="Заливка размытием" AutomationProperties.Name="{local:UiText Заливка размытием}">
                                 <Rectangle Width="20" Height="14" Fill="{StaticResource BlurFillPreview}" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" RadiusX="2" RadiusY="2" />

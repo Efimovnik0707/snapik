@@ -79,11 +79,11 @@ public sealed class CaptureCropperTests
     }
 
     [Fact]
-    public void Crop_keeps_the_fill_colour_and_the_outline_flag_of_a_region()
+    public void Crop_keeps_the_fill_colour_of_a_region()
     {
         var concealed = AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.3, 0.3), new(0.6, 0.6)]) with
         {
-            Shape = AnnotationShape.Ellipse, Fill = AnnotationFill.Solid, FillColor = "#FF000000", HasOutline = false
+            Shape = AnnotationShape.Ellipse, Fill = AnnotationFill.Solid, FillColor = "#FF000000"
         };
         var source = CaptureItem.Create("source/original.png", 1000, 800) with { Annotations = [concealed] };
 
@@ -93,7 +93,6 @@ public sealed class CaptureCropperTests
         Assert.Equal(AnnotationShape.Ellipse, annotation.Shape);
         Assert.Equal(AnnotationFill.Solid, annotation.Fill);
         Assert.Equal("#FF000000", annotation.FillColor);
-        Assert.False(annotation.HasOutline);
     }
 
     [Fact]

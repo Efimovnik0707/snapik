@@ -56,7 +56,6 @@ public sealed class AnnotationCanvas : FrameworkElement
     public AnnotationShape ActiveShape { get; set; } = AnnotationShape.Rectangle;
     public AnnotationFill ActiveFill { get; set; } = AnnotationFill.None;
     public Color? ActiveFillColor { get; set; }
-    public bool ActiveHasOutline { get; set; } = true;
     public double ActiveFontSize { get; set; } = TextMarkMetrics.DefaultFontSize;
     public AnnotationLineStyle ActiveLineStyle { get; set; } = AnnotationLineStyle.Solid;
     // The mark whose letters are being typed on the capture right now: the canvas leaves it to the
@@ -257,7 +256,6 @@ public sealed class AnnotationCanvas : FrameworkElement
             Shape = Tool is EditorTool.Rectangle or EditorTool.Blur ? ActiveShape : AnnotationShape.Rectangle,
             Fill = Tool == EditorTool.Rectangle ? ActiveFill : AnnotationFill.None,
             FillColor = Tool == EditorTool.Rectangle ? ActiveFillColor : null,
-            HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
             Color = ActiveColor,
             Thickness = ActiveThickness,
             LineStyle = ActiveLineStyle,
@@ -735,13 +733,29 @@ public sealed class AnnotationCanvas : FrameworkElement
         _ => null
     };
 
+    // The colour of the outline follows the fill: a solid or a translucent box outlines itself in
+    // the colour of its fill, so no separate frame is seen; a blurred one has no outline at all; an
+    // empty box keeps the colour of the mark. Null means "draw no outline".
+    internal static Color? OutlineColorOf(AnnotationFill fill, Color color, Color? fillColor) => fill switch
+    {
+        AnnotationFill.Blur => null,
+        AnnotationFill.Solid or AnnotationFill.Translucent => fillColor ?? color,
+        _ => color
+    };
+
     // An opaque fill is drawn after every other mark, because it hides whatever stands under it;
     // that is what the conceal tool used to do, and a solid region does the same.
     internal static bool HasOpaqueFill(AnnotationItem item) =>
         item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Solid;
 
-    private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale) =>
-        DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), item.HasOutline ? pen : null, item.Shape, rect, scale);
+    private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale)
+    {
+        // The pen arrives painted with the colour of the mark, so the outline of a filled box is
+        // rebuilt here; the thickness and the pattern of the stroke come from that pen unchanged.
+        var outline = OutlineColorOf(item.Fill, item.Color, item.FillColor);
+        var outlinePen = outline is { } oc ? new Pen(new SolidColorBrush(oc), pen.Thickness) { DashStyle = pen.DashStyle } : null;
+        DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), outlinePen, item.Shape, rect, scale);
+    }
 
     // A caption is not stretched by its corners: the box around it is the letters, and their size
     // is set by the button on the panel. It is moved and it is retyped, like a comment pin.

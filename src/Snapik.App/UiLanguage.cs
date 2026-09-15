@@ -78,7 +78,7 @@ internal static class UiLanguage
         ["Стиль стрелки"] = "Arrow style", ["Фигура"] = "Shape",
         ["Прямоугольник"] = "Rectangle", ["Скруглённый прямоугольник"] = "Rounded rectangle", ["Овал"] = "Ellipse",
         ["Заливка"] = "Fill", ["Контур"] = "Outline", ["Сплошная заливка"] = "Solid fill", ["Полупрозрачная заливка"] = "Translucent fill",
-        ["Заливка размытием"] = "Blurred fill", ["Рамка"] = "Frame", ["Показывать рамку"] = "Show the frame",
+        ["Заливка размытием"] = "Blurred fill",
         ["Цвет заливки"] = "Fill color",
         ["Сохранить на компьютер"] = "Save to computer", ["Свернуть в трей"] = "Hide to tray", ["Ещё"] = "More",
         ["Свернуть в капсулу"] = "Collapse to a capsule", ["Развернуть ленту"] = "Expand the strip",

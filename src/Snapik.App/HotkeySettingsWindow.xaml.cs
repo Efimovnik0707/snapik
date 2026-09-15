@@ -61,14 +61,6 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public double AnnotationHighlightThickness { get; init; } = 16;
     /// <summary>The size a caption is typed in, in image pixels; read back clamped to 8..96.</summary>
     public double AnnotationFontSize { get; init; } = 20;
-    /// <summary>The frame the editor draws by default: rectangle, rounded or ellipse.</summary>
-    public string AnnotationShape { get; init; } = "rectangle";
-    /// <summary>How that frame is filled by default: none, solid, translucent or blur.</summary>
-    public string AnnotationFill { get; init; } = "none";
-    /// <summary>The colour inside that frame; empty means "the colour of the outline".</summary>
-    public string AnnotationFillColor { get; init; } = string.Empty;
-    /// <summary>Whether that frame carries an outline at all; a solid fill without one conceals.</summary>
-    public bool AnnotationOutline { get; init; } = true;
     public string SaveFormat { get; init; } = "png";
     public int JpegQuality { get; init; } = 92;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Snapik");
