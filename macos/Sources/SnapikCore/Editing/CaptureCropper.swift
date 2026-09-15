@@ -88,6 +88,16 @@ public enum CaptureCropper {
             retained[index].parentAnnotationId = nil
         }
 
+        // Port of `CaptureCropper.cs:79-84`: the badge offset is normalized against the image,
+        // and the crop makes the image smaller, so the same shift in pixels is a bigger fraction of
+        // the cropped picture. Everything else a mark carries (the fill, its colour, the outline
+        // flag, the size a caption was typed in) survives the crop untouched.
+        for index in retained.indices {
+            guard let offset = retained[index].noteOffset else { continue }
+            retained[index].noteOffset = NormalizedPoint(
+                offset.x / cropBounds.width, offset.y / cropBounds.height)
+        }
+
         var cropped = source
         cropped.sourceImagePath = croppedSourceImagePath
         cropped.pixelWidth = croppedPixelWidth

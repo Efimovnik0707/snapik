@@ -107,4 +107,75 @@ final class CaptureCropperTests: XCTestCase {
         XCTAssertEqual(expectedX, actual.x, accuracy: 1e-10, file: file, line: line)
         XCTAssertEqual(expectedY, actual.y, accuracy: 1e-10, file: file, line: line)
     }
+
+    /// Port of `CaptureCropperTests.Crop_rescales_the_note_offset_to_the_smaller_image`.
+    func test_Crop_rescales_the_note_offset_to_the_smaller_image() throws {
+        var moved = AnnotationItem.create(
+            kind: .comment, points: [NormalizedPoint(0.4, 0.4), NormalizedPoint(0.41, 0.41)], note: "Moved")
+        moved.noteOffset = NormalizedPoint(0.1, -0.05)
+        var source = CaptureItem.create(sourceImagePath: "source/original.png", pixelWidth: 1000, pixelHeight: 800)
+        source.annotations = [moved]
+
+        let cropped = try CaptureCropper.crop(
+            source: source,
+            cropBounds: NormalizedRect(0.25, 0.25, 0.5, 0.25),
+            croppedSourceImagePath: "source/crop.png",
+            croppedPixelWidth: 500,
+            croppedPixelHeight: 200
+        ).croppedCapture
+
+        // The same shift in pixels is twice the fraction of a half-wide crop and four times that of
+        // a quarter-high one; the badge must not walk away from the mark when the picture is cropped.
+        let offset = try XCTUnwrap(cropped.annotations[0].noteOffset)
+        assertPoint(offset, 0.2, -0.2)
+        XCTAssertEqual(NormalizedPoint(0.1, -0.05), source.annotations[0].noteOffset)
+    }
+
+    /// Port of `CaptureCropperTests.Crop_keeps_the_fill_colour_and_the_outline_flag_of_a_region`.
+    func test_Crop_keeps_the_fill_colour_and_the_outline_flag_of_a_region() throws {
+        var concealed = AnnotationItem.create(
+            kind: .rectangle, points: [NormalizedPoint(0.3, 0.3), NormalizedPoint(0.6, 0.6)])
+        concealed.shape = .ellipse
+        concealed.fill = .solid
+        concealed.fillColor = "#FF000000"
+        concealed.hasOutline = false
+        var source = CaptureItem.create(sourceImagePath: "source/original.png", pixelWidth: 1000, pixelHeight: 800)
+        source.annotations = [concealed]
+
+        let cropped = try CaptureCropper.crop(
+            source: source,
+            cropBounds: NormalizedRect(0.25, 0.25, 0.5, 0.5),
+            croppedSourceImagePath: "source/crop.png",
+            croppedPixelWidth: 500,
+            croppedPixelHeight: 400
+        ).croppedCapture
+
+        XCTAssertEqual(1, cropped.annotations.count)
+        XCTAssertEqual(.ellipse, cropped.annotations[0].shape)
+        XCTAssertEqual(.solid, cropped.annotations[0].fill)
+        XCTAssertEqual("#FF000000", cropped.annotations[0].fillColor)
+        XCTAssertFalse(cropped.annotations[0].hasOutline)
+    }
+
+    /// Port of `CaptureCropperTests.Crop_keeps_the_size_a_caption_was_typed_in`.
+    func test_Crop_keeps_the_size_a_caption_was_typed_in() throws {
+        var caption = AnnotationItem.create(
+            kind: .text, points: [NormalizedPoint(0.3, 0.3), NormalizedPoint(0.6, 0.4)], text: "Привет")
+        caption.fontSize = 48
+        var source = CaptureItem.create(sourceImagePath: "source/original.png", pixelWidth: 1000, pixelHeight: 800)
+        source.annotations = [caption]
+
+        let cropped = try CaptureCropper.crop(
+            source: source,
+            cropBounds: NormalizedRect(0.25, 0.25, 0.5, 0.5),
+            croppedSourceImagePath: "source/crop.png",
+            croppedPixelWidth: 500,
+            croppedPixelHeight: 400
+        ).croppedCapture
+
+        XCTAssertEqual(1, cropped.annotations.count)
+        XCTAssertEqual(48, cropped.annotations[0].fontSize)
+        XCTAssertEqual("Привет", cropped.annotations[0].text)
+    }
+
 }

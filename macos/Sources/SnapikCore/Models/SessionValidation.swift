@@ -47,6 +47,22 @@ public enum SessionValidation {
                         "Annotation coordinates must be normalized to the [0, 1] image space.")
                 }
 
+                // Port of `SessionValidation.cs:64-69`: the C# check that `LineStyle` is one of
+                // its own names guards an `enum` built in code out of an `int`. `AnnotationLineStyle`
+                // is a Swift `String` enum, which cannot hold a value outside the declaration, so
+                // the rule is carried by the type; a file holding an unknown pattern is refused by
+                // the decoder instead (`PersistenceAndExportTests`).
+
+                // Port of `SessionValidation.cs:71-77`: the badge offset is a shift, not a
+                // coordinate. It may be negative and it may point outside the image, so only a
+                // finite number is required of it.
+                if let noteOffset = annotation.noteOffset,
+                    !noteOffset.x.isFinite || !noteOffset.y.isFinite
+                {
+                    throw SnapikError.invalidData(
+                        "The note offset of an annotation must be a finite shift.")
+                }
+
                 if !annotation.pathSegments.isEmpty {
                     let kindAllowsSegments = annotation.kind == .freehand || annotation.kind == .highlight
                     let everySegmentHasTwoPoints = annotation.pathSegments.allSatisfy { $0.count >= 2 }

@@ -227,4 +227,223 @@ final class PersistenceAndExportTests: XCTestCase {
         XCTAssertTrue(prepared.manifest.promptText.contains("A1:   Реальная заметка  \n"))
         XCTAssertFalse(prepared.manifest.promptText.contains("A2:"))
     }
+
+    /// Port of `PersistenceAndExportTests.Json_store_round_trips_the_size_a_caption_was_typed_in`.
+    func test_Json_store_round_trips_the_size_a_caption_was_typed_in() async throws {
+        let store = JsonSessionStore(sessionsRoot: root.appendingPathComponent("sessions"))
+        var caption = AnnotationItem.create(
+            kind: .text, points: [NormalizedPoint(0.1, 0.1), NormalizedPoint(0.4, 0.2)], text: "Привет")
+        caption.fontSize = 32
+        var capture = CaptureItem.create(sourceImagePath: "source/capture.png", pixelWidth: 800, pixelHeight: 600)
+        capture.annotations = [caption]
+        let session = try SessionOperations.addCapture(
+            SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
+
+        try await store.save(session)
+        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+
+        // The name in the file matters as much as the value: the Windows build reads the same key.
+        let written = try Self.annotationObjects(of: session)
+        XCTAssertEqual(32, written[0]["fontSize"] as? Double)
+        XCTAssertEqual(32, restored.captures[0].annotations[0].fontSize)
+        XCTAssertEqual("Привет", restored.captures[0].annotations[0].text)
+        try SessionValidation.validate(restored)
+    }
+
+    /// Port of `PersistenceAndExportTests.Json_store_reads_a_caption_written_before_the_size_existed`.
+    func test_Json_store_reads_a_caption_written_before_the_size_existed() async throws {
+        let store = JsonSessionStore(sessionsRoot: root.appendingPathComponent("sessions"))
+        let caption = AnnotationItem.create(
+            kind: .text, points: [NormalizedPoint(0.1, 0.1), NormalizedPoint(0.4, 0.2)], text: "Старая надпись")
+        var capture = CaptureItem.create(sourceImagePath: "source/capture.png", pixelWidth: 800, pixelHeight: 600)
+        capture.annotations = [caption]
+        let session = try SessionOperations.addCapture(
+            SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
+
+        try Self.writeSession(session, store: store, droppingAnnotationKeys: ["fontSize"])
+        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+
+        XCTAssertEqual(20, restored.captures[0].annotations[0].fontSize)
+        try SessionValidation.validate(restored)
+    }
+
+    /// Port of `PersistenceAndExportTests.Json_store_round_trips_the_pattern_of_a_stroke_and_defaults_it_to_solid`.
+    func test_Json_store_round_trips_the_pattern_of_a_stroke_and_defaults_it_to_solid() async throws {
+        let store = JsonSessionStore(sessionsRoot: root.appendingPathComponent("sessions"))
+        var dotted = AnnotationItem.create(
+            kind: .rectangle, points: [NormalizedPoint(0.1, 0.1), NormalizedPoint(0.4, 0.4)])
+        dotted.lineStyle = .dotted
+        let plain = AnnotationItem.create(
+            kind: .arrow, points: [NormalizedPoint(0.5, 0.5), NormalizedPoint(0.9, 0.9)])
+        var capture = CaptureItem.create(sourceImagePath: "source/capture.png", pixelWidth: 800, pixelHeight: 600)
+        capture.annotations = [dotted, plain]
+        let session = try SessionOperations.addCapture(
+            SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
+
+        try await store.save(session)
+        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+
+        // The name in the file matters as much as the value: the Windows build reads the same key.
+        let written = try Self.annotationObjects(of: session)
+        XCTAssertEqual("dotted", written[0]["lineStyle"] as? String)
+        XCTAssertEqual(.dotted, restored.captures[0].annotations[0].lineStyle)
+        XCTAssertEqual(.solid, restored.captures[0].annotations[1].lineStyle)
+        try SessionValidation.validate(restored)
+
+        // A session written before the field reads as solid, which is what it was drawn as.
+        try Self.writeSession(session, store: store, droppingAnnotationKeys: ["lineStyle"])
+        let reread = try XCTUnwrap(try await store.load(sessionId: session.id))
+        XCTAssertEqual(.solid, reread.captures[0].annotations[0].lineStyle)
+    }
+
+    /// Port of `PersistenceAndExportTests.A_line_style_outside_the_enumeration_is_refused`. The C#
+    /// rule lives in `SessionValidation` because a C# enum built in code can hold any number;
+    /// `AnnotationLineStyle` is a Swift `String` enum, which cannot, so the only way a pattern
+    /// nobody knows reaches the application is a hand-written file — and the decoder refuses it.
+    func test_A_line_style_outside_the_enumeration_is_refused() throws {
+        let plain = AnnotationItem.create(
+            kind: .rectangle, points: [NormalizedPoint(0.1, 0.1), NormalizedPoint(0.4, 0.4)])
+        var capture = CaptureItem.create(sourceImagePath: "source/capture.png", pixelWidth: 800, pixelHeight: 600)
+        capture.annotations = [plain]
+        var session = SnapikSession.create(nowUtc: Self.start)
+        session.captures = [capture]
+
+        let data = try Self.rewriteAnnotations(of: session) { annotation in
+            var copy = annotation
+            copy["lineStyle"] = "zigzag"
+            return copy
+        }
+
+        XCTAssertThrowsError(try SnapikJson.decoder.decode(SnapikSession.self, from: data))
+    }
+
+    /// Port of `PersistenceAndExportTests.Json_store_round_trips_the_fill_colour_the_outline_flag_and_the_blur_fill`.
+    func test_Json_store_round_trips_the_fill_colour_the_outline_flag_and_the_blur_fill() async throws {
+        let store = JsonSessionStore(sessionsRoot: root.appendingPathComponent("sessions"))
+        var concealed = AnnotationItem.create(
+            kind: .rectangle, points: [NormalizedPoint(0.1, 0.1), NormalizedPoint(0.4, 0.4)])
+        concealed.fill = .solid
+        concealed.fillColor = "#FF000000"
+        concealed.hasOutline = false
+        var blurred = AnnotationItem.create(
+            kind: .rectangle, points: [NormalizedPoint(0.5, 0.5), NormalizedPoint(0.9, 0.9)])
+        blurred.shape = .ellipse
+        blurred.fill = .blur
+        var capture = CaptureItem.create(sourceImagePath: "source/capture.png", pixelWidth: 800, pixelHeight: 600)
+        capture.annotations = [concealed, blurred]
+        let session = try SessionOperations.addCapture(
+            SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
+
+        try await store.save(session)
+        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+
+        // The names in the file matter as much as the values: the Windows build reads the same keys.
+        let written = try Self.annotationObjects(of: session)
+        XCTAssertEqual("blur", written[1]["fill"] as? String)
+        XCTAssertEqual("#FF000000", written[0]["fillColor"] as? String)
+        XCTAssertEqual(false, written[0]["hasOutline"] as? Bool)
+        XCTAssertEqual(.solid, restored.captures[0].annotations[0].fill)
+        XCTAssertEqual("#FF000000", restored.captures[0].annotations[0].fillColor)
+        XCTAssertFalse(restored.captures[0].annotations[0].hasOutline)
+        XCTAssertEqual(.blur, restored.captures[0].annotations[1].fill)
+        XCTAssertNil(restored.captures[0].annotations[1].fillColor)
+        XCTAssertTrue(restored.captures[0].annotations[1].hasOutline)
+        try SessionValidation.validate(restored)
+    }
+
+    /// Port of `PersistenceAndExportTests.Json_store_reads_a_session_without_the_fill_fields_and_one_that_still_holds_a_redaction`.
+    func test_Json_store_reads_a_session_without_the_fill_fields_and_one_that_still_holds_a_redaction() async throws {
+        let store = JsonSessionStore(sessionsRoot: root.appendingPathComponent("sessions"))
+        let box = AnnotationItem.create(
+            kind: .rectangle, points: [NormalizedPoint(0.1, 0.1), NormalizedPoint(0.4, 0.4)])
+        let redaction = AnnotationItem.create(
+            kind: .redaction, points: [NormalizedPoint(0.5, 0.5), NormalizedPoint(0.8, 0.8)])
+        var capture = CaptureItem.create(sourceImagePath: "source/capture.png", pixelWidth: 800, pixelHeight: 600)
+        capture.annotations = [box, redaction]
+        let session = try SessionOperations.addCapture(
+            SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
+
+        try Self.writeSession(session, store: store, droppingAnnotationKeys: ["fill", "fillColor", "hasOutline"])
+        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+
+        // A file written before the fill carried a colour reads exactly as it did: no fill, no
+        // colour of its own, and an outline. The redaction kind stays readable for the editor.
+        XCTAssertEqual(AnnotationFill.none, restored.captures[0].annotations[0].fill)
+        XCTAssertNil(restored.captures[0].annotations[0].fillColor)
+        XCTAssertTrue(restored.captures[0].annotations[0].hasOutline)
+        XCTAssertEqual(.redaction, restored.captures[0].annotations[1].kind)
+        try SessionValidation.validate(restored)
+    }
+
+    /// Port of `PersistenceAndExportTests.Json_store_round_trips_the_sent_flag_and_reads_a_file_written_without_it`.
+    func test_Json_store_round_trips_the_sent_flag_and_reads_a_file_written_without_it() async throws {
+        let store = JsonSessionStore(sessionsRoot: root.appendingPathComponent("sessions"))
+        var sent = CaptureItem.create(sourceImagePath: "source/sent.png", pixelWidth: 100, pixelHeight: 100)
+        sent.sent = true
+        let waiting = CaptureItem.create(sourceImagePath: "source/waiting.png", pixelWidth: 100, pixelHeight: 100)
+        var session = try SessionOperations.addCapture(
+            SnapikSession.create(nowUtc: Self.start), capture: sent, nowUtc: Self.start)
+        session = try SessionOperations.addCapture(
+            session, capture: waiting, nowUtc: Self.start.addingTimeInterval(1))
+
+        try await store.save(session)
+        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+        XCTAssertTrue(restored.captures[0].sent)
+        XCTAssertFalse(restored.captures[1].sent)
+
+        try Self.writeSession(session, store: store, droppingCaptureKeys: ["sent"])
+        let legacy = try XCTUnwrap(try await store.load(sessionId: session.id))
+        XCTAssertTrue(legacy.captures.allSatisfy { !$0.sent })
+    }
+
+    /// The annotations of the first capture, as they stand in the written file.
+    private static func annotationObjects(of session: SnapikSession) throws -> [[String: Any]] {
+        let data = try SnapikJson.encoder.encode(session)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let captures = try XCTUnwrap(json["captures"] as? [[String: Any]])
+        return try XCTUnwrap(captures[0]["annotations"] as? [[String: Any]])
+    }
+
+    private static func rewriteAnnotations(
+        of session: SnapikSession,
+        _ transform: ([String: Any]) -> [String: Any]
+    ) throws -> Data {
+        let data = try SnapikJson.encoder.encode(session)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var captures = try XCTUnwrap(json["captures"] as? [[String: Any]])
+        for captureIndex in captures.indices {
+            let annotations = try XCTUnwrap(captures[captureIndex]["annotations"] as? [[String: Any]])
+            captures[captureIndex]["annotations"] = annotations.map(transform)
+        }
+        json["captures"] = captures
+        return try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
+    }
+
+    /// Writes `session` into the store by hand with the named keys dropped: what a `session.json`
+    /// written by a build that did not know them looks like.
+    private static func writeSession(
+        _ session: SnapikSession,
+        store: JsonSessionStore,
+        droppingAnnotationKeys annotationKeys: [String] = [],
+        droppingCaptureKeys captureKeys: [String] = []
+    ) throws {
+        let data = try SnapikJson.encoder.encode(session)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var captures = try XCTUnwrap(json["captures"] as? [[String: Any]])
+        for captureIndex in captures.indices {
+            for key in captureKeys { captures[captureIndex].removeValue(forKey: key) }
+            var annotations = try XCTUnwrap(captures[captureIndex]["annotations"] as? [[String: Any]])
+            for index in annotations.indices {
+                for key in annotationKeys { annotations[index].removeValue(forKey: key) }
+            }
+            captures[captureIndex]["annotations"] = annotations
+        }
+        json["captures"] = captures
+
+        let directory = store.getSessionDirectory(sessionId: session.id)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let rewritten = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
+        try rewritten.write(to: directory.appendingPathComponent("session.json"))
+    }
+
 }
