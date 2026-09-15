@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Snapik.App"
         Title="{local:UiText Snapik — Лента снимков}" AutomationProperties.Name="{local:UiText Snapik — Лента снимков}"
-        Width="208" MinHeight="128" SizeToContent="Height"
+        Width="244" MinHeight="128" SizeToContent="Height"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
         BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="False" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">
     <Window.Resources>
@@ -129,7 +129,10 @@
         </Style>
     </Window.Resources>
     <Grid>
-    <Border x:Name="Shell" Margin="10" Padding="10" CornerRadius="16" Background="{DynamicResource SurfaceBrush}">
+    <!-- The margin is the field the shadow of the window needs: a blur of 24 and a depth of 5 want
+         12 + 5 px, and ten of them cut the shadow off at the edge of the window. It is the same 20
+         the capsule and the grips keep, and it is StripResizeGeometry.ShadowMargin. -->
+    <Border x:Name="Shell" Margin="20" Padding="10" CornerRadius="16" Background="{DynamicResource SurfaceBrush}">
         <Border.Effect><DropShadowEffect Color="{DynamicResource ShadowColor}" BlurRadius="24" ShadowDepth="5" Opacity="{DynamicResource ShadowOpacity}" /></Border.Effect>
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -163,7 +166,7 @@
             <!-- The height is the one the corner grip drags and the settings remember, and it is a
                  height, not a maximum: the window is on SizeToContent and has to follow the grip
                  even when the list holds one card. PositionAtEdge sets it for every showing. -->
-            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" Height="372" Margin="0,7,0,8" Padding="0,0,0,52"
+            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" Height="372" Margin="0,7,0,8" Padding="8,14,8,52"
                      Background="Transparent" BorderThickness="0" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False"
                      VirtualizingPanel.IsVirtualizing="False"
@@ -173,8 +176,8 @@
                     <Style TargetType="ScrollBar" BasedOn="{StaticResource StackScrollBar}" />
                     <!-- The bar lies over the cards, not beside them: the presenter and the bar share one
                          cell of the Grid, so the width the cards are given never changes when the strip
-                         starts to overflow. The room for the bar is reserved by the card itself, which
-                         keeps 8 px of its own right margin whether the bar is there or not.
+                         starts to overflow. The room for the bar is the right padding of the list,
+                         eight pixels the card never reaches, whether the bar is there or not.
                          The name PART_VerticalScrollBar is what makes the wheel and the drag of the grip
                          work without a line of code: ScrollViewer looks the bar up by that name and
                          subscribes to its Scroll itself. -->
@@ -218,7 +221,7 @@
                 </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border x:Name="ThumbCard" Margin="0,0,8,-48" Height="78" CornerRadius="11" Background="#242A33"
+                            <Border x:Name="ThumbCard" Margin="0,0,0,-48" Height="78" CornerRadius="11" Background="#242A33"
                                     BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True" MouseEnter="OnCaptureThumbMouseEnter">
                                 <!-- The shadow goes up (Direction 90 in WPF), onto the card above: the cards
                                      overlap by 48 px and the newer one is drawn over the older one, so the
@@ -272,14 +275,14 @@
                                 <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True">
                                     <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#718096" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,8,4" />
+                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=ThumbCard}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,8,4" />
+                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,8,4" />
+                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
                                     <Setter TargetName="ThumbCard" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
@@ -323,9 +326,9 @@
     <!-- The strip collapsed: the same window, not a second one. The window carries the hotkeys, the
          topmost with its suspensions, the tray icon and the drag of the header, and a capsule of
          its own would have to repeat all of it. The margin of 10 is the one the
-         shell keeps as well: it carries the shadow. The counter shows what the header shows, the
+         shell keeps as well: the margin of 20 carries the shadow. The counter shows what the header shows, the
          captures still waiting. -->
-    <Border x:Name="Capsule" Visibility="Collapsed" Margin="10" Height="44" CornerRadius="22" Padding="6,0,12,0"
+    <Border x:Name="Capsule" Visibility="Collapsed" Margin="20" Height="44" CornerRadius="22" Padding="6,0,12,0"
             Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" Cursor="Hand"
             HorizontalAlignment="Left" VerticalAlignment="Top"
             MouseLeftButtonDown="OnCapsuleClick" ToolTip="Развернуть ленту" AutomationProperties.Name="Развернуть ленту">
@@ -344,18 +347,18 @@
     <!-- The left edge of the card resizes the strip: six invisible pixels over the border, right
          where the pointer expects them. The right edge is fixed while dragging, so the strip keeps
          its place at the screen edge. The header drag lives further in and never meets this. -->
-    <Thumb x:Name="WidthGrip" HorizontalAlignment="Left" Width="6" Margin="10,22,0,22" Cursor="SizeWE"
+    <Thumb x:Name="WidthGrip" HorizontalAlignment="Left" Width="6" Margin="20,22,0,22" Cursor="SizeWE"
            DragStarted="OnWidthDragStarted" DragDelta="OnWidthDragDelta" DragCompleted="OnWidthDragCompleted">
         <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
     </Thumb>
     <!-- The bottom left corner takes width and height at once. It is declared after WidthGrip so it
          wins the hit test where the two meet, and it sits on the corner of the visible card, which is
-         10 px inside the window because that margin carries the shadow. The cursor is SizeNESW: the
+         20 px inside the window because that margin carries the shadow. The cursor is SizeNESW: the
          bottom left corner is dragged along the north-east / south-west diagonal. The window has no
          height of its own (SizeToContent), so the drag changes CaptureList.Height instead.
          The window is not resizable by the system, and the strip has no MaxHeight any more: the
          ceiling comes from the working area of the monitor it is on. -->
-    <Thumb x:Name="CornerGrip" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="16" Height="16" Margin="10,0,0,10" Cursor="SizeNESW"
+    <Thumb x:Name="CornerGrip" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="16" Height="16" Margin="20,0,0,20" Cursor="SizeNESW"
            DragStarted="OnCornerDragStarted" DragDelta="OnCornerDragDelta" DragCompleted="OnCornerDragCompleted">
         <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
     </Thumb>
