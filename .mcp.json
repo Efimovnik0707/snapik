@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "codebase-memory": {
+      "type": "stdio",
+      "command": "C:/Users/tomat/.local/bin/codebase-memory-mcp.exe"
+    }
+  }
+}
