@@ -575,6 +575,7 @@ public static class SmokeTestRunner
         await VerifySessionDiscardAsync(Path.Combine(root, "discard-probe"));
         await VerifyAWholeScreenCaptureNamesItselfAsync(Path.Combine(root, "fullscreen-probe"));
         await VerifyAFileFromDiskReachesTheStripAsync(Path.Combine(root, "import-probe"));
+        VerifyTheWizardKeepsItsAppearance(root);
         var success = paths.Count == 3
             && preparedFilesOnDisk
             && decoded.All(bitmap => bitmap.PixelWidth == 1920 && bitmap.PixelHeight == 1128)
@@ -1308,5 +1309,17 @@ public static class SmokeTestRunner
         var prepared = await workspace.PrepareAsync([capture], string.Empty, null);
         if (!prepared.Manifest.PromptText.Contains("Снимок A — IMG_0512.png.", StringComparison.Ordinal))
             throw new InvalidOperationException($"An imported file must name itself in prompt.md: \"{prepared.Manifest.PromptText}\".");
+    }
+
+    // The appearance the wizard collects is written to settings.json along with everything else it
+    // owns: the theme picked on its fourth step used to be applied at once and forgotten by the next
+    // start, because the merge that saves the wizard carried three fields and neither of these two.
+    private static void VerifyTheWizardKeepsItsAppearance(string root)
+    {
+        var path = Path.Combine(root, "onboarding-appearance.json");
+        (HotkeySettings.Default with { Theme = "sea", AccentId = "rose-violet" }).Save(path);
+        var read = HotkeySettings.Load(path);
+        if (read.Theme != "sea" || read.AccentId != "rose-violet")
+            throw new InvalidOperationException("The theme and the accent the wizard collects must survive the settings file.");
     }
 }

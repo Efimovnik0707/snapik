@@ -206,8 +206,12 @@ public partial class EdgeStackWindow : Window
         catch (Exception ex) { StartupTrace.Write(_options, $"Hotkeys in Loaded: {ex}"); }
         // Before the session is restored: on the very first run there is nothing to restore, and the
         // wizard writes the language and the shortcut the rest of the startup reads.
+        var wizardShown = false;
         if (OnboardingWindow.ShouldShowOnboarding(File.Exists(_settingsPath), _settings, _options.Demo || _options.SmokeTest))
+        {
             ShowOnboarding();
+            wizardShown = true;
+        }
         _loading = true;
         try
         {
@@ -221,6 +225,11 @@ public partial class EdgeStackWindow : Window
             }
             Renumber();
             PositionAtEdge();
+            // The first run ends with the strip on the screen, empty and compact: the wizard closes
+            // on "Start" and on "Skip" alike, and a run that began with it has nothing else to show.
+            // Here and not straight after the dialog: the session is restored in between, and the
+            // strip would flash empty first and be placed twice.
+            if (wizardShown) ShowStackWithoutActivation();
             StartupTrace.Write(_options, $"EdgeStack.Loaded completed with {Captures.Count} captures");
         }
         catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось восстановить сессию")}: {ex.Message}", true); StartupTrace.Write(_options, ex.ToString()); }
@@ -1249,14 +1258,16 @@ public partial class EdgeStackWindow : Window
         }
     }
 
-    // Only the three fields the wizard owns, on top of the file as it is now; a file that could not
-    // be read is replaced whole, because there is nothing in it to merge into.
+    // Only the fields the wizard owns, on top of the file as it is now; a file that could not be
+    // read is replaced whole, because there is nothing in it to merge into. The appearance step is
+    // among them: a theme picked in the wizard used to live until the next start and no longer.
     private bool WriteOnboarding(HotkeySettings candidate, bool merge)
     {
         if (merge)
             return MutateSettings(stored => stored with
             {
                 CaptureId = candidate.CaptureId, Language = candidate.Language,
+                Theme = candidate.Theme, AccentId = candidate.AccentId,
                 OnboardingVersion = candidate.OnboardingVersion
             });
         try { candidate.Save(_settingsPath); _settings = candidate; return true; }
@@ -1343,6 +1354,10 @@ public partial class EdgeStackWindow : Window
             bool? saved;
             using (SuspendTopmost()) saved = dialog.ShowDialog();
             if (saved == true) SetStatus(string.Empty);
+            // "Go through the tour again" is a link of the settings, and the wizard has to outlive
+            // the window that offered it: the dialog only says it was asked for. Inside the try, so
+            // the shortcuts are registered once, in the finally below, after both windows are gone.
+            if (dialog.OnboardingRequested) ShowOnboarding();
         }
         finally
         {
