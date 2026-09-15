@@ -288,6 +288,10 @@ final class HotkeyRecorderField: NSView {
         needsLayout = true
     }
 
+    /// Smoke: what the field is saying under the capsules — the instruction of a missing modifier,
+    /// the refusal of a combination the system keeps, or the idle line.
+    var smokeCaption: String { caption.stringValue }
+
     private func makeCapsule(_ key: String) -> NSView {
         let label = NSTextField(labelWithString: key)
         label.font = NSFont.systemFont(ofSize: 11, weight: .semibold)

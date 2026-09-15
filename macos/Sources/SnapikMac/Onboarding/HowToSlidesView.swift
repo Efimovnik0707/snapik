@@ -209,6 +209,14 @@ final class HowToSlidesView: NSView {
 
     @objc private func nextClicked() { step(1) }
 
+    /// How tall the captions of one slide are in one language, measured the way they are drawn: what
+    /// [ТЗ№4 A6] fixes the block at 140 for.
+    func smokeCaptionsHeight(forSlide index: Int, language: String) -> CGFloat {
+        let rows = Self.slideCaptions[min(max(index, 0), Self.slideCount - 1)]
+            .map { MacUiText.text($0, language: language) }
+        return SlideCaptionsView.height(of: rows, width: Self.contentWidth)
+    }
+
     override func layout() {
         super.layout()
         let width = bounds.width
@@ -272,6 +280,23 @@ private final class SlideCaptionsView: NSView {
     var palette: ThemePalette = ThemeService.palette(nil) { didSet { needsDisplay = true } }
 
     override var isFlipped: Bool { true }
+
+    /// The height of a block of rows, measured the way `draw` lays them out: a circle of 22 or the
+    /// wrapped text, whichever is taller, and 10 under every row but the last.
+    static func height(of rows: [String], width: CGFloat) -> CGFloat {
+        let textWidth = width - 22 - 12
+        var total: CGFloat = 0
+        for (index, row) in rows.enumerated() {
+            let text = NSAttributedString(
+                string: row, attributes: [.font: NSFont.systemFont(ofSize: 14)])
+            let rect = text.boundingRect(
+                with: NSSize(width: textWidth, height: 1000),
+                options: [.usesLineFragmentOrigin, .usesFontLeading])
+            total += max(22, ceil(rect.height))
+            if index < rows.count - 1 { total += 10 }
+        }
+        return total
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         let textWidth = bounds.width - 22 - 12

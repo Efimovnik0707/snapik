@@ -527,6 +527,51 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
         coordinator.applySettings(passed)
     }
 
+    // MARK: - Smoke hooks
+
+    /// "Шаг 5 из 5" as the footer of the wizard says it.
+    var smokeStepCaption: String { stepLabel.stringValue }
+
+    /// "Начать" on the full wizard, "Готово" on the slides from the menu bar.
+    var smokeFinishTitle: String { startButton.title }
+
+    var smokeShowsSteps: Bool { !stepLabel.isHidden && !skipLink.isHidden }
+
+    var smokeSlide: Int { slides.currentSlide }
+
+    var smokeAutoAdvancing: Bool { slides.isAutoAdvancing }
+
+    func smokeStartSlides() { slides.start() }
+
+    func smokeStopSlides() { slides.stop() }
+
+    func smokeStepSlides(_ delta: Int) { slides.step(delta) }
+
+    func smokeGoToSlide(_ index: Int) { slides.goTo(index) }
+
+    /// [ТЗ№4 A6] Every slide has to fit the block the dots stand under, in both languages: a new line
+    /// break in a future translation is caught here and not by the user.
+    func smokeCaptionsFit(language: String) -> Bool {
+        (0..<HowToSlidesView.slideCount).allSatisfy {
+            slides.smokeCaptionsHeight(forSlide: $0, language: language) <= HowToSlidesView.captionsHeight
+        }
+    }
+
+    /// Every string the wizard is showing, for the Cyrillic sweep of the English run. The two segments
+    /// of the language switch name the languages themselves and are the one part it skips.
+    var smokeVisibleStrings: [String] {
+        var found: [String] = [stepLabel.stringValue, skipLink.stringValue, errorLabel.stringValue]
+        found.append(contentsOf: [backButton.title, nextButton.title, startButton.title])
+        func walk(_ view: NSView) {
+            if view === welcomeStep.languageSegment { return }
+            if let field = view as? NSTextField { found.append(field.stringValue) }
+            if let button = view as? NSButton { found.append(button.title) }
+            for subview in view.subviews { walk(subview) }
+        }
+        for step in steps { walk(step) }
+        return found.filter { !$0.isEmpty }
+    }
+
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {

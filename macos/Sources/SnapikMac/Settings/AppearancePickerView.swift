@@ -432,6 +432,26 @@ final class AppearancePickerView: NSView {
             x += 38
         }
     }
+
+    // MARK: - Smoke hooks
+
+    /// The gallery shows a card per theme and the row a dot per accent; the counts are the data of
+    /// `ThemeService`, and a set short of one is what the probe is looking for.
+    var smokeCardCount: Int { cards.count }
+
+    var smokeDotCount: Int { dots.count }
+
+    /// The hairline stands in front of the first accent that paints with more than one colour, and
+    /// there is exactly one of it. Windows compared the identifier `"blue-violet"` instead, which
+    /// would have broken silently the next time the row was reordered.
+    var smokeDividerPrecedesFirstGradient: Bool {
+        guard let divider = accentDivider,
+            let index = dots.firstIndex(where: { ThemeService.isGradientAccent($0.accentId) }),
+            index > 0
+        else { return false }
+        return divider.frame.minX >= dots[index - 1].frame.maxX
+            && divider.frame.maxX <= dots[index].frame.minX
+    }
 }
 
 // MARK: - Pieces

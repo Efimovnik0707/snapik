@@ -365,8 +365,12 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
     /// [ТЗ№4 E2] The link at the bottom of "Общие": the dialog is left without saving — so the theme
     /// it was playing with goes back — and the wizard opens on the file as it is on disk.
     private func runOnboardingClicked() {
-        onboardingRequested = true
+        requestOnboarding()
         window?.close()
+    }
+
+    private func requestOnboarding() {
+        onboardingRequested = true
     }
 
     private func openOnboarding() {
@@ -499,6 +503,49 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         candidate.accentId = appearanceTab.picker.selectedAccent
         candidate.annotationPalette = appearanceTab.picker.selectedPalette
         return candidate
+    }
+
+    // MARK: - Smoke hooks
+
+    var smokeTabCount: Int { tabButtons.count }
+
+    var smokeAppearancePicker: AppearancePickerView { appearanceTab.picker }
+
+    func smokeSelectTab(_ index: Int) { showTab(index) }
+
+    /// One combination written into both fields is refused, both of them go red and nothing is saved.
+    /// The keys are given as a preset and as a custom id of the same gesture, so the check also proves
+    /// the comparison is by gesture and not by text.
+    func smokeRunConflictProbe() -> Bool {
+        hotkeysTab.captureField.currentId = "ctrl-alt-s"
+        hotkeysTab.fullscreenField.currentId = "custom:3:83"
+        hotkeysTab.captureEnabledBox.state = .on
+        hotkeysTab.fullscreenEnabledBox.state = .on
+        saveClicked()
+        return !saved && hotkeysTab.captureField.showsConflict && hotkeysTab.fullscreenField.showsConflict
+            && !errorLabel.isHidden
+    }
+
+    /// A clean installation: the shortcut of the whole screen is off, the field says so, and the chip
+    /// offers the first combination of the queue; taking it switches the shortcut on.
+    func smokeRunSuggestProbe() -> Bool {
+        hotkeysTab.fullscreenEnabledBox.state = .off
+        updateShortcutState()
+        guard !hotkeysTab.fullscreenField.isAssigned, !hotkeysTab.suggestChip.isHidden,
+            let offered = suggestedShortcut()
+        else { return false }
+        takeSuggestion()
+        return hotkeysTab.fullscreenEnabledBox.state == .on
+            && HotkeyRules.sameGesture(hotkeysTab.fullscreenField.currentId, offered)
+            && hotkeysTab.suggestChip.isHidden
+    }
+
+    /// The link of [ТЗ№4 E2] asks for the wizard and saves nothing of its own.
+    func smokeRequestOnboarding() -> Bool {
+        requestOnboarding()
+        let asked = onboardingRequested
+        onboardingRequested = false
+        return asked && !saved
     }
 
     // MARK: - NSWindowDelegate
