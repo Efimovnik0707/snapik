@@ -77,6 +77,33 @@ final class SerializationCyrillicTests: XCTestCase {
         XCTAssertEqual("Неизвестная строка", UiLanguage.text("Неизвестная строка", language: "ru"))
     }
 
+    func test_no_russian_key_and_no_english_value_of_the_table_repeats() {
+        var keys: Set<String> = []
+        var values: Set<String> = []
+        for (russian, english) in UiLanguage.englishPairs {
+            XCTAssertTrue(keys.insert(russian).inserted, "the Russian key repeats: \(russian)")
+            XCTAssertTrue(values.insert(english).inserted, "the English value repeats: \(english)")
+        }
+    }
+
+    func test_the_table_carries_the_rows_this_round_took_in_their_target_shape() {
+        // SPEC-DELTA-3 §3.4: the pairs the Mac port takes as ТЗ №4 leaves them, not as 1.4.0 had them.
+        XCTAssertEqual("Light · Dawn", UiLanguage.text("Светлая · Рассвет", language: "en"))
+        XCTAssertEqual("Dawn", UiLanguage.text("Рассвет", language: "en"))
+        XCTAssertEqual("Whole-screen capture", UiLanguage.text("Снимок всего экрана", language: "en"))
+        XCTAssertEqual(
+            "The system keeps this shortcut",
+            UiLanguage.text("Это сочетание занято системой", language: "en"))
+        XCTAssertEqual("Add Cmd, Option or Shift", UiLanguage.text("Добавь Cmd, Option или Shift", language: "en"))
+        XCTAssertEqual("rose", UiLanguage.text("розовый", language: "en"))
+        XCTAssertEqual("cyan to blue", UiLanguage.text("бирюзово-синий", language: "en"))
+        // §3.2: the two values that moved, one of them away from a collision with "Настройки".
+        XCTAssertEqual("HEX color", UiLanguage.text("Цвет HEX", language: "en"))
+        XCTAssertEqual("Shortcut settings", UiLanguage.text("Настройки клавиш", language: "en"))
+        // The outline row left with the switch it named (§3.4, ТЗ№4 D1).
+        XCTAssertEqual("Показывать рамку", UiLanguage.text("Показывать рамку", language: "en"))
+    }
+
     func test_guid_lowercase_and_no_dashes_formats_match_dotnet_conventions() {
         let id = SBGuid()
         XCTAssertEqual(id.description, id.description.lowercased())
