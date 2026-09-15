@@ -330,8 +330,8 @@
         </Grid>
     </Border>
     <!-- The strip collapsed: the same window, not a second one. The window carries the hotkeys, the
-         display affinity, the topmost with its suspensions, the tray icon and the drag of the header,
-         and a capsule of its own would have to repeat all of it. The margin of 10 is the one the
+         topmost with its suspensions, the tray icon and the drag of the header, and a capsule of
+         its own would have to repeat all of it. The margin of 10 is the one the
          shell keeps as well: it carries the shadow. The counter shows what the header shows, the
          captures still waiting. -->
     <Border x:Name="Capsule" Visibility="Collapsed" Margin="10" Height="44" CornerRadius="22" Padding="6,0,12,0"

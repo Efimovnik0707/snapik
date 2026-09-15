@@ -241,7 +241,6 @@ public partial class EdgeStackWindow : Window
         {
             var handle = new WindowInteropHelper(this).EnsureHandle();
             _hotkeys = new WindowsGlobalHotkeyService(handle);
-            _ = SetWindowDisplayAffinity(handle, 0x00000011);
             _hotkeys.Pressed += OnHotkey;
             _ = RegisterHotkeys();
             StartupTrace.Write(_options, $"Hotkeys ready: hwnd={handle}");
@@ -643,9 +642,9 @@ public partial class EdgeStackWindow : Window
     private void OnHideClick(object sender, RoutedEventArgs e) => HideStack();
 
     // The strip collapsed into the capsule, and back. It is a mode of this window: the hotkeys, the
-    // display affinity, the topmost, the tray icon and the drag of the header all hang on this window
-    // and on its handle. The mode lives in memory only and is never written to the settings file: a
-    // strip that opens collapsed would look like a strip that failed to open.
+    // topmost, the tray icon and the drag of the header all hang on this window and on its handle.
+    // The mode lives in memory only and is never written to the settings file: a strip that opens
+    // collapsed would look like a strip that failed to open.
     private void OnCollapseToCapsuleClick(object sender, RoutedEventArgs e) => CollapseToCapsule();
 
     private void OnCapsuleClick(object sender, MouseButtonEventArgs e) => ExpandFromCapsule();
@@ -1838,9 +1837,6 @@ public partial class EdgeStackWindow : Window
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmFlush();
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
 }
 
 // The depth of a card of the strip from its place in it: the first card is drawn over the second,
