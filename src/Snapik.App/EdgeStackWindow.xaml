@@ -291,6 +291,18 @@
                     </ListBox.ItemTemplate>
             </ListBox>
 
+            <!-- An empty strip is a small strip: the list reserves its 372 px even with nothing in
+                 it, and a window that tall with a hint in the middle of it reads as a window that
+                 failed to restore the session. The two swap places, so the height of the window is
+                 the height of its content; the first capture unfolds the list to the height the
+                 settings remember, because PositionAtEdge writes it whether the list is shown or
+                 not. The corner grip goes with the list: an empty strip has nothing to stretch. -->
+            <Border x:Name="EmptyHint" Grid.Row="1" Height="92" Margin="0,7,0,8" Visibility="Collapsed">
+                <TextBlock x:Name="EmptyHintText" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           TextAlignment="Center" TextWrapping="Wrap" Margin="10,0"
+                           FontSize="12" LineHeight="17" Foreground="{DynamicResource TextMutedBrush}" />
+            </Border>
+
             <Button Grid.Row="2" Style="{StaticResource StackButton}" Foreground="White" Background="{DynamicResource AccentBrush}" BorderBrush="{DynamicResource AccentBrush}" Click="OnCaptureClick">
                 <StackPanel Orientation="Horizontal">
                     <Path Stretch="Uniform" Width="16" Height="14" Margin="0,0,7,0" Stroke="White" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,5 L2,3 L6,3 L7,1.5 L11,1.5 L12,3 L16,3 L16,13 L2,13 Z M9,5 A3,3 0 1 0 9,11 A3,3 0 1 0 9,5" />

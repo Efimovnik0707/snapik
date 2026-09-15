@@ -1354,6 +1354,25 @@ public partial class EdgeStackWindow : Window
         // The capsule shows the same number as the header: what is still waiting to be pasted.
         CapsuleCount.Text = CountText.Text;
         PasteButton.IsEnabled = pending > 0;
+        UpdateEmptyState();
+    }
+
+    // An empty strip shows a hint instead of an empty list, and it is the window that shrinks: the
+    // list carries its height outright (PositionAtEdge), so hiding it takes those pixels out of the
+    // layout and the first capture brings them back. The corner grip is hidden with the list, there
+    // being nothing to stretch, and it stays hidden in the capsule, where the mode owns it.
+    private void UpdateEmptyState()
+    {
+        if (CaptureList is null) return;
+        var empty = Captures.Count == 0;
+        CaptureList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        EmptyHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        CornerGrip.Visibility = empty || _capsuleMode ? Visibility.Collapsed : Visibility.Visible;
+        // The shortcut may be switched off, and then there is nothing to name: the hint says what is
+        // left, the button of the strip.
+        EmptyHintText.Text = _settings.CaptureEnabled
+            ? string.Format(UiLanguage.Text("Нажми {0} или «Новый снимок»"), HotkeySettings.Find(_settings.CaptureId).Label)
+            : UiLanguage.Text("Нажми «Новый снимок»");
     }
 
     private IReadOnlyList<CaptureItem> PendingCaptures => SentCaptureRules.ForPackage(Captures, capture => capture.IsSent);
