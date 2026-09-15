@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Snapik.App.Controls;
+using Snapik.Core.Models;
 
 namespace Snapik.App;
 
@@ -36,23 +37,38 @@ public partial class EdgeStackWindow
         }
     }
 
-    private async Task SaveFullscreenAsync()
+    // The whole screen goes into the strip like any other capture, and the folder gets it from the
+    // autosave the rest of them go through: it used to be written straight to disk and never shown,
+    // which is how three files of five megabytes each appeared in Pictures while the strip stayed
+    // empty. The tail below is the tail of an ordinary capture, minus the editor: the shortcut is
+    // "take everything right now", and a full-screen editor over a picture 3840 px wide is not that.
+    private async Task CaptureFullscreenAsync()
     {
         await _pasteIntentTransition;
         // This hides every window too, so the rule of the capture holds for it word for word.
-        if (CaptureIsBlockedByADialog("fullscreen save")) return;
+        if (CaptureIsBlockedByADialog("fullscreen capture")) return;
         if (_busy) return;
+        // Asked before anything is hidden, exactly as in the capture of a region: a press on a full
+        // strip must not black the screen out for a capture that has nowhere to go.
+        if (StripIsFull()) return;
         _busy = true;
-        var wasVisible = IsVisible;
         try
         {
             HideForCapture();
             await Task.Delay(120);
             var frame = CaptureOverlay.CaptureDesktopFrame(_settings.CaptureCursor);
-            await LocalImageSave.WriteAsync(frame.Image, LocalImageSave.NewPath(_settings), _settings.SaveFormat, _settings.JpegQuality, false);
-            NotifySaved();
+            var capture = await _workspace.AddImageAsync(frame.Image);
+            capture.Kind = CaptureKind.Fullscreen;
+            capture.MonitorCount = Screen.AllScreens.Length;
+            Captures.Add(capture);
+            Renumber();
+            NoteStripGrowth();
+            InvalidatePrepared();
+            UiSoundService.Capture(_settings);
+            await SaveAndCopyCommittedPackageAsync();
+            await AutoSaveCaptureAsync(capture);
         }
-        catch (Exception ex) { wasVisible = true; SetStatus($"Не удалось сохранить экран: {ex.Message}", true); }
-        finally { _busy = false; if (wasVisible) ShowStackWithoutActivation(); }
+        catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось снять экран")}: {ex.Message}", true); }
+        finally { _busy = false; ShowStackWithoutActivation(); }
     }
 }

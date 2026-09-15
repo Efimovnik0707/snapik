@@ -280,7 +280,7 @@ public partial class EdgeStackWindow : Window
     {
         if (CaptureIsBlockedByADialog($"hotkey {e.Id}")) return;
         if (e.Id == "capture" && !OverlayEditorWindow.TryCommitAndRequestNext()) await CaptureLoopAsync();
-        else if (e.Id == "fullscreen-save") await SaveFullscreenAsync();
+        else if (e.Id == "fullscreen-save") await CaptureFullscreenAsync();
     });
 
     // Every modal window the application opens goes through SuspendTopmost, so the number of
@@ -1056,7 +1056,16 @@ public partial class EdgeStackWindow : Window
         var failures = new List<string>();
         foreach (var path in chosen.Take(free))
         {
-            try { Captures.Add(await _workspace.AddImageAsync(SessionWorkspace.LoadBitmap(path))); imported++; }
+            try
+            {
+                var capture = await _workspace.AddImageAsync(SessionWorkspace.LoadBitmap(path));
+                // The name of the file is what tells one import from another, on the chip of the card
+                // and in prompt.md; a capture of a region has nothing to put there and leaves it empty.
+                capture.Kind = Snapik.Core.Models.CaptureKind.Import;
+                capture.Title = Path.GetFileName(path);
+                Captures.Add(capture);
+                imported++;
+            }
             catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
         }
         Renumber(); NoteStripGrowth(); InvalidatePrepared();
