@@ -457,6 +457,7 @@ public static class SmokeTestRunner
         WithoutBindingErrors("The markup panel", () => OverlayEditorWindow.RunShortcutHintProbe(captures[0]));
         WithoutBindingErrors("The colour and thickness panel", () => OverlayEditorWindow.RunPanelProbe(captures[0]));
         WithoutBindingErrors("The comments panel", () => OverlayEditorWindow.RunCommentsPanelProbe(captures[0]));
+        WithoutBindingErrors("The scale of the editor", () => OverlayEditorWindow.RunEditorScaleProbe(workspace, captures[0]));
         WithoutBindingErrors("The click beside the capture", () => OverlayEditorWindow.RunOutsideClickProbe(captures[0]));
         WithoutBindingErrors("The text tool", () => OverlayEditorWindow.RunTextMarkProbe(captures[0]));
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
