@@ -210,10 +210,10 @@ public partial class OverlayEditorWindow : Window
             // capsule starts carrying it, glyph, tag and all.
             Row(pencilMenu, "Highlight (H)").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             if (window.Surface.Tool != EditorTool.Highlight || (string?)window.PenTool.Tag != "Highlight" ||
-                window.PencilCapsuleGlyph.Data.ToString() != window.FindResource("HighlightGlyph").ToString() || window.PenTool.IsChecked != true)
+                window.PencilCapsuleGlyph.Text != HighlightGlyph || window.PenTool.IsChecked != true)
                 throw new InvalidOperationException("A pick in the pencil menu must arm the mode and show it on the capsule.");
             window.SelectToolMode(EditorTool.Pen);
-            if ((string?)window.PenTool.Tag != "Pen" || window.PencilCapsuleGlyph.Data.ToString() != window.FindResource("PencilGlyph").ToString())
+            if ((string?)window.PenTool.Tag != "Pen" || window.PencilCapsuleGlyph.Text != PencilGlyph)
                 throw new InvalidOperationException("The P key must put the capsule back on the pencil.");
         }
         finally
@@ -1141,7 +1141,7 @@ public partial class OverlayEditorWindow : Window
         _appearanceDefaultsChanged |= tool != _activePencil;
         _activePencil = tool;
         PenTool.Tag = tool.ToString();
-        PencilCapsuleGlyph.Data = (Geometry)FindResource(tool == EditorTool.Highlight ? "HighlightGlyph" : "PencilGlyph");
+        PencilCapsuleGlyph.Text = tool == EditorTool.Highlight ? HighlightGlyph : PencilGlyph;
         if (EditorShortcuts.Find(tool) is { } shortcut)
         {
             PenTool.ToolTip = UiLanguage.Text(shortcut.Name);
@@ -1354,17 +1354,11 @@ public partial class OverlayEditorWindow : Window
             RefreshLabels();
         };
         note.GotKeyboardFocus += (_, _) => Surface.SelectAnnotation(annotation.Id);
-        var closePath = new System.Windows.Shapes.Path
-        {
-            StrokeThickness = 1.5,
-            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
-            Data = Geometry.Parse("M1,1 L9,9 M9,1 L1,9")
-        };
-        closePath.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "TextBrush");
+        var closeGlyph = IconGlyph("\uE8BB", 11, "TextBrush");
         var close = new Button
         {
             Width = 27, Height = 27, Padding = new Thickness(7), Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0), Content = closePath, ToolTip = UiLanguage.Text("Удалить комментарий"), Tag = annotation
+            BorderThickness = new Thickness(0), Content = closeGlyph, ToolTip = UiLanguage.Text("Удалить комментарий"), Tag = annotation
         };
         close.Click += OnDeleteAnnotationNoteClick;
         var grid = new Grid();

@@ -9,11 +9,6 @@
         KeyDown="OnWindowKeyDown" MouseLeftButtonDown="OnWindowMouseDown"
         MouseMove="OnWindowMouseMove" MouseLeftButtonUp="OnWindowMouseUp">
     <Window.Resources>
-        <!-- The two faces of the pencil capsule: the button swaps the geometry of its own path by
-             the mode, and the menu of the capsule draws its rows from the same two. A pencil with a
-             collar and a tip, not the slanted wedge that read as a razor blade. -->
-        <PathGeometry x:Key="PencilGlyph" Figures="M2.5,13.5 L3.5,10.3 L9.5,4.2 L11.8,6.5 L5.8,12.5 Z M3.5,10.3 L5.8,12.5 M8.5,5.3 L10.7,7.6" />
-        <PathGeometry x:Key="HighlightGlyph" Figures="M2,11 L10,3 L14,7 L6,15 L2,15 Z" />
         <!-- The face of a region filled with blur: worn by the segment that picks it and by the
              preview on the fill button, so both say the same thing. -->
         <LinearGradientBrush x:Key="BlurFillPreview" StartPoint="0,0" EndPoint="1,1">
@@ -165,7 +160,7 @@
                 <Grid>
                     <TextBlock x:Name="ShotLabel" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold" />
                     <Button HorizontalAlignment="Right" Width="25" Height="25" Padding="7" Background="Transparent" BorderThickness="0" Click="OnCloseShotNoteClick" ToolTip="Удалить комментарий">
-                        <Path Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,1 L9,9 M9,1 L1,9" />
+                        <TextBlock FontFamily="{StaticResource IconFont}" FontSize="11" Text="&#xE8BB;" Foreground="{DynamicResource TextBrush}" />
                     </Button>
                 </Grid>
                 <TextBox x:Name="ShotNoteBox" Margin="0,5,0,0" MinHeight="34" MaxHeight="92" AcceptsReturn="True" TextWrapping="Wrap"
@@ -210,20 +205,20 @@
                 <!-- One capsule for the pen and the highlighter: the button draws the current mode
                      and carries it in its own Tag, the chevron beside it offers the other one. -->
                 <ToggleButton x:Name="PenTool" Style="{StaticResource OverlayToolStart}" Tag="Pen" Click="OnToolClick">
-                    <Path x:Name="PencilCapsuleGlyph" Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="{StaticResource PencilGlyph}" />
+                    <TextBlock x:Name="PencilCapsuleGlyph" FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xED63;" />
                 </ToggleButton>
                 <Button x:Name="PenMenuButton" Style="{StaticResource OverlayToolChevron}" Click="OnPencilMenuClick" ToolTip="Карандаш" AutomationProperties.Name="{local:UiText Карандаш}" />
                 <ToggleButton x:Name="TextTool" Style="{StaticResource OverlayTool}" Tag="Text" Click="OnToolClick">
-                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" Data="M2,2 L14,2 M8,2 L8,14 M5,14 L11,14" />
+                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE8D2;" />
                 </ToggleButton>
                 <ToggleButton x:Name="EraserTool" Style="{StaticResource OverlayTool}" Tag="Eraser" Click="OnToolClick">
-                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M1,15 L15,15 M4,12 L10.5,2.5 L14.5,5.5 L8,15 L4.5,15 Z" />
+                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE75C;" />
                 </ToggleButton>
                 <ToggleButton x:Name="BlurTool" Style="{StaticResource OverlayTool}" Tag="Blur" Click="OnToolClick">
                     <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.4" Data="M2,4 L5,2 L8,4 L11,2 L14,4 M2,8 L5,6 L8,8 L11,6 L14,8 M2,12 L5,10 L8,12 L11,10 L14,12" />
                 </ToggleButton>
                 <ToggleButton x:Name="CropTool" Style="{StaticResource OverlayTool}" Tag="Crop" Click="OnToolClick">
-                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeStartLineCap="Round" Data="M4,1 L4,12 L15,12 M1,4 L12,4 L12,15" />
+                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE7A8;" />
                 </ToggleButton>
                 <StackPanel x:Name="ColorDots" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,2,0" />
                 <!-- The colour button is a circle and nothing else: the thickness and the fill both
@@ -254,7 +249,7 @@
 <!-- A tool like the others, and checked like the others: the comment stays armed until it is
                      put down, so the panel has to show that it is in the hand. -->
                 <ToggleButton x:Name="CommentToolButton" Style="{StaticResource OverlayTool}" Tag="Comment" Click="OnCommentClick" AutomationProperties.Name="{local:UiText Комментарий}">
-                    <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,2 L14,2 L14,11 L8,11 L4,15 L4,11 L2,11 Z" />
+                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE90A;" />
                 </ToggleButton>
                 <Button x:Name="ShortcutSheetButton" Style="{StaticResource OverlayButton}" Width="30" MinWidth="30" Padding="0" FontWeight="SemiBold" Content="?" Click="OnShortcutSheetClick" ToolTip="Сочетания клавиш" AutomationProperties.Name="{local:UiText Сочетания клавиш}" />
                 <Popup x:Name="ShortcutSheetPopup" PlacementTarget="{Binding ElementName=ShortcutSheetButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False">
@@ -270,10 +265,10 @@
                     </Border>
                 </Popup>
                 <Border Width="1" Height="22" Margin="7,7" Background="{DynamicResource DividerBrush}" />
-                <Button x:Name="UndoButton" Style="{StaticResource OverlayButton}" Click="OnUndoClick"><Path Width="16" Height="16" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.7" Data="M7,3 L2,7 L7,11 M3,7 L10,7 C14,7 15,10 15,13" /></Button>
-                <Button x:Name="RedoButton" Style="{StaticResource OverlayButton}" Click="OnRedoClick"><Path Width="16" Height="16" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.7" Data="M9,3 L14,7 L9,11 M13,7 L6,7 C2,7 1,10 1,13" /></Button>
+                <Button x:Name="UndoButton" Style="{StaticResource OverlayButton}" Click="OnUndoClick"><TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE7A7;" /></Button>
+                <Button x:Name="RedoButton" Style="{StaticResource OverlayButton}" Click="OnRedoClick"><TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE7A6;" /></Button>
                 <Button x:Name="SaveImageButton" Style="{StaticResource OverlayButton}" Click="OnSaveImageClick" AutomationProperties.Name="{local:UiText Сохранить на компьютер}">
-                    <Path Width="17" Height="17" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M2,1 L12,1 L16,5 L16,16 L2,16 Z M5,1 L5,6 L12,6 L12,1 M5,16 L5,10 L13,10 L13,16" />
+                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE74E;" />
                 </Button>
                 <Button x:Name="DoneButton" Style="{StaticResource OverlayButton}" Click="OnDoneClick" Background="{DynamicResource AccentBrush}" Foreground="White" FontWeight="SemiBold" Content="Готово" />
             </WrapPanel>
@@ -281,7 +276,7 @@
         <Popup x:Name="AppearancePopup" PlacementTarget="{Binding ElementName=AppearanceButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" Closed="OnAppearanceClosed">
             <Border Width="280" Padding="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" CornerRadius="14" TextElement.Foreground="{DynamicResource TextBrush}" Cursor="Arrow" PreviewKeyDown="OnAppearanceKeyDown">
                 <StackPanel>
-                    <Grid Margin="0,0,0,12"><TextBlock Text="Цвет" FontWeight="SemiBold"/><Button HorizontalAlignment="Right" Width="22" MinWidth="22" Height="22" Padding="5" Style="{StaticResource OverlayButton}" Click="OnCloseAppearance" ToolTip="Закрыть"><Path Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" Data="M1,1 L9,9 M9,1 L1,9"/></Button></Grid>
+                    <Grid Margin="0,0,0,12"><TextBlock Text="Цвет" FontWeight="SemiBold"/><Button HorizontalAlignment="Right" Width="22" MinWidth="22" Height="22" Padding="5" Style="{StaticResource OverlayButton}" Click="OnCloseAppearance" ToolTip="Закрыть"><TextBlock FontFamily="{StaticResource IconFont}" FontSize="11" Text="&#xE8BB;" Foreground="{DynamicResource TextBrush}"/></Button></Grid>
                     <!-- Three palettes of twelve; the five dots on the panel are the quick row of the
                          palette picked here, so one click stays inside the set the user chose. -->
                     <Border Background="{DynamicResource ElevatedBrush}" CornerRadius="8" Padding="3" Margin="0,0,0,12">
@@ -304,8 +299,7 @@
                         <TextBox x:Name="ColorHex" Text="#FF3B30" MaxLength="7" Background="{DynamicResource ElevatedBrush}" Foreground="{DynamicResource TextBrush}" CaretBrush="{DynamicResource TextBrush}" BorderBrush="{DynamicResource ElevatedLineBrush}" Padding="9,6" LostKeyboardFocus="OnHexLostFocus" PreviewKeyDown="OnHexKeyDown" AutomationProperties.Name="{local:UiText Цвет HEX}"/>
                         <Button x:Name="EyedropperButton" Grid.Column="1" Style="{StaticResource OverlayButton}" Width="34" MinWidth="34" Height="34" Margin="6,0,0,0" Padding="0"
                                 Click="OnEyedropperClick" ToolTip="Взять цвет с экрана" AutomationProperties.Name="{local:UiText Пипетка}">
-                            <Path Width="16" Height="16" Stretch="Uniform" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeLineJoin="Round"
-                                  Data="M10,1 L15,6 M12.5,3.5 L4,12 L1,15 L2,12 L10.5,3.5 Z" />
+                            <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xEF3C;" Foreground="{DynamicResource TextBrush}" />
                         </Button>
                         <!-- Nothing is saved into the own palette by itself any more: this is the
                              one way in, and it works from whichever set is being shown. -->
