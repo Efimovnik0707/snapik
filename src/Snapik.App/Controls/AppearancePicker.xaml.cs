@@ -197,11 +197,17 @@ public partial class AppearancePicker : UserControl
 
     private void BuildAccentRow()
     {
+        var dividerPlaced = false;
         foreach (var accent in ThemeService.Accents)
         {
-            // The four gradients follow the four solid ones, with a hairline between the two halves.
-            if (accent == "blue-violet")
+            // The gradients follow the solid ones, with a hairline between the two halves. Where the
+            // line goes is asked of the dictionaries and not of a name: the row was rearranged this
+            // round, and a name in a condition here would have been the one place left behind.
+            if (!dividerPlaced && ThemeService.IsGradientAccent(accent))
+            {
                 AccentRow.Children.Add(Divider());
+                dividerPlaced = true;
+            }
             var dot = new RadioButton
             {
                 Style = (Style)FindResource("AccentDot"), Tag = accent, GroupName = "AppearanceAccent",
@@ -213,9 +219,11 @@ public partial class AppearancePicker : UserControl
         MarkSelectedDot();
     }
 
+    // Four pixels on each side, the same as the gap between two dots: twelve dots of 28 with a step
+    // of 10 and this line come to 455 px, and the row of the wizard is 520 wide.
     private Border Divider()
     {
-        var line = new Border { Width = 1, Height = 22, Margin = new Thickness(4, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
+        var line = new Border { Width = 1, Height = 22, Margin = new Thickness(4, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
         line.SetResourceReference(Border.BackgroundProperty, "DividerBrush");
         return line;
     }
@@ -371,6 +379,15 @@ public partial class AppearancePicker : UserControl
             throw new InvalidOperationException("The appearance picker must show a card per theme and a dot per accent.");
         if (picker.PaletteBlock.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("The palette row must be off until the owner of the control asks for it.");
+        // One hairline in the row, and it stands immediately before the first dot that paints with a
+        // gradient. This is what catches a rearranged row and a dictionary with an unexpected brush.
+        var row = picker.AccentRow.Children.Cast<UIElement>().ToList();
+        var divider = row.FindIndex(item => item is Border);
+        if (divider < 0 || divider + 1 >= row.Count || row.Count(item => item is Border) != 1)
+            throw new InvalidOperationException("The row of accents must carry exactly one divider, and a dot after it.");
+        if (row[divider + 1] is not RadioButton { Tag: string first } || !ThemeService.IsGradientAccent(first) ||
+            row.Take(divider).Any(item => item is RadioButton { Tag: string solid } && ThemeService.IsGradientAccent(solid)))
+            throw new InvalidOperationException("The divider must stand between the solid accents and the gradients.");
         picker.ShowPaletteRow = true;
         picker.SelectedPalette = "pastel";
         if (picker.PaletteBlock.Visibility != Visibility.Visible || picker.PastelPalette.IsChecked != true)
