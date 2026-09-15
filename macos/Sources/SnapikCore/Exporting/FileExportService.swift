@@ -37,7 +37,11 @@ public final class FileExportService: ExportService {
             var images: [ExportImageEntry] = []
             for (index, capture) in session.captures.enumerated() {
                 let label = try CaptureLabels.forIndex(index)
-                let fileName = "\(label)_\(capture.id.digitsLowercase).png"
+                // Port of `FileExportService.cs:43-45`: the user opens these files in a folder
+                // of their own, and "01-A.png" sorts and reads like a page number. The guid of the
+                // capture stays in `manifest.images[].captureId`, and nothing takes the name apart
+                // again.
+                let fileName = String(format: "%02d", index + 1) + "-\(label).png"
                 let imagePath = staging.appendingPathComponent(fileName)
                 let sourceImagePath = try Self.resolveSessionPath(
                     sessionRoot: sessionRoot, relativePath: capture.sourceImagePath)
@@ -63,11 +67,18 @@ public final class FileExportService: ExportService {
                         byteLength: Int64(rendered.count)))
             }
 
+            // Port of `FileExportService.cs:63-73`: captures without notes produce no text at
+            // all. The package is then images only, and an empty prompt.md would just be an empty
+            // file for the user to open; the manifest carries empty strings, and a reader of it has
+            // to allow for them.
             let promptText = try PromptGenerator().generate(session)
-            let promptFileName = "prompt.md"
-            let promptPath = staging.appendingPathComponent(promptFileName)
-            let promptData = Data(promptText.utf8)
-            try Self.writeNew(promptData, to: promptPath)
+            let promptFileName = promptText.isEmpty ? "" : "prompt.md"
+            var promptSha256 = ""
+            if !promptText.isEmpty {
+                let promptData = Data(promptText.utf8)
+                try Self.writeNew(promptData, to: staging.appendingPathComponent(promptFileName))
+                promptSha256 = SHA256.hexString(promptData)
+            }
 
             let manifest = ExportManifest(
                 exportId: exportId,
@@ -76,7 +87,7 @@ public final class FileExportService: ExportService {
                 createdAtUtc: timeProvider.utcNow(),
                 images: images,
                 promptFileName: promptFileName,
-                promptSha256: SHA256.hexString(promptData),
+                promptSha256: promptSha256,
                 promptText: promptText,
                 captureCount: session.captures.count,
                 noteCount: Self.countNotes(session))

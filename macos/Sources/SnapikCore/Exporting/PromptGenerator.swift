@@ -16,6 +16,17 @@ public struct PromptGenerator {
 
         for (captureIndex, capture) in session.captures.enumerated() {
             let captureLabel = try CaptureLabels.forIndex(captureIndex)
+            let labeled = CaptureLabels.forNotedAnnotations(captureLabel: captureLabel, capture: capture)
+            // Port of `PromptGenerator.cs:23-29`: a capture the user said nothing about adds nothing
+            // to the text — the image speaks for itself, and a bare "Снимок A." line would only
+            // pollute the receiving prompt. Letters still come from the position in the package, so
+            // the badges keep matching the text.
+            if !ExportText.hasContent(capture.title) && !ExportText.hasContent(capture.note)
+                && labeled.isEmpty
+            {
+                continue
+            }
+
             var section = "Снимок \(captureLabel)"
             if ExportText.hasContent(capture.title) {
                 section += " — \(capture.title)"
@@ -26,7 +37,6 @@ public struct PromptGenerator {
                 section += "\nКомментарий к снимку:\n\(capture.note)"
             }
 
-            let labeled = CaptureLabels.forNotedAnnotations(captureLabel: captureLabel, capture: capture)
             let labelsById = Dictionary(
                 uniqueKeysWithValues: labeled.map { ($0.annotation.id, $0.displayLabel) })
 

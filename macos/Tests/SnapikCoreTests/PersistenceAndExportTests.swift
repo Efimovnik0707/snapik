@@ -240,7 +240,8 @@ final class PersistenceAndExportTests: XCTestCase {
             SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
 
         try await store.save(session)
-        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+        let loadedRestored = try await store.load(sessionId: session.id)
+        let restored = try XCTUnwrap(loadedRestored)
 
         // The name in the file matters as much as the value: the Windows build reads the same key.
         let written = try Self.annotationObjects(of: session)
@@ -261,7 +262,8 @@ final class PersistenceAndExportTests: XCTestCase {
             SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
 
         try Self.writeSession(session, store: store, droppingAnnotationKeys: ["fontSize"])
-        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+        let loadedRestored = try await store.load(sessionId: session.id)
+        let restored = try XCTUnwrap(loadedRestored)
 
         XCTAssertEqual(20, restored.captures[0].annotations[0].fontSize)
         try SessionValidation.validate(restored)
@@ -281,7 +283,8 @@ final class PersistenceAndExportTests: XCTestCase {
             SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
 
         try await store.save(session)
-        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+        let loadedRestored = try await store.load(sessionId: session.id)
+        let restored = try XCTUnwrap(loadedRestored)
 
         // The name in the file matters as much as the value: the Windows build reads the same key.
         let written = try Self.annotationObjects(of: session)
@@ -292,7 +295,8 @@ final class PersistenceAndExportTests: XCTestCase {
 
         // A session written before the field reads as solid, which is what it was drawn as.
         try Self.writeSession(session, store: store, droppingAnnotationKeys: ["lineStyle"])
-        let reread = try XCTUnwrap(try await store.load(sessionId: session.id))
+        let loadedReread = try await store.load(sessionId: session.id)
+        let reread = try XCTUnwrap(loadedReread)
         XCTAssertEqual(.solid, reread.captures[0].annotations[0].lineStyle)
     }
 
@@ -335,7 +339,8 @@ final class PersistenceAndExportTests: XCTestCase {
             SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
 
         try await store.save(session)
-        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+        let loadedRestored = try await store.load(sessionId: session.id)
+        let restored = try XCTUnwrap(loadedRestored)
 
         // The names in the file matter as much as the values: the Windows build reads the same keys.
         let written = try Self.annotationObjects(of: session)
@@ -364,7 +369,8 @@ final class PersistenceAndExportTests: XCTestCase {
             SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
 
         try Self.writeSession(session, store: store, droppingAnnotationKeys: ["fill", "fillColor", "hasOutline"])
-        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+        let loadedRestored = try await store.load(sessionId: session.id)
+        let restored = try XCTUnwrap(loadedRestored)
 
         // A file written before the fill carried a colour reads exactly as it did: no fill, no
         // colour of its own, and an outline. The redaction kind stays readable for the editor.
@@ -387,12 +393,14 @@ final class PersistenceAndExportTests: XCTestCase {
             session, capture: waiting, nowUtc: Self.start.addingTimeInterval(1))
 
         try await store.save(session)
-        let restored = try XCTUnwrap(try await store.load(sessionId: session.id))
+        let loadedRestored = try await store.load(sessionId: session.id)
+        let restored = try XCTUnwrap(loadedRestored)
         XCTAssertTrue(restored.captures[0].sent)
         XCTAssertFalse(restored.captures[1].sent)
 
         try Self.writeSession(session, store: store, droppingCaptureKeys: ["sent"])
-        let legacy = try XCTUnwrap(try await store.load(sessionId: session.id))
+        let loadedLegacy = try await store.load(sessionId: session.id)
+        let legacy = try XCTUnwrap(loadedLegacy)
         XCTAssertTrue(legacy.captures.allSatisfy { !$0.sent })
     }
 
@@ -444,6 +452,60 @@ final class PersistenceAndExportTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let rewritten = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
         try rewritten.write(to: directory.appendingPathComponent("session.json"))
+    }
+
+
+    /// Port of `PersistenceAndExportTests.A_package_without_notes_carries_images_only_and_writes_no_prompt_file`.
+    func test_A_package_without_notes_carries_images_only_and_writes_no_prompt_file() async throws {
+        let capture = CaptureItem.create(sourceImagePath: "source/a.png", pixelWidth: 800, pixelHeight: 600)
+        let session = try SessionOperations.addCapture(
+            SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
+        let sessionDirectory = root.appendingPathComponent("silent-session")
+        try FileManager.default.createDirectory(
+            at: sessionDirectory.appendingPathComponent("source"), withIntermediateDirectories: true)
+        try Self.onePixelPNG.write(to: sessionDirectory.appendingPathComponent(capture.sourceImagePath))
+
+        let prepared = try await FileExportService(
+            renderer: RecordingPNGRenderer(), timeProvider: FrozenTimeProvider(value: Self.start)
+        ).prepare(session: session, sessionDirectory: sessionDirectory)
+
+        XCTAssertEqual("", prepared.manifest.promptText)
+        XCTAssertEqual("", prepared.manifest.promptFileName)
+        XCTAssertEqual("", prepared.manifest.promptSha256)
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: prepared.rootDirectory.appendingPathComponent("prompt.md").path))
+        XCTAssertEqual(1, prepared.manifest.images.count)
+    }
+
+    /// Port of `FileExportService.cs:43-45`: the image of a package is named after its place in the
+    /// package and its letter, so a folder of them sorts and reads like page numbers.
+    func test_The_images_of_a_package_are_numbered_and_lettered() async throws {
+        var first = CaptureItem.create(sourceImagePath: "source/a.png", pixelWidth: 800, pixelHeight: 600)
+        first.note = "Первый"
+        let second = CaptureItem.create(sourceImagePath: "source/b.png", pixelWidth: 800, pixelHeight: 600)
+        var session = try SessionOperations.addCapture(
+            SnapikSession.create(nowUtc: Self.start), capture: first, nowUtc: Self.start)
+        session = try SessionOperations.addCapture(
+            session, capture: second, nowUtc: Self.start.addingTimeInterval(1))
+        let sessionDirectory = root.appendingPathComponent("numbered-session")
+        try FileManager.default.createDirectory(
+            at: sessionDirectory.appendingPathComponent("source"), withIntermediateDirectories: true)
+        try Self.onePixelPNG.write(to: sessionDirectory.appendingPathComponent(first.sourceImagePath))
+        try Self.onePixelPNG.write(to: sessionDirectory.appendingPathComponent(second.sourceImagePath))
+
+        let prepared = try await FileExportService(
+            renderer: RecordingPNGRenderer(), timeProvider: FrozenTimeProvider(value: Self.start)
+        ).prepare(session: session, sessionDirectory: sessionDirectory)
+
+        XCTAssertEqual(["01-A.png", "02-B.png"], prepared.manifest.images.map { $0.fileName })
+        XCTAssertEqual([first.id, second.id], prepared.manifest.images.map { $0.captureId })
+        for image in prepared.manifest.images {
+            XCTAssertTrue(
+                FileManager.default.fileExists(
+                    atPath: prepared.rootDirectory.appendingPathComponent(image.fileName).path),
+                image.fileName)
+        }
     }
 
 }

@@ -215,7 +215,7 @@ public struct AnnotationItem: Codable, Equatable, Sendable {
         // pattern would be drawn as nothing at all.
         noteOffset = try container.decodeIfPresent(NormalizedPoint.self, forKey: .noteOffset)
         shape = try container.decodeIfPresent(AnnotationShape.self, forKey: .shape) ?? .rectangle
-        fill = try container.decodeIfPresent(AnnotationFill.self, forKey: .fill) ?? .none
+        fill = try container.decodeIfPresent(AnnotationFill.self, forKey: .fill) ?? AnnotationFill.none
         lineStyle = try container.decodeIfPresent(AnnotationLineStyle.self, forKey: .lineStyle) ?? .solid
         fillColor = try container.decodeIfPresent(String.self, forKey: .fillColor)
         hasOutline = try container.decodeIfPresent(Bool.self, forKey: .hasOutline) ?? true
