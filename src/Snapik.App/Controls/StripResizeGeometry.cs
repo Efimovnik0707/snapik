@@ -10,15 +10,34 @@ namespace Snapik.App.Controls;
 /// </summary>
 internal static class StripResizeGeometry
 {
-    internal const double MinimumWidth = 200;
-    internal const double DefaultWidth = 208;
+    /// <summary>
+    /// The transparent field around the panel that carries the shadow of the window: a blur radius
+    /// of 24 and a depth of 5 need 12 + 5 = 17 px, and 20 is the round number above that. It is the
+    /// margin of the shell, of the capsule and of the grips.
+    /// </summary>
+    internal const double ShadowMargin = 20;
+
+    /// <summary>The panel the user sees: the window without the field under its shadow.</summary>
+    internal const double MinimumPanelWidth = 204;
+
+    internal const double MinimumWidth = MinimumPanelWidth + 2 * ShadowMargin;
+    internal const double DefaultWidth = MinimumWidth;
 
     /// <summary>
     /// The gap the strip keeps between itself and the right edge of the working area. It is also
     /// the ceiling of the width: a strip as wide as the whole working area would have to start
-    /// outside of it to keep that gap.
+    /// outside of it to keep that gap. The field under the shadow is the gap that is seen now, so
+    /// this one is zero and the panel still stands 20 px away from the edge.
     /// </summary>
-    internal const double EdgeGap = 10;
+    internal const double EdgeGap = 0;
+
+    /// <summary>The two paddings between the panel and a card: the shell and the capture list.</summary>
+    internal const double ShellPadding = 10;
+    internal const double ListPadding = 8;
+
+    /// <summary>The card of a capture inside a window of that width: 168 px at 244.</summary>
+    internal static double CardWidth(double windowWidth) =>
+        windowWidth - 2 * ShadowMargin - 2 * ShellPadding - 2 * ListPadding;
 
     // The height of the strip is the height of the capture list: the window lives on
     // SizeToContent="Height", and a height written to the window itself is overwritten by the next
@@ -36,7 +55,7 @@ internal static class StripResizeGeometry
     /// first drag; this is the figure used until there is something to measure, and it is on the
     /// generous side on purpose — a list clamped a little short still fits on the screen.
     /// </summary>
-    internal const double EstimatedChromeHeight = 140;
+    internal const double EstimatedChromeHeight = 160;
 
     /// <summary>
     /// A width from the settings file. The ceiling is the working area of the monitor the strip

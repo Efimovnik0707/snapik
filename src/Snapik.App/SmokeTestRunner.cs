@@ -30,7 +30,7 @@ public static class SmokeTestRunner
         {
             AutoSaveCaptures = true, PlaySounds = false, SoundVolume = 35,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
-            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
+            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 260, ClearStackAfterPaste = true,
             ConfirmSessionDiscard = false, StackHeight = 300,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationFontSize = 28,
             AnnotationPalette = "custom", AnnotationPencil = "highlight",
@@ -817,7 +817,7 @@ public static class SmokeTestRunner
         var stretched = Controls.StripResizeGeometry.ClampWidth(5000, work);
         if (stretched != work - Controls.StripResizeGeometry.EdgeGap || stretched <= 900)
             throw new InvalidOperationException("The width of the strip must be bounded by the working area, and that leaves room for half a screen.");
-        if (Controls.StripResizeGeometry.ClampWidth(1600, 1366) != 1356 ||
+        if (Controls.StripResizeGeometry.ClampWidth(1600, 1366) != 1366 ||
             Controls.StripResizeGeometry.ClampWidth(40, work) != Controls.StripResizeGeometry.MinimumWidth)
             throw new InvalidOperationException("A width stored on a large monitor must come back inside a small one, and the minimum must hold.");
         var (left, width) = Controls.StripResizeGeometry.WidthFromStart(work, 260, -2000, 0);
@@ -858,7 +858,7 @@ public static class SmokeTestRunner
             "<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Background=\"{DynamicResource SurfaceBrush}\">" +
             "<Border.Effect><DropShadowEffect Color=\"{DynamicResource ShadowColor}\" BlurRadius=\"24\" ShadowDepth=\"5\" Opacity=\"{DynamicResource ShadowOpacity}\" /></Border.Effect></Border>");
         var shadow = (System.Windows.Media.Effects.DropShadowEffect)shell.Effect;
-        var host = new Window { Content = shell, Width = 208, Height = 420, ShowInTaskbar = false };
+        var host = new Window { Content = shell, Width = Controls.StripResizeGeometry.DefaultWidth, Height = 420, ShowInTaskbar = false };
         try
         {
             foreach (var (theme, opacity) in new[] { ("dawn", 0.15), ("dark", 0.4), ("sea", 0.45) })

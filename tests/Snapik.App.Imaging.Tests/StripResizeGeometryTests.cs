@@ -8,8 +8,10 @@ public sealed class StripResizeGeometryTests
     [Fact]
     public void Dragging_the_left_edge_keeps_the_right_edge_where_it_was()
     {
-        Assert.Equal((1620d, 300d), StripResizeGeometry.WidthFromStart(1920, 260, -40, 0));
-        Assert.Equal((1700d, 220d), StripResizeGeometry.WidthFromStart(1920, 260, 40, 0));
+        // Both widths stay above the minimum, which is 244 since the field under the shadow grew:
+        // a drag that runs into the floor is the case right below this one.
+        Assert.Equal((1580d, 340d), StripResizeGeometry.WidthFromStart(1920, 300, -40, 0));
+        Assert.Equal((1660d, 260d), StripResizeGeometry.WidthFromStart(1920, 300, 40, 0));
     }
 
     [Theory]
@@ -130,15 +132,29 @@ public sealed class StripResizeGeometryTests
     }
 
     [Theory]
-    [InlineData(240, 1920, 240)]
+    // A width stored by a build whose minimum was 200 is lifted to the new one: the panel it stood
+    // for is narrower than the one the strip draws now.
+    [InlineData(240, 1920, StripResizeGeometry.MinimumWidth)]
+    [InlineData(400, 1920, 400)]
     [InlineData(40, 1920, StripResizeGeometry.MinimumWidth)]
-    // The working area less the gap at the edge is the ceiling, on both monitors.
-    [InlineData(5000, 1920, 1910)]
+    // The working area less the gap at the edge is the ceiling, on both monitors; the gap is nil
+    // now, because the field under the shadow is what stands between the panel and the edge.
+    [InlineData(5000, 1920, 1920)]
     // A width dragged out on a large monitor, opened on a laptop.
-    [InlineData(1600, 1366, 1356)]
+    [InlineData(1600, 1366, 1366)]
     [InlineData(double.NaN, 1920, StripResizeGeometry.DefaultWidth)]
     // No monitor to ask yet: the default stands, and the minimum is still a floor.
     [InlineData(40, 0, StripResizeGeometry.MinimumWidth)]
     public void A_stored_width_is_clamped_by_the_screen_and_nonsense_falls_back(double stored, double workWidth, double expected) =>
         Assert.Equal(expected, StripResizeGeometry.ClampWidth(stored, workWidth));
+
+    [Fact]
+    public void The_panel_keeps_its_width_when_the_field_under_the_shadow_grows()
+    {
+        // The window grew by the field under its shadow; the panel and the card did not. 204 and 168
+        // are the numbers written on the reference shot, and the other 40 px are transparent.
+        Assert.Equal(StripResizeGeometry.MinimumPanelWidth, StripResizeGeometry.MinimumWidth - 2 * StripResizeGeometry.ShadowMargin);
+        Assert.Equal(StripResizeGeometry.MinimumWidth, StripResizeGeometry.DefaultWidth);
+        Assert.Equal(168, StripResizeGeometry.CardWidth(StripResizeGeometry.MinimumWidth));
+    }
 }
