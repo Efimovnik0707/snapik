@@ -1,11 +1,11 @@
-SnapBrief для macOS
+Snapik для macOS
 
 Установка
-1. Перетащите SnapBrief в папку Applications.
-2. Первый запуск: правый клик по SnapBrief в Applications → «Открыть» → «Открыть».
+1. Перетащите Snapik в папку Applications.
+2. Первый запуск: правый клик по Snapik в Applications → «Открыть» → «Открыть».
    Приложение не подписано сертификатом Apple Developer ID, поэтому Gatekeeper
    показывает предупреждение только при первом запуске.
-   Альтернатива в Терминале: xattr -dr com.apple.quarantine /Applications/SnapBrief.app
+   Альтернатива в Терминале: xattr -dr com.apple.quarantine /Applications/Snapik.app
 3. При первом захвате macOS запросит «Запись экрана» (Screen Recording).
    Разрешите в Системных настройках → Конфиденциальность и безопасность.
    Для распознавания вставки (Cmd+V) и автодоставки текста в Codex Desktop

@@ -1,6 +1,6 @@
 # План по ТЗ №2: блок C (редактор разметки), D2 (панель комментариев), D1 со стороны редактора
 
-Зона: `OverlayEditorWindow.*`, `Controls/AnnotationCanvas.cs`, `EditorModels.cs`, `EditorShortcuts.cs`, `WpfExportImageRenderer.cs`, `Imaging/*`, модели аннотаций и `CaptureCropper` в `SnapBrief.Core`, `UiLanguage.cs`. Ленту (`EdgeStackWindow*`) не планирую, для неё описан только контракт в разделе про D1.
+Зона: `OverlayEditorWindow.*`, `Controls/AnnotationCanvas.cs`, `EditorModels.cs`, `EditorShortcuts.cs`, `WpfExportImageRenderer.cs`, `Imaging/*`, модели аннотаций и `CaptureCropper` в `Snapik.Core`, `UiLanguage.cs`. Ленту (`EdgeStackWindow*`) не планирую, для неё описан только контракт в разделе про D1.
 
 Код сверялся с HEAD `a9381e6` (1.2.0), все ссылки file:line по нему. Незакоммиченные изменения в дереве (`site/`, `.impeccable/`) не трогались. Правила `AGENTS.md` действуют: строки UI только через `UiLanguage.cs`, изменения форматов отдельным абзацем в `tasks/verification.md`, один коммит на законченную правку, `macos/` не трогать, проверка через `scripts/build.ps1`.
 
@@ -81,18 +81,18 @@
 
 | # | Файлы |
 |---|---|
-| C5a | `src/SnapBrief.Core/Models/AnnotationItem.cs`, `src/SnapBrief.App/EditorModels.cs`, `src/SnapBrief.App/Controls/AnnotationCanvas.cs`, `src/SnapBrief.App/WpfExportImageRenderer.cs`, `src/SnapBrief.App/OverlayEditorWindow.Appearance.cs`, `src/SnapBrief.App/OverlayEditorWindow.xaml`, `src/SnapBrief.App/OverlayEditorWindow.xaml.cs`, `src/SnapBrief.App/EditorShortcuts.cs`, `src/SnapBrief.App/HotkeySettingsWindow.xaml.cs`, `src/SnapBrief.App/UiLanguage.cs`, `src/SnapBrief.App/SmokeTestRunner.cs`, `tests/SnapBrief.Core.Tests/PersistenceAndExportTests.cs`, `tasks/verification.md` |
-| C4 | `src/SnapBrief.App/Imaging/ShapeMask.cs` (новый), `src/SnapBrief.App/Imaging/RegionBlur.cs`, `src/SnapBrief.App/Controls/AnnotationCanvas.cs`, `src/SnapBrief.App/WpfExportImageRenderer.cs`, `src/SnapBrief.App/OverlayEditorWindow.Appearance.cs`, `tests/SnapBrief.App.Imaging.Tests/ShapeMaskTests.cs` (новый), `tests/SnapBrief.App.Imaging.Tests/RegionBlurTests.cs`, `src/SnapBrief.App/SmokeTestRunner.cs`, `tasks/verification.md` |
-| C3 | `src/SnapBrief.App/OverlayEditorWindow.xaml`, `src/SnapBrief.App/OverlayEditorWindow.Appearance.cs`, `src/SnapBrief.App/OverlayEditorWindow.Arrows.cs`, `src/SnapBrief.App/OverlayEditorWindow.xaml.cs`, `src/SnapBrief.App/UiLanguage.cs` |
-| C3a | `src/SnapBrief.App/OverlayEditorWindow.Appearance.cs`, `src/SnapBrief.App/OverlayEditorWindow.xaml`, `src/SnapBrief.App/HotkeySettingsWindow.xaml.cs`, `src/SnapBrief.App/UiLanguage.cs`, `src/SnapBrief.App/SmokeTestRunner.cs` |
-| C1 | `src/SnapBrief.App/OverlayEditorWindow.xaml`, `src/SnapBrief.App/OverlayEditorWindow.Appearance.cs` |
-| C2 | `src/SnapBrief.App/Controls/AnnotationCanvas.cs`, `src/SnapBrief.App/OverlayEditorWindow.xaml`, `src/SnapBrief.App/OverlayEditorWindow.xaml.cs`, `src/SnapBrief.App/SmokeTestRunner.cs`, `tasks/verification.md` |
-| C6 | `src/SnapBrief.App/OverlayEditorWindow.xaml`, `src/SnapBrief.App/OverlayEditorWindow.xaml.cs`, `src/SnapBrief.App/OverlayEditorWindow.Shapes.cs`, `src/SnapBrief.App/OverlayEditorWindow.Appearance.cs`, `src/SnapBrief.App/EditorShortcuts.cs`, `src/SnapBrief.App/HotkeySettingsWindow.xaml.cs`, `src/SnapBrief.App/UiLanguage.cs` |
-| C7 | `src/SnapBrief.App/EditorModels.cs`, `src/SnapBrief.App/Controls/AnnotationCanvas.cs`, `src/SnapBrief.App/EditorShortcuts.cs`, `src/SnapBrief.App/OverlayEditorWindow.xaml`, `src/SnapBrief.App/OverlayEditorWindow.xaml.cs`, `src/SnapBrief.App/OverlayEditorWindow.Appearance.cs`, `src/SnapBrief.App/UiLanguage.cs`, `src/SnapBrief.App/SmokeTestRunner.cs` |
-| D2 | `src/SnapBrief.App/Controls/CommentListEntry.cs` (новый), `src/SnapBrief.App/OverlayEditorWindow.xaml`, `src/SnapBrief.App/OverlayEditorWindow.Comments.cs`, `src/SnapBrief.App/OverlayEditorWindow.xaml.cs`, `src/SnapBrief.App/UiLanguage.cs`, `src/SnapBrief.App/SmokeTestRunner.cs`, `tasks/verification.md` |
-| D1 (редактор) | `src/SnapBrief.App/OverlayEditorWindow.xaml.cs` (внутри коммита D2) |
+| C5a | `src/Snapik.Core/Models/AnnotationItem.cs`, `src/Snapik.App/EditorModels.cs`, `src/Snapik.App/Controls/AnnotationCanvas.cs`, `src/Snapik.App/WpfExportImageRenderer.cs`, `src/Snapik.App/OverlayEditorWindow.Appearance.cs`, `src/Snapik.App/OverlayEditorWindow.xaml`, `src/Snapik.App/OverlayEditorWindow.xaml.cs`, `src/Snapik.App/EditorShortcuts.cs`, `src/Snapik.App/HotkeySettingsWindow.xaml.cs`, `src/Snapik.App/UiLanguage.cs`, `src/Snapik.App/SmokeTestRunner.cs`, `tests/Snapik.Core.Tests/PersistenceAndExportTests.cs`, `tasks/verification.md` |
+| C4 | `src/Snapik.App/Imaging/ShapeMask.cs` (новый), `src/Snapik.App/Imaging/RegionBlur.cs`, `src/Snapik.App/Controls/AnnotationCanvas.cs`, `src/Snapik.App/WpfExportImageRenderer.cs`, `src/Snapik.App/OverlayEditorWindow.Appearance.cs`, `tests/Snapik.App.Imaging.Tests/ShapeMaskTests.cs` (новый), `tests/Snapik.App.Imaging.Tests/RegionBlurTests.cs`, `src/Snapik.App/SmokeTestRunner.cs`, `tasks/verification.md` |
+| C3 | `src/Snapik.App/OverlayEditorWindow.xaml`, `src/Snapik.App/OverlayEditorWindow.Appearance.cs`, `src/Snapik.App/OverlayEditorWindow.Arrows.cs`, `src/Snapik.App/OverlayEditorWindow.xaml.cs`, `src/Snapik.App/UiLanguage.cs` |
+| C3a | `src/Snapik.App/OverlayEditorWindow.Appearance.cs`, `src/Snapik.App/OverlayEditorWindow.xaml`, `src/Snapik.App/HotkeySettingsWindow.xaml.cs`, `src/Snapik.App/UiLanguage.cs`, `src/Snapik.App/SmokeTestRunner.cs` |
+| C1 | `src/Snapik.App/OverlayEditorWindow.xaml`, `src/Snapik.App/OverlayEditorWindow.Appearance.cs` |
+| C2 | `src/Snapik.App/Controls/AnnotationCanvas.cs`, `src/Snapik.App/OverlayEditorWindow.xaml`, `src/Snapik.App/OverlayEditorWindow.xaml.cs`, `src/Snapik.App/SmokeTestRunner.cs`, `tasks/verification.md` |
+| C6 | `src/Snapik.App/OverlayEditorWindow.xaml`, `src/Snapik.App/OverlayEditorWindow.xaml.cs`, `src/Snapik.App/OverlayEditorWindow.Shapes.cs`, `src/Snapik.App/OverlayEditorWindow.Appearance.cs`, `src/Snapik.App/EditorShortcuts.cs`, `src/Snapik.App/HotkeySettingsWindow.xaml.cs`, `src/Snapik.App/UiLanguage.cs` |
+| C7 | `src/Snapik.App/EditorModels.cs`, `src/Snapik.App/Controls/AnnotationCanvas.cs`, `src/Snapik.App/EditorShortcuts.cs`, `src/Snapik.App/OverlayEditorWindow.xaml`, `src/Snapik.App/OverlayEditorWindow.xaml.cs`, `src/Snapik.App/OverlayEditorWindow.Appearance.cs`, `src/Snapik.App/UiLanguage.cs`, `src/Snapik.App/SmokeTestRunner.cs` |
+| D2 | `src/Snapik.App/Controls/CommentListEntry.cs` (новый), `src/Snapik.App/OverlayEditorWindow.xaml`, `src/Snapik.App/OverlayEditorWindow.Comments.cs`, `src/Snapik.App/OverlayEditorWindow.xaml.cs`, `src/Snapik.App/UiLanguage.cs`, `src/Snapik.App/SmokeTestRunner.cs`, `tasks/verification.md` |
+| D1 (редактор) | `src/Snapik.App/OverlayEditorWindow.xaml.cs` (внутри коммита D2) |
 
-Файл `src/SnapBrief.App/MainWindow.xaml.cs` ссылается на `ConcealTool` и `EditorTool.Conceal`, но исключён из сборки (`SnapBrief.App.csproj`, `<Compile Remove="MainWindow.xaml.cs" />`) и по правилу 7 `AGENTS.md` не возвращается. Не трогать.
+Файл `src/Snapik.App/MainWindow.xaml.cs` ссылается на `ConcealTool` и `EditorTool.Conceal`, но исключён из сборки (`Snapik.App.csproj`, `<Compile Remove="MainWindow.xaml.cs" />`) и по правилу 7 `AGENTS.md` не возвращается. Не трогать.
 
 ---
 
@@ -145,13 +145,13 @@
 
 ## 6. Тесты и smoke
 
-`tests/SnapBrief.Core.Tests` (модель и сериализация):
+`tests/Snapik.Core.Tests` (модель и сериализация):
 - round-trip `fill: "blur"`, `fillColor`, `hasOutline` через `session.json` (проверять именно строки в JSON, как уже сделано для `shape` и `fill`);
 - сессия без новых полей даёт `fill: none`, `fillColor: null`, `hasOutline: true` и проходит `SessionValidation`;
 - сессия с `kind: "redaction"` читается и валидируется (миграция на стороне App, Core-значение обязано выживать);
 - `CaptureCropperTests`: аннотация с `fillColor` и `hasOutline` переживает кроп без потери полей.
 
-`tests/SnapBrief.App.Imaging.Tests`:
+`tests/Snapik.App.Imaging.Tests`:
 - новый `ShapeMaskTests`: покрытие 1 в центре, 0 в углу bbox у овала, радиус скругления `min(14, min(w,h)/4)` у `Rounded`, полное покрытие у `Rectangle`;
 - `RegionBlurTests`: старые кейсы остаются зелёными без правок (форма по умолчанию `Rectangle`), новый кейс «овальная маска не трогает угол bbox и меняет центр».
 

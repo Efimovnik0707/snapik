@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-09T00:00:00Z",
+  "title": "Design System: SnapBrief landing",
+  "extensions": {
+    "colorMeta": {
+      "mock-overlay-blue": { "role": "primary", "displayName": "Overlay Blue", "canonical": "#2F8CFF", "tonalRamp": ["#061A33", "#0B3366", "#114D99", "#1A6BD1", "#2F8CFF", "#5FA6FF", "#8FC1FF", "#D6E8FF"] },
+      "light-accent": { "role": "primary", "displayName": "Light Accent", "canonical": "#315CF5", "tonalRamp": ["#0A1440", "#132A85", "#1E3FCB", "#315CF5", "#587AF7", "#8098F9", "#B0C0FB", "#E9EDFE"] },
+      "dark-accent-fill": { "role": "primary", "displayName": "Charcoal Fill Blue", "canonical": "#1E6FE0", "tonalRamp": ["#061933", "#0C3166", "#154C9E", "#1A5FC9", "#1E6FE0", "#4A8CE8", "#84B2F0", "#CFE1F9"] },
+      "editorial-ultramarine": { "role": "primary", "displayName": "Ultramarine", "canonical": "#2038E6", "tonalRamp": ["#080E3A", "#0F1C73", "#16269E", "#1A2FC4", "#2038E6", "#5B6BEC", "#9AA4F3", "#DDE0FB"] },
+      "mock-shell": { "role": "neutral", "displayName": "Charcoal Shell", "canonical": "#171A20", "tonalRamp": ["#0B0E13", "#171A20", "#242A33", "#303845", "#39424E", "#46515F", "#9AA7B8", "#EEF2F8"] },
+      "mock-card": { "role": "neutral", "displayName": "Charcoal Card", "canonical": "#242A33", "tonalRamp": ["#0B0E13", "#171A20", "#242A33", "#303845", "#39424E", "#46515F", "#9AA7B8", "#EEF2F8"] },
+      "mock-border": { "role": "neutral", "displayName": "Charcoal Border", "canonical": "#39424E", "tonalRamp": ["#0B0E13", "#171A20", "#242A33", "#303845", "#39424E", "#46515F", "#9AA7B8", "#EEF2F8"] },
+      "mock-text": { "role": "neutral", "displayName": "Shell Text", "canonical": "#EEF2F8", "tonalRamp": ["#171A20", "#39424E", "#5E687A", "#9AA7B8", "#BFC8D6", "#DDE2EA", "#EEF2F8", "#FFFFFF"] },
+      "light-ink": { "role": "neutral", "displayName": "Light Ink", "canonical": "#172033", "tonalRamp": ["#0B1019", "#172033", "#2E3A52", "#5E687A", "#8A94A6", "#B9C2D6", "#DDE2EA", "#F5F6F8"] },
+      "light-ground": { "role": "neutral", "displayName": "Light Ground", "canonical": "#FFFFFF", "tonalRamp": ["#172033", "#5E687A", "#9AA3B3", "#C6CBD6", "#DDE2EA", "#E7EAF0", "#F5F6F8", "#FFFFFF"] },
+      "dark-ground": { "role": "neutral", "displayName": "Night Ground", "canonical": "#0B0E13", "tonalRamp": ["#0B0E13", "#0E1116", "#171A20", "#242A33", "#303845", "#39424E", "#46515F", "#9AA7B8"] },
+      "editorial-paper": { "role": "neutral", "displayName": "Cool Paper", "canonical": "#F2F3F5", "tonalRamp": ["#0B0F1A", "#3D4A8A", "#6B7291", "#9CA2B3", "#C9CDD6", "#DEE1E7", "#F2F3F5", "#FFFFFF"] },
+      "editorial-ink-secondary": { "role": "neutral", "displayName": "Ultramarine-tinted Ink", "canonical": "#3D4A8A", "tonalRamp": ["#0B0F1A", "#1F2650", "#3D4A8A", "#5A67A5", "#7F8ABD", "#A7AFD3", "#CFD4E8", "#EEF0F8"] },
+      "mock-danger": { "role": "tertiary", "displayName": "Soft Danger", "canonical": "#FF9B95", "tonalRamp": ["#4D1A17", "#802B26", "#B34038", "#E0655D", "#FF9B95", "#FFB5B0", "#FFD0CD", "#FFECEA"] }
+    },
+    "typographyMeta": {
+      "display-light": { "displayName": "Display (A)", "purpose": "Hero H1 in variant A, Wix Madefor Display 700, left column." },
+      "display-dark": { "displayName": "Display (B)", "purpose": "Hero H1 in variant B, Geologica 600, centered, max 20ch." },
+      "display-editorial": { "displayName": "Display (C)", "purpose": "Hero H1 in variant C, Unbounded 600 lowercase, white on ultramarine, max 12ch." },
+      "headline-light": { "displayName": "Headline (A)", "purpose": "Section H2." },
+      "headline-dark": { "displayName": "Headline (B)", "purpose": "Section H2." },
+      "headline-editorial": { "displayName": "Headline (C)", "purpose": "Section H2, lowercase." },
+      "title-light": { "displayName": "Title (A)", "purpose": "Feature and step H3." },
+      "title-dark": { "displayName": "Title (B)", "purpose": "Feature and step H3." },
+      "title-editorial": { "displayName": "Title (C)", "purpose": "Changelog entry titles, lowercase." },
+      "body-light": { "displayName": "Body (A)", "purpose": "Golos Text running copy." },
+      "body-dark": { "displayName": "Body (B)", "purpose": "Onest running copy." },
+      "body-editorial": { "displayName": "Body (C)", "purpose": "Literata running copy, 1.6 leading." },
+      "label-mono": { "displayName": "Mono Label", "purpose": "Keys, file names, counters, step numbers, generated prompt. Product output only." }
+    },
+    "shadows": [
+      { "name": "light-small", "value": "0 1px 2px rgba(23,32,51,.08)", "purpose": "Variant A primary button, chips, toasts." },
+      { "name": "light-medium", "value": "0 8px 24px rgba(23,32,51,.10)", "purpose": "Variant A cards, pricing, agent panel, mock toolbar and stack." },
+      { "name": "light-large", "value": "0 24px 48px rgba(23,32,51,.18)", "purpose": "Variant A hero mock frame only." },
+      { "name": "charcoal", "value": "0 5px 24px rgba(0,0,0,.42)", "purpose": "Variant B panels, mock, pricing, floating chips; the app's own stack shadow." },
+      { "name": "spotlight", "value": "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(47,140,255,.16), transparent 70%)", "purpose": "Variant B hero background behind the mock. The only glow in the system." }
+    ],
+    "motion": [
+      { "name": "ease-expo", "value": "cubic-bezier(.16,1,.3,1)", "purpose": "Every entrance, reveal, selection and fold." },
+      { "name": "hover", "value": "150ms", "purpose": "Background, border, colour, opacity on hover. No transforms except a 1px press in A." },
+      { "name": "fold", "value": "180ms", "purpose": "Capture folds into the edge stack thumbnail." },
+      { "name": "selection", "value": "420ms ease-expo", "purpose": "Selection rectangle scales from the corner." },
+      { "name": "backdrop", "value": "240ms ease-out", "purpose": "Frozen-desktop dim appears." },
+      { "name": "reveal", "value": "750ms ease-expo, translateY(26-28px) to 0", "purpose": "Scroll reveal; content visible by default, JS opts in; disabled under prefers-reduced-motion." },
+      { "name": "hero-in", "value": "700ms ease-expo, stagger 50-110ms", "purpose": "Hero copy entrance." },
+      { "name": "faq", "value": "220ms open / 180ms close", "purpose": "Accordion grid-template-rows 0fr to 1fr." }
+    ],
+    "breakpoints": [
+      { "name": "xs", "value": "390px" },
+      { "name": "sm", "value": "480px" },
+      { "name": "md", "value": "600px / 640px" },
+      { "name": "lg", "value": "768px" },
+      { "name": "xl", "value": "860px / 900px / 960px" },
+      { "name": "2xl", "value": "1024px" },
+      { "name": "3xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button (A, light)",
+      "kind": "button",
+      "refersTo": "button-primary-light",
+      "description": "Filled light-accent button with a 1px press on active.",
+      "html": "<button class=\"ds-btn-light\">Download for Windows</button>",
+      "css": ".ds-btn-light{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#315CF5;color:#fff;border:0;border-radius:10px;padding:14px 24px;font:600 15px/1 'Golos Text','Segoe UI',system-ui,sans-serif;box-shadow:0 1px 2px rgba(23,32,51,.08);cursor:pointer;transition:background .15s,transform .15s}.ds-btn-light:hover{background:#1E3FCB}.ds-btn-light:active{transform:translateY(1px)}.ds-btn-light:focus-visible{outline:2px solid #315CF5;outline-offset:3px}"
+    },
+    {
+      "name": "Primary Button (B, charcoal)",
+      "kind": "button",
+      "refersTo": "button-primary-dark",
+      "description": "48px fixed-height fill in the deeper blue; overlay blue stays a stroke colour in B.",
+      "html": "<button class=\"ds-btn-dark\">Download for Windows</button>",
+      "css": ".ds-btn-dark{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 24px;background:#1E6FE0;color:#fff;border:0;border-radius:12px;font:600 15px/1 'Onest',system-ui,sans-serif;cursor:pointer;transition:background .15s ease,opacity .15s ease}.ds-btn-dark:hover{background:#1A5FC9}.ds-btn-dark:active{opacity:.85}.ds-btn-dark:focus-visible{outline:2px solid #7AB8FF;outline-offset:3px}"
+    },
+    {
+      "name": "White Button on Ultramarine (C)",
+      "kind": "button",
+      "refersTo": "button-white-editorial",
+      "description": "Near-square white rectangle for CTAs on the ultramarine field; secondary is a .55 white outline.",
+      "html": "<div class=\"ds-field\"><button class=\"ds-btn-white\">Download for Windows</button> <button class=\"ds-btn-outline\">See how it works</button></div>",
+      "css": ".ds-field{background:#2038E6;padding:24px;display:inline-flex;gap:16px}.ds-btn-white,.ds-btn-outline{display:inline-flex;align-items:center;justify-content:center;gap:.5em;font:500 .9375rem/1 'Literata',Georgia,serif;padding:.85em 1.5em;border-radius:4px;border:1px solid transparent;cursor:pointer;transition:opacity 150ms,background-color 150ms,border-color 150ms}.ds-btn-white{background:#fff;color:#0B0F1A}.ds-btn-white:hover{opacity:.86}.ds-btn-white:active{opacity:.72}.ds-btn-outline{background:transparent;color:#fff;border-color:rgba(255,255,255,.55)}.ds-btn-outline:hover{border-color:#fff;background:rgba(255,255,255,.08)}.ds-btn-white:focus-visible,.ds-btn-outline:focus-visible{outline:2px solid #fff;outline-offset:3px}"
+    },
+    {
+      "name": "Works-with Chip",
+      "kind": "chip",
+      "refersTo": "chip-works-with-light",
+      "description": "Pill naming a target composer (Claude Code, Codex). Light rendition; B uses charcoal shell fill, C a 4px outlined rectangle.",
+      "html": "<span class=\"ds-chip\">Claude Code</span> <span class=\"ds-chip\">Codex</span>",
+      "css": ".ds-chip{display:inline-block;background:#fff;color:#172033;border:1px solid #DDE2EA;border-radius:999px;padding:8px 16px;font:500 13.5px/1.2 'Golos Text','Segoe UI',system-ui,sans-serif;box-shadow:0 1px 2px rgba(23,32,51,.08)}"
+    },
+    {
+      "name": "Key Cap",
+      "kind": "custom",
+      "refersTo": "kbd",
+      "description": "Keyboard key in mono on the app's pill colour; identical across variants because it is product material.",
+      "html": "<kbd class=\"ds-kbd\">Ctrl</kbd> <kbd class=\"ds-kbd\">V</kbd>",
+      "css": ".ds-kbd{font:500 11px/1.6 'JetBrains Mono',ui-monospace,monospace;background:#2B3440;color:#EEF2F8;border:1px solid #46515F;border-radius:6px;padding:3px 7px}"
+    },
+    {
+      "name": "Annotation Frame + Badge + Note Chip",
+      "kind": "custom",
+      "refersTo": "mock-annotation-badge",
+      "description": "The app's annotation: 2px overlay-blue frame, circular numbered badge at the corner, charcoal note chip beside it.",
+      "html": "<div class=\"ds-stage\"><div class=\"ds-ann\"><span class=\"ds-badge\">1</span></div><div class=\"ds-note\"><span>Button doesn't change state after click</span><svg viewBox=\"0 0 24 24\" width=\"12\" height=\"12\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\"><path d=\"M6 6l12 12M18 6L6 18\"/></svg></div></div>",
+      "css": ".ds-stage{position:relative;width:340px;height:120px;background:#F1F3F7;border-radius:8px;overflow:hidden}.ds-stage::before{content:'';position:absolute;inset:0;background:rgba(10,13,18,.55)}.ds-ann{position:absolute;left:20px;top:24px;width:120px;height:64px;border:2px solid #2F8CFF;border-radius:4px;background:#fff}.ds-badge{position:absolute;left:-11px;top:-11px;width:20px;height:20px;border-radius:50%;background:#2F8CFF;color:#fff;font:700 11px/20px 'JetBrains Mono',monospace;text-align:center}.ds-note{position:absolute;left:152px;top:28px;max-width:170px;display:flex;gap:6px;align-items:flex-start;background:rgba(23,26,32,.95);border:1px solid #46515F;border-radius:10px;padding:8px 10px;font:400 11.5px/1.4 'Segoe UI',system-ui,sans-serif;color:#EEF2F8}.ds-note svg{flex:none;color:#9AA7B8;margin-top:1px}"
+    },
+    {
+      "name": "Edge Stack",
+      "kind": "card",
+      "refersTo": "mock-stack-shell",
+      "description": "The app's stack of completed captures at the screen edge: charcoal shell, mono counter pill, lettered thumbnails, overlay-blue capture button.",
+      "html": "<div class=\"ds-stack\"><div class=\"ds-stack-head\"><span>SnapBrief</span><span class=\"ds-stack-count\">2</span></div><div class=\"ds-thumb\"><span class=\"ds-thumb-badge\">A</span></div><div class=\"ds-thumb\"><span class=\"ds-thumb-badge\">B</span></div><button class=\"ds-stack-btn\">+ Capture</button></div>",
+      "css": ".ds-stack{width:118px;background:rgba(23,26,32,.95);border:1px solid #39424E;border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 5px 24px rgba(0,0,0,.42);font-family:'Segoe UI',system-ui,sans-serif}.ds-stack-head{display:flex;justify-content:space-between;align-items:center;font:600 10.5px/1 inherit;color:#EEF2F8}.ds-stack-count{background:#2B3440;border-radius:999px;padding:2px 7px;font:500 10px/1.4 'JetBrains Mono',monospace;color:#BFC8D6}.ds-thumb{position:relative;height:52px;border-radius:9px;background:#242A33;border:1px solid #39424E}.ds-thumb-badge{position:absolute;left:6px;top:6px;width:15px;height:15px;border-radius:50%;background:#2F8CFF;color:#fff;font:700 9px/15px 'JetBrains Mono',monospace;text-align:center}.ds-stack-btn{background:#2F8CFF;color:#fff;border:0;border-radius:8px;font:600 10.5px/1 inherit;padding:7px 0;width:100%;cursor:pointer;transition:background .15s}.ds-stack-btn:hover{background:#1E6FE0}.ds-stack-btn:focus-visible{outline:2px solid #7AB8FF;outline-offset:2px}"
+    },
+    {
+      "name": "Agent Output Panel",
+      "kind": "card",
+      "refersTo": "card-dark",
+      "description": "Charcoal panel showing the exact generated prompt in mono. In A and C this is one of the few charcoal objects on the page.",
+      "html": "<pre class=\"ds-prompt\">Capture A — Settings.\nCapture note:\nScreen right after pressing Save.\nA1: The button doesn't change state after the click.\nA2: The toast covers the email field.</pre>",
+      "css": ".ds-prompt{margin:0;background:#171A20;border:1px solid #39424E;border-radius:12px;padding:20px 22px;font:400 13px/1.7 'JetBrains Mono',ui-monospace,monospace;color:#BFC8D6;white-space:pre-wrap;box-shadow:0 8px 24px rgba(23,32,51,.10)}"
+    },
+    {
+      "name": "FAQ Item",
+      "kind": "custom",
+      "refersTo": "card-light",
+      "description": "Native details/summary with a plus that rotates to a cross; 1px dividers, no fill.",
+      "html": "<details class=\"ds-faq\"><summary>Does SnapBrief send anything to a server?<span class=\"ds-faq-plus\"></span></summary><div class=\"ds-faq-a\"><p>No. Captures and notes stay on your machine; the paste goes only into the composer you choose.</p></div></details>",
+      "css": ".ds-faq{border-bottom:1px solid #DDE2EA;font-family:'Golos Text','Segoe UI',system-ui,sans-serif;color:#172033;max-width:560px}.ds-faq summary{list-style:none;cursor:pointer;padding:20px 4px;display:flex;align-items:center;justify-content:space-between;gap:16px;font:600 16px/1.3 inherit}.ds-faq summary::-webkit-details-marker{display:none}.ds-faq-plus{flex:none;width:16px;height:16px;background:linear-gradient(currentColor,currentColor) center/100% 2px no-repeat,linear-gradient(currentColor,currentColor) center/2px 100% no-repeat;color:#5E687A;transition:transform .2s}.ds-faq[open] .ds-faq-plus{transform:rotate(45deg)}.ds-faq-a p{margin:0;padding:0 4px 20px;color:#5E687A;font-size:14.5px;line-height:1.55;max-width:65ch}.ds-faq summary:focus-visible{outline:2px solid #315CF5;outline-offset:3px;border-radius:6px}"
+    },
+    {
+      "name": "Nav Bar (A)",
+      "kind": "nav",
+      "refersTo": "button-primary-light",
+      "description": "Sticky 64px translucent bar: SVG mark + display wordmark, muted links, mono lang toggle, compact primary.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-brand\" href=\"#\"><svg viewBox=\"0 0 64 64\" width=\"28\" height=\"28\"><rect width=\"64\" height=\"64\" rx=\"14\" fill=\"#315CF5\"/><rect x=\"14\" y=\"12\" width=\"30\" height=\"30\" rx=\"4\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3\"/><rect x=\"34\" y=\"36\" width=\"20\" height=\"16\" rx=\"3\" fill=\"#fff\"/></svg>SnapBrief</a><div class=\"ds-nav-links\"><a href=\"#\">How it works</a><a href=\"#\">Features</a><a href=\"#\">Pricing</a><a href=\"#\">FAQ</a></div><div class=\"ds-nav-right\"><button class=\"ds-lang\">EN</button><button class=\"ds-nav-cta\">Download for Windows</button></div></nav>",
+      "css": ".ds-nav{height:64px;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:0 32px;background:rgba(255,255,255,.86);backdrop-filter:blur(14px);border-bottom:1px solid #DDE2EA;font-family:'Golos Text','Segoe UI',system-ui,sans-serif;color:#172033}.ds-brand{display:flex;align-items:center;gap:10px;font:700 17px/1 'Wix Madefor Display','Segoe UI',system-ui,sans-serif;letter-spacing:-0.01em;color:inherit;text-decoration:none}.ds-nav-links{display:flex;gap:28px}.ds-nav-links a{font-size:14.5px;color:#5E687A;text-decoration:none;transition:color .15s}.ds-nav-links a:hover{color:#172033}.ds-nav-right{display:flex;align-items:center;gap:14px}.ds-lang{font:600 13px/1 'JetBrains Mono',monospace;color:#5E687A;background:none;border:1px solid #DDE2EA;border-radius:8px;padding:7px 12px;cursor:pointer;transition:color .15s,border-color .15s}.ds-lang:hover{color:#315CF5;border-color:#315CF5}.ds-nav-cta{background:#315CF5;color:#fff;border:0;border-radius:10px;padding:10px 18px;font:600 14px/1 inherit;cursor:pointer;transition:background .15s}.ds-nav-cta:hover{background:#1E3FCB}.ds-nav-links a:focus-visible,.ds-lang:focus-visible,.ds-nav-cta:focus-visible{outline:2px solid #315CF5;outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Product Is the Only Dark Object",
+    "overview": "Three landings share one skeleton (nav, hero with live DOM mock, \"pastes into\" row, flagship Ctrl+V block, three steps, six features with mini-demos, agent output panel, before/after, Windows 11 block, one-card pricing, FAQ, final CTA, footer) and one product: the SnapBrief overlay, drawn in HTML/CSS in the app's exact charcoal skin (mock-* tokens). Each variant changes the ground the product sits on and the type that speaks around it; none of them changes the product. In the light canon (A) and the ultramarine changelog (C) the charcoal reads as a placed object, so every appearance of charcoal on the page is an appearance of the app. In the dark variant (B) the page is made of the same material as the app, so page panels and mock panels are the same tokens and the mock sits on the ground without a frame of its own.\n\nDensity is measured and calm: one accent per variant, 1px lines, 16px body at 1.55 to 1.6 leading, headings tightened to -0.02/-0.025em, section padding on a single clamp. Feature proofs are mini product demos, never icon tiles. Demo content is real-looking application text on the page's language; keys, file names, step numbers, counters and prompt text are set in JetBrains Mono because they are product output. Motion is one grammar everywhere: expo-out easing, 150ms hovers, 180ms fold into the stack, reveal-on-scroll as an enhancement over content that is visible by default.\n\nConfirmed rejections carried by the build: no cream or warm paper ground (C's ground is cool editorial-paper), no neon glow on black (B's one radial is a 16% blue spotlight behind the mock), no bento of tiles, no testimonials or ratings, no raster screenshots of the product, no emoji or icon-font glyphs.",
+    "keyCharacteristics": [
+      "One shared product mock palette; three page palettes that never bleed into it",
+      "Two blues in every variant: the page accent (per variant) and the overlay blue inside the product (mock-overlay-blue)",
+      "Depth by 1px border first; soft ambient shadow only in A and B, none in C",
+      "Mono for product output only; display faces never appear inside the mock",
+      "Radii shrink as the ground gets more editorial: 8–12 (A), 12–16 (B), 2–4 (C); the mock keeps its own 4/10/12/16 regardless"
+    ],
+    "rules": [
+      { "name": "The Charcoal Is Product Rule", "body": "In A and C, mock-shell appears only where the app appears: hero mock, agent output panel, feature and step mini-demos. Marketing containers (pricing, compare, FAQ, footer) stay on the page ground. In B the page is the material, so the rule inverts: page panels and mock panels share tokens and the mock has no frame of its own.", "section": "colors" },
+      { "name": "The Two-Blue Rule", "body": "Every variant carries its page accent and the product's mock-overlay-blue. Annotation frames, badges, active tools and the stack button are always overlay blue; page buttons, checkmarks and focus rings are always the page accent. They are never swapped and never both used on one element.", "section": "colors" },
+      { "name": "The Fill Deepens Rule", "body": "White text on a filled blue uses the deeper step: light-accent (A), dark-accent-fill (B), editorial-ultramarine or editorial-badge-fill (C). mock-overlay-blue is a stroke and state colour at page scale; the only white-on-#2F8CFF is the app's own 20px badge and stack button inside the mock.", "section": "colors" },
+      { "name": "The Mono Means Product Rule", "body": "JetBrains Mono is used only for what the product emits or reads: keys (kbd), file names, the generated prompt, counters, step and entry numbers, graticule labels. Never headings, never running copy.", "section": "typography" },
+      { "name": "The One Display Face Rule", "body": "Each variant has one display face used for H1, H2, H3, brand wordmark and the price figure, and nothing else. Inside the mock, text is the body face (A/B) or mono (C) at 10–13px; the display face never enters the product.", "section": "typography" },
+      { "name": "The Border First Rule", "body": "A surface is defined by its 1px border; a shadow may be added but never replaces the border. C proves the rule with zero shadows.", "section": "elevation" },
+      { "name": "The Grain Belongs to Ultramarine Rule", "body": "Noise texture appears only on editorial-ultramarine fields, as an inline SVG feTurbulence tile at 30% alpha; the paper ground and charcoal are smooth.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the product mock in the mock-* palette regardless of page variant; the app's skin is the constant the three pages agree on.",
+      "Do define every surface with a 1px border before considering a shadow (The Border First Rule).",
+      "Do set keys, file names, counters, step numbers and generated prompt text in JetBrains Mono at 11–13.5px with tabular numerals.",
+      "Do use one section padding clamp, clamp(64px, 8vw, 112px), and one hover duration, 150ms, on background, border, colour or opacity only.",
+      "Do ship feature proofs as mini product demos in charcoal with real-looking text; the demo is the icon.",
+      "Do make animation an enhancement: final state visible in CSS, JS rewinds into the loop, prefers-reduced-motion freezes the final frame.",
+      "Do put white text on the deeper blue step (light-accent, dark-accent-fill, editorial-ultramarine, editorial-badge-fill), never on mock-overlay-blue at page scale."
+    ],
+    "donts": [
+      "Don't introduce cream, beige or warm paper; C's paper is cool editorial-paper and A's alt ground is cool light-ground-alt.",
+      "Don't add kicker or eyebrow labels above headings; every section in every variant opens directly with its H2.",
+      "Don't use icon-tile feature grids, bento layouts, emoji, or icon fonts; icons are inline SVG at stroke 1.5–1.75.",
+      "Don't add glow, 3D tilt or transform-heavy hovers; the only radial is B's 16% hero spotlight and the only hover transform is a 1px press on A's buttons.",
+      "Don't let the display face enter the mock or the mono face enter headings and body copy.",
+      "Don't place charcoal marketing containers on the A or C page grounds; charcoal outside variant B means \"this is the product\".",
+      "Don't invent testimonials, ratings, logos of other brands or metrics; proof is the exact generated prompt and the before/after list."
+    ]
+  }
+}

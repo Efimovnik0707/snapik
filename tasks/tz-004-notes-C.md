@@ -36,7 +36,7 @@
 2. `StripResizeGeometry.Resize`/`ResizeListHeight` заменены на `WidthFromStart`/`ListHeightFromStart` (старые сигнатуры убраны, чтобы не осталось двух способов считать одно и то же). Тесты переписаны на новые функции с тем же набором случаев, добавлены два: возврат курсора после упора в кламп меняет размер с первого пикселя, и `NaN` в дельте оставляет стартовую геометрию. Проба `VerifyStripIsBoundedByItsMonitor` переведена на новые имена.
 3. На время перетаскивания угла `SizeToContent = Manual`, `Height = ActualHeight`, `MinHeight = 0`; геометрия ставится одним блоком в постоянном порядке (`CaptureList.Height`, `Top`, `Left`, `Width`, `Height` последним), в `DragCompleted` возвращаются `SizeToContent = Height` и прежний `MinHeight`. Высота хрома берётся из старта: пересчёт `StackChromeHeight()` на каждом шаге читает предыдущий проход лейаута, то есть под быстрым перетаскиванием — уже устаревшую высоту.
 
-Проверено: `scripts/build.ps1` зелёный, 103 теста в `SnapBrief.App.Imaging.Tests`. **Живьём не проверено** ни на 100 %, ни на 125 %: перетаскивание угла до упора вниз и обратно, левая ручка на минимальной ширине, отсутствие дрожания верхнего края.
+Проверено: `scripts/build.ps1` зелёный, 103 теста в `Snapik.App.Imaging.Tests`. **Живьём не проверено** ни на 100 %, ни на 125 %: перетаскивание угла до упора вниз и обратно, левая ручка на минимальной ширине, отсутствие дрожания верхнего края.
 
 ## C5. Капсула
 
@@ -110,7 +110,7 @@
 
 Сделано.
 
-Модель: `enum AnnotationLineStyle { Solid, Dashed, Dotted }` в `SnapBrief.Core.Models`, поле `LineStyle` в core-`AnnotationItem` (`init`, дефолт `Solid`) и в редакторском (`set`), в `ToCore`/`FromCore` и в `Clone()`. Отдельного кода сериализации не понадобилось: `SnapBriefJson.Options` уже держит `JsonStringEnumConverter(CamelCase)`, так что ключ ложится строкой `"solid"`/`"dashed"`/`"dotted"`, а его отсутствие даёт `Solid`. `SessionValidation` отклоняет значение вне перечисления (`Enum.IsDefined`).
+Модель: `enum AnnotationLineStyle { Solid, Dashed, Dotted }` в `Snapik.Core.Models`, поле `LineStyle` в core-`AnnotationItem` (`init`, дефолт `Solid`) и в редакторском (`set`), в `ToCore`/`FromCore` и в `Clone()`. Отдельного кода сериализации не понадобилось: `SnapikJson.Options` уже держит `JsonStringEnumConverter(CamelCase)`, так что ключ ложится строкой `"solid"`/`"dashed"`/`"dotted"`, а его отсутствие даёт `Solid`. `SessionValidation` отклоняет значение вне перечисления (`Enum.IsDefined`).
 
 Отрисовка: узор в одной функции `Imaging/StrokePattern.cs` — `Dashed` это `[3,2]`, `Dotted` это `[0,2]` с круглым `DashCap`, плюс `Participates`/`Of` для обеих систем видов (`EditorTool` и `AnnotationKind`). Единицы `DashStyle` — толщины пера, поэтому экран (`AnnotationCanvas`, толщина × масштаб) и экспорт (`WpfExportImageRenderer`, толщина в пикселях снимка) дают одинаковый штрих без пересчёта. Узор применяется до `Freeze()` пера. `ArrowDrawing.Draw` получил параметр стиля и красит им только древко, наконечник остаётся сплошным (он вообще заливка, а не штрих). Участвуют рамка и овал, стрелка и карандаш; маркер, текст, размытие и комментарий рисуются сплошными всегда, даже если в файле у них стоит другой узор.
 
@@ -140,6 +140,6 @@ UI: кнопка «Линия» (`Width 64`, образец линии теку�
 
 Два места — цвет **отметки**, а не акцент, и переведены на `DefaultAnnotationColor`: демонстрационная отметка в пробе редактора и отметка демо-снимка в ленте.
 
-Остаток `2F8CFF` / `47, 140, 255` в `src/SnapBrief.App` после правки: словари `Themes/Accents/*`, палитра «Пастель» в `OverlayEditorWindow.Appearance.cs` (это цвета отметок и зона дорожки B), ожидание синего акцента и цвет демо-отметки в `SmokeTestRunner` (план оставляет их как есть). Фолбэк в `AccentPalette.cs` записан байтами `0x2F, 0x8C, 0xFF` и в поиск по этим строкам не попадает.
+Остаток `2F8CFF` / `47, 140, 255` в `src/Snapik.App` после правки: словари `Themes/Accents/*`, палитра «Пастель» в `OverlayEditorWindow.Appearance.cs` (это цвета отметок и зона дорожки B), ожидание синего акцента и цвет демо-отметки в `SmokeTestRunner` (план оставляет их как есть). Фолбэк в `AccentPalette.cs` записан байтами `0x2F, 0x8C, 0xFF` и в поиск по этим строкам не попадает.
 
 Проверено: `scripts/build.ps1` зелёный после слияния (125 + 35 + 62 теста и smoke). **Живьём не проверено**: фиолетовый акцент на пилюле, бейдже, в панели комментариев и в экспортном PNG.

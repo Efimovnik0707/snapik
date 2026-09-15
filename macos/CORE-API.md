@@ -1,7 +1,7 @@
-# SnapBriefCore — API summary
+# SnapikCore — API summary
 
-Port of `src/SnapBrief.Core/**` + `src/SnapBrief.Infrastructure/**` (+ settings/i18n data from
-`src/SnapBrief.App`). Foundation-only, no AppKit/CoreImage/UIKit. Builds on Windows Swift 6.3 and
+Port of `src/Snapik.Core/**` + `src/Snapik.Infrastructure/**` (+ settings/i18n data from
+`src/Snapik.App`). Foundation-only, no AppKit/CoreImage/UIKit. Builds on Windows Swift 6.3 and
 macOS Swift 6.1, `swift-tools-version: 5.9` (Swift 5 language mode, no actors/Sendable checking
 forced). Every file has a `// port of <C# path>` doc comment citing its source.
 
@@ -11,11 +11,11 @@ forced). Every file has a `// port of <C# path>` doc comment citing its source.
   `ToString()`/`"d"`); `.digitsLowercase` = 32-char lowercase hex, no dashes (matches
   `Guid.ToString("N")`, used in file/dir names). `SBGuid.empty` = `Guid.Empty`. `Codable` (encodes
   as the lowercase-dashed string), `Hashable`, `Equatable`.
-- **Dates** are plain Foundation `Date` (no wrapper type). `SnapBriefJson.encoder/decoder` encode
+- **Dates** are plain Foundation `Date` (no wrapper type). `SnapikJson.encoder/decoder` encode
   them as `"yyyy-MM-ddTHH:mm:ss.fffffff+00:00"` (.NET `DateTimeOffset` "O" format, always UTC —
   the app only ever uses zero-offset instants). Implemented in `ISO8601Precise` via pure integer
   civil-calendar math (no `Calendar`/`TimeZone`), so it doesn't depend on ICU support.
-- **`SnapBriefError`**: one enum standing in for every C# exception type thrown in the ported
+- **`SnapikError`**: one enum standing in for every C# exception type thrown in the ported
   code: `.invalidData`, `.argument`, `.argumentOutOfRange`, `.argumentNull`, `.keyNotFound`,
   `.invalidOperation`, `.fileNotFound`, each `(String)`. Switch on the case to distinguish, as
   the C# tests do with `Assert.Throws<T>`.
@@ -49,17 +49,17 @@ forced). Every file has a `// port of <C# path>` doc comment citing its source.
   dpiX/dpiY: Double, title: String, note: String, annotations: [AnnotationItem]`.
   `.create(sourceImagePath:pixelWidth:pixelHeight:dpiX:dpiY:title:note:) -> CaptureItem` (dpi
   defaults 96, empty `annotations`).
-- **`SnapBriefSession`**: `id: SBGuid, schemaVersion: Int, createdAtUtc/modifiedAtUtc: Date,
+- **`SnapikSession`**: `id: SBGuid, schemaVersion: Int, createdAtUtc/modifiedAtUtc: Date,
   revision: Int, globalNote: String, selectedTargetProfileId: String?, captures: [CaptureItem]`.
-  `SnapBriefSession.currentSchemaVersion == 1`. `.create(nowUtc:) -> SnapBriefSession`.
-- **`SessionValidation.validate(_ session: SnapBriefSession) throws`**: id/schema/revision
+  `SnapikSession.currentSchemaVersion == 1`. `.create(nowUtc:) -> SnapikSession`.
+- **`SessionValidation.validate(_ session: SnapikSession) throws`**: id/schema/revision
   checks, capture id uniqueness + relative-path safety + positive dimensions/DPI, annotation id
   uniqueness + positive thickness + points in `[0,1]` + path-segment kind/length/range rules.
-  Throws `SnapBriefError.invalidData`.
+  Throws `SnapikError.invalidData`.
 
 All model types are `Codable, Equatable, Sendable`; JSON field names are camelCase versions of
 the property names (`sourceImagePath`, `pixelWidth`, `dpiX`, `createdAtUtc`, ...) — schema-
-compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
+compatible with the C# `SnapikJson.Options` (`JsonNamingPolicy.CamelCase`).
 
 ## Editing (`Editing/`)
 
@@ -74,13 +74,13 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
   paths. Sync 2 (SPEC-DELTA-2B §B): a retained annotation whose `parentAnnotationId` pointed at an
   annotation the crop removed has its link cleared (`nil`) instead of being removed itself.
 - **`SessionHistory`** (class): `init(initial:timeProvider:)`, `.current` (get-only),
-  `.canUndo/.canRedo`, `.apply(_ op: (SnapBriefSession) throws -> SnapBriefSession) rethrows`
+  `.canUndo/.canRedo`, `.apply(_ op: (SnapikSession) throws -> SnapikSession) rethrows`
   (pushes onto undo stack + clears redo unless `op` returns an equal session), `.undo()/.redo()
   -> Bool` (restore + bump revision + re-stamp `modifiedAtUtc` via `timeProvider`). Backed by
   Swift arrays as LIFO stacks (`append`/`removeLast`), no actors.
 - **`SessionOperations`**: `addCapture`, `removeCapture`, `moveCapture(_:captureId:
   destinationIndex:nowUtc:)`, `updateGlobalNote`, `updateCapture` — all `throws ->
-  SnapBriefSession`, each bumping `revision`/`modifiedAtUtc` and re-validating via
+  SnapikSession`, each bumping `revision`/`modifiedAtUtc` and re-validating via
   `SessionValidation`. `removeCapture`/`updateCapture`/`moveCapture` throw
   `.keyNotFound`/`.argumentOutOfRange` for unknown ids / bad indices.
 
@@ -92,7 +92,7 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
   `.argumentOutOfRange` only for `i < 0`. `.forAnnotation(captureLabel:oneBasedIndex:) -> String`
   ("A" + 1 → "A1"), `.forNotedAnnotations(captureLabel:capture:) -> [LabeledAnnotation]` (only
   annotations with non-blank notes, numbered in order).
-- **`PromptGenerator().generate(_ session: SnapBriefSession) throws -> String`** — Russian prompt
+- **`PromptGenerator().generate(_ session: SnapikSession) throws -> String`** — Russian prompt
   text verbatim from the C# port ("Общее пожелание:", "Снимок {label}", "Комментарий к снимку:",
   `"{label}: {note}"` per noted annotation), sections joined by `"\n\n"`. Sync 2 (SPEC-DELTA-2B
   §B): a noted annotation whose `parentAnnotationId` points at another *numbered* (non-blank-note)
@@ -123,7 +123,7 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
 ## Persistence (`Persistence/`, `Paths/`, `Serialization/`)
 
 - **`SessionStore` protocol** (port of `ISessionStore`): `getSessionDirectory(sessionId:) ->
-  URL`, `save(_:) async throws`, `load(sessionId:) async throws -> SnapBriefSession?`.
+  URL`, `save(_:) async throws`, `load(sessionId:) async throws -> SnapikSession?`.
 - **`SessionAssetStore` protocol** (port of `ISessionAssetStore`):
   `saveOriginalPNG(sessionId:captureId:pngContent: Data) async throws -> String` (relative path).
 - **`JsonSessionStore`** (the `SessionStore` implementation): `init(sessionsRoot: URL)`,
@@ -138,39 +138,39 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
   `SessionAssetStore` to avoid clashing with the protocol name): writes
   `{sessionDir}/source/{captureId:N}.png` via temp file + PNG-signature validation + atomic
   replace; relative path returned uses `/` (not an OS-specific separator).
-- **`SnapBriefPaths`**: `.defaultSessionsDirectory() -> URL` — macOS:
-  `~/Library/Application Support/SnapBrief/sessions`; Windows: `%LOCALAPPDATA%\SnapBrief\sessions`
-  (falls back to temp dir if unset); other platforms: `~/.snapbrief/sessions` (compile-only
-  fallback, SnapBrief doesn't ship there). `.sessionsDirectory(dataDirectory: URL?) -> URL` —
-  port of the app's `--data-dir` / `SNAPBRIEF_DATA_DIR` override (explicit dir wins, else
+- **`SnapikPaths`**: `.defaultSessionsDirectory() -> URL` — macOS:
+  `~/Library/Application Support/Snapik/sessions`; Windows: `%LOCALAPPDATA%\Snapik\sessions`
+  (falls back to temp dir if unset); other platforms: `~/.snapik/sessions` (compile-only
+  fallback, Snapik doesn't ship there). `.sessionsDirectory(dataDirectory: URL?) -> URL` —
+  port of the app's `--data-dir` / `SNAPIK_DATA_DIR` override (explicit dir wins, else
   default).
-- **`SnapBriefJson.encoder` / `.decoder`**: shared `JSONEncoder`/`JSONDecoder` for
-  `SnapBriefSession` and `ExportManifest` — pretty-printed, custom `Date` strategy (see above).
+- **`SnapikJson.encoder` / `.decoder`**: shared `JSONEncoder`/`JSONDecoder` for
+  `SnapikSession` and `ExportManifest` — pretty-printed, custom `Date` strategy (see above).
   Do **not** use these for `HotkeySettings` (different on-disk format, see below).
 
 ## Settings / i18n (`Settings/`)
 
 - **`UiLanguage`**: `.current: String` ("ru"/"en"), `.text(_:language:) -> String` — the RU/EN
-  string table ported verbatim from `src/SnapBrief.App/UiLanguage.cs` (~92 pairs after sync 2:
+  string table ported verbatim from `src/Snapik.App/UiLanguage.cs` (~92 pairs after sync 2:
   menu items, tool names, dialog labels, notification text, plus the preview window/comments/
   arrow-style/auto-save strings added by SPEC-DELTA-2.md §3). The WPF view-tree walker
   (`UiLanguage.Apply`) was **not** ported (AppKit-specific UI plumbing, out of Core's scope) — the
   Mac app target should localize its own view tree using `UiLanguage.text(_:language:)`.
 - **`HotkeyModifiers`**: `OptionSet<UInt32>` — `.alt = 0x1, .control = 0x2, .shift = 0x4,
-  .windows = 0x8, .noRepeat = 0x4000` (bit-identical to `SnapBrief.Windows.HotkeyModifiers`, kept
+  .windows = 0x8, .noRepeat = 0x4000` (bit-identical to `Snapik.Windows.HotkeyModifiers`, kept
   only so persisted `"custom:{modifiers}:{key}"` id strings stay numerically comparable across
   builds).
 - **`HotkeyChoice(id: String, label: String)`**.
 - **`HotkeySettings`**: `captureId, pasteId: String` (required) plus defaulted fields
   `captureEnabled(true), fullscreenSaveEnabled(false), fullscreenSaveId("custom:4:44"),
   showNotifications(true), rememberRegion(false), captureCursor(false), saveFormat("png"),
-  jpegQuality(90), saveDirectory(~/Pictures/SnapBrief), language("ru"), autoSaveCaptures(false),
+  jpegQuality(90), saveDirectory(~/Pictures/Snapik), language("ru"), autoSaveCaptures(false),
   playSounds(true)`. The last two are sync 2 additions (SPEC-DELTA-2B §B/§E4).
   `.default`, `.choices`/`.pasteChoices: [HotkeyChoice]` (same ids/labels as the C# `Choices`),
   `.find(_ id: String) -> HotkeyChoice`. **JSON is PascalCase** (`CaptureId`, `SaveDirectory`,
   `AutoSaveCaptures`, `PlaySounds`, ...) — the C# `Save`/`Load` use a *default*
   `JsonSerializerOptions` (no camelCase policy), unlike session/manifest JSON, so use plain
-  `JSONEncoder()/JSONDecoder()`, not `SnapBriefJson`. `Codable` conformance uses an explicit
+  `JSONEncoder()/JSONDecoder()`, not `SnapikJson`. `Codable` conformance uses an explicit
   `init(from:)`/`encode(to:)` (not the synthesized one): every field is `decodeIfPresent` with its
   own default, so a settings file missing any key — including the sync-2 `AutoSaveCaptures`/
   `PlaySounds` keys a pre-sync-2 file won't have — still decodes per-field instead of the whole
@@ -194,7 +194,7 @@ compatible with the C# `SnapBriefJson.Options` (`JsonNamingPolicy.CamelCase`).
 
 ## Verification status
 
-`swift build --target SnapBriefCore` could not be completed on this machine: even a bare
+`swift build --target SnapikCore` could not be completed on this machine: even a bare
 `import Foundation` fails to compile here (`error: header 'stdnoreturn.h' not found` while
 building the `ucrt`/`SwiftOverlayShims` C module), reproduced outside the package with a
 one-line `swiftc hello.swift` using the exact toolchain/env recipe from the task. Root cause

@@ -35,7 +35,7 @@ jobs:
           swift test 2>&1 | tee test.log | grep -E "error:|Test Suite|Executed|failed|passed" 
       - name: Icon
         run: |
-          if [ -d Resources/SnapBrief.iconset ]; then iconutil -c icns Resources/SnapBrief.iconset -o Resources/SnapBrief.icns; fi
+          if [ -d Resources/Snapik.iconset ]; then iconutil -c icns Resources/Snapik.iconset -o Resources/Snapik.icns; fi
       - name: XcodeGen
         run: |
           brew install xcodegen >/dev/null 2>&1 || true
@@ -43,36 +43,36 @@ jobs:
       - name: Xcode build app
         run: |
           set -o pipefail
-          xcodebuild -project SnapBrief.xcodeproj -scheme SnapBrief -configuration Release \
+          xcodebuild -project Snapik.xcodeproj -scheme Snapik -configuration Release \
             -derivedDataPath DerivedData CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES \
             build 2>&1 | tee xcodebuild.log | grep -E "error:|BUILD|\*\*" 
       - name: Xcode tests
         run: |
           set -o pipefail
-          xcodebuild -project SnapBrief.xcodeproj -scheme SnapBrief -configuration Debug \
+          xcodebuild -project Snapik.xcodeproj -scheme Snapik -configuration Debug \
             -derivedDataPath DerivedData CODE_SIGN_IDENTITY=- \
             test 2>&1 | tee xcodetest.log | grep -E "error:|Executed|\*\*|failed" 
       - name: Smoke run
         run: |
-          APP=DerivedData/Build/Products/Release/SnapBrief.app
+          APP=DerivedData/Build/Products/Release/Snapik.app
           if [ -f scripts/ci-smoke.sh ]; then bash scripts/ci-smoke.sh "$APP"; else echo "no smoke script yet"; fi
       - name: Package DMG
         run: |
           set -e
-          APP=DerivedData/Build/Products/Release/SnapBrief.app
+          APP=DerivedData/Build/Products/Release/Snapik.app
           VER=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist")
           rm -rf dmgroot && mkdir dmgroot
           cp -R "$APP" dmgroot/
           ln -s /Applications dmgroot/Applications
           [ -f Resources/DMG-README.txt ] && cp Resources/DMG-README.txt "dmgroot/Прочитай меня.txt" || true
-          hdiutil create -volname "SnapBrief $VER" -srcfolder dmgroot -ov -format UDZO "SnapBrief-$VER-macOS.dmg"
-          ditto -c -k --keepParent "$APP" "SnapBrief-$VER-macOS.zip"
+          hdiutil create -volname "Snapik $VER" -srcfolder dmgroot -ov -format UDZO "Snapik-$VER-macOS.dmg"
+          ditto -c -k --keepParent "$APP" "Snapik-$VER-macOS.zip"
           ls -la *.dmg *.zip
           echo "VER=$VER" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: SnapBrief-macOS
+          name: Snapik-macOS
           path: |
             macos/*.dmg
             macos/*.zip
@@ -85,5 +85,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="macos-v${VER}-${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" *.dmg *.zip --title "SnapBrief macOS $VER (build $GITHUB_RUN_NUMBER)" \
+          gh release create "$TAG" *.dmg *.zip --title "Snapik macOS $VER (build $GITHUB_RUN_NUMBER)" \
             --notes "Автосборка macOS-версии с коммита ${GITHUB_SHA}. Не подписана Developer ID: при первом запуске правый клик → Открыть." || true

@@ -1,6 +1,6 @@
 # План по ТЗ №3: пункты 1, 2, 5, 6 (редактор разметки)
 
-Зона: `src/SnapBrief.App/OverlayEditorWindow.xaml(.cs)` и партиалы `OverlayEditorWindow.*.cs`, `Controls/AnnotationCanvas.cs`, `EditorModels.cs`, `EditorShortcuts.cs`, `WpfExportImageRenderer.cs`, `UiLanguage.cs`, `SmokeTestRunner.cs`, модели в `SnapBrief.Core`. Пункты 3 (лента) и 4 (мастер) не мои.
+Зона: `src/Snapik.App/OverlayEditorWindow.xaml(.cs)` и партиалы `OverlayEditorWindow.*.cs`, `Controls/AnnotationCanvas.cs`, `EditorModels.cs`, `EditorShortcuts.cs`, `WpfExportImageRenderer.cs`, `UiLanguage.cs`, `SmokeTestRunner.cs`, модели в `Snapik.Core`. Пункты 3 (лента) и 4 (мастер) не мои.
 
 Код сверялся с HEAD `8868c28` (1.3.0), все ссылки file:line по нему. Незакоммиченные чужие файлы (`site/`, `.impeccable/`, `DESIGN.md`, `SESSION_LOG.md`) и `macos/` не трогались. Правила прежние: строки UI только через `UiLanguage.cs`, изменение формата получает абзац в `tasks/verification.md`, один коммит на законченную правку, проверка через `scripts/build.ps1`.
 
@@ -10,7 +10,7 @@
 
 ### П.1. Клик вне снимка: это прямой откат строки из C2
 
-До ТЗ №2 обработчик отпускания кнопки в окне завершал съёмку: `git show a9381e6:src/SnapBrief.App/OverlayEditorWindow.xaml.cs` строки 390-394, ветка `if (_capture is not null && e.OriginalSource is Image && !_busyCrop && !_cropRect.Contains(...)) { e.Handled = true; Complete(false); }`.
+До ТЗ №2 обработчик отпускания кнопки в окне завершал съёмку: `git show a9381e6:src/Snapik.App/OverlayEditorWindow.xaml.cs` строки 390-394, ветка `if (_capture is not null && e.OriginalSource is Image && !_busyCrop && !_cropRect.Contains(...)) { e.Handled = true; Complete(false); }`.
 
 Коммит `02b7ea1` (C2) заменил `Complete(false)` на `ClosePopovers(); Surface.SelectAnnotation(null);`, это сегодняшние `OverlayEditorWindow.xaml.cs:645-653`. В самом плане ТЗ №2 это стояло единственным блокирующим вопросом («Клик мимо снимка перестаёт завершать съёмку», `tasks/tz-002-details/C-editor.md`, раздел 7), решение приняли по умолчанию, Никита его отменил.
 
@@ -57,7 +57,7 @@
 1. **Прямоугольник отметки нулевой.** `BoundsOf` берёт минимум и максимум по `Points` (`AnnotationCanvas.cs:723-730`), а у текста обе точки совпадают. Хит-тест раздувает эту точку на `max(8, Thickness * 2)` (`:489-499`), то есть даёт квадрат 16×16 вокруг якоря, тогда как сами буквы уходят вправо и вниз на десятки пикселей. Двойной клик по слову «Текст» в эту рамку не попадает и уходит в ветку рисования: ставится **новая** отметка «Текст». Это буквально симптом из ТЗ.
 2. **Пилюля закрывается от чего угодно.** `Finish()` для текста прячет её совсем (`:1053`, `border.Visibility = Collapsed`), а вызывается она при уходе мыши без фокуса клавиатуры (`:1093`), при потере фокуса полем (`:1117`) и при любом нажатии мыши в окне мимо `ChipLayer` (`:624` → `Comments.cs:122-126`). Первый же клик по снимку убирает единственный вход в правку.
 3. **После переоткрытия снимка пилюли у текста нет вовсе.** `RebuildChips` создаёт пилюли только для отметок с непустым `Note` (`:996`), а у текста заполнено `Text`, не `Note`. Значит текст, приехавший из `session.json`, правится только двойным кликом, который по пункту 1 не попадает.
-4. **Размер шрифта не хранится и на экране не тот, что в экспорте.** Холст рисует `Math.Max(14, 18 * scale)` (`AnnotationCanvas.cs:538-541`), экспорт рисует `Math.Max(16, item.Thickness * 4.5)` (`WpfExportImageRenderer.cs:125`). В модели (`EditorModels.cs:34-96` и `SnapBrief.Core/Models/AnnotationItem.cs:37-44`) поля размера нет. То есть даже если печатать получится, надпись на экране и в PNG будет разного кегля, а выбирать размер нечем.
+4. **Размер шрифта не хранится и на экране не тот, что в экспорте.** Холст рисует `Math.Max(14, 18 * scale)` (`AnnotationCanvas.cs:538-541`), экспорт рисует `Math.Max(16, item.Thickness * 4.5)` (`WpfExportImageRenderer.cs:125`). В модели (`EditorModels.cs:34-96` и `Snapik.Core/Models/AnnotationItem.cs:37-44`) поля размера нет. То есть даже если печатать получится, надпись на экране и в PNG будет разного кегля, а выбирать размер нечем.
 5. Смок-проверка на текст не ловит ничего из этого, потому что зовёт `OnAnnotationCreated` напрямую с готовым прямоугольником `[(100,100),(220,160)]` (`OverlayEditorWindow.xaml.cs:582-590`), минуя и жест, и хит-тест.
 
 Клавиатура при этом не мешает: `OnWindowKeyDown` отдаёт все клавиши сфокусированному `TextBox` (`:1414-1418`), так что новое поле ввода на холсте будет печатать сразу.
@@ -191,7 +191,7 @@ dc.Pop();
 
 **П.6.** Три части: метрики, поле ввода, размер шрифта.
 
-*Метрики.* Новый файл `src/SnapBrief.App/TextMarkMetrics.cs`:
+*Метрики.* Новый файл `src/Snapik.App/TextMarkMetrics.cs`:
 
 ```csharp
 internal static class TextMarkMetrics
@@ -223,7 +223,7 @@ internal static class TextMarkMetrics
 
 `HasResizeHandles` (`AnnotationCanvas.cs:617`) исключает текст: `item.Kind is not (EditorTool.Comment or EditorTool.Text)`. Растягивать надпись углами нельзя, потому что растяжение меняет только `Points`, а кегль живёт отдельно; надпись двигают и правят, размер задаётся кнопкой.
 
-*Поле ввода.* Новый партиал `src/SnapBrief.App/OverlayEditorWindow.Text.cs` и новый слой в разметке между `EditorLayer` и `ChipLayer`:
+*Поле ввода.* Новый партиал `src/Snapik.App/OverlayEditorWindow.Text.cs` и новый слой в разметке между `EditorLayer` и `ChipLayer`:
 
 ```xml
 <Canvas x:Name="TextLayer" />
@@ -257,7 +257,7 @@ internal static class TextMarkMetrics
 
 `FontSizePopup` устроен как `ThicknessPopup` (`xaml:310-334`): заголовок «Размер», строка из шести сегментов 12/16/20/24/32/48 (`UniformGrid Columns="6"`, внутри каждого `TextBlock` с числом, а не полоска), ползунок 8..96 с шагом 1, внизу превью «Ag» тем же кеглем и цветом отметки. Кнопка активна, когда в руке текст или выделен текст (`HasFontSize(tool) => tool == EditorTool.Text`), подпись не пустеет никогда, ширина фиксирована, значит проверка ширины панели остаётся зелёной. Клик по пресету или сдвиг ползунка идут через `ApplyAppearance(..., fontSize: value)`, который пишет `_activeFontSize`, `Surface.ActiveFontSize` и выделенную отметку, после чего зовёт `TextMarkMetrics.Fit` и, если поле ввода открыто, пересчитывает его `FontSize`.
 
-Модель: `SnapBrief.Core.Models.AnnotationItem` получает `public double FontSize { get; init; } = 20;` (`AnnotationItem.cs:54-64`, рядом с `Shape`/`Fill`), `EditorModels.AnnotationItem` получает `public double FontSize { get; set; } = 20;`, `Clone()` (`:82-96`), `ToCore` (`:98-126`) и `FromCore` (`:128-163`) его возят. `CaptureCropper` не трогается: он переносит поля через `annotation with { Points = ... }` (`CaptureCropper.cs:69`).
+Модель: `Snapik.Core.Models.AnnotationItem` получает `public double FontSize { get; init; } = 20;` (`AnnotationItem.cs:54-64`, рядом с `Shape`/`Fill`), `EditorModels.AnnotationItem` получает `public double FontSize { get; set; } = 20;`, `Clone()` (`:82-96`), `ToCore` (`:98-126`) и `FromCore` (`:128-163`) его возят. `CaptureCropper` не трогается: он переносит поля через `annotation with { Points = ... }` (`CaptureCropper.cs:69`).
 
 Отрисовка: холст рисует `item.FontSize * scale` (`AnnotationCanvas.cs:538-541`), экспорт рисует `item.FontSize` и тем же семейством `TextMarkMetrics.FamilyName` вместо `Segoe UI` (`WpfExportImageRenderer.cs:125, 171-176`). Начертание в обоих местах одинаковое, `Normal`, а не `SemiBold` как сейчас в экспорте. Цвет берётся из общего цвета отметки (`HasColor` уже пускает текст, `Appearance.cs:23`), отдельного выбора цвета текста не заводим.
 
@@ -270,7 +270,7 @@ internal static class TextMarkMetrics
 | 1 | `OverlayEditorWindow.xaml.cs` (`:622-631`, `:641-655`, новое поле `_outsideClickConsumed`), `OverlayEditorWindow.Comments.cs` (`IsInsideChipLayer` становится доступным из П.6) |
 | 2 | `OverlayEditorWindow.xaml` (`:218-223` панель, `:249-308` поповер цвета, новый `FillPopup`), `OverlayEditorWindow.Appearance.cs` (`:49-64`, `:89-102`, `:128-199`, `:229-257`), `UiLanguage.cs`, `SmokeTestRunner.cs` / `RunShortcutHintProbe` |
 | 5 | `OverlayEditorWindow.xaml` (`:14-15` геометрии, `:199-202` капсула, `:310-334` поповер толщины), `Controls/AnnotationCanvas.cs` (`:512-519`, `:663-670`, новый `StrokeGeometry`), `WpfExportImageRenderer.cs` (`:102-111`), `OverlayEditorWindow.Appearance.cs` (`:21-24`, `:128-199`, `:201-215`, `:275-285`, `:345-366`), `OverlayEditorWindow.xaml.cs` (`:47`, `:71`, `:890-901`), `EditorShortcuts.cs` (`:25`), `HotkeySettingsWindow.xaml.cs` (`:52`), `UiLanguage.cs` (`:31`) |
-| 6 | Новые `OverlayEditorWindow.Text.cs`, `TextMarkMetrics.cs`; `OverlayEditorWindow.xaml` (новый `TextLayer`, кнопка `FontSizeButton`, `FontSizePopup`), `OverlayEditorWindow.xaml.cs` (`:722`, `:844-861`, `:875-892`, `:987-1128`, `:1139`, `:1246`, `:1411-1427`), `Controls/AnnotationCanvas.cs` (`:222-239`, `:538-542`, `:617`), `EditorModels.cs` (`:34-96`, `:98-163`), `SnapBrief.Core/Models/AnnotationItem.cs`, `WpfExportImageRenderer.cs` (`:125`, `:171-176`), `OverlayEditorWindow.Appearance.cs`, `UiLanguage.cs`, `SmokeTestRunner.cs` |
+| 6 | Новые `OverlayEditorWindow.Text.cs`, `TextMarkMetrics.cs`; `OverlayEditorWindow.xaml` (новый `TextLayer`, кнопка `FontSizeButton`, `FontSizePopup`), `OverlayEditorWindow.xaml.cs` (`:722`, `:844-861`, `:875-892`, `:987-1128`, `:1139`, `:1246`, `:1411-1427`), `Controls/AnnotationCanvas.cs` (`:222-239`, `:538-542`, `:617`), `EditorModels.cs` (`:34-96`, `:98-163`), `Snapik.Core/Models/AnnotationItem.cs`, `WpfExportImageRenderer.cs` (`:125`, `:171-176`), `OverlayEditorWindow.Appearance.cs`, `UiLanguage.cs`, `SmokeTestRunner.cs` |
 
 ---
 
@@ -308,13 +308,13 @@ internal static class TextMarkMetrics
 
 ## 6. Тесты и smoke
 
-`tests/SnapBrief.Core.Tests`:
+`tests/Snapik.Core.Tests`:
 
 - round-trip `fontSize` через `session.json`, включая строку в JSON;
 - сессия без `fontSize` читается с 20 и проходит `SessionValidation`;
 - `CaptureCropperTests`: текстовая отметка с `fontSize` переживает кроп без потери поля.
 
-`tests/SnapBrief.App.Imaging.Tests`:
+`tests/Snapik.App.Imaging.Tests`:
 
 - новый `TextMarkMetricsTests`: `Measure` даёт ширину больше высоты для «Привет», кириллица и латиница обе меряются, пустая строка даёт непустой размер, `Fit` кладёт вторую точку правее и ниже первой и не двигает первую.
 

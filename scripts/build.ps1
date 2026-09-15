@@ -8,11 +8,11 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $dotnet = Join-Path $projectRoot '.dotnet\dotnet.exe'
-$solution = Join-Path $projectRoot 'SnapBrief.slnx'
-$appProject = Join-Path $projectRoot 'src\SnapBrief.App\SnapBrief.App.csproj'
+$solution = Join-Path $projectRoot 'Snapik.slnx'
+$appProject = Join-Path $projectRoot 'src\Snapik.App\Snapik.App.csproj'
 $canonicalPublishDirectory = Join-Path $projectRoot 'artifacts\publish'
-$smokeDirectoryPrefix = 'snapbrief-build-smoke-'
-$candidateDirectoryPrefix = 'snapbrief-candidate-'
+$smokeDirectoryPrefix = 'snapik-build-smoke-'
+$candidateDirectoryPrefix = 'snapik-candidate-'
 
 function Assert-SafeSmokeDirectory {
     param([Parameter(Mandatory)][string]$Path)
@@ -102,10 +102,10 @@ if (Test-Path -LiteralPath $resolvedPublish) {
     --output $resolvedPublish
 if ($LASTEXITCODE -ne 0) { throw "Publish failed with exit code $LASTEXITCODE." }
 
-$publishedExe = Join-Path $resolvedPublish 'SnapBrief.exe'
-$publishedDll = Join-Path $resolvedPublish 'SnapBrief.dll'
+$publishedExe = Join-Path $resolvedPublish 'Snapik.exe'
+$publishedDll = Join-Path $resolvedPublish 'Snapik.dll'
 if (-not (Test-Path -LiteralPath $publishedExe) -or -not (Test-Path -LiteralPath $publishedDll)) {
-    throw 'Publish completed without the expected SnapBrief.exe and SnapBrief.dll artifacts.'
+    throw 'Publish completed without the expected Snapik.exe and Snapik.dll artifacts.'
 }
 
 $smokeDirectory = Assert-SafeSmokeDirectory (Join-Path $env:TEMP "$smokeDirectoryPrefix$([Guid]::NewGuid().ToString('N'))")
@@ -117,7 +117,7 @@ try {
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
     $startInfo.Arguments = '--smoke-test'
-    $startInfo.EnvironmentVariables['SNAPBRIEF_DATA_DIR'] = $smokeDirectory
+    $startInfo.EnvironmentVariables['SNAPIK_DATA_DIR'] = $smokeDirectory
 
     $smokeProcess = [Diagnostics.Process]::Start($startInfo)
     if ($null -eq $smokeProcess) {
@@ -175,11 +175,11 @@ $buildInfo = [ordered]@{
         smokeTest = 'passed'
     }
     artifacts = [ordered]@{
-        'SnapBrief.exe' = [ordered]@{
+        'Snapik.exe' = [ordered]@{
             bytes = $exeInfo.Length
             sha256 = (Get-FileHash -LiteralPath $publishedExe -Algorithm SHA256).Hash.ToLowerInvariant()
         }
-        'SnapBrief.dll' = [ordered]@{
+        'Snapik.dll' = [ordered]@{
             bytes = $dllInfo.Length
             sha256 = (Get-FileHash -LiteralPath $publishedDll -Algorithm SHA256).Hash.ToLowerInvariant()
         }
@@ -189,4 +189,4 @@ $buildInfoPath = Join-Path $resolvedPublish 'build-info.json'
 $buildInfoJson = $buildInfo | ConvertTo-Json -Depth 5
 [IO.File]::WriteAllText($buildInfoPath, $buildInfoJson, [Text.UTF8Encoding]::new($false))
 
-Write-Host "SnapBrief published and smoke-tested at $resolvedPublish"
+Write-Host "Snapik published and smoke-tested at $resolvedPublish"

@@ -1,16 +1,16 @@
-# SnapBrief для macOS
+# Snapik для macOS
 
-Порт Windows-версии SnapBrief (C#/WPF) на Swift + AppKit + ScreenCaptureKit. Требования: macOS 14 Sonoma и новее, Apple Silicon или Intel (сборка CI: arm64).
+Порт Windows-версии Snapik (C#/WPF) на Swift + AppKit + ScreenCaptureKit. Требования: macOS 14 Sonoma и новее, Apple Silicon или Intel (сборка CI: arm64).
 
 Статус: **собрано и проверено автоматически на macOS-раннере GitHub Actions; интерактивно на реальном Mac не запускалось** (у автора нет Mac). Подробности проверок и ограничений ниже.
 
 ## Установка из DMG
 
-1. Скачать `SnapBrief-<версия>-macOS.dmg` из GitHub Releases репозитория `Efimovnik0707/snapbrief` (последний релиз с тегом `macos-v…`).
-2. Перетащить `SnapBrief` в `Applications`.
+1. Скачать `Snapik-<версия>-macOS.dmg` из GitHub Releases репозитория `Efimovnik0707/snapik` (последний релиз с тегом `macos-v…`).
+2. Перетащить `Snapik` в `Applications`.
 3. Первый запуск: правый клик по приложению → «Открыть» → «Открыть». Приложение не подписано Developer ID (нет платного аккаунта Apple Developer), поэтому Gatekeeper показывает предупреждение один раз. Альтернатива в Терминале:
    ```bash
-   xattr -dr com.apple.quarantine /Applications/SnapBrief.app
+   xattr -dr com.apple.quarantine /Applications/Snapik.app
    ```
 4. Приложение живёт в строке меню (значок видоискателя). Окна в Dock нет.
 
@@ -30,14 +30,14 @@
 - Рамка автоматически открывает поле комментария рядом; комментарий ко всему снимку; крестик удаляет заметку, сохраняя отметку.
 - Завершение снимка: клик вне снимка, `Cmd+C`, кнопка «Готово», «+ Снимок», повторная горячая клавиша.
 - Стопка снимков у правого края, меню из 10 пунктов, удаление с восстановлением, drag & drop порядка, импорт файла и из буфера.
-- Пакет в буфере обмена: PNG-файлы с разметкой и текст задания для агента (метки A/B/C, A1/B2…, после Z продолжаются AA, AB…). Нажатие Cmd+V (в терминале с Claude Code: Ctrl+V) в любом приложении перехватывается, и SnapBrief вставляет картинки по одной, затем текст; в Codex Desktop пакет вставляется как есть. Пакет остаётся в буфере для следующих приложений; новая стопка начинается при следующем снимке. Если получатель перезаписал буфер своим текстом (эхо терминала), пакет возвращается автоматически.
+- Пакет в буфере обмена: PNG-файлы с разметкой и текст задания для агента (метки A/B/C, A1/B2…, после Z продолжаются AA, AB…). Нажатие Cmd+V (в терминале с Claude Code: Ctrl+V) в любом приложении перехватывается, и Snapik вставляет картинки по одной, затем текст; в Codex Desktop пакет вставляется как есть. Пакет остаётся в буфере для следующих приложений; новая стопка начинается при следующем снимке. Если получатель перезаписал буфер своим текстом (эхо терминала), пакет возвращается автоматически.
 - Комментарии как отдельные пины (клавиша N): один клик ставит один комментарий, привязанный к выбранной отметке; в тексте задания это выглядит как «A2: … (к области A1)». Стили стрелок: прямая, изогнутая, толстая, широкая.
 - Клик по карточке в стопке открывает предпросмотр снимка с панелью комментариев (масштаб, «По размеру окна», кнопка «Разметка»).
 - Звук затвора после снимка и тик колёсика в стопке (отключается в настройках), автосохранение готовых снимков (выключено по умолчанию).
 - `Cmd+S` сохраняет размеченный снимок в PNG/JPEG; отдельное быстрое сохранение всего экрана (`Shift+Cmd+Option+S`, выключено по умолчанию).
 - Настройки: уведомления, запоминание области, курсор в снимке, язык RU/EN, формат и качество, папка, горячие клавиши с записью сочетания и проверкой конфликтов, автозапуск (`SMAppService`).
 - Single instance: повторный запуск показывает существующую стопку.
-- Данные: `~/Library/Application Support/SnapBrief/sessions`, формат `session.json` совместим с Windows-версией. Флаги `--data-dir`, `--demo`, `--smoke-test`, `--capture-test <png>`, `--demo-screenshot <dir>`.
+- Данные: `~/Library/Application Support/Snapik/sessions`, формат `session.json` совместим с Windows-версией. Флаги `--data-dir`, `--demo`, `--smoke-test`, `--capture-test <png>`, `--demo-screenshot <dir>`.
 
 ## Сборка
 
@@ -46,13 +46,13 @@
 ```bash
 cd macos
 swift build && swift test                 # SwiftPM: Core + приложение + тесты
-brew install xcodegen && xcodegen generate # SnapBrief.xcodeproj
-xcodebuild -project SnapBrief.xcodeproj -scheme SnapBrief -configuration Release build
+brew install xcodegen && xcodegen generate # Snapik.xcodeproj
+xcodebuild -project Snapik.xcodeproj -scheme Snapik -configuration Release build
 ```
 
 Автоматически: workflow `.github/workflows/macos-build.yml` на каждом пуше в `macos/**` собирает, тестирует, запускает smoke и демо на раннере, собирает DMG и публикует GitHub Release.
 
-Структура: `Sources/SnapBriefCore` (модель, история, обрезка, экспорт, персистентность, транспортная машина состояний, локализация; Foundation only), `Sources/SnapBriefMac` (AppKit: захват, imaging, редактор, стопка, настройки, горячие клавиши, транспорт NSPasteboard/CGEvent). Спецификация порта: `SPEC.md`, границы модулей: `CONTRACTS.md`, API ядра: `CORE-API.md`.
+Структура: `Sources/SnapikCore` (модель, история, обрезка, экспорт, персистентность, транспортная машина состояний, локализация; Foundation only), `Sources/SnapikMac` (AppKit: захват, imaging, редактор, стопка, настройки, горячие клавиши, транспорт NSPasteboard/CGEvent). Спецификация порта: `SPEC.md`, границы модулей: `CONTRACTS.md`, API ядра: `CORE-API.md`.
 
 ## Что проверено и что нет
 

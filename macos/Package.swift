@@ -3,26 +3,26 @@ import PackageDescription
 
 var targets: [Target] = [
     .target(
-        name: "SnapBriefCore",
-        path: "Sources/SnapBriefCore"
+        name: "SnapikCore",
+        path: "Sources/SnapikCore"
     ),
     .testTarget(
-        name: "SnapBriefCoreTests",
-        dependencies: ["SnapBriefCore"],
-        path: "Tests/SnapBriefCoreTests"
+        name: "SnapikCoreTests",
+        dependencies: ["SnapikCore"],
+        path: "Tests/SnapikCoreTests"
     ),
 ]
 
 var products: [Product] = [
-    .library(name: "SnapBriefCore", targets: ["SnapBriefCore"]),
+    .library(name: "SnapikCore", targets: ["SnapikCore"]),
 ]
 
 #if os(macOS)
 targets += [
     .executableTarget(
-        name: "SnapBriefMac",
-        dependencies: ["SnapBriefCore"],
-        path: "Sources/SnapBriefMac",
+        name: "SnapikMac",
+        dependencies: ["SnapikCore"],
+        path: "Sources/SnapikMac",
         resources: [
             .copy("Resources/Audio/camera-shutter.wav"),
             .copy("Resources/Audio/camera-dial-click.wav"),
@@ -36,16 +36,16 @@ targets += [
         ]
     ),
     .testTarget(
-        name: "SnapBriefMacTests",
-        dependencies: ["SnapBriefMac", "SnapBriefCore"],
-        path: "Tests/SnapBriefMacTests"
+        name: "SnapikMacTests",
+        dependencies: ["SnapikMac", "SnapikCore"],
+        path: "Tests/SnapikMacTests"
     ),
 ]
-products += [.executable(name: "SnapBriefMac", targets: ["SnapBriefMac"])]
+products += [.executable(name: "SnapikMac", targets: ["SnapikMac"])]
 #endif
 
 let package = Package(
-    name: "SnapBrief",
+    name: "Snapik",
     platforms: [.macOS(.v14)],
     products: products,
     targets: targets

@@ -8,10 +8,10 @@
 #  4. --capture-test: one real ScreenCaptureKit capture (only meaningful if TCC grant worked)
 set -uo pipefail
 APP="$1"
-BIN="$APP/Contents/MacOS/SnapBrief"
+BIN="$APP/Contents/MacOS/Snapik"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Contents/Info.plist")
 OUT="smoke-out"; rm -rf "$OUT"; mkdir -p "$OUT"
-DATA="$(mktemp -d)/snapbrief-data"
+DATA="$(mktemp -d)/snapik-data"
 RC=0
 
 echo "== SIP =="; csrutil status || true
@@ -42,7 +42,7 @@ sleep 3;  screencapture -x "$OUT/runner-desktop-2.png" || true
 for i in $(seq 1 12); do kill -0 $PID 2>/dev/null || break; sleep 1; done
 if kill -0 $PID 2>/dev/null; then echo "demo did not exit in 18s, killing"; kill -9 $PID; fi
 wait $PID 2>/dev/null; echo "demo exit code: $?"
-ps aux | grep -i "[S]napBrief" || true
+ps aux | grep -i "[S]napik" || true
 tail -40 "$OUT/demo.log"
 
 echo "== 4. --capture-test (real ScreenCaptureKit capture, needs TCC) =="

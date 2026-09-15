@@ -1,0 +1,25 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "site/src/dark.html"
+        ],
+        "createdAt": "2026-09-09T01:10:32.784Z",
+        "reason": "overflow:hidden on .hm and .features-mock is the intentional device-frame/panel boundary for the product mockup and sticky feature panel, clipping annotation/toolbar/chip layers by design, not a tooltip or menu being cut off"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "site/src/editorial.html"
+        ],
+        "createdAt": "2026-09-09T01:39:25.013Z"
+      }
+    ]
+  }
+}

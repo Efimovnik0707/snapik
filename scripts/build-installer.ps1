@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $publishDir = Join-Path $projectRoot 'artifacts\publish'
 $outputDir = Join-Path $projectRoot 'artifacts\installer'
-$issFile = Join-Path $projectRoot 'installer\SnapBrief.iss'
+$issFile = Join-Path $projectRoot 'installer\Snapik.iss'
 
 if (-not $SkipPublish) {
     $buildArgs = @{}
@@ -18,7 +18,7 @@ if (-not $SkipPublish) {
     & (Join-Path $PSScriptRoot 'build.ps1') @buildArgs
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $publishDir 'SnapBrief.exe'))) {
+if (-not (Test-Path -LiteralPath (Join-Path $publishDir 'Snapik.exe'))) {
     throw "No publish found at $publishDir. Run scripts\build.ps1 first."
 }
 
@@ -35,6 +35,6 @@ New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 & $iscc "/DPublishDir=$publishDir" "/DOutputDir=$outputDir" /Qp $issFile
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
 
-$setup = Get-ChildItem -LiteralPath $outputDir -Filter 'SnapBrief-Setup-*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$setup = Get-ChildItem -LiteralPath $outputDir -Filter 'Snapik-Setup-*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $hash = (Get-FileHash -LiteralPath $setup.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host ("Installer: {0} ({1:N1} MB, sha256 {2})" -f $setup.FullName, ($setup.Length / 1MB), $hash)

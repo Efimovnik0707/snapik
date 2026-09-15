@@ -1,4 +1,4 @@
-name: SnapBrief
+name: Snapik
 options:
   bundleIdPrefix: live.yesworkflow
   deploymentTarget:
@@ -6,67 +6,67 @@ options:
   xcodeVersion: "16.0"
   createIntermediateGroups: true
 packages:
-  SnapBriefCore:
+  SnapikCore:
     path: .
 targets:
-  SnapBrief:
+  Snapik:
     type: application
     platform: macOS
     sources:
-      - path: Sources/SnapBriefMac
+      - path: Sources/SnapikMac
         excludes:
           - "Resources/**/*.md"
-      - path: Resources/SnapBrief.icns
+      - path: Resources/Snapik.icns
         optional: true
     dependencies:
-      - package: SnapBriefCore
-        product: SnapBriefCore
+      - package: SnapikCore
+        product: SnapikCore
     info:
       path: Resources/Info.plist
       properties:
-        CFBundleName: SnapBrief
-        CFBundleDisplayName: SnapBrief
-        CFBundleIdentifier: live.yesworkflow.snapbrief
+        CFBundleName: Snapik
+        CFBundleDisplayName: Snapik
+        CFBundleIdentifier: live.yesworkflow.snapik
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHumanReadableCopyright: "© 2026 Nikita Efimov"
-        NSAppleEventsUsageDescription: "SnapBrief вставляет подготовленный пакет в приложение-получатель."
-        CFBundleIconFile: SnapBrief
+        NSAppleEventsUsageDescription: "Snapik вставляет подготовленный пакет в приложение-получатель."
+        CFBundleIconFile: Snapik
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: live.yesworkflow.snapbrief
-        PRODUCT_MODULE_NAME: SnapBriefMac
+        PRODUCT_BUNDLE_IDENTIFIER: live.yesworkflow.snapik
+        PRODUCT_MODULE_NAME: SnapikMac
         SWIFT_VERSION: "5"
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: NO
         ENABLE_APP_SANDBOX: NO
         MACOSX_DEPLOYMENT_TARGET: "14.0"
-  SnapBriefTests:
+  SnapikTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: Tests/SnapBriefMacTests
+      - path: Tests/SnapikMacTests
     dependencies:
-      - target: SnapBrief
-      - package: SnapBriefCore
-        product: SnapBriefCore
+      - target: Snapik
+      - package: SnapikCore
+        product: SnapikCore
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: "-"
-        PRODUCT_BUNDLE_IDENTIFIER: live.yesworkflow.snapbrief.tests
+        PRODUCT_BUNDLE_IDENTIFIER: live.yesworkflow.snapik.tests
 schemes:
-  SnapBrief:
+  Snapik:
     build:
       targets:
-        SnapBrief: all
-        SnapBriefTests: [test]
+        Snapik: all
+        SnapikTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - SnapBriefTests
+        - SnapikTests

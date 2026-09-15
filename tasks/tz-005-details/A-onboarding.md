@@ -26,7 +26,7 @@
 
 Изменения:
 
-- Новый файл `src/SnapBrief.App/DwmWindowCorners.cs`, `internal static class DwmWindowCorners`:
+- Новый файл `src/Snapik.App/DwmWindowCorners.cs`, `internal static class DwmWindowCorners`:
   - `[DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);`
   - `internal static bool Round(IntPtr hwnd)`: `var preference = 2; return DwmSetWindowAttribute(hwnd, 33, ref preference, sizeof(int)) == 0;` внутри `try/catch (DllNotFoundException or EntryPointNotFoundException)` → `false`.
   - Констант `DWMWA_WINDOW_CORNER_PREFERENCE = 33`, `DWMWCP_ROUND = 2` держать именованными в этом же файле.
@@ -34,7 +34,7 @@
 - `OnboardingWindow.xaml:104`: у корневого `Border` убрать `BorderBrush`, поставить `BorderThickness="0" CornerRadius="0"`. `Background="{DynamicResource SurfaceBrush}"` и `Padding="24,20,24,24"` оставить.
 - Комментарий `OnboardingWindow.xaml:5-7` переписать под то, что теперь правда.
 
-Проверка номера сборки. `Environment.OSVersion.Version.Build` на .NET 10 идёт через `RtlGetVersion` и отдаёт настоящие 22000+/26200 даже без секции `<compatibility><supportedOS>` в `app.manifest` (её там нет, см. `src/SnapBrief.App/app.manifest`). То есть проверка работала бы, но она лишняя: HRESULT вызова информативнее и не врёт на будущих сборках. Если номер всё же понадобится для лога, брать `Environment.OSVersion.Version.Build`, а не Win32 `GetVersionEx`, который без манифеста отдаёт 6.2.
+Проверка номера сборки. `Environment.OSVersion.Version.Build` на .NET 10 идёт через `RtlGetVersion` и отдаёт настоящие 22000+/26200 даже без секции `<compatibility><supportedOS>` в `app.manifest` (её там нет, см. `src/Snapik.App/app.manifest`). То есть проверка работала бы, но она лишняя: HRESULT вызова информативнее и не врёт на будущих сборках. Если номер всё же понадобится для лога, брать `Environment.OSVersion.Version.Build`, а не Win32 `GetVersionEx`, который без манифеста отдаёт 6.2.
 
 Окно настроек: не трогаем (см. пункт 1 расхождений).
 
@@ -55,7 +55,7 @@ Smoke: `OnboardingWindow.RunOnboardingProbe` (`:428`) работает на ок
 - `:112` и `:115`: добавить `WindowChrome.IsHitTestVisibleInChrome="True"` обеим кнопкам.
 - `OnboardingWindow.xaml.cs:420`: удалить `OnHeaderDrag`.
 
-Что внутри пояса. Только эти две кнопки и `TextBlock "SnapBrief"` (`:110`), текст кликов не ловит и должен остаться частью заголовка. Ничего из содержимого шагов в первые 48 px не попадает (контент начинается с y = 62).
+Что внутри пояса. Только эти две кнопки и `TextBlock "Snapik"` (`:110`), текст кликов не ловит и должен остаться частью заголовка. Ничего из содержимого шагов в первые 48 px не попадает (контент начинается с y = 62).
 
 Строки RU/EN: нет.
 
@@ -284,15 +284,15 @@ Smoke:
 
 | Файл | Пункты |
 |---|---|
-| `src/SnapBrief.App/DwmWindowCorners.cs` (новый) | A1, A3 |
-| `src/SnapBrief.App/OnboardingWindow.xaml` | A1, A2 |
-| `src/SnapBrief.App/OnboardingWindow.xaml.cs` | A1, A2, A3, E2 |
-| `src/SnapBrief.App/Controls/AppearancePicker.xaml` | A4 |
-| `src/SnapBrief.App/Controls/AppearancePicker.xaml.cs` | A4, A5 |
-| `src/SnapBrief.App/Controls/HowToSlides.xaml` | A6 |
-| `src/SnapBrief.App/Controls/HowToSlides.xaml.cs` | A6 (smoke) |
-| `src/SnapBrief.App/HotkeySettingsWindow.xaml` | E2 |
-| `src/SnapBrief.App/HotkeySettingsWindow.xaml.cs` | E2 |
+| `src/Snapik.App/DwmWindowCorners.cs` (новый) | A1, A3 |
+| `src/Snapik.App/OnboardingWindow.xaml` | A1, A2 |
+| `src/Snapik.App/OnboardingWindow.xaml.cs` | A1, A2, A3, E2 |
+| `src/Snapik.App/Controls/AppearancePicker.xaml` | A4 |
+| `src/Snapik.App/Controls/AppearancePicker.xaml.cs` | A4, A5 |
+| `src/Snapik.App/Controls/HowToSlides.xaml` | A6 |
+| `src/Snapik.App/Controls/HowToSlides.xaml.cs` | A6 (smoke) |
+| `src/Snapik.App/HotkeySettingsWindow.xaml` | E2 |
+| `src/Snapik.App/HotkeySettingsWindow.xaml.cs` | E2 |
 
 Общие файлы, конфликты слияния:
 
@@ -309,7 +309,7 @@ Smoke:
 
 Один файл, один коммит, до того как дорожки разойдутся:
 
-**`src/SnapBrief.App/DwmWindowCorners.cs`** с двумя статическими классами: `DwmWindowCorners.Round(IntPtr hwnd) : bool` (A1) и `MonitorMetrics.Scale(int x, int y) : double` (A3). Оба чистый P/Invoke без зависимостей от остального кода.
+**`src/Snapik.App/DwmWindowCorners.cs`** с двумя статическими классами: `DwmWindowCorners.Round(IntPtr hwnd) : bool` (A1) и `MonitorMetrics.Scale(int x, int y) : double` (A3). Оба чистый P/Invoke без зависимостей от остального кода.
 
 Хотя A1 сейчас применяется только к мастеру (окно настроек layered, см. расхождение 1), помещать вызов прямо в `OnboardingWindow` не стоит: B3 «настоящее стекло» отдельным раундом снимет `AllowsTransparency` у ленты, капсулы, редактора и настроек, и все четыре окна придут за тем же вызовом. Файл заводится сразу, чтобы потом не переносить.
 

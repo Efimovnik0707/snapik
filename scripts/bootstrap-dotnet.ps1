@@ -15,7 +15,7 @@ if (Test-Path -LiteralPath $dotnet) {
     }
 }
 
-$installer = Join-Path $env:TEMP "snapbrief-dotnet-install-$([Guid]::NewGuid().ToString('N')).ps1"
+$installer = Join-Path $env:TEMP "snapik-dotnet-install-$([Guid]::NewGuid().ToString('N')).ps1"
 try {
     Invoke-WebRequest -Uri 'https://dot.net/v1/dotnet-install.ps1' -OutFile $installer
     & $installer -Version $sdkVersion -InstallDir $sdkDirectory -NoPath

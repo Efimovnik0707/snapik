@@ -4,7 +4,7 @@
 
 Зона: `EdgeStackWindow.xaml(.cs)`, `EdgeStackWindow.Saving.cs`, `Controls/StripResizeGeometry.cs`, `SessionWorkspace.cs`, `WpfExportImageRenderer.cs`, `HotkeySettingsWindow.xaml(.cs)` (только название клавиши).
 
-Общие файлы: `UiLanguage.cs`, `SmokeTestRunner.cs`, `EditorModels.cs`, `src/SnapBrief.Core/Models/CaptureItem.cs`, `tests/`, `tasks/verification.md`.
+Общие файлы: `UiLanguage.cs`, `SmokeTestRunner.cs`, `EditorModels.cs`, `src/Snapik.Core/Models/CaptureItem.cs`, `tests/`, `tasks/verification.md`.
 
 Не моё: редактор широкой картинки и импорта (масштаб, подпись сверху справа) — дорожка D; палитры и токены тем — дорожка B; мастер — дорожка A.
 
@@ -99,7 +99,7 @@ EmptyHintText.Text = _settings.CaptureEnabled
 
 - `StripResizeGeometry`: `DefaultWidth` и `MinimumWidth` — §C6, там же арифметика.
 - Кнопки шапки: в стиле `IconButton` (`EdgeStackWindow.xaml:32`) `Width`/`Height` 22 вместо 26; колонки шапки (`:141`) — четыре по 22 вместо четырёх по 30. Итого 88 из 184, на заголовок 96. Иконки 12×13, 14×3, 10×10, 10×10 в 22 помещаются, `CornerRadius="8"` оставить.
-- **Риск:** «● SnapBrief 26» при двузначном счётчике ≈ 102 px > 96. Поставить `TextTrimming="CharacterEllipsis"` на `TextBlock` «SnapBrief» (`:144`) и уменьшить `Padding` счётчика (`:145`) с `6,2` до `5,2`. Проверить глазами на 26 снимках (F6).
+- **Риск:** «● Snapik 26» при двузначном счётчике ≈ 102 px > 96. Поставить `TextTrimming="CharacterEllipsis"` на `TextBlock` «Snapik» (`:144`) и уменьшить `Padding` счётчика (`:145`) с `6,2` до `5,2`. Проверить глазами на 26 снимках (F6).
 - Кламп сохранённой ширины: `ClampWidth` уже поднимает снизу до `MinimumWidth` (`StripResizeGeometry.cs:53`) — сохранённые 208 подтянутся сами, отдельного кода не надо.
 
 ### C5. Перетаскивание за любое свободное место
@@ -189,7 +189,7 @@ private async Task CaptureFullscreenAsync()
 
 **Широкая миниатюра.** `Image Stretch="UniformToFill"` (`:247`) режет 3840×1125 (3.41) в коробке 168×78 (2.15) по бокам, а эталон показывает оба монитора целиком. Тем же `DataTrigger` по `Kind=Fullscreen` ставить `Stretch="Uniform"`.
 
-**`prompt.md`.** Отдельного кода не нужно: `PromptGenerator` уже пишет `Снимок {буква} — {Title}.` (`src/SnapBrief.Core/Exporting/PromptGenerator.cs:31-37`). При `Title = "весь экран"` получается «Снимок C — весь экран.», при `Title = "IMG_0512.png"` — «Снимок D — IMG_0512.png.», дальше комментарии как обычно. Импорт заполняет `Title = Path.GetFileName(path)` в `ImportFileAsync` (`:1060`) и `Kind = CaptureKind.Import`.
+**`prompt.md`.** Отдельного кода не нужно: `PromptGenerator` уже пишет `Снимок {буква} — {Title}.` (`src/Snapik.Core/Exporting/PromptGenerator.cs:31-37`). При `Title = "весь экран"` получается «Снимок C — весь экран.», при `Title = "IMG_0512.png"` — «Снимок D — IMG_0512.png.», дальше комментарии как обычно. Импорт заполняет `Title = Path.GetFileName(path)` в `ImportFileAsync` (`:1060`) и `Kind = CaptureKind.Import`.
 
 **Название клавиши.** `HotkeySettingsWindow.xaml:43` и `:44`: «Скриншот всего экрана в папку» → «Снимок всего экрана». Пара в `UiLanguage.cs:47` и строка проверки в `SmokeTestRunner.cs:339` — заменить, старую пару удалить. Чип «Предложить: Print Screen» и выключенное по умолчанию состояние не трогаем.
 
@@ -208,7 +208,7 @@ private async Task CaptureFullscreenAsync()
 
 **Абзац «Изменение формата» (черновик для `tasks/verification.md`):**
 
-> **Изменение формата (session.json, prompt.md).** У `CaptureItem` в `SnapBrief.Core` появляются два поля-`init` со значениями по умолчанию, рядом с существующим `Sent`: `CaptureKind Kind` (enum `Region` | `Fullscreen` | `Import`, по умолчанию `Region`, в JSON строкой camelCase: `"region"`, `"fullscreen"`, `"import"`) и `int MonitorCount` (по умолчанию 0 — «неизвестно»; заполняется только у `Fullscreen` числом мониторов на момент снимка). Поля-`init`, а не параметры конструктора: старые `session.json` без `kind`/`monitorCount` читаются как `Region`/0, `SchemaVersion` остаётся 1, миграция не нужна. Заодно начинает использоваться давно существующее поле `title`: у снимка всего экрана туда пишется литерал `весь экран`, у импорта — имя файла (`IMG_0512.png`), у снимка области оно остаётся пустым. `title` кладёт и читает `CaptureItem.ToCore`/`FromCore` в `EditorModels.cs` (раньше писался `string.Empty` и не читался). Следствие для `prompt.md`: снимок всего экрана и импортированный файл теперь дают строку «Снимок C — весь экран.» / «Снимок D — IMG_0512.png.» даже без комментариев, тогда как раньше снимок без заметок в текст не попадал вовсе (`PromptGenerator.cs:26`). Литерал `весь экран` пишется по-русски всегда и через `UiLanguage` не проходит: `prompt.md` русский целиком. `SessionValidation` новые поля не проверяет; `MonitorCount < 0` при чтении приводится к 0. Mac переносит: `CaptureItem` в `SnapBriefCore/Models/CaptureItem.swift`, кодирование в `SnapBriefJson.swift`, заполнение title/kind в местах добавления снимка.
+> **Изменение формата (session.json, prompt.md).** У `CaptureItem` в `Snapik.Core` появляются два поля-`init` со значениями по умолчанию, рядом с существующим `Sent`: `CaptureKind Kind` (enum `Region` | `Fullscreen` | `Import`, по умолчанию `Region`, в JSON строкой camelCase: `"region"`, `"fullscreen"`, `"import"`) и `int MonitorCount` (по умолчанию 0 — «неизвестно»; заполняется только у `Fullscreen` числом мониторов на момент снимка). Поля-`init`, а не параметры конструктора: старые `session.json` без `kind`/`monitorCount` читаются как `Region`/0, `SchemaVersion` остаётся 1, миграция не нужна. Заодно начинает использоваться давно существующее поле `title`: у снимка всего экрана туда пишется литерал `весь экран`, у импорта — имя файла (`IMG_0512.png`), у снимка области оно остаётся пустым. `title` кладёт и читает `CaptureItem.ToCore`/`FromCore` в `EditorModels.cs` (раньше писался `string.Empty` и не читался). Следствие для `prompt.md`: снимок всего экрана и импортированный файл теперь дают строку «Снимок C — весь экран.» / «Снимок D — IMG_0512.png.» даже без комментариев, тогда как раньше снимок без заметок в текст не попадал вовсе (`PromptGenerator.cs:26`). Литерал `весь экран` пишется по-русски всегда и через `UiLanguage` не проходит: `prompt.md` русский целиком. `SessionValidation` новые поля не проверяет; `MonitorCount < 0` при чтении приводится к 0. Mac переносит: `CaptureItem` в `SnapikCore/Models/CaptureItem.swift`, кодирование в `SnapikJson.swift`, заполнение title/kind в местах добавления снимка.
 
 Приложение: в `EditorModels.cs` у `CaptureItem` появляются `Kind`, `MonitorCount`, `Title` (все с `OnPropertyChanged` — чип и подпись на них смотрят); все три обязаны попасть в `DeepClone()` (`:223-230`), `Snapshot()`/`Restore()` (`:221`, `:254-262`, а значит и в `record CaptureSnapshot`, `:268`), `ToCore()`, `FromCore()`. Правило «новое поле модели обязано попасть в клон» — из `tasks/tz-002-plan.md` п. 19.
 
@@ -272,22 +272,22 @@ public static BitmapSource LoadBitmap(string path)
 
 Только на новую логику, UI-тестов не пишем.
 
-`tests/SnapBrief.App.Imaging.Tests/StripResizeGeometryTests.cs`:
+`tests/Snapik.App.Imaging.Tests/StripResizeGeometryTests.cs`:
 
 1. `The_panel_keeps_its_width_when_the_shadow_field_grows` — `MinimumWidth - 2 * ShadowMargin == MinimumPanelWidth` (244 − 40 = 204) и `DefaultWidth == MinimumWidth`.
 2. `A_width_saved_by_an_older_version_is_lifted_to_the_minimum` — `ClampWidth(208, 1920) == 244`, `ClampWidth(400, 1920) == 400`.
 3. `The_card_fits_the_list` — вспомогательный `CardWidth(windowWidth) = windowWidth − 2*ShadowMargin − 2*ShellPadding − 2*ListPadding`: при 244 даёт 168.
 4. Существующие тесты `WidthFromStart`/`ListHeightFromStart` перечитать: они написаны на числах 260/1920 и от констант не зависят, кроме `MinimumWidth` в `[InlineData]` (`:18`) — там `nameof`-ссылка на константу, менять не надо.
 
-`tests/SnapBrief.Core.Tests/` (новый файл `CaptureKindTests.cs` или строки в существующий):
+`tests/Snapik.Core.Tests/` (новый файл `CaptureKindTests.cs` или строки в существующий):
 
 5. `An_old_session_without_a_kind_reads_as_a_region` — десериализовать JSON снимка без `kind`/`monitorCount`, ожидать `CaptureKind.Region` и `0`.
 6. `The_kind_round_trips_as_a_camel_case_string` — сериализовать `Fullscreen` → `"fullscreen"`, прочитать назад.
 7. `A_screen_capture_names_itself_in_the_prompt` — `PromptGenerator` на снимке с `Title = "весь экран"` и без заметок даёт строку `Снимок A — весь экран.`; на снимке с пустым `Title` и без заметок — пустой результат (регресс на `PromptGenerator.cs:26`).
 
-`tests/SnapBrief.App.Imaging.Tests/` (копирование битмапа, C9):
+`tests/Snapik.App.Imaging.Tests/` (копирование битмапа, C9):
 
-8. `An_imported_frame_encodes_on_a_background_thread` — записать временный PNG и JPG, `SessionWorkspace.LoadBitmap`, затем `await Task.Run(() => { var e = new PngBitmapEncoder(); e.Frames.Add(BitmapFrame.Create(loaded)); e.Save(Stream.Null); })` — раньше кидало `InvalidOperationException`. Тест ставится в STA-проект `SnapBrief.App.Imaging.Tests`, там уже есть WPF-зависимости.
+8. `An_imported_frame_encodes_on_a_background_thread` — записать временный PNG и JPG, `SessionWorkspace.LoadBitmap`, затем `await Task.Run(() => { var e = new PngBitmapEncoder(); e.Frames.Add(BitmapFrame.Create(loaded)); e.Save(Stream.Null); })` — раньше кидало `InvalidOperationException`. Тест ставится в STA-проект `Snapik.App.Imaging.Tests`, там уже есть WPF-зависимости.
 9. `A_copied_frame_keeps_its_size_and_is_frozen` — размеры и `IsFrozen` совпадают с исходником.
 
 ---
@@ -303,9 +303,9 @@ public static BitmapSource LoadBitmap(string path)
 
 ## 5. Файлы зоны C
 
-`src/SnapBrief.App/EdgeStackWindow.xaml`, `EdgeStackWindow.xaml.cs`, `EdgeStackWindow.Saving.cs`, `Controls/StripResizeGeometry.cs`, `SessionWorkspace.cs`, `WpfExportImageRenderer.cs`, `HotkeySettingsWindow.xaml` (+`.xaml.cs`, только текст названия клавиши).
+`src/Snapik.App/EdgeStackWindow.xaml`, `EdgeStackWindow.xaml.cs`, `EdgeStackWindow.Saving.cs`, `Controls/StripResizeGeometry.cs`, `SessionWorkspace.cs`, `WpfExportImageRenderer.cs`, `HotkeySettingsWindow.xaml` (+`.xaml.cs`, только текст названия клавиши).
 
-Общие с другими дорожками: `UiLanguage.cs` (все дорожки дописывают строки в свои места таблицы, конфликт мержа не по одной строке), `SmokeTestRunner.cs`, `EditorModels.cs` (дорожка D правит `AnnotationItem`, я — `CaptureItem`; разные классы одного файла), `src/SnapBrief.Core/Models/CaptureItem.cs` (только я), `Themes/Palettes/*.xaml` (токены ползунка — дорожка B), `tests/`, `tasks/verification.md`. `App.xaml.cs` не трогаю.
+Общие с другими дорожками: `UiLanguage.cs` (все дорожки дописывают строки в свои места таблицы, конфликт мержа не по одной строке), `SmokeTestRunner.cs`, `EditorModels.cs` (дорожка D правит `AnnotationItem`, я — `CaptureItem`; разные классы одного файла), `src/Snapik.Core/Models/CaptureItem.cs` (только я), `Themes/Palettes/*.xaml` (токены ползунка — дорожка B), `tests/`, `tasks/verification.md`. `App.xaml.cs` не трогаю.
 
 ---
 
@@ -325,7 +325,7 @@ public static BitmapSource LoadBitmap(string path)
 
 - **C1, отключённая виртуализация.** 26 карточек с `DropShadowEffect` каждая — 26 живых эффектов вместо ~8. `DropShadowEffect` на GPU дешёвый, но замерить прокрутку на 125 % в приёмке (F6).
 - **C1, `CanContentScroll="False".`** Прокрутка становится попиксельной; `OnCaptureListMouseDown`/`MouseMove` (`:1712-1725`) используют `e.GetPosition(CaptureList)` — координаты те же, перетаскивание карточек не ломается, но проверить перенос карточки при прокрученном списке.
-- **C4.** Заголовок «SnapBrief 26» на границе 96 px, см. §C4.
+- **C4.** Заголовок «Snapik 26» на границе 96 px, см. §C4.
 - **C6.** Смена `MinimumWidth` с 200 на 244 сдвигает ленту у всех, кто тянул её вручную; сохранённая ширина поднимется, панель при этом станет на 20 px уже, чем была. Ожидаемо, но Катя это заметит — назвать в письме.
 - **C8.** Снимок экрана перестаёт писаться в папку при выключенном автосохранении (§C8).
 - **C9.** `WriteableBitmap(BitmapSource)` для индексированных форматов (GIF, 8-битный BMP) держит палитру — проверить импортом GIF и 8-битного PNG в приёмке (F10).
@@ -354,13 +354,13 @@ public static BitmapSource LoadBitmap(string path)
 
 Зеркалить после того, как Windows-часть закоммичена (`macos/SYNC.md`, диффом от очередного `mac-sync-base-N`).
 
-**Core (`macos/Sources/SnapBriefCore/`):**
+**Core (`macos/Sources/SnapikCore/`):**
 - `Models/CaptureItem.swift` — `enum CaptureKind { case region, fullscreen, `import` }` (raw values `"region"`, `"fullscreen"`, `"import"`), поля `kind` (default `.region`), `monitorCount` (default 0); `title` начинает заполняться.
-- `Serialization/SnapBriefJson.swift` — декодирование с `decodeIfPresent` и дефолтами, чтобы старые `session.json` читались; ключи camelCase, как на Windows.
+- `Serialization/SnapikJson.swift` — декодирование с `decodeIfPresent` и дефолтами, чтобы старые `session.json` читались; ключи camelCase, как на Windows.
 - `Exporting/PromptGenerator.swift` — кода не меняет, но получает новое поведение через `title`; тест на «Снимок A — весь экран.» перенести.
 - `Models/SessionValidation.swift` — новые поля не валидирует, `monitorCount < 0` → 0.
 
-**`macos/Sources/SnapBriefMac/Stack/`:**
+**`macos/Sources/SnapikMac/Stack/`:**
 - `StackMetrics.swift` — `width` 208 → 244, добавить `shadowMargin = 20`, `panelWidth = 204`, `cardWidth = 168`, `listPadding = (8, 14, 8, 52)`, `edgeGap = 0`; `cardHeight 78`, `cardOverlap 48`, `cardStep 30`, `listMaxHeight 372` без изменений.
 - `EdgeStackContentView.swift` — порядок карточек (новая поверх старой: на AppKit это порядок `subviews`, последняя рисуется сверху; аналог снятия `Panel.ZIndex`), полоса подписи наверх карточки, тень карточки вверх (`shadowOffset` с положительным `height` в координатах AppKit), пустая лента 92 px с подсказкой, чип «экран» по `kind == .fullscreen`, широкая миниатюра (`.resizeAspect` вместо `.resizeAspectFill`).
 - `ThumbnailCardView.swift` — чип, полоса сверху, тень, снятие правого поля 8 в пользу паддинга списка.

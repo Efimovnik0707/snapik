@@ -9,12 +9,12 @@
 |---|---|---|---|
 | W0-9 | TFM `net10.0-windows10.0.26100.0`, явный `SupportedOSPlatformVersion` 10.0.17763.0 | `96c9e16` | Сборка на локальном SDK 10.0.400 зелёная, ref-пак `microsoft.windows.sdk.net.ref/10.0.26100.57` встал; `TaskbarManager`, `RequestPinCurrentAppAsync`, `IsPinningAllowed`, `IsCurrentAppPinnedAsync` есть в ref-сборке |
 | W0-1 | Семь словарей `Themes/Palettes/*` по 14 ключей, третий слот в `App.xaml`, `ThemeService`: `Themes`, `NormalizeTheme`, `LoadTheme`, `Load` → `LoadAccent`, `CurrentTheme` больше не константа | `37c89e1` | Smoke: наборы ключей всех семи словарей совпадают; `Apply("sea", …)` даёт `SurfaceBrush` как `LinearGradientBrush` со стопами `#163A44` и `#1B3A2C`, словарь палитры в `MergedDictionaries` ровно один; неизвестная тема гасится в `dark` |
-| W0-2 | `SnapBriefTheme.xaml` без собственных цветов: старые светлые брашы удалены, ссылки на `DynamicResource`, стиль `SegmentButton` переехал из мастера | `7d196de` | Smoke: ни один ключ палитры не объявлен в базовом словаре. Галочка `MenuItem` и рамка нажатого `ToolButton` идут акцентом (`AccentTextBrush`) |
+| W0-2 | `SnapikTheme.xaml` без собственных цветов: старые светлые брашы удалены, ссылки на `DynamicResource`, стиль `SegmentButton` переехал из мастера | `7d196de` | Smoke: ни один ключ палитры не объявлен в базовом словаре. Галочка `MenuItem` и рамка нажатого `ToolButton` идут акцентом (`AccentTextBrush`) |
 | W0-2b | `CaptureOverlay`, `SavePackageWindow`, `DiscardSessionWindow` прибиты к тёмным значениям | `616af6f` | Оба диалога уже писали цвета литералами; у оверлея выделения наследовался только `Foreground`, теперь задан явно |
 | W0-3 | Восемь словарей акцента: значения четырёх приведены к ТЗ, четыре градиентных добавлены, во всех восьми `AccentFlatColor` | `8aab5f3` | Smoke: наборы ключей всех восьми совпадают; `blue-violet` даёт `LinearGradientBrush`, `AccentFlatColor` равен первому стопу |
 | W0-4 | `AccentPalette` с единственным фолбэком и замороженными клонами; smoke перестал кастовать акцент в `SolidColorBrush` | `502b6a2` | Smoke: по всем восьми акцентам `Brush`, `Pen`, `Wash` заморожены и не являются ресурсом словаря |
 | W0-5 | `Theme` пишется в `OnSave` и в `MutateSettings`, объявлен `CustomPaletteColors` с обрезкой до 12 и отсевом невалидного hex | `6c7fca9` | Smoke: round-trip настроек прежний, `SettingsVersion` остался 1 |
-| W0-8 | `HotkeyRules`: `IsSystemReserved`, `SameGesture`, `SuggestFree`, без зависимости от `HotkeySettings` | `2cbe498` | 21 новый тест в `tests/SnapBrief.App.Imaging.Tests`: Win+S, Alt+Tab, Alt+F4, Ctrl+Esc, Ctrl+Alt+Del зарезервированы; голый PrintScreen и голый Pause разрешены; `print-screen` и `custom:0:44` это одно сочетание; `SuggestFree` пропускает занятое и отдаёт `null`, когда занято всё |
+| W0-8 | `HotkeyRules`: `IsSystemReserved`, `SameGesture`, `SuggestFree`, без зависимости от `HotkeySettings` | `2cbe498` | 21 новый тест в `tests/Snapik.App.Imaging.Tests`: Win+S, Alt+Tab, Alt+F4, Ctrl+Esc, Ctrl+Alt+Del зарезервированы; голый PrintScreen и голый Pause разрешены; `print-screen` и `custom:0:44` это одно сочетание; `SuggestFree` пропускает занятое и отдаёт `null`, когда занято всё |
 | W0-6 | `Controls/AppearancePicker` по контракту раздела 3 плана | `1b9fe9c` | Smoke-проба `RunProbe()`: контрол строится без ошибок биндинга, 7 карточек и 8 кружков, карточка «Море» показывает морской градиент, стоя на тёмной теме, клик по ней немедленно перекрашивает приложение, шеврон листает галерею, имена тем следуют языку |
 | — | `Apply` называет второй параметр `accent`, как в контракте | `c5ea2c3` | Именованный аргумент из дорожек компилируется |
 | W0-7 | Эти заметки | этот коммит | — |
@@ -39,7 +39,7 @@
 параметров и порядок совпадают с контрактом.
 
 - **Проверка дублей ключей легла в коммит W0-2, а не W0-1.** DoD W0-1 требует, чтобы smoke проверял
-  и совпадение наборов ключей палитр, и отсутствие дублей между палитрой и `SnapBriefTheme.xaml`.
+  и совпадение наборов ключей палитр, и отсутствие дублей между палитрой и `SnapikTheme.xaml`.
   Пока базовый словарь не разобран (это и есть W0-2), дубли `HoverBrush`, `PressedBrush` и
   `DangerBrush` существуют, и такая проверка уронила бы собственный коммит W0-1. Порядок задач
   сохранён, проверка добавлена там, где она впервые может быть зелёной.

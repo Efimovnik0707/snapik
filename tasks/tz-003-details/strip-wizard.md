@@ -1,6 +1,6 @@
 # План по ТЗ №3, зона: пункт 3 (ширина и высота ленты) и пункт 4 (слайды мастера)
 
-Код сверялся с HEAD `8868c28` (1.3.0), все ссылки file:line по нему. Правила `AGENTS.md` действуют: новые строки UI только парой RU/EN в `src/SnapBrief.App/UiLanguage.cs`, изменения поведения форматов отдельным абзацем в `tasks/verification.md`, один коммит на законченную правку, `macos/` не трогать. Незакоммиченные `site/`, `.impeccable/`, `DESIGN.md`, `SESSION_LOG.md` вне зоны.
+Код сверялся с HEAD `8868c28` (1.3.0), все ссылки file:line по нему. Правила `AGENTS.md` действуют: новые строки UI только парой RU/EN в `src/Snapik.App/UiLanguage.cs`, изменения поведения форматов отдельным абзацем в `tasks/verification.md`, один коммит на законченную правку, `macos/` не трогать. Незакоммиченные `site/`, `.impeccable/`, `DESIGN.md`, `SESSION_LOG.md` вне зоны.
 
 В зону входят пункты 3 и 4 ТЗ №3. Пункты 1, 2, 5, 6 (редактор) в этот план не входят.
 
@@ -8,7 +8,7 @@
 
 ### 1.1. П.3: где именно стоят потолки
 
-Вся геометрия ленты лежит в `src/SnapBrief.App/Controls/StripResizeGeometry.cs`, окно ею пользуется в трёх местах.
+Вся геометрия ленты лежит в `src/Snapik.App/Controls/StripResizeGeometry.cs`, окно ею пользуется в трёх местах.
 
 Числовые потолки, их ровно четыре константы:
 
@@ -80,7 +80,7 @@
 
 Правильное лечение обеих бед сразу: убрать автопереход с `Completed` и вести его отдельным `DispatcherTimer` с интервалом из `Duration` сториборда. У таймера `Stop()` синхронный, отложенных тиков не остаётся, гонка исчезает по построению, а «ручное действие останавливает автопрокрутку» становится одной строкой.
 
-**Шевроны и точки.** Обработчики привязаны: `Click="OnPreviousSlide"`, `Click="OnNextSlide"` (`HowToSlides.xaml:438-445`), `Click="OnDot"` на всех четырёх точках (`:476-479`), сами обработчики на месте (`HowToSlides.xaml.cs:151-159`). Кнопки хит-тестируются: стиль `SlideIconButton` ставит `Background="Transparent"` (`HowToSlides.xaml:10`), шаблон `BaseButton` кладёт его на `Border` (`Themes/SnapBriefTheme.xaml:48`), так что кликается вся площадка 28x28, а не только штрих глифа. То есть «шевроны не кликаются» технически неверно, но они стоят `Margin="-34,0,0,0"` и `Margin="0,0,-34,0"`, то есть **за пределами** рамки картинки, в пустоте, и на кнопки не похожи. Плюс на краях они ничем не отличаются от рабочих. Отсюда ощущение «слайдер не работает». Правка: подвинуть шевроны на край самой рамки и гасить их `IsEnabled` на краях.
+**Шевроны и точки.** Обработчики привязаны: `Click="OnPreviousSlide"`, `Click="OnNextSlide"` (`HowToSlides.xaml:438-445`), `Click="OnDot"` на всех четырёх точках (`:476-479`), сами обработчики на месте (`HowToSlides.xaml.cs:151-159`). Кнопки хит-тестируются: стиль `SlideIconButton` ставит `Background="Transparent"` (`HowToSlides.xaml:10`), шаблон `BaseButton` кладёт его на `Border` (`Themes/SnapikTheme.xaml:48`), так что кликается вся площадка 28x28, а не только штрих глифа. То есть «шевроны не кликаются» технически неверно, но они стоят `Margin="-34,0,0,0"` и `Margin="0,0,-34,0"`, то есть **за пределами** рамки картинки, в пустоте, и на кнопки не похожи. Плюс на краях они ничем не отличаются от рабочих. Отсюда ощущение «слайдер не работает». Правка: подвинуть шевроны на край самой рамки и гасить их `IsEnabled` на краях.
 
 **Фокус.** Контрол не фокусируемый, клавиши ловит окно (`OnboardingWindow.OnPreviewKeyDown`). Пока окно активно, это работает, но если активация не пришла (случай трея выше), не работает ничего. Правка: `Focusable="True"`, `IsTabStop="False"`, и `ShowStep` на последнем шаге ставит фокус в контрол.
 
@@ -120,22 +120,22 @@
 
 **П.3, лента:**
 
-- `src/SnapBrief.App/Controls/StripResizeGeometry.cs` (константы `:13-25`, `ClampWidth` `:36-37`, `Resize` `:43-48`, `ClampListHeight` `:56-63`, `ResizeListHeight` `:71-78`, комментарии про диапазоны переписать под новое правило).
-- `src/SnapBrief.App/EdgeStackWindow.xaml.cs` (`PositionAtEdge` `:606-622`: новый вызов `ClampWidth(_settings.StackWidth, work.Width)` и `EdgeGap` вместо `10` на `:617`).
-- `src/SnapBrief.App/HotkeySettingsWindow.xaml.cs` (док-комментарий `StackHeight` `:33-37` говорит «180..720», переписать).
-- `tests/SnapBrief.App.Imaging.Tests/StripResizeGeometryTests.cs` (все тесты, где фигурируют `MaximumWidth` и `MaximumListHeight`: `:15-24`, `:53-57`, `:68-79`, `:94-100`).
+- `src/Snapik.App/Controls/StripResizeGeometry.cs` (константы `:13-25`, `ClampWidth` `:36-37`, `Resize` `:43-48`, `ClampListHeight` `:56-63`, `ResizeListHeight` `:71-78`, комментарии про диапазоны переписать под новое правило).
+- `src/Snapik.App/EdgeStackWindow.xaml.cs` (`PositionAtEdge` `:606-622`: новый вызов `ClampWidth(_settings.StackWidth, work.Width)` и `EdgeGap` вместо `10` на `:617`).
+- `src/Snapik.App/HotkeySettingsWindow.xaml.cs` (док-комментарий `StackHeight` `:33-37` говорит «180..720», переписать).
+- `tests/Snapik.App.Imaging.Tests/StripResizeGeometryTests.cs` (все тесты, где фигурируют `MaximumWidth` и `MaximumListHeight`: `:15-24`, `:53-57`, `:68-79`, `:94-100`).
 
 **П.4, слайды и мастер:**
 
-- `src/SnapBrief.App/Controls/HowToSlides.xaml.cs` (конструктор `:43-57`, `Start` `:71-76`, `Stop` `:83-87`, `ShowSlide` `:90-102`, `NextSlide`/`PreviousSlide` `:104-106`, `Play` `:122-130`, `OnSlideCompleted` `:145-149`, обработчики `:151-159`, `RunSlidesProbe` `:162-181`).
-- `src/SnapBrief.App/Controls/HowToSlides.xaml` (`Focusable`/`IsTabStop` на корне, поля шевронов `:438`, `:442`).
-- `src/SnapBrief.App/OnboardingWindow.xaml.cs` (`ShowStep` `:130-153`, `OnPreviewKeyDown` `:157-166`).
-- `src/SnapBrief.App/EdgeStackWindow.xaml.cs` (пункт трея `:140`, `ShowOnboarding` `:1012-1026`, `HideForCapture` `:547-553`, `OnHotkey` `:258-262`, `CaptureLoopAsync` `:486-519`, `SuspendTopmost` `:815-822`).
-- `src/SnapBrief.App/Controls/HotkeyField.xaml.cs` (`RecordKey` `:99-112`, подписи `:17-18`, `Refresh` `:49`).
-- `src/SnapBrief.App/HotkeySettingsWindow.xaml.cs` (`Find` `:220-239`).
-- `src/SnapBrief.App/UiLanguage.cs` (новая пара RU/EN рядом с `:30`).
-- `src/SnapBrief.App/SmokeTestRunner.cs` (`:199-220` и `VerifyHowToOnlyWizard` `:581-608`).
-- `tests/SnapBrief.App.Imaging.Tests/` (новый файл `HotkeyChoiceTests.cs`).
+- `src/Snapik.App/Controls/HowToSlides.xaml.cs` (конструктор `:43-57`, `Start` `:71-76`, `Stop` `:83-87`, `ShowSlide` `:90-102`, `NextSlide`/`PreviousSlide` `:104-106`, `Play` `:122-130`, `OnSlideCompleted` `:145-149`, обработчики `:151-159`, `RunSlidesProbe` `:162-181`).
+- `src/Snapik.App/Controls/HowToSlides.xaml` (`Focusable`/`IsTabStop` на корне, поля шевронов `:438`, `:442`).
+- `src/Snapik.App/OnboardingWindow.xaml.cs` (`ShowStep` `:130-153`, `OnPreviewKeyDown` `:157-166`).
+- `src/Snapik.App/EdgeStackWindow.xaml.cs` (пункт трея `:140`, `ShowOnboarding` `:1012-1026`, `HideForCapture` `:547-553`, `OnHotkey` `:258-262`, `CaptureLoopAsync` `:486-519`, `SuspendTopmost` `:815-822`).
+- `src/Snapik.App/Controls/HotkeyField.xaml.cs` (`RecordKey` `:99-112`, подписи `:17-18`, `Refresh` `:49`).
+- `src/Snapik.App/HotkeySettingsWindow.xaml.cs` (`Find` `:220-239`).
+- `src/Snapik.App/UiLanguage.cs` (новая пара RU/EN рядом с `:30`).
+- `src/Snapik.App/SmokeTestRunner.cs` (`:199-220` и `VerifyHowToOnlyWizard` `:581-608`).
+- `tests/Snapik.App.Imaging.Tests/` (новый файл `HotkeyChoiceTests.cs`).
 
 ## 4. Порядок коммитов
 
@@ -197,7 +197,7 @@
 
 ## 7. Строки RU/EN
 
-Новая пара одна, в `src/SnapBrief.App/UiLanguage.cs` рядом с существующими подписями поля клавиши (`:30`):
+Новая пара одна, в `src/Snapik.App/UiLanguage.cs` рядом с существующими подписями поля клавиши (`:30`):
 
 - `["Добавь Ctrl, Alt или Shift"] = "Add Ctrl, Alt or Shift"`
 

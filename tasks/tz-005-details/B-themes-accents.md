@@ -39,7 +39,7 @@
 
 Ключи (одинаковые во всех семи): `SurfaceBrush`, `SurfaceBarBrush`, `SurfaceLineBrush`, `ElevatedBrush`, `ElevatedLineBrush`, `HoverBrush`, `PressedBrush`, `DividerBrush`, `TextBrush`, `TextMutedBrush`, `TextFaintBrush`, `ShadowColor`, `ShadowOpacity`, `DangerBrush`.
 
-`Page`-элементы WPF подхватываются SDK по умолчанию (в `SnapBrief.App.csproj` нет ни одного явного `<Page Include>` для палитр, `:32` только исключает `MainWindow.xaml`), поэтому удаление `Light.xaml` — это удаление файла, csproj не трогается.
+`Page`-элементы WPF подхватываются SDK по умолчанию (в `Snapik.App.csproj` нет ни одного явного `<Page Include>` для палитр, `:32` только исключает `MainWindow.xaml`), поэтому удаление `Light.xaml` — это удаление файла, csproj не трогается.
 
 ### 2.2. Полная таблица значений шести тем
 
@@ -88,7 +88,7 @@
 
 **Рекомендация:** вариант Б — он чинит заодно порог правила громкости и оставляет в файле то, что на экране. Вариант А допустим, если раунд не хочет трогать `SettingsVersion`.
 
-**Тест.** Только для варианта Б и только юнит-тест в `tests/SnapBrief.App.Imaging.Tests/SettingsMigrationTests.cs` (файл линкуется исходником, WPF не нужен): `light` при версии 0 и 1 → `dark`; `sea` не трогается; `light` при версии 2 не трогается; и отдельно — громкость 60 при версии 1 остаётся 60. Вариант А тестировать нечем: поведение уже покрыто smoke `SmokeTestRunner.cs:206-208` («тема, на которую ничто не отзывается, гаснет в тёмную»).
+**Тест.** Только для варианта Б и только юнит-тест в `tests/Snapik.App.Imaging.Tests/SettingsMigrationTests.cs` (файл линкуется исходником, WPF не нужен): `light` при версии 0 и 1 → `dark`; `sea` не трогается; `light` при версии 2 не трогается; и отдельно — громкость 60 при версии 1 остаётся 60. Вариант А тестировать нечем: поведение уже покрыто smoke `SmokeTestRunner.cs:206-208` («тема, на которую ничто не отзывается, гаснет в тёмную»).
 
 ### 2.5. Где ещё в коде `light` и список тем по имени
 
@@ -159,14 +159,14 @@
 - `AppearancePicker.xaml.cs:356` (`RunProbe`) — `is not LinearGradientBrush` после применения `sea`; от смены «Стекла» не зависит.
 - `SmokeTestRunner.cs:201-205` — то же для `sea`. `:207` — `is not SolidColorBrush` после `Apply("nothing-like-a-theme")`, то есть по фолбэку `dark`, который остаётся сплошным. Обе живут.
 - `SmokeTestRunner.cs:866-882` — тень оболочки ленты через `XamlReader.Parse`; `:876` сравнивает `shell.Background` с ресурсом по ссылке, `:881` требует `LinearGradientBrush` после цикла, заканчивающегося на `sea`. Живёт.
-- **Экспорт PNG** (`FileExportService.cs`, `SnapBrief.Core`) токенов темы не читает вообще — grep по `Surface|Elevated|Shadow` пуст. Рендер берёт только акцент через `AccentPalette`. Падать нечему.
+- **Экспорт PNG** (`FileExportService.cs`, `Snapik.Core`) токенов темы не читает вообще — grep по `Surface|Elevated|Shadow` пуст. Рендер берёт только акцент через `AccentPalette`. Падать нечему.
 
 Что поменяется по виду, а не упадёт:
 
 - **Капсула** `EdgeStackWindow.xaml:337-338` красится `SurfaceBrush` и имеет 44 px по высоте против ~420 у ленты. `LinearGradientBrush` в WPF относителен границам элемента (`MappingMode="RelativeToBoundingBox"` по умолчанию), поэтому в капсуле уместится весь трёхстоповый переход, а не его кусок. У `Night` / `Sea` / `Sunset` / `Dawn` это уже так с 1.4.0 — поведение не новое, но на «Стекле» разница заметнее: три стопа вместо двух. Проверять глазами по пункту 12 чек-листа F.
 - **Поповеры редактора** (`OverlayEditorWindow.xaml:261, 282, 322, 354, 377, 401`) и тултипы (`EdgeStackWindow.xaml:67`) — то же самое, каждый со своим градиентом по своим границам.
-- **`Window.Background`** через базовый стиль `Themes/SnapBriefTheme.xaml:13` и явно у `OnboardingWindow.xaml:3` — градиент по границам окна, как на `dawn` сегодня.
-- **`ContextMenu`** `Themes/SnapBriefTheme.xaml:141` — то же.
+- **`Window.Background`** через базовый стиль `Themes/SnapikTheme.xaml:13` и явно у `OnboardingWindow.xaml:3` — градиент по границам окна, как на `dawn` сегодня.
+- **`ContextMenu`** `Themes/SnapikTheme.xaml:141` — то же.
 
 Отдельно: **смоук не ловит подмену `SurfaceBrush` сплошным** ни в одной теме, кроме `sea` и фолбэка. Добавить проверку по §8.
 
@@ -294,7 +294,7 @@ internal static bool IsGradientAccent(string? accentId) =>
 
 Только на новую логику; старое не дублировать.
 
-**Юнит-тест** — `tests/SnapBrief.App.Imaging.Tests/SettingsMigrationTests.cs`, только при варианте Б (§2.4): `light` при версии 0 и 1 → `dark`; известная тема не трогается; `light` при версии 2 не трогается; громкость 60 при версии 1 остаётся 60 (регресс порога).
+**Юнит-тест** — `tests/Snapik.App.Imaging.Tests/SettingsMigrationTests.cs`, только при варианте Б (§2.4): `light` при версии 0 и 1 → `dark`; известная тема не трогается; `light` при версии 2 не трогается; громкость 60 при версии 1 остаётся 60 (регресс порога).
 
 **Smoke, `SmokeTestRunner.cs`:**
 
@@ -314,12 +314,12 @@ internal static bool IsGradientAccent(string? accentId) =>
 
 Только мои:
 
-- `src/SnapBrief.App/Themes/Palettes/Light.xaml` — удалить
-- `src/SnapBrief.App/Themes/Palettes/Glass.xaml` — переписать
-- `src/SnapBrief.App/Themes/Palettes/{Dark,Night,Sunset,Sea,Dawn}.xaml` — только комментарий в шапке (`:4`)
-- `src/SnapBrief.App/Themes/Accents/{Rose,Cyan,RoseViolet,CyanBlue}.xaml` — новые
-- `src/SnapBrief.App/SettingsMigration.cs` — правило темы и порог правила громкости (вариант Б)
-- `tests/SnapBrief.App.Imaging.Tests/SettingsMigrationTests.cs` — тест миграции (вариант Б)
+- `src/Snapik.App/Themes/Palettes/Light.xaml` — удалить
+- `src/Snapik.App/Themes/Palettes/Glass.xaml` — переписать
+- `src/Snapik.App/Themes/Palettes/{Dark,Night,Sunset,Sea,Dawn}.xaml` — только комментарий в шапке (`:4`)
+- `src/Snapik.App/Themes/Accents/{Rose,Cyan,RoseViolet,CyanBlue}.xaml` — новые
+- `src/Snapik.App/SettingsMigration.cs` — правило темы и порог правила громкости (вариант Б)
+- `tests/Snapik.App.Imaging.Tests/SettingsMigrationTests.cs` — тест миграции (вариант Б)
 
 Общие с другими дорожками (координировать, чтобы не разъехались при merge):
 
@@ -337,7 +337,7 @@ internal static bool IsGradientAccent(string? accentId) =>
 
 ## 10. Перенос на macOS
 
-Mac-порт стоит на `mac-sync-base-1` и тем не знает вовсе: `macos/Sources/SnapBriefMac/App/Theme.swift` (67 строк) — это два плоских перечисления `LightTheme` и `DarkPalette`, собранные из литералов старой разметки Windows; `ThemeService`, словарей палитр и акцентов там нет, ключей `theme` / `accentId` в `macos/Sources/SnapBriefMac/Settings/*.swift` нет (grep пуст). Тем и акцентов Mac не догнал ещё с прошлого раунда, зеркалить придётся всё сразу.
+Mac-порт стоит на `mac-sync-base-1` и тем не знает вовсе: `macos/Sources/SnapikMac/App/Theme.swift` (67 строк) — это два плоских перечисления `LightTheme` и `DarkPalette`, собранные из литералов старой разметки Windows; `ThemeService`, словарей палитр и акцентов там нет, ключей `theme` / `accentId` в `macos/Sources/SnapikMac/Settings/*.swift` нет (grep пуст). Тем и акцентов Mac не догнал ещё с прошлого раунда, зеркалить придётся всё сразу.
 
 Что должно уехать при ближайшей синхронизации:
 
@@ -346,5 +346,5 @@ Mac-порт стоит на `mac-sync-base-1` и тем не знает вов�
 3. **Двенадцать акцентов** — значения §5.2 и правила §5.1 (первый стоп как `AccentFlatColor`, 135° у градиентных, hover ×0.88, pressed ×0.78, soft `#55` + первый стоп, текст +37 % / +30 % к белому) и **порядок** §5.3: по нему рисуется ряд и ставится разделитель.
 4. **Признак «градиентный», а не имя** — то же правило: разделитель перед первым акцентом, чей браш градиент.
 5. **Миграция `light → dark`** и, при варианте Б, `SettingsVersion = 2` с порогом каждого правила по своей версии. Это изменение формата: Mac обязан читать и писать ту же версию, иначе файл будет мигрировать туда-сюда между платформами (AGENTS.md, правило 4).
-6. **Строки §7** — в `macos/Sources/SnapBriefCore/Settings/UiLanguage.swift` в том же порядке (`macos/SYNC.md`, правило 5), включая «Светлая · Рассвет» и «Снимок всего экрана».
+6. **Строки §7** — в `macos/Sources/SnapikCore/Settings/UiLanguage.swift` в том же порядке (`macos/SYNC.md`, правило 5), включая «Светлая · Рассвет» и «Снимок всего экрана».
 7. **B3 (acrylic)** на Mac не переносится: `NSVisualEffectView` там есть искони, но решение о настоящем стекле отложено на обеих платформах, и до него «Стекло» — обычная палитра градиента B.

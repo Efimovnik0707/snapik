@@ -16,7 +16,7 @@ The first user is Nikita, who regularly gives UI feedback to coding agents while
 
 ## Product Purpose
 
-SnapBrief turns several screenshots, visual annotations, and linked notes into one reviewable package for Claude Code and Codex. Success means the user can move from a visible issue to a correctly structured draft in the agent composer with very little interruption.
+Snapik turns several screenshots, visual annotations, and linked notes into one reviewable package for Claude Code and Codex. Success means the user can move from a visible issue to a correctly structured draft in the agent composer with very little interruption.
 
 ## Positioning
 
@@ -24,7 +24,7 @@ The product keeps screenshot-level and annotation-level notes structurally linke
 
 ## Operating Context
 
-SnapBrief runs locally on Windows 11 as a small edge stack rather than a conventional editor window. A typical session contains one to five captures from ordinary desktop applications. The user invokes capture with a global shortcut, selects and marks the frozen desktop in place, adds a compact note beside a marked region, then folds the result by clicking the dimmed backdrop, pressing Ctrl+C, or starting the next capture. Each fold updates the clipboard package. After SnapBrief observes the user paste its current package with Ctrl+V or Alt+V in another application, the pasted captures stay in the strip marked as sent: they are dimmed, carry a check instead of a letter and are excluded from the next package, while the letters and the counter follow the captures that are still waiting. A foreign clipboard copy no longer resets anything; the strip is emptied only by the explicit "clear" action or by the optional "clear the strip after pasting" setting.
+Snapik runs locally on Windows 11 as a small edge stack rather than a conventional editor window. A typical session contains one to five captures from ordinary desktop applications. The user invokes capture with a global shortcut, selects and marks the frozen desktop in place, adds a compact note beside a marked region, then folds the result by clicking the dimmed backdrop, pressing Ctrl+C, or starting the next capture. Each fold updates the clipboard package. After Snapik observes the user paste its current package with Ctrl+V or Alt+V in another application, the pasted captures stay in the strip marked as sent: they are dimmed, carry a check instead of a letter and are excluded from the next package, while the letters and the counter follow the captures that are still waiting. A foreign clipboard copy no longer resets anything; the strip is emptied only by the explicit "clear" action or by the optional "clear the strip after pasting" setting.
 
 ## Capabilities and Constraints
 
@@ -35,8 +35,8 @@ SnapBrief runs locally on Windows 11 as a small edge stack rather than a convent
 - Keep a separate note for the capture, notes linked to individual annotations, without a separate overall request field.
 - Open an anchored comment editor automatically after a rectangle is drawn. Other annotation notes and the capture note open from compact contextual actions; closing an editor removes its note while preserving the marked region.
 - Export one annotated PNG per capture plus UTF-8 Markdown and prepare a clipboard package for normal paste in the receiving application. The primary surface has no receiver picker. In Codex Desktop only, a guarded follow-up writes and pastes the matching prompt after the user's physical Ctrl+V; it never submits the request. A pasted package stays on the clipboard until the next capture or until the strip is cleared, so the same set can be pasted into several applications in a row, and the captures it held are marked as sent.
-- A pasted package is not thrown away: the captures it held are marked as sent and stay in the strip, and the package itself stays on the clipboard until the next capture rebuilds it from the captures that are still waiting or until the strip is cleared. When the current SnapBrief clipboard package was replaced or cannot be proven owned, the session is kept and stays recoverable, and unrelated clipboard content stays intact until the new capture commits.
-- The desktop shortcut starts SnapBrief when needed and reveals the already-running edge stack through single-instance activation.
+- A pasted package is not thrown away: the captures it held are marked as sent and stay in the strip, and the package itself stays on the clipboard until the next capture rebuilds it from the captures that are still waiting or until the strip is cleared. When the current Snapik clipboard package was replaced or cannot be proven owned, the session is kept and stays recoverable, and unrelated clipboard content stays intact until the new capture commits.
+- The desktop shortcut starts Snapik when needed and reveals the already-running edge stack through single-instance activation.
 - Preserve the session when capture, disk, clipboard, focus, or target delivery fails.
 - Never press Enter or submit the agent request.
 - Keep screenshots local. The application has no cloud service, AI rewriting, API key, or telemetry requirement.
@@ -45,18 +45,18 @@ SnapBrief runs locally on Windows 11 as a small edge stack rather than a convent
 
 ## Brand Commitments
 
-The working product name is SnapBrief. The interface uses a restrained macOS utility language: custom translucent charcoal surfaces, compact floating controls, soft rounded corners, clear blue focus, and short transitions without stock Windows chrome in the primary flow. The user explicitly pinned the interaction character of Casso and Lightshot: annotation directly over a frozen desktop, compact floating controls, inline notes, and completed captures folded into an edge stack. A thumbnail delete control appears on hover or keyboard focus, removes in one click, and exposes an inline Restore action. Their proprietary source and assets are not part of this project.
+The working product name is Snapik. The interface uses a restrained macOS utility language: custom translucent charcoal surfaces, compact floating controls, soft rounded corners, clear blue focus, and short transitions without stock Windows chrome in the primary flow. The user explicitly pinned the interaction character of Casso and Lightshot: annotation directly over a frozen desktop, compact floating controls, inline notes, and completed captures folded into an edge stack. A thumbnail delete control appears on hover or keyboard focus, removes in one click, and exposes an inline Restore action. Their proprietary source and assets are not part of this project.
 
 ## Evidence on Hand
 
-The full user transcript is stored at `tasks/user-transcript.md`; the implementation requirements and researched constraints are stored at `tasks/prd-snapbrief.md`. No approved logo, proprietary artwork, customer claims, usage metrics, or tested Casso Windows build exists. Casso's official download page showed macOS availability and Windows as coming soon on 8 September 2026.
+The full user transcript is stored at `tasks/user-transcript.md`; the implementation requirements and researched constraints are stored at `tasks/prd-snapik.md`. No approved logo, proprietary artwork, customer claims, usage metrics, or tested Casso Windows build exists. Casso's official download page showed macOS availability and Windows as coming soon on 8 September 2026.
 
 ## Product Principles
 
 1. The relation between every note and its capture or annotation is always visible.
 2. The common path from capture to typing a note has no modal interruption.
 3. Adding another capture preserves the current task and returns the user to the editor quickly.
-4. Status copy describes what SnapBrief actually prepared or attempted; it never claims that an external agent accepted an attachment unless that was observed.
+4. Status copy describes what Snapik actually prepared or attempted; it never claims that an external agent accepted an attachment unless that was observed.
 5. Failures leave the user's screenshots and notes recoverable.
 
 ## Accessibility & Inclusion
@@ -68,7 +68,7 @@ All core actions are keyboard reachable. Visible focus, readable text contrast, 
 После первоначального захвата поле комментария не открывается автоматически. После рисования рамки-аннотации поле появляется рядом с этой рамкой автоматически и получает фокус ввода. Это последнее уточнение пользователя заменяет прежнее требование открывать все заметки только вручную. Для других отметок и комментария ко всему снимку доступна компактная контекстная кнопка рядом с геометрией; крестик удаляет только заметку. Не требовать поиска значка на общей панели.
 
 
-При запуске SnapBrief работает в трее без открытой ленты. Лента после захвата показывается спереди без активации и без таймера исчезновения. Крестик скрывает её; успешное завершение пакета при вставке также скрывает ленту. По умолчанию лента держится поверх других окон (в скриншоты она не попадает, окно исключено из захвата экрана); галочка «Поверх других окон» первой в меню «•••» это отключает, выбор запоминается. Крестик скрывает её, сохраняя снимки. Ярлык или значок в трее позволяет снова открыть ленту. Настройки клавиш доступны через трей.
+При запуске Snapik работает в трее без открытой ленты. Лента после захвата показывается спереди без активации и без таймера исчезновения. Крестик скрывает её; успешное завершение пакета при вставке также скрывает ленту. По умолчанию лента держится поверх других окон (в скриншоты она не попадает, окно исключено из захвата экрана); галочка «Поверх других окон» первой в меню «•••» это отключает, выбор запоминается. Крестик скрывает её, сохраняя снимки. Ярлык или значок в трее позволяет снова открыть ленту. Настройки клавиш доступны через трей.
 
 Границы снимка и отметок, включая blur, изменяются за четыре угла; угол отметки можно потянуть при любом активном инструменте. Сужение снимка обрезает выходящие за границы отметки, Undo восстанавливает предыдущее состояние. Расширение использует только уже захваченные пиксели: для нового снимка доступен замороженный рабочий стол, при повторном открытии — сохранённое исходное изображение. Новое содержимое рабочего стола при расширении не захватывается. Во время изменения области blur отображается сплошная маска; эффект пересчитывается после отпускания мыши.
 При рисовании новой области blur до отпускания мыши видны контур и полупрозрачная подсветка; финальное размытие применяется после завершения жеста. Настройки захвата принимают собственную клавишу или сочетание через поле записи. Старые сохранённые пресеты совместимы; сочетание проверяется при сохранении, конфликт оставляет диалог открытым. Отмена сохраняет прежнее назначение.

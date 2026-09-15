@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Snapik.App/Snapik.App.csproj" />
+    <Project Path="src/Snapik.Core/Snapik.Core.csproj" />
+    <Project Path="src/Snapik.Infrastructure/Snapik.Infrastructure.csproj" />
+    <Project Path="src/Snapik.Windows/Snapik.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Snapik.App.Imaging.Tests/Snapik.App.Imaging.Tests.csproj" />
+    <Project Path="tests/Snapik.Core.Tests/Snapik.Core.Tests.csproj" />
+    <Project Path="tests/Snapik.Windows.Tests/Snapik.Windows.Tests.csproj" />
+  </Folder>
+</Solution>

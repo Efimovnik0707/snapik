@@ -77,7 +77,7 @@ DWORD `NoPinningToTaskbar = 1` в `HKCU\Software\Policies\Microsoft\Windows\Expl
 
 ## 6. macOS Dock (для будущей синхронизации порта)
 
-`defaults write com.apple.dock persistent-apps -array-add '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/Applications/SnapBrief.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'` затем `killall Dock`. Проверка: `defaults read com.apple.dock persistent-apps | grep -c "SnapBrief.app"` после `killall Dock` (иначе cfprefsd отдаёт кэш). Под MDM перекрывается профилем. (https://gist.github.com/kamui545/c810eccf6281b33a53e094484247f5e8)
+`defaults write com.apple.dock persistent-apps -array-add '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/Applications/Snapik.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'` затем `killall Dock`. Проверка: `defaults read com.apple.dock persistent-apps | grep -c "Snapik.app"` после `killall Dock` (иначе cfprefsd отдаёт кэш). Под MDM перекрывается профилем. (https://gist.github.com/kamui545/c810eccf6281b33a53e094484247f5e8)
 
 ## Пробелы
 
@@ -117,7 +117,7 @@ Unpackaged WPF/.NET 10 может вызывать `Windows.UI.Shell.TaskbarMana
 ```
 ```csharp
 // один раз при старте процесса, до создания окон:
-SetCurrentProcessExplicitAppUserModelID("YesWorkflow.SnapBrief");
+SetCurrentProcessExplicitAppUserModelID("YesWorkflow.Snapik");
 // по клику пользователя, на UI-потоке, окно активно:
 var tb = Windows.UI.Shell.TaskbarManager.GetDefault();
 if (tb.IsSupported && tb.IsPinningAllowed && !await tb.IsCurrentAppPinnedAsync())

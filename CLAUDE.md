@@ -1,4 +1,4 @@
-# SnapBrief
+# Snapik
 
 Памятка для агентов обеих версий (Windows и macOS): [AGENTS.md](AGENTS.md). Правила синхронизации порта: [macos/SYNC.md](macos/SYNC.md).
 
@@ -15,5 +15,5 @@
 Зачем: в раунде ТЗ №3 правки в одном окне ломали уже работавшее в другом (скролл, порядок карточек), потому что связи искали grep'ом и не видели всех вызывающих. Правило для исполнителя: перед правкой метода/свойства/ресурса — `trace_call_path` inbound по нему, все callers в список задачи; перед коммитом — `detect_changes` по своей ветке, blast radius сверить с тем, что тестировал. Индекс обновлять после слияния в master: `cli index_repository '{"repo_path": "<корень репо>"}'`.
 
 ## Lab Notes
-<!-- lab-note: [2026-09-14] junction .dotnet для worktree через bash-строку с `\$T` ушёл в папку `snapbrief-wt$T` -> переменные bash без слэша, PowerShell-скрипт в одинарных кавычках, проверять LinkType. См. [[Knowledge Base/agent-workflow/bash-to-powershell-dollar-escape]] -->
+<!-- lab-note: [2026-09-14] junction .dotnet для worktree через bash-строку с `\$T` ушёл в папку `snapik-wt$T` -> переменные bash без слэша, PowerShell-скрипт в одинарных кавычках, проверять LinkType. См. [[Knowledge Base/agent-workflow/bash-to-powershell-dollar-escape]] -->
 <!-- lab-note: [2026-09-14] rtk искажает `git log -1` после merge (показывает tip ветки) -> проверять rev-parse HEAD + cat-file -p HEAD + reflog. См. [[Knowledge Base/agent-workflow/rtk-git-log-hides-merge-state]] -->

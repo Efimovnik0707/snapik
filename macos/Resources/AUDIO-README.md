@@ -1,10 +1,10 @@
 # Bundled camera feedback recordings
 
-Copied as-is from `src/SnapBrief.App/Assets/Audio/` (SPEC-DELTA-2.md §6, SPEC-DELTA-2B.md §E2).
+Copied as-is from `src/Snapik.App/Assets/Audio/` (SPEC-DELTA-2.md §6, SPEC-DELTA-2B.md §E2).
 Both files are edits of real camera recordings published under the Creative Commons Zero 1.0
 Universal dedication. CC0 permits copying, modification, commercial use, and redistribution
 without attribution. Attribution is retained here so the source and edit remain auditable. Full
-provenance: `src/SnapBrief.App/Assets/Audio/README.md`.
+provenance: `src/Snapik.App/Assets/Audio/README.md`.
 
 ## `camera-shutter.wav`
 

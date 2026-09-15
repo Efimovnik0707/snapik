@@ -18,7 +18,7 @@
 
 3. **D1, «бейдж комментария» в списке того, что красит активный цвет (ТЗ:231).** В коде бейдж цвет отметки не берёт: и на холсте, и в экспорте он рисуется акцентом приложения (экспорт `WpfExportImageRenderer.cs:143`, `var badgeBrush = AccentPalette.Brush`). Требование «бейдж красится активным цветом» это новое поведение, а не восстановление сломанного. Выношу в открытые вопросы (раздел 11, п. 1): предлагаю оставить бейдж акцентным, потому что нумерация отметок это единая система, а не свойство конкретной рамки.
 
-4. **D1, список мест `HasOutline` (ТЗ:233) неполон.** В ТЗ названы `OverlayEditorWindow.xaml:313-315`, `Appearance.cs:120-128, 256, 389`, `SaveAppearanceDefaults :676`, `AnnotationCanvas.cs:59, 260, 744`. В коде мест 27, полный список в разделе 2.3. Не названы: `EditorModels.cs:66, 94, 129, 152`, `src/SnapBrief.Core/Models/AnnotationItem.cs:74`, `HotkeySettingsWindow.xaml.cs:71`, `OverlayEditorWindow.xaml.cs:56, 85, 364, 1008`, `Appearance.cs:326-327, 378-380, 471-475`, `WpfExportImageRenderer.cs:126`, `SmokeTestRunner.cs:37, 90, 93, 425, 1034, 1039, 1042`, `tests/SnapBrief.Core.Tests/CaptureCropperTests.cs:86`, `tests/SnapBrief.Core.Tests/PersistenceAndExportTests.cs:181`.
+4. **D1, список мест `HasOutline` (ТЗ:233) неполон.** В ТЗ названы `OverlayEditorWindow.xaml:313-315`, `Appearance.cs:120-128, 256, 389`, `SaveAppearanceDefaults :676`, `AnnotationCanvas.cs:59, 260, 744`. В коде мест 27, полный список в разделе 2.3. Не названы: `EditorModels.cs:66, 94, 129, 152`, `src/Snapik.Core/Models/AnnotationItem.cs:74`, `HotkeySettingsWindow.xaml.cs:71`, `OverlayEditorWindow.xaml.cs:56, 85, 364, 1008`, `Appearance.cs:326-327, 378-380, 471-475`, `WpfExportImageRenderer.cs:126`, `SmokeTestRunner.cs:37, 90, 93, 425, 1034, 1039, 1042`, `tests/Snapik.Core.Tests/CaptureCropperTests.cs:86`, `tests/Snapik.Core.Tests/PersistenceAndExportTests.cs:181`.
 
 5. **D1, «Старые файлы с `HasOutline=false` читаются как сплошная заливка» (ТЗ:237).** Один из двух источников таких файлов уже мигрирован: старая отметка `Redaction` читается как `Fill=Solid, FillColor=Black, HasOutline=false` (`EditorModels.cs:143, 150-152`). Если `HasOutline` убрать из модели, эта миграция обязана поменяться в том же коммите, иначе чёрные плашки из сессий 1.2.x снова получат контур. ТЗ этого не упоминает.
 
@@ -57,7 +57,7 @@
 
 Экспорт: `WpfExportImageRenderer.cs:124-126`, тот же `ShapeFillBrush(fillColor, item.Fill)` и тот же `item.HasOutline ? pen : null`, только в пикселях исходника (`scale = 1`).
 
-Сериализация: `HasOutline` это поле Core-записи (`src/SnapBrief.Core/Models/AnnotationItem.cs:74`, `bool`, default `true`), сериализуется обычным `System.Text.Json` без конвертера (`src/SnapBrief.Infrastructure/Serialization/SnapBriefJson.cs:8-13`), то есть в `session.json` у каждой отметки лежит `"hasOutline": true|false`. Мост: `EditorModels.cs:129` (запись) и `:152` (чтение, с миграцией `Redaction`).
+Сериализация: `HasOutline` это поле Core-записи (`src/Snapik.Core/Models/AnnotationItem.cs:74`, `bool`, default `true`), сериализуется обычным `System.Text.Json` без конвертера (`src/Snapik.Infrastructure/Serialization/SnapikJson.cs:8-13`), то есть в `session.json` у каждой отметки лежит `"hasOutline": true|false`. Мост: `EditorModels.cs:129` (запись) и `:152` (чтение, с миграцией `Redaction`).
 
 Спектр и пипетка: видимы только в палитре «Своя» (`Appearance.cs:318-322`, `SpectrumBlock`/`EyedropperButton` `xaml:296-299, 304-308`). Ряд сохранённых цветов ведёт `RememberCustomColor` (`:549-558`), он же вызывается на отпускании спектра (`:491-495`), на вводе HEX (`:598`) и после пипетки (`:506`). То есть «в свою палитру попадает всё подряд» уже так, кнопки «+» нет.
 
@@ -95,7 +95,7 @@
 
 Что ещё завязано на `_cropRect`: затемнение вокруг снимка (`UpdateShade :1047-1051`), ручки изменения границ снимка (`Resize.cs:103-124`, `ApplyCaptureResizeAsync :140-194` считает пиксели как `_resizeSource.PixelWidth / _resizeSourceRect.Width`), место панели (`Toolbar.cs:9-31`), место пилюль (`RepositionChips :1482`), подпись снимка (`PositionShotNote :1540`).
 
-Колеса мыши редактор не слушает вовсе (обработчиков `MouseWheel` в `src/SnapBrief.App` нет ни одного, кроме ленты `EdgeStackWindow.xaml:174`). Пробел свободен: в `EditorShortcuts.Tools` его нет (`EditorShortcuts.cs:20-32`), в `Actions` тоже (`:36-45`).
+Колеса мыши редактор не слушает вовсе (обработчиков `MouseWheel` в `src/Snapik.App` нет ни одного, кроме ленты `EdgeStackWindow.xaml:174`). Пробел свободен: в `EditorShortcuts.Tools` его нет (`EditorShortcuts.cs:20-32`), в `Actions` тоже (`:36-45`).
 
 ---
 
@@ -122,7 +122,7 @@
 
 | Файл:строка | Что там | Что делать |
 |---|---|---|
-| `src/SnapBrief.Core/Models/AnnotationItem.cs:74` | `public bool HasOutline { get; init; } = true;` | заменить legacy-полем для чтения, см. 2.4 |
+| `src/Snapik.Core/Models/AnnotationItem.cs:74` | `public bool HasOutline { get; init; } = true;` | заменить legacy-полем для чтения, см. 2.4 |
 | `EditorModels.cs:66` | `public bool HasOutline { get; set; } = true;` | удалить |
 | `EditorModels.cs:94` | `HasOutline = HasOutline` в `Clone()` | удалить |
 | `EditorModels.cs:129` | `HasOutline = HasOutline` в `ToCore` | удалить |
@@ -147,8 +147,8 @@
 | `SmokeTestRunner.cs:37, 90, 93` | `AnnotationOutline` в настройках смоука | удалить |
 | `SmokeTestRunner.cs:425` | `HasOutline = false` у пробной плашки | удалить |
 | `SmokeTestRunner.cs:1034, 1039, 1042` | `VerifyLegacyRedactionReadsAsAFilledRegion` | переписать, см. 7 |
-| `tests/SnapBrief.Core.Tests/CaptureCropperTests.cs:86` | `HasOutline = false` | удалить |
-| `tests/SnapBrief.Core.Tests/PersistenceAndExportTests.cs:181` | `HasOutline = false` | удалить |
+| `tests/Snapik.Core.Tests/CaptureCropperTests.cs:86` | `HasOutline = false` | удалить |
+| `tests/Snapik.Core.Tests/PersistenceAndExportTests.cs:181` | `HasOutline = false` | удалить |
 
 ### 2.4. Изменение формата
 
@@ -156,7 +156,7 @@
 
 > **Изменение формата (`session.json`, 1.5.0).** Поле отметки `hasOutline` выведено из обращения. Запись: начиная с 1.5.0 `hasOutline` в `session.json` **не пишется вообще**. Чтение: `hasOutline` продолжает читаться и означает миграцию, а не свойство. Правило чтения одной отметки: если `kind == "rectangle"` и `hasOutline == false`, отметка читается как «сплошная заливка одним цветом», то есть `fill = solid`, а `fillColor` берётся из уже записанного `fillColor`, либо, если его нет, из `strokeColor`. Во всех остальных случаях (`hasOutline` отсутствует, равен `true`, либо `kind` не `rectangle`) поле игнорируется. Старая отметка `kind == "redaction"` читается как и раньше: `fill = solid`, `fillColor = #FF000000`. Обратной совместимости назад нет: сессия, записанная 1.5.0, в 1.4.0 откроется с контуром у отметок, которые его не имели. Mac переносит правило один в один.
 
-Механика на C#. В `src/SnapBrief.Core/Models/AnnotationItem.cs` поле `HasOutline` заменяется на
+Механика на C#. В `src/Snapik.Core/Models/AnnotationItem.cs` поле `HasOutline` заменяется на
 
 ```csharp
 // Прочитанное, но больше не записываемое: сборки до 1.5.0 писали сюда «рамку не рисовать».
@@ -166,7 +166,7 @@
 public bool? LegacyHasOutline { get; init; }
 ```
 
-`JsonPropertyName` обязателен: `PropertyNamingPolicy = CamelCase` (`SnapBriefJson.cs:10`) сам дал бы `legacyHasOutline`, и старые файлы перестали бы читаться. `ToCore` (`EditorModels.cs:129`) это поле никогда не проставляет, поэтому на записи оно всегда `null`, и `WhenWritingNull` убирает его из файла. `FromCore` (`:143-152`) получает единственное правило:
+`JsonPropertyName` обязателен: `PropertyNamingPolicy = CamelCase` (`SnapikJson.cs:10`) сам дал бы `legacyHasOutline`, и старые файлы перестали бы читаться. `ToCore` (`EditorModels.cs:129`) это поле никогда не проставляет, поэтому на записи оно всегда `null`, и `WhenWritingNull` убирает его из файла. `FromCore` (`:143-152`) получает единственное правило:
 
 ```csharp
 var solidNoOutline = item.Kind == AnnotationKind.Rectangle && item.LegacyHasOutline == false;
@@ -289,7 +289,7 @@ internal static Color? OutlineColorOf(AnnotationFill fill, Color color, Color? f
 
 ### 3.4. Какой шрифт брать
 
-Segoe Fluent Icons на Windows 10 **не установлен** (официальный текст Microsoft; приложение поддерживает 10.0.17763, `SnapBrief.App.csproj:9`). Segoe MDL2 Assets есть и на 10, и на 11, и все нужные коды, кроме `EABE`, в нём те же самые.
+Segoe Fluent Icons на Windows 10 **не установлен** (официальный текст Microsoft; приложение поддерживает 10.0.17763, `Snapik.App.csproj:9`). Segoe MDL2 Assets есть и на 10, и на 11, и все нужные коды, кроме `EABE`, в нём те же самые.
 
 Решение: один ресурс шрифта в `App.xaml`, список семейств через запятую. WPF `FontFamily` принимает список и подставляет следующее семейство, если первое отсутствует в системе **или** не содержит нужного глифа, причём поглифно:
 
@@ -417,7 +417,7 @@ public Vector ViewOffset { get; set; }
 
 ## 6. Строки RU/EN
 
-Новые пары в `src/SnapBrief.App/UiLanguage.cs` (`AGENTS.md:14`):
+Новые пары в `src/Snapik.App/UiLanguage.cs` (`AGENTS.md:14`):
 
 | RU | EN |
 |---|---|
@@ -442,7 +442,7 @@ public Vector ViewOffset { get; set; }
 
 Только на новую логику, как требует `AGENTS.md:17`.
 
-**Новые модульные тесты** (`tests/SnapBrief.Core.Tests/`):
+**Новые модульные тесты** (`tests/Snapik.Core.Tests/`):
 
 1. Чтение старого `hasOutline`. Отметка `kind=rectangle, hasOutline=false, fillColor=null, strokeColor=#FFFF3B30` читается как `Fill=Solid`, `FillColor=#FFFF3B30`. Отметка с `hasOutline=false` и своим `fillColor` сохраняет свой. Отметка с `hasOutline=true` и с отсутствующим полем читается как `Fill=None`. Отметка `kind=arrow, hasOutline=false` не трогается.
 2. Запись: `session.json`, записанный 1.5.0, не содержит подстроки `hasOutline`. Проверять по тексту файла, а не по объекту.
@@ -470,27 +470,27 @@ public Vector ViewOffset { get; set; }
 
 **Только мои (зона D):**
 
-- `src/SnapBrief.App/OverlayEditorWindow.Appearance.cs`
-- `src/SnapBrief.App/OverlayEditorWindow.xaml` и `.xaml.cs`
-- `src/SnapBrief.App/OverlayEditorWindow.Resize.cs`, `.Toolbar.cs`
-- `src/SnapBrief.App/Controls/AnnotationCanvas.cs`
-- `src/SnapBrief.App/Controls/ScreenColorPicker.cs`
-- `src/SnapBrief.App/WpfExportImageRenderer.cs`
+- `src/Snapik.App/OverlayEditorWindow.Appearance.cs`
+- `src/Snapik.App/OverlayEditorWindow.xaml` и `.xaml.cs`
+- `src/Snapik.App/OverlayEditorWindow.Resize.cs`, `.Toolbar.cs`
+- `src/Snapik.App/Controls/AnnotationCanvas.cs`
+- `src/Snapik.App/Controls/ScreenColorPicker.cs`
+- `src/Snapik.App/WpfExportImageRenderer.cs`
 
 **Общие, изменения согласовывать:**
 
 | Файл | С кем | Что я там трогаю |
 |---|---|---|
-| `src/SnapBrief.App/UiLanguage.cs` | все дорожки | новые пары (раздел 6), удаление «Показывать рамку» |
-| `src/SnapBrief.App/SmokeTestRunner.cs` | все | правки из раздела 7 |
-| `src/SnapBrief.App/EditorModels.cs` | C (поля вида снимка в `CaptureItem`) | удаление `HasOutline` из `AnnotationItem`, чтение legacy |
-| `src/SnapBrief.Core/Models/AnnotationItem.cs` | C | `HasOutline` → `LegacyHasOutline` |
-| `src/SnapBrief.Core/Models/CaptureItem.cs` | ведёт C | только читаю поля вида снимка |
-| `src/SnapBrief.App/HotkeySettingsWindow.xaml.cs` | B, E | удаление четырёх полей настроек (раздел 2.5) |
-| `src/SnapBrief.App/SessionWorkspace.cs` | ведёт C (C9) | не трогаю |
-| `src/SnapBrief.App/App.xaml` | B (темы) | ресурс `IconFont` |
-| `src/SnapBrief.App/EdgeStackWindow.xaml` | ведёт C | только замена иконок по таблице 3.3, по согласованию |
-| `tests/SnapBrief.Core.Tests/` | C | новые тесты чтения формата |
+| `src/Snapik.App/UiLanguage.cs` | все дорожки | новые пары (раздел 6), удаление «Показывать рамку» |
+| `src/Snapik.App/SmokeTestRunner.cs` | все | правки из раздела 7 |
+| `src/Snapik.App/EditorModels.cs` | C (поля вида снимка в `CaptureItem`) | удаление `HasOutline` из `AnnotationItem`, чтение legacy |
+| `src/Snapik.Core/Models/AnnotationItem.cs` | C | `HasOutline` → `LegacyHasOutline` |
+| `src/Snapik.Core/Models/CaptureItem.cs` | ведёт C | только читаю поля вида снимка |
+| `src/Snapik.App/HotkeySettingsWindow.xaml.cs` | B, E | удаление четырёх полей настроек (раздел 2.5) |
+| `src/Snapik.App/SessionWorkspace.cs` | ведёт C (C9) | не трогаю |
+| `src/Snapik.App/App.xaml` | B (темы) | ресурс `IconFont` |
+| `src/Snapik.App/EdgeStackWindow.xaml` | ведёт C | только замена иконок по таблице 3.3, по согласованию |
+| `tests/Snapik.Core.Tests/` | C | новые тесты чтения формата |
 | `tasks/verification.md` | все | два абзаца «Изменение формата» |
 
 Конфликт по строкам с дорожкой C гарантирован в `EditorModels.cs` и `SmokeTestRunner.cs`: обе дорожки правят одни и те же файлы. Лечится порядком, раздел 9.
@@ -501,7 +501,7 @@ public Vector ViewOffset { get; set; }
 
 Один коммит, до того как дорожки расходятся. В нём:
 
-1. **`HasOutline` → `LegacyHasOutline`** в `src/SnapBrief.Core/Models/AnnotationItem.cs:74`, новое правило чтения в `EditorModels.cs:143-152`, удаление поля из `EditorModels.cs:66, 94, 129`.
+1. **`HasOutline` → `LegacyHasOutline`** в `src/Snapik.Core/Models/AnnotationItem.cs:74`, новое правило чтения в `EditorModels.cs:143-152`, удаление поля из `EditorModels.cs:66, 94, 129`.
 2. **Правило отрисовки `OutlineColorOf`** (раздел 2.7) в `AnnotationCanvas.cs`, его применение в `:743-744` и в `WpfExportImageRenderer.cs:124-126`, удаление `ActiveHasOutline` (`:59, 260`).
 3. **Тесты чтения старого формата** (раздел 7, пункты 1-3) и абзац «Изменение формата» в `verification.md`.
 4. **Модель вида снимка в Core** (`CaptureSource`, `MonitorCount`, `SourceFileName`), с переносом во всех пяти местах `CaptureItem` (раздел 5.3). Ведёт дорожка C, я только потребитель, но до расхождения это должно быть в `master`.
@@ -513,7 +513,7 @@ public Vector ViewOffset { get; set; }
 
 ## 10. Перенос на macOS
 
-Не в этом раунде (`AGENTS.md:8`, порт догоняет по diff). Что зеркалить, когда дойдёт, в `macos/Sources/SnapBriefMac/Editor/`:
+Не в этом раунде (`AGENTS.md:8`, порт догоняет по diff). Что зеркалить, когда дойдёт, в `macos/Sources/SnapikMac/Editor/`:
 
 | Что | Куда на Mac | Примечание |
 |---|---|---|
