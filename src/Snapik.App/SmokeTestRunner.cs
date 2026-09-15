@@ -207,6 +207,7 @@ public static class SmokeTestRunner
         VerifyTheThemesOfTheRound();
         VerifyTheAccentsOfTheRound();
         VerifyTheWizardFitsItsMonitor();
+        VerifyTheWizardCentresOnItsMonitor();
         WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
         WithoutBindingErrors("The colour spectrum", Controls.ColorSpectrum.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
@@ -1255,6 +1256,21 @@ public static class SmokeTestRunner
         var pixel = new byte[4];
         converted.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0);
         return pixel;
+    }
+
+    // The other half of the placement: the window is centred in the physical pixels of the monitor it
+    // opens on. A second monitor to the left of the primary one has a negative left edge and may have
+    // a scale of its own, and that is where the old arithmetic put the wizard beside the monitor
+    // instead of on it.
+    private static void VerifyTheWizardCentresOnItsMonitor()
+    {
+        const double width = 620;
+        var start = OnboardingWindow.CenteredStart(-2560, 2560, width, 1.25);
+        var end = start + (int)(width * 1.25);
+        if (start < -2560 || end > 0)
+            throw new InvalidOperationException($"The wizard must open inside the monitor under the pointer, not beside it: {start}..{end}.");
+        if (OnboardingWindow.CenteredStart(0, 1920, width, 1) != 650)
+            throw new InvalidOperationException("The wizard must stand in the middle of the working area it opens on.");
     }
 
     private static bool HasLightPixel(System.Windows.Media.Imaging.BitmapSource bitmap, int x, int y, int width, int height)
