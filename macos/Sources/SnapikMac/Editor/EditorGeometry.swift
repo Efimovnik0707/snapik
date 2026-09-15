@@ -360,13 +360,6 @@ enum EditorGeometry {
         return CGRect(x: (windowSize.width - w) / 2, y: (windowSize.height - h) / 2, width: w, height: h)
     }
 
-    // MARK: - Blur radius (SPEC §1.7)
-
-    /// Port of `BlurRadius` (`AnnotationCanvas.cs:463`): `clamp(round(thickness*3), 4, 36)`.
-    static func blurRadius(thickness: Double) -> Int {
-        clampInt(Int((thickness * 3).rounded()), 4, 36)
-    }
-
     // MARK: - Small numeric helpers
 
     static func clamp(_ value: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat {

@@ -20,17 +20,9 @@ enum EditorStrings {
     // Hint / selection mode
     static func selectHint(_ language: String) -> String { text("Выделите область · Esc отменяет", language: language) }
 
-    // Tool names (`EditorShortcuts.Tools`; the letter beside each is added by the capsule)
-    static func toolSelect(_ language: String) -> String { text("Выбор", language: language) }
-    static func toolRectangle(_ language: String) -> String { text("Область", language: language) }
-    static func toolArrow(_ language: String) -> String { text("Стрелка", language: language) }
+    // The name of a tool comes from `EditorShortcuts.tools`, which carries the letter beside it; the
+    // pencil is named here as well because its capsule shows the name without a letter of its own.
     static func toolPencil(_ language: String) -> String { text("Карандаш", language: language) }
-    static func toolHighlight(_ language: String) -> String { text("Маркер", language: language) }
-    static func toolText(_ language: String) -> String { text("Текст", language: language) }
-    static func toolEraser(_ language: String) -> String { text("Ластик", language: language) }
-    static func toolBlur(_ language: String) -> String { text("Размыть", language: language) }
-    static func toolCrop(_ language: String) -> String { text("Обрезать", language: language) }
-    static func toolComment(_ language: String) -> String { text("Комментарий", language: language) }
 
     // Panel buttons and their popovers (SPEC-DELTA-3 §1.4 E-3, E-16, E-17, E-18)
     static func colorHeading(_ language: String) -> String { text("Цвет", language: language) }
@@ -51,7 +43,6 @@ enum EditorStrings {
     static func fillTranslucent(_ language: String) -> String { text("Полупрозрачная заливка", language: language) }
     static func fillBlur(_ language: String) -> String { text("Заливка размытием", language: language) }
     static func savedColors(_ language: String) -> String { text("Сохранённые цвета", language: language) }
-    static func eyedropper(_ language: String) -> String { text("Пипетка", language: language) }
     static func pickColorFromScreen(_ language: String) -> String { text("Взять цвет с экрана", language: language) }
     static func paletteName(_ key: String, _ language: String) -> String { text(key, language: language) }
     static func closeTooltip(_ language: String) -> String { text("Закрыть", language: language) }

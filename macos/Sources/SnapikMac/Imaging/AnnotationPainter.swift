@@ -352,12 +352,4 @@ public enum AnnotationPainter {
         attributed.draw(at: origin)
         NSGraphicsContext.current = previous
     }
-
-    // MARK: - Color
-
-    /// Parses SPEC §2.3's `#AARRGGBB` format. Falls back to opaque black on malformed input
-    /// (should not happen for annotations created through the editor).
-    static func cgColor(fromAARRGGBB hex: String) -> CGColor {
-        NSColor(argbHex: hex).cgColor
-    }
 }
