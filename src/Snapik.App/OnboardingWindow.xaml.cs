@@ -429,8 +429,6 @@ public partial class OnboardingWindow : Window
     // thing; the text says it in words, and says it on every step.
     private void OnSkipLink(object sender, MouseButtonEventArgs e) => OnSkip(sender, e);
 
-    private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
-
     // "Minimize" is the window, not the wizard: nothing is applied and nothing is marked, the window
     // goes to the taskbar and comes back from it.
     private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
