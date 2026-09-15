@@ -350,43 +350,10 @@ final class AppCoordinator {
 
     // MARK: - Stack actions (SPEC §1.9)
 
-    /// Port of `OnOpenCaptureClick` (SPEC §1.9 "Клик по миниатюре"), updated by SPEC-DELTA-2B.md
-    /// §D: a click now opens the read-only preview window first (`CapturePreviewWindowController`)
-    /// instead of jumping straight into markup; markup only starts if the preview's "Разметка"
-    /// button was used (`openCaptureForMarkup`, the old body of this method).
+    /// Port of `OnOpenCaptureClick` (SPEC §1.9 "Клик по миниатюре"). SPEC-DELTA-3 §7 W0-6 (S-1):
+    /// the read-only preview window is gone from both builds, so a click on a card goes straight
+    /// back into markup, the way it did before SPEC-DELTA-2B §D.
     func openCapture(_ captureId: SBGuid) async {
-        await pasteIntentTransition?.value
-        guard !isBusy, let capture = workspace.session.captures.first(where: { $0.id == captureId }) else { return }
-
-        let sourceURL = workspace.sessionDirectory.appendingPathComponent(capture.sourceImagePath)
-        guard let sourceImage = ImageCodec.loadImage(at: sourceURL) else {
-            stackWindow?.setStatus(StatusStrings.couldNotOpenCapture("missing source image"), isError: true)
-            return
-        }
-
-        let index = workspace.session.captures.firstIndex(where: { $0.id == captureId }) ?? 0
-        let displayLabel = (try? CaptureLabels.forIndex(index)) ?? "A"
-
-        isBusy = true
-        stackWindow?.setSelectedCapture(captureId)
-
-        let previewController = CapturePreviewWindowController(
-            capture: capture, image: sourceImage, displayLabel: displayLabel, language: language,
-            persist: { [weak self] updated in await self?.persistPreviewChanges(updated) })
-        previewController.present(on: stackWindow?.window?.screen) { [weak self] markupRequested in
-            guard let self else { return }
-            self.stackWindow?.setSelectedCapture(nil)
-            self.isBusy = false
-            if markupRequested {
-                Task { @MainActor in await self.openCaptureForMarkup(captureId) }
-            }
-        }
-    }
-
-    /// Port of the previous `openCapture` body: reopens a saved capture in the full annotation
-    /// editor over a freshly captured desktop frame (SPEC §1.9) — now only reached from the
-    /// preview window's "Разметка" button (SPEC-DELTA-2B.md §D).
-    func openCaptureForMarkup(_ captureId: SBGuid) async {
         // R5 fix: don't reopen a capture into a session that a paste-intent rotation
         // (`completePasteIntent`/`startNewSession`) is in the middle of retiring — that race is
         // exactly what left `overlayEditor(_:didCommit:)`'s session-id check needs to guard
@@ -420,23 +387,6 @@ final class AppCoordinator {
         controller.delegate = self
         overlay = controller
         controller.presentExisting(capture: capture, image: sourceImage)
-    }
-
-    /// Port of `EdgeStackWindow.PersistPreviewChangesAsync` (SPEC-DELTA-2.md §1.5,
-    /// SPEC-DELTA-2B.md §D): folds a comment edit made in the preview window back into the
-    /// session, refreshes the stack thumbnail/prepared export, and republishes the clipboard
-    /// package if it's still ours — no auto-paste, unlike a committed editor capture.
-    func persistPreviewChanges(_ capture: CaptureItem) async {
-        guard workspace.session.captures.contains(where: { $0.id == capture.id }) else { return }
-        do {
-            try workspace.replaceCapture(capture)
-            stackWindow?.invalidateThumbnail(for: capture.id)
-            stackWindow?.refresh()
-            invalidatePrepared()
-            if await save() { await refreshOwnedClipboard() }
-        } catch {
-            stackWindow?.setStatus(StatusStrings.couldNotSave("\(error)"), isError: true)
-        }
     }
 
     func removeCapture(_ captureId: SBGuid) async {

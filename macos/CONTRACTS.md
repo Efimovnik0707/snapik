@@ -177,13 +177,7 @@ extension AppCoordinator {   // поля добавляет transport в AppCoor
     func startReceiverEchoWatch(paths: [String], prompt: String); func cancelReceiverEchoWatch()
 }
 
-// Shell → Preview (preview)
-final class CapturePreviewWindowController {
-    init(capture: CaptureItem, image: CGImage, displayLabel: String, language: String, playSounds: Bool, persist: @escaping (CaptureItem) async -> Void)
-    func present(on screen: NSScreen?, completion: @escaping (_ markupRequested: Bool) -> Void)
-}
-enum CapturePreviewProbe { static func run(image: CGImage) throws }
-// Shell → Stack (preview владеет Stack/)
+// Shell → Stack
 struct StackCaptureRow { let id: SBGuid; let label: String; let thumbnail: NSImage?; let noteCount: Int }
 extension EdgeStackWindowController { func setSelectedCapture(_ id: SBGuid?) }
 // Shell (core-shell), вызывается из Stack/ и App/
@@ -192,6 +186,6 @@ enum AutoSaveService { static func save(capture: CaptureItem, displayLabel: Stri
 // Editor → Shell (smoke)
 extension AnnotationCanvasView { static func smokeVerifyHoverManipulation(image: CGImage) -> Bool }
 extension OverlayEditorController { func smokeRunNoteAffordanceProbe() -> Bool /* one-shot comment */; @discardableResult func smokeCreateComment(at point: CGPoint, note: String?) -> SBGuid? }
-// Imaging (editor), используется автосохранением и предпросмотром
+// Imaging (editor), используется автосохранением
 enum ArrowDrawing { static func draw(in ctx: CGContext, from: CGPoint, to: CGPoint, color: CGColor, thickness: CGFloat, style: String); static func sampleImage(style: String, size: NSSize) -> NSImage }
 ```
