@@ -52,9 +52,9 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
     {
         using var stream = File.OpenRead(path);
         var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-        var frame = decoder.Frames[0];
-        frame.Freeze();
-        return frame;
+        // The export runs off the UI thread, and a frame still belongs to the decoder that made it:
+        // the copy owns its pixels, so the stream closes here and nothing reaches back for them.
+        return Imaging.FrameCopy.Detach(decoder.Frames[0]);
     }
 
     private static void DrawCaptureBadge(DrawingContext dc, string label)

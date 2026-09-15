@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\src\Snapik.App\Imaging\RegionBlur.cs" Link="Imaging\RegionBlur.cs" />
+    <Compile Include="..\..\src\Snapik.App\Imaging\FrameCopy.cs" Link="Imaging\FrameCopy.cs" />
     <Compile Include="..\..\src\Snapik.App\Imaging\ShapeMask.cs" Link="Imaging\ShapeMask.cs" />
     <Compile Include="..\..\src\Snapik.App\Imaging\ColorConversion.cs" Link="Imaging\ColorConversion.cs" />
     <Compile Include="..\..\src\Snapik.App\Controls\ResizeGeometry.cs" Link="ResizeGeometry.cs" />

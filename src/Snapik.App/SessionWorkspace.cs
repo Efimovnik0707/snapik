@@ -282,9 +282,9 @@ public sealed class SessionWorkspace
             // Reported without wrapping the path in a Uri: a path the Uri parser rejects would replace
             // the real reason with a parsing error of its own.
             if (decoder.Frames.Count == 0) throw new NotSupportedException(UiLanguage.Text("Формат не поддерживается системой"));
-            var frame = decoder.Frames[0];
-            frame.Freeze();
-            return frame;
+            // The frame is left behind with its decoder: what comes back owns its pixels, so the
+            // stream closes here and the picture can be encoded away from the UI thread.
+            return Imaging.FrameCopy.Detach(decoder.Frames[0]);
         }
         catch (Exception ex) when (ex is NotSupportedException or FileFormatException)
         {
