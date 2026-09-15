@@ -291,20 +291,27 @@
                             <ToggleButton x:Name="CustomPaletteSegment" Style="{StaticResource SegmentButton}" Tag="custom" Click="OnPaletteClick" FontSize="12" Content="Своя" AutomationProperties.Name="{local:UiText Своя}" />
                         </UniformGrid>
                     </Border>
-                    <!-- The own palette is picked, not chosen: the spectrum and the eyedropper come
-                         with it, and the row under them is what has been picked so far. -->
-                    <StackPanel x:Name="SpectrumBlock" Visibility="Collapsed" Margin="0,0,0,12">
-                        <controls:ColorSpectrum x:Name="Spectrum" HorizontalAlignment="Center" ColorChanged="OnSpectrumChanged" ColorCommitted="OnSpectrumCommitted" />
+                    <!-- The spectrum and the eyedropper stand under every palette: they are two ways
+                         of picking a colour, not a property of one set. The row under them is the
+                         set that is picked above, and the own one is what has been saved so far. -->
+                    <StackPanel x:Name="SpectrumBlock" Margin="0,0,0,12">
+                        <controls:ColorSpectrum x:Name="Spectrum" HorizontalAlignment="Center" ColorChanged="OnSpectrumChanged" />
                         <TextBlock Text="Сохранённые цвета" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,12,0,0" />
                     </StackPanel>
                     <WrapPanel x:Name="ColorPalette" Margin="-3,0,-3,10"/>
                     <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <TextBox x:Name="ColorHex" Text="#FF3B30" MaxLength="7" Background="{DynamicResource ElevatedBrush}" Foreground="{DynamicResource TextBrush}" CaretBrush="{DynamicResource TextBrush}" BorderBrush="{DynamicResource ElevatedLineBrush}" Padding="9,6" LostKeyboardFocus="OnHexLostFocus" PreviewKeyDown="OnHexKeyDown" AutomationProperties.Name="{local:UiText Цвет HEX}"/>
-                        <Button x:Name="EyedropperButton" Grid.Column="1" Style="{StaticResource OverlayButton}" Width="34" MinWidth="34" Height="34" Margin="6,0,0,0" Padding="0" Visibility="Collapsed"
+                        <Button x:Name="EyedropperButton" Grid.Column="1" Style="{StaticResource OverlayButton}" Width="34" MinWidth="34" Height="34" Margin="6,0,0,0" Padding="0"
                                 Click="OnEyedropperClick" ToolTip="Взять цвет с экрана" AutomationProperties.Name="{local:UiText Пипетка}">
                             <Path Width="16" Height="16" Stretch="Uniform" Stroke="{DynamicResource TextBrush}" StrokeThickness="1.5" StrokeLineJoin="Round"
                                   Data="M10,1 L15,6 M12.5,3.5 L4,12 L1,15 L2,12 L10.5,3.5 Z" />
+                        </Button>
+                        <!-- Nothing is saved into the own palette by itself any more: this is the
+                             one way in, and it works from whichever set is being shown. -->
+                        <Button x:Name="AddColorButton" Grid.Column="2" Style="{StaticResource OverlayButton}" Width="34" MinWidth="34" Height="34" Margin="6,0,0,0" Padding="0"
+                                Click="OnAddColorClick" ToolTip="Добавить цвет в свою палитру" AutomationProperties.Name="{local:UiText Добавить цвет в свою палитру}">
+                            <TextBlock FontFamily="{StaticResource IconFont}" FontSize="14" Text="&#xE710;" Foreground="{DynamicResource TextBrush}" />
                         </Button>
                     </Grid>
                 </StackPanel>

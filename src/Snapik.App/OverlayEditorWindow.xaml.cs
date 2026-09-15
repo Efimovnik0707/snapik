@@ -365,6 +365,19 @@ public partial class OverlayEditorWindow : Window
         window.ApplyQuickColor(outlineColor);
         window.OnFillClick(window.FillNoneSegment, new RoutedEventArgs());
 
+        // One active colour for every tool: picked with the comment tool in the hand, it reaches the
+        // canvas at once and is what the next frame is drawn with.
+        window.SelectToolMode(EditorTool.Comment);
+        window.ApplyQuickColor(Colors.Cyan);
+        if (window.Surface.ActiveColor != Colors.Cyan || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Cyan)
+            throw new InvalidOperationException("A colour picked with the comment tool armed must reach the canvas and the panel.");
+        // And the frame armed after it takes that colour: the draft of the canvas is built out of
+        // ActiveColor, so what stands there when the region is armed is what the region is drawn with.
+        window.SelectToolMode(EditorTool.Rectangle);
+        if (window.Surface.ActiveColor != Colors.Cyan || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Cyan)
+            throw new InvalidOperationException("The frame armed after the comment tool must be drawn with the colour picked while it was armed.");
+        window.ApplyQuickColor(outlineColor);
+
         // A colour reaches a mark only while it is selected; with nothing selected it belongs to the
         // next one and leaves what is already drawn alone.
         if (window._capture!.Annotations.FirstOrDefault(annotation => annotation.Kind == EditorTool.Arrow) is { } drawn)
