@@ -206,6 +206,7 @@ public static class SmokeTestRunner
         ThemeService.Apply("dark", "blue");
         VerifyTheThemesOfTheRound();
         VerifyTheAccentsOfTheRound();
+        VerifyTheWizardFitsItsMonitor();
         WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
         WithoutBindingErrors("The colour spectrum", Controls.ColorSpectrum.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
@@ -1213,6 +1214,17 @@ public static class SmokeTestRunner
     // Twelve accents, six solid ones and then six gradients: the row shows them in that order, and
     // the divider it draws between the halves is placed by the flag rather than by a name, so a
     // rearrangement cannot leave it in the middle of a half.
+    // The wizard is placed before it is shown, on the monitor the pointer is on, and that monitor may
+    // have a scale of its own: the height it may take is the working area in the units of that
+    // monitor, less a finger of air. The placement needs a real monitor; the arithmetic does not.
+    private static void VerifyTheWizardFitsItsMonitor()
+    {
+        if (OnboardingWindow.UsefulHeight(1080, 1, 360) != 1040 ||
+            OnboardingWindow.UsefulHeight(1080, 1.25, 360) != 824 ||
+            OnboardingWindow.UsefulHeight(600, 2, 360) != 360)
+            throw new InvalidOperationException("The wizard must fit the working area of the monitor it opens on, whatever its scale.");
+    }
+
     private static void VerifyTheAccentsOfTheRound()
     {
         string[] expected =

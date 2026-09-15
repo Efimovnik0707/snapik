@@ -313,6 +313,12 @@ public partial class HotkeySettingsWindow : Window
     public Func<HotkeySettings, string?>? TryApply { get; init; }
     public HotkeySettings? Result { get; private set; }
 
+    /// <summary>
+    /// The link of the settings that asks for the wizard again. The window only says so; opening it
+    /// belongs to whoever opened the settings, because the wizard has to outlive them.
+    /// </summary>
+    internal bool OnboardingRequested { get; private set; }
+
     public HotkeySettingsWindow(HotkeySettings settings, bool showPasteSettings = false)
     {
         _original = settings;

@@ -11,6 +11,12 @@
                 <ResourceDictionary Source="Themes/Palettes/Dark.xaml" />
                 <ResourceDictionary Source="Themes/Accents/Blue.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <!-- The family the icons of the chrome are drawn with. Windows 11 ships Segoe Fluent
+                 Icons and Windows 10 ships Segoe MDL2 Assets; WPF falls through to the next family
+                 glyph by glyph, so one declaration covers both. It stands outside the merged
+                 dictionaries because those are swapped whole by ThemeService, and a font is not
+                 part of a theme. -->
+            <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -110,6 +110,15 @@ public partial class OnboardingWindow : Window
     /// <summary>Below this the wizard would be a strip of chrome; the content scrolls instead.</summary>
     private const double MinimumUsefulHeight = 360;
 
+    /// <summary>
+    /// How tall the wizard may be on a monitor whose working area is <paramref name="workAreaDevice"/>
+    /// physical pixels high at <paramref name="scale"/>: that height in the units the window is
+    /// placed in, less a finger of air, and never below <paramref name="minimum"/>. Arithmetic on its
+    /// own, so the half of the placement that can be checked without a monitor is checked.
+    /// </summary>
+    internal static double UsefulHeight(double workAreaDevice, double scale, double minimum) =>
+        Math.Max(minimum, workAreaDevice / (scale > 0 ? scale : 1) - 40);
+
     // The window can go away without any button: the cross, Alt+F4, the taskbar, "Get started".
     // Every one of them counts as "seen", and every one of them has to release the loop of step 4 —
     // stopping it is not enough, the clock it left on this window has to be removed as well.
