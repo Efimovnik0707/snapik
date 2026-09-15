@@ -1,16 +1,15 @@
-// Port of `RefreshLabels`, `AddChip`/`RebuildChips`/`RepositionChips`, `FindChipPlacement`,
-// `MoveLinkedComments`, the chip expand/collapse machinery, and the one-shot Comment tool
-// (`OverlayEditorWindow.xaml.cs:339-621`, `OverlayEditorWindow.Comments.cs`), SPEC-DELTA-2.md
-// §1.3, SPEC-DELTA-2B.md §C7. Replaces the pre-sync "shot note chip" / "context note button"
-// affordances entirely: a whole-capture comment is now just a pin with `parentAnnotationId == nil`.
+// Port of `RefreshLabels`, `AddChip`/`RebuildChips`/`RepositionChips`, the pill drag, the comments
+// panel and the Comment tool (`OverlayEditorWindow.xaml.cs:1245-1560`,
+// `OverlayEditorWindow.Comments.cs`), SPEC-DELTA-2.md §1.3, SPEC-DELTA-3 §1.4 E-7, E-9, E-12.
 import AppKit
 import SnapikCore
 
 @MainActor
 extension OverlayEditorController {
-    // MARK: - Canvas event handlers (SPEC-DELTA-2.md §1.3)
+    // MARK: - Canvas event handlers
 
-    /// Port of `OnAnnotationCreated` (`:339-352`, updated for Comment).
+    /// Port of `OnAnnotationCreated` (`:339-352`, updated for the Comment tool and for a caption
+    /// typed on the capture).
     func annotationCreated(_ annotation: EditorAnnotation) {
         guard capture != nil else { return }
 
@@ -22,36 +21,39 @@ extension OverlayEditorController {
                 let height = CGFloat(capture.image.height)
                 annotation.points = [first, CGPoint(x: min(width, first.x + 8), y: min(height, first.y + 8))]
             }
-            selectTool(.select)
+            // [ТЗ№4 D3] The Comment tool stays in the hand after the pin: it is put down by Escape,
+            // by the Select button or by choosing another tool (`D-editor.md` §4.1).
         }
 
         pushHistory()
         refreshLabels()
 
-        if annotation.kind == .rectangle || annotation.kind == .text || annotation.kind == .comment {
+        // A caption is typed on the capture itself now, not in a pill (SPEC-DELTA-3 §1.4 E-6).
+        if annotation.kind == .text {
+            beginTextEdit(annotation, selectAll: true, isNew: true)
+            return
+        }
+        if annotation.kind == .comment {
             visibleChipIds.insert(annotation.id)
             addChip(for: annotation, focus: true)
         }
     }
 
-    /// Port of `OnSelectionChanged` (`:354-359`); the C# guard on a pressed mouse button doesn't
-    /// apply here (selection changes on mouse-down happen synchronously before any drag begins).
+    /// Port of `OnSelectionChanged` (`:354-359`).
     func selectionChanged(_ annotation: EditorAnnotation?) {
         syncAppearance()
         repositionChips()
+        commentsPanelView?.highlight(annotation?.id)
     }
 
-    /// Port of `OnAnnotationChanged` (`:361-368`), now moving linked comments first (SPEC-DELTA-2.md
-    /// §1.3 "`MoveLinkedComments`, из `OnAnnotationChanged`").
+    /// Port of `OnAnnotationChanged` (`:1287-1296`).
     func annotationChanged() {
         moveLinkedComments()
         pushHistory()
         refreshLabels()
         guard let screenIndex = activeScreenIndex else { return }
-        // Detects the "annotation deleted via the Delete key" case (`AnnotationCanvasView
-        // .keyDown` mutates `capture.annotations` directly and only calls `onAnnotationChanged`)
-        // by looking for a chip whose annotation no longer exists, and purges it via a full
-        // rebuild; otherwise a plain reposition is enough.
+        // Detects the "annotation deleted via the Delete key or the eraser" case by looking for a
+        // chip whose annotation no longer exists, and purges it via a full rebuild.
         let liveIds = Set(capture?.annotations.map(\.id) ?? [])
         if chipViews.keys.contains(where: { !liveIds.contains($0) }) {
             rebuildChips(on: slots[screenIndex])
@@ -61,9 +63,24 @@ extension OverlayEditorController {
         syncAppearance()
     }
 
-    /// Port of `RefreshLabels` (`:436-450`, SPEC-DELTA-2.md §1.3): every annotation's badge shows
-    /// its real note-derived label if it has one, else a placeholder — `"T"` for Text, `"+"` for
-    /// everything else (including a Comment pin, whose badge is its only on-canvas marker).
+    /// Port of `AnnotationActivated` (`:203-208`): a double click opens the note of whatever it lands
+    /// on — the editor of the letters for a caption, the pill for everything else.
+    func annotationActivated(_ annotation: EditorAnnotation) {
+        if annotation.kind == .text {
+            beginTextEdit(annotation, selectAll: true, isNew: false)
+            return
+        }
+        visibleChipIds.insert(annotation.id)
+        if let chip = chipViews[annotation.id] {
+            expandChip(annotation.id, expanded: true)
+            chip.focusAndSelectAll()
+        } else {
+            addChip(for: annotation, focus: true)
+        }
+    }
+
+    /// Port of `RefreshLabels` (`:1469-1480`): every annotation's badge shows its real note-derived
+    /// label if it has one, else a placeholder — `"T"` for a caption, `"+"` for everything else.
     func refreshLabels() {
         guard let capture else { return }
         let labeled = CaptureLabels.forNotedAnnotations(captureLabel: capture.displayLabel, capture: capture.toCore())
@@ -71,18 +88,15 @@ extension OverlayEditorController {
         for annotation in capture.annotations {
             let real = labelById[annotation.id]
             annotation.label = real ?? (annotation.kind == .text ? EditorStrings.textPlaceholderBadge : EditorStrings.commentPlaceholderBadge)
-            if let chip = chipViews[annotation.id] {
-                chip.badgeLabel = annotation.label
-            }
         }
+        syncCommentsPanel()
         canvasView?.needsDisplay = true
     }
 
-    // MARK: - One-shot Comment tool (SPEC-DELTA-2.md §1.3 "One-shot")
+    // MARK: - The Comment tool (SPEC-DELTA-3 §1.4 E-9)
 
     /// Port of `OnCommentClick` (`:513-531`): captures which annotation (if any) the new comment
-    /// should link to, then arms the Comment tool. A single subsequent click anywhere places the
-    /// pin (`AnnotationCanvasView.mouseDown`'s `.comment` branch) and returns to Select.
+    /// should link to, then arms the Comment tool. [ТЗ№4 D3] the tool stays armed after the pin.
     func commentButtonClicked() {
         guard capture != nil else { return }
         let selected = canvasView?.selectedAnnotation
@@ -90,9 +104,9 @@ extension OverlayEditorController {
         selectTool(.comment)
     }
 
-    // MARK: - Comment chips (SPEC-DELTA-2.md §1.3, SPEC-DELTA-2B.md §C7)
+    // MARK: - Comment pills (E-7)
 
-    /// Port of `RebuildChips` (`:382-389`).
+    /// Port of `RebuildChips` (`:1315-1327`).
     func rebuildChips(on slot: OverlayScreenSlot) {
         for chip in chipViews.values { chip.removeFromSuperview() }
         chipViews.removeAll()
@@ -100,27 +114,28 @@ extension OverlayEditorController {
         guard let capture else { return }
         let liveIds = Set(capture.annotations.map(\.id))
         visibleChipIds.formIntersection(liveIds)
+        // Every mark that already carries a note gets its pill back, so a reopened capture shows the
+        // notes it was saved with.
+        for annotation in capture.annotations where !annotation.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            visibleChipIds.insert(annotation.id)
+        }
         for annotation in capture.annotations where visibleChipIds.contains(annotation.id) {
             addChip(for: annotation, focus: false)
         }
     }
 
-    /// Port of `AddChip` (`:391-434`), now hosted in `chipLayerView` and wired for expand/collapse
-    /// (SPEC-DELTA-2B.md §C7).
+    /// Port of `AddChip` (`:1331-1468`), now with the pill as its own drag handle and no number
+    /// inside it (SPEC-DELTA-3 §1.4 E-7).
     func addChip(for annotation: EditorAnnotation, focus: Bool) {
         guard let screenIndex = activeScreenIndex, let chipLayerView else { return }
-        let isTextTool = annotation.kind == .text
-        let chip = CommentChipView(
-            annotationId: annotation.id, badgeLabel: annotation.label,
-            note: isTextTool ? annotation.text : annotation.note, isTextInput: isTextTool)
+        let chip = CommentChipView(annotationId: annotation.id, note: annotation.note, language: language)
 
         chip.onNoteChanged = { [weak self, weak annotation] text in
             guard let self, let annotation, !self.settingUp else { return }
-            if annotation.kind == .text { annotation.text = text } else { annotation.note = text }
+            annotation.note = text
             self.refreshLabels()
-            // Typing a note does not push an undo step (SPEC §1.5: "Изменение текста заметки
-            // историю не пушит"), but it must still clear redo and refresh the undo/redo baseline
-            // so a later undo doesn't resurrect a stale redo entry.
+            // Typing a note does not push an undo step (SPEC §1.5), but it must still clear redo and
+            // refresh the baseline so a later undo does not resurrect a stale redo entry.
             self.history.clearRedo()
             self.lastSnapshot = self.snapshotState()
             self.refreshUndoRedoButtons()
@@ -143,15 +158,15 @@ extension OverlayEditorController {
         }
         chip.onHoverEntered = { [weak self, weak chip] in
             guard let self, let chip else { return }
-            if !self.hasFocusedChip(otherThan: chip.annotationId) {
+            if self.chipDragAnnotation == nil, !self.hasFocusedChip(otherThan: chip.annotationId) {
                 self.expandChip(chip.annotationId, expanded: true)
             }
         }
         chip.onHoverExited = { [weak self, weak chip] in
             guard let self, let chip else { return }
-            if !chip.isEditing { self.finishChip(chip.annotationId) }
+            if self.chipDragAnnotation == nil, !chip.isEditing { self.finishChip(chip.annotationId) }
         }
-        chip.onBadgeClicked = { [weak self, weak annotation, weak chip] in
+        chip.onClicked = { [weak self, weak annotation, weak chip] in
             guard let self, let annotation, let chip else { return }
             self.canvasView?.selectAnnotation(id: annotation.id)
             self.expandChip(annotation.id, expanded: true)
@@ -166,20 +181,23 @@ extension OverlayEditorController {
             guard let self else { return }
             self.window(for: screenIndex)?.makeFirstResponder(self.canvasView)
         }
+        chip.onDragBegan = { [weak self, weak annotation] in
+            guard let self, let annotation else { return }
+            self.beginNoteDrag(annotation)
+        }
+        chip.onDragged = { [weak self] delta in self?.dragNote(by: delta) }
+        chip.onDragEnded = { [weak self] in self?.endNoteDrag() ?? false }
 
         chipLayerView.addSubview(chip)
         chipViews[annotation.id] = chip
-        repositionChips()
-        positionToolbar()
+        expandChip(annotation.id, expanded: focus)
+        refreshLabels()
         if focus {
-            expandChip(annotation.id, expanded: true)
             DispatchQueue.main.async { chip.focusAndSelectAll() }
         }
     }
 
-    /// Port of `Expand`/`CollapseOtherChips` (SPEC-DELTA-2.md §1.3): collapses every other chip
-    /// (skipping ones with keyboard focus), sets `expandedChipId`, re-lays every chip out, and
-    /// resyncs the toolbar's obstacle list.
+    /// Port of `Expand`/`CollapseOtherChips` (`:1387-1404`).
     func expandChip(_ id: SBGuid, expanded: Bool) {
         guard let chip = chipViews[id] else { return }
         if expanded {
@@ -197,10 +215,8 @@ extension OverlayEditorController {
         positionToolbar()
     }
 
-    /// Fix MEDIUM-1: z-order of chips isn't implied by document order alone — an expanded chip
-    /// (and, failing that, a focused one) must draw and hit-test above its collapsed siblings, or
-    /// an overlapping neighbor swallows its clicks. `ChipLayerView.hitTest` already walks
-    /// `subviews.reversed()`, so the highest-priority chip must be the *last* subview.
+    /// An expanded pill (and, failing that, a focused one) must draw and hit-test above its siblings.
+    /// `ChipLayerView.hitTest` walks `subviews.reversed()`, so the highest priority is last.
     private func sortChipZOrder() {
         guard let chipLayerView else { return }
         chipLayerView.sortSubviews(
@@ -218,17 +234,17 @@ extension OverlayEditorController {
             }, context: nil)
     }
 
-    /// Port of `HasFocusedChipOtherThan` (`Comments.cs:13-14`).
+    /// Port of `HasFocusedChipOtherThan` (`Comments.cs:109-110`).
     private func hasFocusedChip(otherThan id: SBGuid) -> Bool {
         chipViews.contains(where: { $0.key != id && $0.value.isEditing })
     }
 
-    /// Port of `Finish()` (`:523-546`): an empty, non-Text chip is discarded; for a Comment that
-    /// also deletes the pin annotation itself (and deselects it). Otherwise the chip just collapses.
+    /// Port of `Finish()` (`:1405-1428`): a pill with nothing in it is discarded, and for a Comment
+    /// that also removes the pin itself. Otherwise the pill just collapses.
     func finishChip(_ id: SBGuid) {
         guard let chip = chipViews[id] else { return }
-        // Fix LOW-4: the annotation may already be gone (e.g. deleted via the Delete key while
-        // this chip still had focus) — discard the now-orphaned chip instead of silently no-op'ing.
+        // The annotation may already be gone (deleted with the Delete key or the eraser while this
+        // pill still had focus): discard the now-orphaned pill instead of silently doing nothing.
         guard let capture, let annotation = capture.annotations.first(where: { $0.id == id }) else {
             chip.removeFromSuperview()
             chipViews[id] = nil
@@ -237,9 +253,8 @@ extension OverlayEditorController {
             positionToolbar()
             return
         }
-        let noteEmpty = (annotation.kind == .text ? annotation.text : annotation.note).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-        if !chip.isTextInput, noteEmpty {
+        if annotation.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             visibleChipIds.remove(id)
             chip.removeFromSuperview()
             chipViews[id] = nil
@@ -260,12 +275,11 @@ extension OverlayEditorController {
         }
     }
 
-    /// Port of `OnDeleteAnnotationNoteClick` (`:565-579`, updated for Comment): a Comment pin's
-    /// close button removes the whole annotation; every other kind just clears its note text. Not
-    /// `private`: also called directly by `+SmokeTest.swift`'s `smokeRunNoteAffordanceProbe`.
+    /// Port of `OnDeleteAnnotationNoteClick` (`:1565-1579`): a Comment pin's cross removes the whole
+    /// annotation; every other kind just loses its note.
     func deleteAnnotationNote(_ annotation: EditorAnnotation) {
         guard capture != nil else { return }
-        let hadContent = !(annotation.kind == .text ? annotation.text : annotation.note).isEmpty
+        let hadContent = !annotation.note.isEmpty
         if hadContent, let before = lastSnapshot { history.pushWithoutClearingRedo(before) }
         history.clearRedo()
 
@@ -274,7 +288,7 @@ extension OverlayEditorController {
             if canvasView?.selectedAnnotation?.id == annotation.id {
                 canvasView?.selectAnnotation(id: nil)
             }
-        } else if annotation.kind != .text {
+        } else {
             annotation.note = ""
         }
 
@@ -289,34 +303,80 @@ extension OverlayEditorController {
         refreshUndoRedoButtons()
     }
 
-    /// Port of `RepositionChips` (`:452-457`, rewritten for SPEC-DELTA-2.md §1.3's expand/collapse
-    /// layout): the expanded chip (if any) is placed first, the rest in annotation order; each
-    /// chip's own preferred anchor is just below its annotation's display bounds
-    /// (`crop.minX + bounds.minX`, `crop.minY + bounds.maxY + 8`), and `EditorGeometry
-    /// .findChipPlacement` spirals it away from every chip already placed this pass.
+    // MARK: - Dragging a pill (`BeginNoteDrag`/`DragNoteTo`/`EndNoteDrag`, `:1245-1277`)
+
+    /// Dragging the pill of a note moves the badge of its mark with it, on screen and in the export.
+    /// The offset is written straight to the model, so the whole drag becomes one history entry when
+    /// the pill is let go.
+    func beginNoteDrag(_ annotation: EditorAnnotation) {
+        chipDragAnnotation = annotation
+        chipDragOrigin = annotation.noteOffset
+        chipDragMoved = false
+    }
+
+    func dragNote(by delta: CGPoint) {
+        guard let annotation = chipDragAnnotation, let capture, cropRectLocal.width > 0, cropRectLocal.height > 0 else { return }
+        chipDragMoved = true
+        let origin = chipDragOrigin ?? .zero
+        annotation.noteOffset = CGPoint(
+            x: origin.x + delta.x * CGFloat(capture.image.width) / cropRectLocal.width,
+            y: origin.y + delta.y * CGFloat(capture.image.height) / cropRectLocal.height)
+        canvasView?.needsDisplay = true
+        repositionChips()
+    }
+
+    @discardableResult
+    func endNoteDrag() -> Bool {
+        let moved = chipDragMoved
+        chipDragAnnotation = nil
+        chipDragMoved = false
+        guard moved else { return false }
+        pushHistory()
+        repositionChips()
+        positionToolbar()
+        return true
+    }
+
+    /// Port of `RepositionChips` (`:1482-1560`): the expanded pill first, then the ones the user
+    /// placed by hand, then the rest in annotation order.
     func repositionChips() {
         guard let capture, let screenIndex = activeScreenIndex, let canvasView else { return }
-        let work = cropMonitorWorkAreaLocal(screenIndex: screenIndex)
+        let work = layoutWorkArea(screenIndex: screenIndex)
         var occupied: [CGRect] = []
 
-        let orderedIds = capture.annotations.map(\.id).filter { chipViews[$0] != nil }
-        let ordered = orderedIds.sorted { lhs, rhs in
-            (lhs == expandedChipId ? 0 : 1) < (rhs == expandedChipId ? 0 : 1)
-        }
+        let ordered = capture.annotations
+            .filter { chipViews[$0.id]?.isExpanded == true }
+            .enumerated()
+            .sorted { lhs, rhs in
+                func rank(_ annotation: EditorAnnotation) -> Int {
+                    if annotation.id == expandedChipId { return 0 }
+                    return annotation.noteOffset != nil ? 1 : 2
+                }
+                let lr = rank(lhs.element)
+                let rr = rank(rhs.element)
+                return lr == rr ? lhs.offset < rhs.offset : lr < rr
+            }
+            .map(\.element)
 
-        for id in ordered {
-            guard let chip = chipViews[id], let annotation = capture.annotations.first(where: { $0.id == id }) else { continue }
-            let height: CGFloat = chip.isExpanded ? max(90, chip.preferredHeight()) : 40
+        for annotation in ordered {
+            guard let chip = chipViews[annotation.id] else { continue }
+            let height = max(90, chip.preferredHeight())
             let size = CGSize(width: chip.width, height: height)
-            let bounds = canvasView.displayBounds(of: annotation)
-            let preferred = CGPoint(x: cropRectLocal.minX + bounds.minX, y: cropRectLocal.minY + bounds.maxY + 8)
 
             let rect: CGRect
-            if chip.isExpanded, chip.frame.width == size.width, chip.frame.height == size.height, occupied.allSatisfy({ !$0.insetBy(dx: -6, dy: -6).intersects(chip.frame) }) {
-                // An already-expanded chip keeps its current position (SPEC-DELTA-2.md §1.3
-                // "раскрытый сохраняет текущую позицию") instead of jumping back to `preferred`.
-                rect = chip.frame
+            if annotation.noteOffset != nil {
+                // The pill used to be laid over the badge, its own badge exactly covering it. With
+                // that badge gone it would cover the number of the mark instead, so it stands beside
+                // the badge, and mirrors to the left of it when the right has no room left.
+                let gap: CGFloat = 8
+                let badge = canvasView.badgeCenter(of: annotation)
+                let radius = canvasView.badgeRadius(of: annotation)
+                var left = cropRectLocal.minX + badge.x + radius + gap
+                if left + size.width > work.maxX { left = cropRectLocal.minX + badge.x - radius - gap - size.width }
+                rect = clampChip(CGPoint(x: left, y: cropRectLocal.minY + badge.y - height / 2), size: size, work: work)
             } else {
+                let bounds = canvasView.displayBounds(of: annotation)
+                let preferred = CGPoint(x: cropRectLocal.minX + bounds.minX, y: cropRectLocal.minY + bounds.maxY + 8)
                 rect = EditorGeometry.findChipPlacement(preferred: preferred, size: size, work: work, occupied: occupied)
             }
             chip.frame = rect
@@ -324,12 +384,15 @@ extension OverlayEditorController {
         }
     }
 
+    private func clampChip(_ point: CGPoint, size: CGSize, work: CGRect) -> CGRect {
+        CGRect(
+            x: EditorGeometry.clamp(point.x, work.minX + 8, max(work.minX + 8, work.maxX - size.width - 8)),
+            y: EditorGeometry.clamp(point.y, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8)),
+            width: size.width, height: size.height)
+    }
+
     // MARK: - Linked comment movement (SPEC-DELTA-2.md §1.3 `MoveLinkedComments`)
 
-    /// Port of `MoveLinkedComments` (`Comments.cs:77-95`): for every comment linked to an
-    /// annotation, if the parent disappeared the link is cleared; otherwise, if the parent's
-    /// bounds actually changed since `lastSnapshot`, the comment's own points are carried along via
-    /// `EditorGeometry.linkedCommentPoints`.
     func moveLinkedComments() {
         guard let capture else { return }
         let before = lastSnapshot?.capture.annotations ?? []
@@ -355,40 +418,108 @@ extension OverlayEditorController {
         }
     }
 
-    // MARK: - Click-outside dismissal (SPEC-DELTA-2B.md §C7)
+    // MARK: - Click-outside dismissal
 
-    /// Wires one window's global `leftMouseDown` observation so a click outside the currently
-    /// expanded chip collapses it (SPEC-DELTA-2.md §1.3 "Клик вне слоя чипов").
+    /// Wires one window's global `leftMouseDown` observation so a click outside the expanded pill
+    /// collapses it, and a click outside a caption being typed finishes it.
     func wireChipDismissal(_ window: OverlayWindow) {
         window.onLeftMouseDown = { [weak self, weak window] event in
-            guard let self, let window, let expandedChipId, let chip = self.chipViews[expandedChipId] else { return }
-            guard let contentView = window.contentView else { return }
+            guard let self, let window, let contentView = window.contentView else { return }
             let point = contentView.convert(event.locationInWindow, from: nil)
             let hit = contentView.hitTest(point)
+            if let field = self.textEditorView, self.editingTextAnnotation != nil, hit !== field, !(hit?.isDescendant(of: field) ?? false) {
+                self.commitTextEdit()
+            }
+            guard let expandedChipId, let chip = self.chipViews[expandedChipId] else { return }
             if hit == nil || (hit !== chip && !(hit?.isDescendant(of: chip) ?? false)) {
                 self.finishChip(expandedChipId)
             }
         }
     }
 
-    // MARK: - Toolbar positioning (SPEC-DELTA-2B.md §C7)
+    // MARK: - Comments panel (SPEC-DELTA-3 §1.4 E-12)
 
-    /// Port of `PositionToolbar` (`:481-511`), now driven by chip *frames* (270/43 wide) instead
-    /// of the old fixed comment-chip width.
+    /// Port of `CommentRows` (`Comments.cs:36-42`): every comment pin, even one still without text,
+    /// and every mark that carries a note.
+    func commentRows() -> [(id: SBGuid, label: String, text: String, relation: String)] {
+        guard let capture else { return [] }
+        return capture.annotations
+            .filter { $0.kind == .comment || !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map { annotation in
+                (annotation.id, annotation.label.isEmpty ? "+" : annotation.label, annotation.note, relation(of: annotation))
+            }
+    }
+
+    private func relation(of annotation: EditorAnnotation) -> String {
+        guard annotation.kind == .comment, let capture else { return "" }
+        let parent = annotation.parentAnnotationId.flatMap { parentId in capture.annotations.first(where: { $0.id == parentId }) }
+        if let parent, !parent.label.isEmpty {
+            return "\(EditorStrings.text("К отметке", language: language)) \(parent.label)"
+        }
+        return "\(EditorStrings.text("К снимку", language: language)) \(capture.displayLabel)"
+    }
+
+    /// Port of `SyncCommentsPanel` (`Comments.cs:45-70`).
+    func syncCommentsPanel() {
+        guard let panel = commentsPanelView else { return }
+        panel.setRows(commentRows()) { [weak self] id in self?.activateCommentRow(id) }
+        panel.highlight(canvasView?.selectedAnnotation?.id)
+    }
+
+    /// Port of `ActivateCommentRow` (`Comments.cs:85-90`): a click on a row selects the mark on the
+    /// capture and opens its pill, without taking the focus off the capture.
+    private func activateCommentRow(_ annotationId: SBGuid) {
+        canvasView?.selectAnnotation(id: annotationId)
+        if chipViews[annotationId] != nil {
+            expandChip(annotationId, expanded: true)
+        } else if let annotation = capture?.annotations.first(where: { $0.id == annotationId }) {
+            visibleChipIds.insert(annotationId)
+            addChip(for: annotation, focus: false)
+        }
+        commentsPanelView?.highlight(annotationId)
+    }
+
+    /// Port of `PositionCommentsPanel` (`Comments.cs:25-32`): the panel stands at the right edge of
+    /// the work area of the monitor the capture is on.
+    func positionCommentsPanel() {
+        guard let panel = commentsPanelView, let screenIndex = activeScreenIndex else { return }
+        let work = cropMonitorWorkAreaLocal(screenIndex: screenIndex)
+        panel.frame = CGRect(
+            x: max(work.minX, work.maxX - CommentsPanelView.width - 8), y: work.minY + 8,
+            width: CommentsPanelView.width, height: max(160, work.height - 16))
+    }
+
+    /// Port of `LayoutWorkArea`/`WithoutCommentsStrip` (`Comments.cs:17-23`): with the comments panel
+    /// on screen, the markup is laid out in the monitor minus the strip that panel takes, so the
+    /// capture never hides under it.
+    func layoutWorkArea(screenIndex: Int) -> CGRect {
+        let work = cropMonitorWorkAreaLocal(screenIndex: screenIndex)
+        guard commentsPanelView != nil else { return work }
+        return CGRect(
+            x: work.minX, y: work.minY,
+            width: max(240, work.width - CommentsPanelView.width - CommentsPanelView.gap), height: work.height)
+    }
+
+    // MARK: - Toolbar positioning
+
+    /// Port of `PositionToolbar` (`:481-511`), driven by the pill frames as obstacles. The row is
+    /// allowed the width of the work area, so a panel too wide for it wraps instead of running off
+    /// the screen (SPEC-DELTA-3 §1.4 E-11).
     func positionToolbar() {
         guard let toolbarView, let screenIndex = activeScreenIndex else { return }
+        let work = layoutWorkArea(screenIndex: screenIndex)
+        toolbarView.maximumWidth = max(240, work.width - 16)
         let size = toolbarView.sizeToFitContent()
-        let work = cropMonitorWorkAreaLocal(screenIndex: screenIndex)
-        let obstacles = chipViews.values.map { $0.frame }
+        let obstacles = chipViews.values.filter { !$0.isHidden }.map { $0.frame }
         let origin = EditorGeometry.positionToolbar(cropRect: cropRectLocal, work: work, toolbarSize: size, obstacles: obstacles)
         toolbarView.frame = CGRect(origin: origin, size: size)
     }
 
     // MARK: - Monitor work area (SPEC §1.4 `GetCropMonitorWorkArea`)
 
-    /// Port of `GetCropMonitorWorkArea` (`:598-611`). AppKit's `NSScreen.visibleFrame` is
-    /// directly the work-area equivalent of Windows' `Screen.WorkingArea` (menu bar/Dock
-    /// excluded), so no pixel-scale reconstruction is needed here.
+    /// Port of `GetCropMonitorWorkArea` (`:598-611`). AppKit's `NSScreen.visibleFrame` is directly
+    /// the work-area equivalent of Windows' `Screen.WorkingArea` (menu bar/Dock excluded), so no
+    /// pixel-scale reconstruction is needed here.
     func cropMonitorWorkAreaLocal(screenIndex: Int) -> CGRect {
         let visible = slots[screenIndex].screen.visibleFrame
         let topLeft = CGPoint(x: visible.minX, y: visible.maxY)

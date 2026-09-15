@@ -1,5 +1,6 @@
 // Port of `src/Snapik.App/Controls/AnnotationCanvas.cs`, SPEC §6.3 (state + interaction half;
-// see `AnnotationCanvasView+Drawing.swift` for `draw(_:)`).
+// see `AnnotationCanvasView+Drawing.swift` for `draw(_:)`), SPEC-DELTA-3 §1.4 E-4, E-5, E-8, E-9,
+// E-10, E-13.
 import AppKit
 import SnapikCore
 
@@ -20,13 +21,29 @@ final class AnnotationCanvasView: NSView {
         }
     }
 
-    var tool: EditorTool = .rectangle
-    var activeColor: NSColor = EditorTheme.accent
-    var activeThickness: Double = 4
+    var tool: EditorTool = .rectangle {
+        didSet {
+            // Another tool was armed from a button or a key without the pointer moving: what the
+            // eraser was pointing at is not its target any more (`OnToolChanged`, `:129-132`).
+            if tool != .eraser { clearEraseHover() }
+        }
+    }
+    var activeColor: NSColor = EditorTheme.defaultAnnotationColor
+    var activeThickness: Double = EditorAppearance.defaultAnnotationThickness
     /// Port of `AnnotationCanvas.cs:43` `ActiveArrowStyle = "straight"` (SPEC-DELTA-2.md §1.2):
-    /// the style a brand-new Arrow annotation is created with; updated by the arrow-style menu
-    /// (`OverlayEditorController+Editing.showArrowStyleMenu`/`applyArrowStyle`).
+    /// the style a brand-new Arrow annotation is created with; updated by the arrow-style menu.
     var activeArrowStyle: String = "straight"
+    /// Port of `ActiveShape`/`ActiveFill`/`ActiveFillColor`/`ActiveLineStyle`/`ActiveFontSize`
+    /// (`AnnotationCanvas.cs:57-63`): what the next mark is born with.
+    var activeShape: AnnotationShape = .rectangle
+    var activeFill: AnnotationFill = .none
+    var activeFillColor: NSColor?
+    var activeLineStyle: AnnotationLineStyle = .solid
+    var activeFontSize: Double = TextMarkMetrics.defaultFontSize
+    /// Port of `EditingTextId` (`AnnotationCanvas.cs:65`, SPEC-DELTA-3 §1.4 E-6): the caption whose
+    /// letters are being typed on the capture right now. The canvas leaves it to the field standing
+    /// over it, otherwise the caption is drawn twice.
+    var editingTextId: SBGuid?
     /// Set by the controller on every `setupEditor()` (finding 22): the real UI language, used
     /// only for a new Text-tool draft's placeholder ("Текст"/"Text") — everywhere else on this
     /// view text is either annotation-authored or drawn by `AnnotationPainter`/the controller.
@@ -44,8 +61,9 @@ final class AnnotationCanvasView: NSView {
     var onSelectionChanged: ((EditorAnnotation?) -> Void)?
     var onAnnotationChanged: (() -> Void)?
     var onCropRequested: ((CGRect) -> Void)?
-    /// SPEC-DELTA-2.md §1.3 "Text двойным кликом": show/focus that Text annotation's chip.
-    var onTextDoubleClicked: ((EditorAnnotation) -> Void)?
+    /// Port of `AnnotationActivated` (`:203-208`): a double click opens the note of whatever it
+    /// lands on — the text editor for a caption, the note pill for everything else.
+    var onAnnotationActivated: ((EditorAnnotation) -> Void)?
 
     // Draft gesture state (SPEC §6.3 "Взаимодействие")
     var draft: EditorAnnotation?
@@ -60,6 +78,22 @@ final class AnnotationCanvasView: NSView {
     private var originalPoints: [CGPoint] = []
     private var originalAdditionalSegments: [[CGPoint]] = []
     private var manipulationChanged = false
+
+    // Eraser (SPEC-DELTA-3 §1.4 E-5) — read by `+Drawing.swift`.
+    private(set) var eraseHover: EditorAnnotation?
+
+    // Leader anchor drag (SPEC-DELTA-3 §1.4 E-8) — `anchorHoverId` is read by `+Drawing.swift`.
+    private(set) var anchorHoverId: SBGuid?
+    private var anchorDrag: EditorAnnotation?
+    private var anchorOriginPoints: [CGPoint] = []
+    private var anchorOriginOffset: CGPoint?
+    private var anchorDragStart: CGPoint = .zero
+    private var anchorMoved = false
+
+    /// Five pixels of circle and seven of reach: the circle grows to the reach under the pointer, so
+    /// what answers the press is what is seen at that moment (`AnnotationCanvas.cs:780-782`).
+    static let anchorRadius: CGFloat = 5
+    static let anchorHoverRadius: CGFloat = 7
 
     // Blur raster cache (SPEC §1.7)
     var blurCache: CGImage?
@@ -101,6 +135,12 @@ final class AnnotationCanvasView: NSView {
             width: Double(bounds.width), height: Double(bounds.height), padding: Double(imagePadding))
     }
 
+    /// Points-per-image-pixel, the number every on-screen measurement is taken in.
+    var displayScale: CGFloat {
+        guard let capture, capture.image.width > 0, imageRect.width > 0 else { return 1 }
+        return imageRect.width / CGFloat(capture.image.width)
+    }
+
     // MARK: - Coordinate mapping
 
     private func toImage(_ point: CGPoint) -> CGPoint {
@@ -108,6 +148,14 @@ final class AnnotationCanvasView: NSView {
         return CGPoint(
             x: (point.x - imageRect.minX) * CGFloat(capture.image.width) / imageRect.width,
             y: (point.y - imageRect.minY) * CGFloat(capture.image.height) / imageRect.height)
+    }
+
+    /// Port of `ToDisplay` (`:855-857`).
+    func toDisplay(_ imagePoint: CGPoint) -> CGPoint {
+        guard let capture, capture.image.width > 0, capture.image.height > 0 else { return imagePoint }
+        return CGPoint(
+            x: imageRect.minX + imagePoint.x * imageRect.width / CGFloat(capture.image.width),
+            y: imageRect.minY + imagePoint.y * imageRect.height / CGFloat(capture.image.height))
     }
 
     private func clampToImage(_ point: CGPoint) -> CGPoint {
@@ -125,6 +173,25 @@ final class AnnotationCanvasView: NSView {
             imageBounds: bounds, imageRect: imageRect,
             imageWidth: Double(capture.image.width), imageHeight: Double(capture.image.height))
     }
+
+    /// Port of `BadgeOf` (`:836-845`): the circle with the number of a noted mark, in `target`'s
+    /// coordinate space. A pin without a note carries no badge yet, but it still has to be grabbable.
+    func badgeOf(_ item: EditorAnnotation, target: CGRect) -> NoteBadge {
+        guard let capture, let first = item.points.first else { return NoteBadge(center: .zero, radius: 13) }
+        let width = CGFloat(capture.image.width)
+        let height = CGFloat(capture.image.height)
+        let anchor = CGPoint(
+            x: target.minX + first.x * target.width / width,
+            y: target.minY + first.y * target.height / height)
+        if item.kind == .comment, item.label.isEmpty { return NoteBadge(center: anchor, radius: 13) }
+        let offset = item.noteOffset.map { CGPoint(x: $0.x * target.width / width, y: $0.y * target.height / height) } ?? .zero
+        return NoteBadgeGeometry.screen(anchor: anchor, label: item.label, offset: offset)
+    }
+
+    /// Port of `GetBadgeCenter`/`GetBadgeRadius` (`:848-853`): where the pill of a note stands.
+    func badgeCenter(of annotation: EditorAnnotation) -> CGPoint { badgeOf(annotation, target: imageRect).center }
+
+    func badgeRadius(of annotation: EditorAnnotation) -> CGFloat { badgeOf(annotation, target: imageRect).radius }
 
     // MARK: - Selection (public, used by the controller for the context-note button flow)
 
@@ -145,28 +212,55 @@ final class AnnotationCanvasView: NSView {
         recomputeImageRect()
         window?.makeFirstResponder(self)
         guard capture != nil else { return }
-        let point = convert(event.locationInWindow, from: nil)
+        beginGesture(convert(event.locationInWindow, from: nil), clickCount: event.clickCount)
+    }
+
+    /// Port of `BeginGesture` (`:184-272`). Not private: a smoke run presses, drags and lets go
+    /// through these three without a pointer on screen.
+    func beginGesture(_ point: CGPoint, clickCount: Int = 1) {
+        guard let capture else { return }
         guard imageRect.contains(point) else { return }
 
-        // (1) Double-click on a Text annotation selects it and asks the controller to show/focus
-        // its chip (SPEC-DELTA-2.md §1.3 "Text двойным кликом"), regardless of the active tool.
-        if event.clickCount == 2 {
-            let imagePoint = toImage(point)
-            if let hit = hitTestAnnotation(imagePoint), hit.kind == .text {
-                select(hit)
-                onTextDoubleClicked?(hit)
-                return
-            }
+        // The eraser draws nothing: it removes the mark under the pointer and tells the controller,
+        // which turns that into one history entry, exactly as the Delete key does.
+        if tool == .eraser {
+            guard let target = eraseTarget(point) else { return }
+            select(nil)
+            capture.annotations.removeAll(where: { $0 === target })
+            eraseHover = nil
+            onAnnotationChanged?()
+            needsDisplay = true
+            return
         }
 
-        // (2) Select/manipulate an existing annotation: the Select tool, a resize handle, or a
-        // rectangle/blur/conceal edge hover (SPEC-DELTA-2B.md §C4) — never for the Comment tool,
-        // which always places a new pin regardless of what is underneath the click.
+        // A double click opens the note of whatever it lands on.
+        if clickCount == 2, let activated = hitTestAnnotation(toImage(point)) {
+            select(activated)
+            onAnnotationActivated?(activated)
+            return
+        }
+
+        // The anchor of a leader is taken before the resize handles: it sits on the point of a
+        // comment, a place where the handle of a neighbouring mark may lie as well, and the handle
+        // would win the press by being asked first.
+        if let anchored = findLeaderAnchor(point) {
+            select(anchored)
+            anchorDrag = anchored
+            anchorOriginPoints = anchored.points
+            anchorOriginOffset = anchored.noteOffset
+            anchorDragStart = toImage(point)
+            anchorMoved = false
+            return
+        }
+
+        // [ТЗ№4 D3] With the Comment tool in the hand the gate below no longer refuses everything:
+        // `findMoveHandle` answers only for badges of existing comments, so a press on one grabs it
+        // and a press anywhere else falls through to a new pin (`D-editor.md` §4.1).
         let handleHit = findResizeHandle(point)
-        let moveEdgeHit = tool == .comment ? nil : findMoveEdge(point)
-        if tool != .comment, tool == .select || handleHit.annotation != nil || moveEdgeHit != nil {
+        let moveHandleHit = findMoveHandle(point)
+        if tool == .select || handleHit.annotation != nil || moveHandleHit != nil {
             let imagePoint = toImage(point)
-            let hit = handleHit.annotation ?? moveEdgeHit ?? hitTestAnnotation(imagePoint)
+            let hit = handleHit.annotation ?? moveHandleHit ?? hitTestAnnotation(imagePoint)
             select(hit)
             if let hit {
                 gestureStart = imagePoint
@@ -181,31 +275,60 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
-        // (3) New draft gesture — for `.comment`, always `[start, start]` (SPEC-DELTA-2.md §1.3
-        // "при Tool == Comment любой клик = новый пин"); `annotationCreated` fills in the fixed
-        // (8,8) offset second point and the `parentAnnotationId` once the gesture commits.
+        // A press with a drawing tool armed drops the selection at once: whatever the hand does
+        // next, the colour and the thickness on the panel belong to the next mark from now on.
+        select(nil)
         let start = toImage(point)
         gestureStart = start
-        if tool == .comment {
-            draft = EditorAnnotation(kind: .comment, points: [start, start], color: activeColor, thickness: activeThickness)
-        } else {
-            draft = EditorAnnotation(
-                kind: tool,
-                points: [start, start],
-                color: tool == .conceal ? .black : activeColor,
-                thickness: activeThickness,
-                text: EditorStrings.defaultText(language),
-                arrowStyle: activeArrowStyle)
-        }
+        draft = EditorAnnotation(
+            kind: tool,
+            points: [start, start],
+            color: activeColor,
+            thickness: activeThickness,
+            // The word a new caption starts with comes from the table of the interface: an English
+            // window must not get a Russian one.
+            text: tool == .text ? EditorStrings.defaultText(language) : "",
+            arrowStyle: activeArrowStyle,
+            // The frame belongs to a region and to a blur alike; what stands inside it belongs to
+            // the region alone. On a caption or a stroke they would only travel into `session.json`
+            // and change what a later build draws there.
+            shape: EditorAppearance.hasShape(tool) ? activeShape : .rectangle,
+            fill: EditorAppearance.hasFill(tool) ? activeFill : .none,
+            fillColor: EditorAppearance.hasFill(tool) ? activeFillColor : nil,
+            lineStyle: activeLineStyle,
+            fontSize: activeFontSize)
         needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
+        updateGesture(convert(event.locationInWindow, from: nil), pressed: true)
+    }
+
+    /// Port of `UpdateGesture` (`:279-336`).
+    func updateGesture(_ displayPoint: CGPoint, pressed: Bool) {
         guard let capture else { return }
 
-        if manipulating, let selected = selectedAnnotation, let gestureStart {
-            let current = clampToImage(toImage(point))
+        // The anchor travels and its badge stays: the note keeps the place it was put in, so the
+        // offset of the badge gives back exactly what the anchor takes, and the leader grows between
+        // the two. A note that was never moved has no offset to compensate, and its badge follows.
+        if let anchored = anchorDrag, pressed, !anchorOriginPoints.isEmpty {
+            let current = clampToImage(toImage(displayPoint))
+            let moved = CGPoint(x: current.x - anchorDragStart.x, y: current.y - anchorDragStart.y)
+            if !anchorMoved, hypot(moved.x, moved.y) * displayScale < EditorGeometry.gestureThreshold { return }
+            anchorMoved = true
+            for index in anchored.points.indices where index < anchorOriginPoints.count {
+                anchored.points[index] = clampToImage(
+                    CGPoint(x: anchorOriginPoints[index].x + moved.x, y: anchorOriginPoints[index].y + moved.y))
+            }
+            if let offset = anchorOriginOffset {
+                anchored.noteOffset = CGPoint(x: offset.x - moved.x, y: offset.y - moved.y)
+            }
+            needsDisplay = true
+            return
+        }
+
+        if manipulating, let selected = selectedAnnotation, let gestureStart, pressed {
+            let current = clampToImage(toImage(displayPoint))
             if resizing {
                 // `ResizeGeometry` (Sources/SnapikCore/Geometry/ResizeGeometry.swift) is
                 // Foundation-only; CG-typed overloads with matching labels live in
@@ -242,17 +365,37 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
-        guard let draft, gestureStart != nil else { return }
-        let point2 = clampToImage(toImage(point))
+        guard let draft, gestureStart != nil, pressed else {
+            updateCursor(displayPoint)
+            return
+        }
+        let point = clampToImage(toImage(displayPoint))
         if draft.kind == .pen || draft.kind == .highlight {
-            draft.points.append(point2)
+            draft.points.append(point)
         } else if draft.points.count > 1 {
-            draft.points[1] = point2
+            draft.points[1] = point
         }
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
+        endGesture()
+    }
+
+    /// Port of `EndGesture` (`:379-436`).
+    func endGesture() {
+        if anchorDrag != nil {
+            let moved = anchorMoved
+            anchorDrag = nil
+            anchorOriginPoints = []
+            anchorOriginOffset = nil
+            anchorMoved = false
+            // One entry of history for one drag, the way a moved note writes one.
+            if moved { onAnnotationChanged?() }
+            needsDisplay = true
+            return
+        }
+
         if manipulating {
             manipulating = false
             resizing = false
@@ -265,45 +408,100 @@ final class AnnotationCanvasView: NSView {
         }
 
         guard let draft else { return }
-        if EditorGeometry.gestureHasSize(kind: draft.kind, points: draft.points) {
+        self.draft = nil
+        gestureStart = nil
+        if EditorGeometry.gestureHasSize(kind: draft.kind, points: draft.points, scale: displayScale) {
             if draft.kind == .crop {
                 onCropRequested?(EditorGeometry.boundsOf(points: draft.points))
             } else {
                 draft.label = ""
+                // A caption owns the box its letters take, from the moment it is placed.
+                fitTextMark(draft)
                 capture?.annotations.append(draft)
-                select(draft)
+                // A stroke of the pen or the highlighter is not selected after the hand lets go: it
+                // is drawing, not an object to adjust (SPEC-DELTA-3 §1.4 E-4).
+                if draft.kind != .pen && draft.kind != .highlight { select(draft) }
                 onAnnotationCreated?(draft)
             }
         }
-        self.draft = nil
-        gestureStart = nil
         needsDisplay = true
+    }
+
+    /// Port of `TextMarkMetrics.Fit` (`TextMarkMetrics.cs:39-46`) against the editor's own model:
+    /// the second point of a caption is not what the hand drew, it is what the letters take.
+    func fitTextMark(_ item: EditorAnnotation) {
+        guard item.kind == .text, let anchor = item.points.first else { return }
+        let fitted = TextMarkMetrics.fit(
+            anchor: GeometryPoint(Double(anchor.x), Double(anchor.y)), text: item.text, fontSize: item.fontSize)
+        let second = CGPoint(x: fitted.x, y: fitted.y)
+        if item.points.count < 2 {
+            item.points.append(second)
+        } else {
+            item.points[1] = second
+        }
     }
 
     override func mouseMoved(with event: NSEvent) {
         guard draft == nil else { return }
-        let point = convert(event.locationInWindow, from: nil)
-        let handle = findResizeHandle(point)
-        if handle.corner >= 0 {
+        updateCursor(convert(event.locationInWindow, from: nil))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        // The red outline of the eraser belongs to where the pointer is, and the pointer is gone.
+        clearEraseHover()
+    }
+
+    /// Port of `UpdateCursor` (`:341-362`): arrows on the corners of a selected mark, a hand where a
+    /// mark can be grabbed, a crosshair over the capture with a drawing tool armed, and the ordinary
+    /// arrow everywhere else.
+    private func updateCursor(_ displayPoint: CGPoint) {
+        if tool == .eraser {
+            let hover = eraseTarget(displayPoint)
+            if hover !== eraseHover {
+                eraseHover = hover
+                needsDisplay = true
+            }
+            (hover == nil ? NSCursor.arrow : NSCursor.openHand).set()
+            return
+        }
+        clearEraseHover()
+
+        // The anchor is asked first here for the same reason it is asked first on a press: it has to
+        // answer for the pixels it covers, handles of neighbouring marks included.
+        let anchorHover = findLeaderAnchor(displayPoint)?.id
+        if anchorHover != anchorHoverId {
+            anchorHoverId = anchorHover
+            needsDisplay = true
+        }
+        if anchorHover != nil {
+            NSCursor.openHand.set()
+            return
+        }
+
+        if findResizeHandle(displayPoint).corner >= 0 {
             // CHECK-API: AppKit has no public diagonal (NWSE/NESW) resize cursor, unlike WPF's
             // `Cursors.SizeNWSE`/`SizeNESW` (SPEC §1.6). `.crosshair` is used for both corner
-            // families as the closest stock cursor; revisit with a custom `NSCursor` image if
-            // exact diagonal cursors are required later.
+            // families as the closest stock cursor.
             NSCursor.crosshair.set()
             return
         }
-        // SPEC-DELTA-2B.md §C4: an edge hover (rectangle/blur/conceal) or hovering a comment pin
-        // in Select mode shows `.openHand` (SizeAll has no AppKit equivalent); the active tool is
-        // never changed by hovering (`:537-538`).
-        let moveEdgeHit = tool == .comment ? nil : findMoveEdge(point)
-        let hoveringCommentPin = tool == .select && hitTestAnnotation(toImage(point))?.kind == .comment
-        if moveEdgeHit != nil || hoveringCommentPin {
+
+        // [ТЗ№4 D3] The hand over a pin is no longer reserved for the Select tool: with the Comment
+        // tool armed a badge is grabbable, so the cursor has to say so (`D-editor.md` §4.2).
+        let movablePin = hitTestAnnotation(toImage(displayPoint))?.kind == .comment
+        if findMoveHandle(displayPoint) != nil || movablePin {
             NSCursor.openHand.set()
-        } else if tool == .select {
-            NSCursor.arrow.set()
-        } else {
+        } else if tool.isDrawing && imageRect.contains(displayPoint) {
             NSCursor.crosshair.set()
+        } else {
+            NSCursor.arrow.set()
         }
+    }
+
+    private func clearEraseHover() {
+        guard eraseHover != nil else { return }
+        eraseHover = nil
+        needsDisplay = true
     }
 
     // MARK: - Keyboard
@@ -319,10 +517,14 @@ final class AnnotationCanvasView: NSView {
                 super.keyDown(with: event)
             }
         case Keycode.escape:
+            // Escape gives up what is going on, one step at a time: the mark being drawn first, the
+            // selection after it. Only with neither of them does the window itself hear the key.
             if draft != nil {
                 draft = nil
                 gestureStart = nil
                 needsDisplay = true
+            } else if selectedAnnotation != nil {
+                select(nil)
             } else {
                 super.keyDown(with: event)
             }
@@ -333,27 +535,88 @@ final class AnnotationCanvasView: NSView {
 
     // MARK: - Hit testing (SPEC §6.3)
 
-    /// Port of `AnnotationCanvas.cs:417-428` `FindMoveEdge` via `EditorGeometry.findMoveEdge`:
-    /// only Rectangle/Blur/Conceal annotations participate (SPEC-DELTA-2B.md §C3/§C4).
-    private func findMoveEdge(_ displayPoint: CGPoint) -> EditorAnnotation? {
-        guard let capture else { return nil }
-        for annotation in capture.annotations.reversed() where annotation.kind == .rectangle || annotation.kind == .blur || annotation.kind == .conceal {
-            if EditorGeometry.findMoveEdge(displayBounds: displayBounds(of: annotation), point: displayPoint) {
-                return annotation
-            }
-        }
-        return nil
+    /// Port of `EraseTarget` (`:368-369`): the eraser takes whatever the hand can already grab — the
+    /// edge of a frame, the line of an arrow, the stroke of a pen, the badge of a comment, the
+    /// inside of a filled or blurred region.
+    private func eraseTarget(_ displayPoint: CGPoint) -> EditorAnnotation? {
+        findMoveHandle(displayPoint) ?? hitTestAnnotation(toImage(displayPoint))
     }
 
-    /// Port of `AnnotationCanvas.cs`'s corner-handle hit test. Skips Comment pins (SPEC-DELTA-2B.md
-    /// §C4: "пропускать `.comment`" — a pin never has resize handles).
+    /// Port of `FindLeaderAnchor` (`:771-777`). [ТЗ№4 D3] the `Tool == Select` condition is gone:
+    /// the anchor answers under every tool, so a comment can be re-aimed without putting the tool
+    /// down (`D-editor.md` §4.1 step 1).
+    private func findLeaderAnchor(_ point: CGPoint) -> EditorAnnotation? {
+        guard let capture else { return nil }
+        return capture.annotations.reversed().first(where: { item in
+            guard item.kind == .comment, !item.label.isEmpty, let first = item.points.first else { return false }
+            let anchor = toDisplay(first)
+            return hypot(point.x - anchor.x, point.y - anchor.y) <= Self.anchorHoverRadius
+        })
+    }
+
+    /// Port of `FindMoveHandle` (`:784-788`). [ТЗ№4 D3] the blanket refusal under the Comment tool
+    /// is gone; `isMoveHandle` narrows itself to comment badges instead, so a pin can still be put
+    /// down on top of a drawn frame (`D-editor.md` §4.1 step 2).
+    func findMoveHandle(_ displayPoint: CGPoint) -> EditorAnnotation? {
+        guard let capture else { return nil }
+        return capture.annotations.reversed().first(where: { isMoveHandle($0, displayPoint) })
+    }
+
+    /// Port of `IsMoveHandle` (`:790-827`): every mark can be grabbed and moved whatever tool is
+    /// armed — a box by the band along its outline, a line by the line itself, a comment by its
+    /// badge. The interior of a frame stays free for the next drawing, except where the mark is
+    /// opaque and there is nothing to draw into.
+    private func isMoveHandle(_ item: EditorAnnotation, _ point: CGPoint) -> Bool {
+        guard capture != nil, !item.points.isEmpty else { return false }
+        // [ТЗ№4 D3] With the Comment tool in the hand only a comment answers: otherwise the band
+        // along a drawn frame would swallow the press and a pin could not be put on top of it.
+        if tool == .comment { return item.kind == .comment && badgeOf(item, target: imageRect).contains(point, slack: 4) }
+
+        let scale = displayScale
+        let band = max(6, item.thickness * scale)
+        switch item.kind {
+        case .comment:
+            return badgeOf(item, target: imageRect).contains(point, slack: 4)
+        case .arrow:
+            guard item.points.count > 1 else { return false }
+            let shaft = ArrowDrawing.shaft(from: toDisplay(item.points[0]), to: toDisplay(item.points[1]), style: item.arrowStyle)
+            return EditorGeometry.distanceToPolyline(shaft, point) <= band
+        case .pen, .highlight:
+            // Half the stroke plus a little slack: the thickness of a mark is the width it is really
+            // drawn with now, for the highlighter as well as for the pencil (SPEC-DELTA-3 §1.4 E-4).
+            let width = max(6, item.thickness * scale / 2 + 4)
+            for segment in [item.points] + item.additionalPathSegments {
+                if EditorGeometry.distanceToPolyline(segment.map(toDisplay), point) <= width { return true }
+            }
+            return false
+        default:
+            let bounds = displayBounds(of: item)
+            // [ТЗ№4 D3, variant Б] a mark of the same kind as the tool in the hand is easier to grab
+            // by its outline, and its empty interior stays free for the next mark.
+            let reach: CGFloat = item.kind == tool ? 10 : 6
+            guard bounds.insetBy(dx: -reach, dy: -reach).contains(point) else { return false }
+            // An opaque mark has no free interior, and a small one has no room for a band.
+            if Self.hasInteriorGrab(item) || bounds.width < 24 || bounds.height < 24 { return true }
+            return EditorGeometry.findMoveEdge(displayBounds: bounds, point: point, band: reach)
+        }
+    }
+
+    /// Port of `HasInteriorGrab` (`:831-832`): opaque marks are grabbed anywhere inside, and so is a
+    /// filled frame; the fill of any other kind means nothing on screen, so its interior stays free
+    /// for a new mark. A caption is its own interior — the box around it is the letters.
+    private static func hasInteriorGrab(_ item: EditorAnnotation) -> Bool {
+        item.kind == .blur || item.kind == .text || (item.kind == .rectangle && item.fill != .none)
+    }
+
+    /// Port of `FindResizeHandle` (`:544-560`). Skips the kinds without handles (SPEC-DELTA-2B.md
+    /// §C4: a pin never has resize handles; a caption is sized by the panel, not by its corners).
     private func findResizeHandle(_ displayPoint: CGPoint) -> (annotation: EditorAnnotation?, corner: Int) {
         guard let capture else { return (nil, -1) }
-        if let selected = selectedAnnotation, selected.kind != .comment {
+        if let selected = selectedAnnotation, AnnotationCanvasView.hasResizeHandles(selected) {
             let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: selected), point: displayPoint, radius: 10)
             if corner >= 0 { return (selected, corner) }
         }
-        for annotation in capture.annotations.reversed() where annotation.kind != .comment {
+        for annotation in capture.annotations.reversed() where AnnotationCanvasView.hasResizeHandles(annotation) {
             let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: annotation), point: displayPoint, radius: 10)
             if corner >= 0 { return (annotation, corner) }
         }
@@ -375,19 +638,20 @@ final class AnnotationCanvasView: NSView {
     /// Port of the hover-manipulation half of `RunNoteAffordanceProbe`/`VerifyHoverManipulation`
     /// (SPEC §8.4 point 9, SPEC-DELTA-2.md §5 "WPF smoke"): a rectangle's edge is movable and its
     /// corner is resizable **even while a different tool is active**, its interior is not a
-    /// handle, hovering never mutates `tool`, and a comment pin has neither. Builds its own
-    /// off-screen `AnnotationCanvasView`/`EditorCapture` rather than requiring a real window —
-    /// every check below only calls this file's own hit-testing helpers, never a live mouse event.
+    /// handle, hovering never mutates `tool`, and a comment pin has no resize handles. [ТЗ№4 D3]
+    /// adds the Comment half: with a pin armed, the band along a frame answers nothing and the badge
+    /// of a comment answers the comment. Builds its own off-screen view rather than needing a window.
     @discardableResult
     static func smokeVerifyHoverManipulation(image: CGImage) -> Bool {
         let view = AnnotationCanvasView(frame: NSRect(x: 0, y: 0, width: 480, height: 300))
         let capture = EditorCapture(image: image, sourceImagePath: "")
         let rectangle = EditorAnnotation(
             kind: .rectangle, points: [CGPoint(x: 40, y: 40), CGPoint(x: 200, y: 160)],
-            color: EditorTheme.accent, thickness: 4)
+            color: EditorTheme.defaultAnnotationColor, thickness: 4)
         let pin = EditorAnnotation(
             kind: .comment, points: [CGPoint(x: 300, y: 60), CGPoint(x: 308, y: 68)],
-            color: EditorTheme.accent, thickness: 4)
+            color: EditorTheme.defaultAnnotationColor, thickness: 4)
+        pin.label = "A1"
         capture.annotations = [rectangle, pin]
         view.capture = capture
         // A tool other than Select/Rectangle: hover manipulation must still work (SPEC §1.4
@@ -400,18 +664,22 @@ final class AnnotationCanvasView: NSView {
         let interiorPoint = CGPoint(x: rectangleBounds.midX, y: rectangleBounds.midY)
         let cornerPoint = CGPoint(x: rectangleBounds.maxX, y: rectangleBounds.maxY)
 
-        guard view.findMoveEdge(edgePoint) === rectangle else { return false }
-        guard view.findMoveEdge(interiorPoint) == nil else { return false }
+        guard view.findMoveHandle(edgePoint) === rectangle else { return false }
+        guard view.findMoveHandle(interiorPoint) == nil else { return false }
 
         let cornerHit = view.findResizeHandle(cornerPoint)
         guard cornerHit.annotation === rectangle, cornerHit.corner == 2 else { return false }
 
-        let pinBounds = view.displayBounds(of: pin)
-        guard view.findResizeHandle(CGPoint(x: pinBounds.maxX, y: pinBounds.maxY)).annotation == nil else { return false }
-        guard view.findMoveEdge(CGPoint(x: pinBounds.midX, y: pinBounds.midY)) == nil else { return false }
+        guard view.findResizeHandle(view.badgeCenter(of: pin)).annotation == nil else { return false }
+
+        // [ТЗ№4 D3] With the Comment tool armed the band along a frame answers nothing, so a pin can
+        // be put down on top of it; the badge of a comment still answers.
+        view.tool = .comment
+        guard view.findMoveHandle(edgePoint) == nil else { return false }
+        guard view.findMoveHandle(view.badgeCenter(of: pin)) === pin else { return false }
 
         // Hovering never mutates the active tool (only the cursor).
-        return view.tool == .blur
+        return view.tool == .comment
     }
 }
 

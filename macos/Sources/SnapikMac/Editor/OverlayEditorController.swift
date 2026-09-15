@@ -77,23 +77,77 @@ final class OverlayEditorController {
     /// brand-new capture, which has its own delete-on-cancel path instead.
     var hasBackedUpOriginalSource = false
 
-    // MARK: - Appearance (SPEC §1.3, §6.2 "Дополнение 2026-09-09")
-    var activeColor: NSColor = EditorTheme.annotationPalette[0]
-    var activeThickness: Double = 4
-    /// True while `syncAppearance()` is writing into the popover's own controls, so their change
-    /// callbacks (`onThicknessChanged`) don't re-enter `applyAppearance` (port of
-    /// `_syncingAppearance`, `OverlayEditorWindow.Appearance.cs:13`).
+    // MARK: - Appearance (SPEC §1.3, §6.2, SPEC-DELTA-3 §1.4 E-1, E-3, E-16)
+
+    /// [ТЗ№4 D1] One active colour for everything the tool in the hand draws: the popover, the
+    /// quick dots, the spectrum, the HEX field and the eyedropper all write here, with every tool
+    /// in the hand (`tasks/tz-005-details/D-editor.md` §2.1).
+    var activeColor: NSColor = EditorTheme.defaultAnnotationColor
+    var activeThickness: Double = EditorAppearance.defaultAnnotationThickness
+    /// The highlighter is measured in tens of pixels and keeps a width of its own; the panel reads
+    /// and writes both through `activeThickness(for:)`/`setActiveThickness(_:for:)` (E-3).
+    var activeHighlightThickness: Double = EditorAppearance.defaultHighlightThickness
+    var activeFontSize: Double = TextMarkMetrics.defaultFontSize
+    /// [ТЗ№4 D1] The frame, the fill and its colour are **not** remembered between captures: every
+    /// capture starts with an outline, no fill and a rectangle (`D-editor.md` §2.5).
+    var activeShape: AnnotationShape = .rectangle
+    var activeFill: AnnotationFill = .none
+    var activeFillColor: NSColor?
+    var activeLineStyle: AnnotationLineStyle = .solid
+    /// Which half of the pencil capsule is armed (`_activePencil`).
+    var activePencil: EditorTool = .pen
+    /// The set of twelve colours the popover offers, and the own colours behind it.
+    var activePalette: EditorPalette = EditorAppearance.standardPalette
+    var customColors: [String] = []
+
+    /// True while `syncAppearance()` is writing into a popover's own controls, so their change
+    /// callbacks don't re-enter `applyAppearance` (port of `_syncingAppearance`).
     var syncingAppearance = false
-    /// Non-nil exactly while a color/thickness edit session is open (the popover is showing, or a
-    /// `smokeSetAppearance` probe is mid-session) — the snapshot to restore on undo if anything
-    /// actually changes (port of `_appearanceBefore`).
+    /// Non-nil exactly while an appearance edit session is open (a popover is showing, or a probe is
+    /// mid-session) — the snapshot to restore on undo if anything actually changes.
     var appearanceBefore: OverlaySnapshot?
-    /// True once at least one color/thickness edit in the current session actually changed the
-    /// selected annotation (port of `_appearanceChanged`).
+    /// True once at least one edit in the current session actually changed the selected annotation.
     var appearanceChanged = false
-    var appearancePopover: NSPopover?
-    var appearancePopoverController: EditorAppearancePopoverViewController?
+    /// True once at least one edit changed what the **next** capture starts with, so the defaults are
+    /// written to the settings file when the session closes (`_appearanceDefaultsChanged`).
+    var appearanceDefaultsChanged = false
+
+    /// The one popover on screen, and which of the five it is.
+    var activePopover: NSPopover?
+    var activePopoverKind: EditorPopoverKind?
+    var colorPopoverController: EditorColorPopoverViewController?
+    var thicknessPopoverController: EditorThicknessPopoverViewController?
+    var lineStylePopoverController: EditorLineStylePopoverViewController?
+    var fillPopoverController: EditorFillPopoverViewController?
+    var fontSizePopoverController: EditorFontSizePopoverViewController?
     var appearancePopoverDelegate: AppearancePopoverDelegateProxy?
+
+    // MARK: - Caption typed on the capture (SPEC-DELTA-3 §1.4 E-6)
+
+    /// The field standing over the caption being typed, and the mark it belongs to.
+    var textEditorView: EditorCaptionTextView?
+    var editingTextAnnotation: EditorAnnotation?
+    /// True while the caption being typed is a brand-new one, so an empty commit removes it.
+    var editingTextIsNew = false
+    /// The snapshot taken before the caption was opened: one history entry for the whole edit.
+    var textEditBefore: OverlaySnapshot?
+    /// The letters the caption held when it was opened, for the Escape that puts them back.
+    var editingTextBefore: String = ""
+    /// How deep the undo stack was when the caption was opened (`_editingUndoDepth`).
+    var editingTextUndoDepth = 0
+    /// Guards `commitTextEdit`/`cancelTextEdit` against re-entering each other while they close.
+    var closingTextEdit = false
+    var captionTextDelegate: CaptionTextDelegateProxy?
+
+    // MARK: - Comments panel (SPEC-DELTA-3 §1.4 E-12)
+
+    var commentsPanelView: CommentsPanelView?
+
+    // MARK: - Dragging a note pill (SPEC-DELTA-3 §1.4 E-7)
+
+    var chipDragAnnotation: EditorAnnotation?
+    var chipDragOrigin: CGPoint?
+    var chipDragMoved = false
 
     // Corner-resize state (SPEC §1.6)
     var captureResizeCorner = -1
@@ -138,6 +192,19 @@ final class OverlayEditorController {
         self.settings = settings
         self.language = language
         captureIndex = workspace.nextCaptureIndex
+        // [ТЗ№4 D1] Only four things travel between captures: the colour, the two thicknesses, the
+        // palette and which half of the pencil capsule is armed (`D-editor.md` §2.5). The shape, the
+        // fill and its colour are deliberately **not** read back — every capture starts with an
+        // outline, no fill and a rectangle.
+        activeColor = EditorAppearance.parseColor(settings.annotationColor)
+        activeThickness = min(max(settings.annotationThickness, EditorAppearance.minimumThickness), EditorAppearance.maximumThickness)
+        activeHighlightThickness = min(
+            max(settings.annotationHighlightThickness, EditorAppearance.minimumHighlightThickness),
+            EditorAppearance.maximumHighlightThickness)
+        activeFontSize = TextMarkMetrics.clamp(settings.annotationFontSize)
+        activePencil = EditorAppearance.parsePencil(settings.annotationPencil)
+        customColors = settings.customPaletteColors
+        activePalette = EditorAppearance.palette(for: settings)
     }
 
     // MARK: - Presentation (SPEC §1.2 step 5, §6.2 layer 1)
@@ -186,7 +253,7 @@ final class OverlayEditorController {
         if !editorCapture.note.isEmpty {
             editorCapture.annotations.append(EditorAnnotation(
                 kind: .comment, points: [CGPoint(x: 24, y: 24), CGPoint(x: 32, y: 32)],
-                color: EditorTheme.accent, thickness: 4, note: editorCapture.note))
+                color: activeColor, thickness: activeThickness, note: editorCapture.note))
             editorCapture.note = ""
         }
         self.capture = editorCapture

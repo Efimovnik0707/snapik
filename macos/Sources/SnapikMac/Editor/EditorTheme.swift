@@ -48,7 +48,7 @@ enum EditorTheme {
     static let toolbarDivider = NSColor(hex: "#3A424E")
     static let moreToolsMenuBorder = NSColor(hex: "#3A424E")
     static let focusRing = NSColor(hex: "#7AB8FF")
-    static let cropBorder = NSColor(hex: "#2F8CFF")
+    static var cropBorder: NSColor { accent }
 
     // Text
     static let textPrimary = NSColor(hex: "#EEF2F8")
@@ -58,14 +58,15 @@ enum EditorTheme {
     static let textSecondaryAE = NSColor(hex: "#AEB8C7")
     static let errorText = NSColor(hex: "#FF9B95")
 
-    // Accent / annotation palette (SPEC §1.3, §6.2 "Дополнение 2026-09-09": 12 fixed swatches in
-    // the appearance popover, replacing the old 4-color cycle).
-    static let accent = NSColor(hex: "#2F8CFF")
-    static let annotationPaletteHex: [String] = [
-        "#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7",
-        "#FFFFFF", "#000000", "#00C8DC", "#FF8C42", "#9BA7B8", "#7754D9",
-    ]
-    static let annotationPalette: [NSColor] = annotationPaletteHex.map { NSColor(hex: $0) }
+    // Accent (SPEC-DELTA-3 §1.4 E-15): everything the editor draws as chrome reads the accent from
+    // `AccentPalette` and from nowhere else, so a violet accent reaches the badge and the crop
+    // border as well as the settings window. What used to be the colour of a *mark* is
+    // `defaultAnnotationColor` below instead.
+    static var accent: NSColor { AccentPalette.flat }
+
+    /// Red, the first colour of the standard palette (`OverlayEditorWindow.Appearance.cs:20`): on a
+    /// clean install the active colour has to belong to the palette, otherwise no swatch is circled.
+    static let defaultAnnotationColor = NSColor(hex: "#FF3B30")
 
     // Appearance popover (SPEC §1.3, §6.2 "Дополнение 2026-09-09", port of the new
     // `AppearancePopup`/`StrokeSliderStyle` chrome in `Themes/SnapikTheme.xaml`/
@@ -85,10 +86,14 @@ enum EditorTheme {
     /// `OverlayEditorWindow.Appearance.cs:66`).
     static let moreToolsActiveBackground = NSColor(hex: "#284B78")
 
-    // Selection / handles (SPEC §6.3)
-    static let selectionOutline = NSColor(hex: "#315CF5")
+    // Selection / handles (SPEC §6.3). The frame and the handles take the accent, like everything
+    // else the editor draws as chrome (SPEC-DELTA-3 §1.4 E-15).
     static let handleFill = NSColor.white
-    static let handleBorder = NSColor(hex: "#2F8CFF")
+    static var handleBorder: NSColor { accent }
+
+    /// The outline the eraser puts around what it is about to take (`AnnotationCanvas.cs:160`,
+    /// SPEC-DELTA-3 §1.4 E-5). A colour of its own and not the accent: it means "this goes away".
+    static let eraseHoverOutline = NSColor(hex: "#FF3B30")
 
     // Blur / crop draft fills (SPEC §1.7, §6.3)
     static let blurPreviewFill = NSColor(hex: "#36FFFFFF")

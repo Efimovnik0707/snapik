@@ -88,29 +88,48 @@ extension OverlayEditorController {
     }
 
     /// Port of the Escape / tool-letter / Delete branches of `OnWindowKeyDown` (`:729-764`).
-    /// Only reached when `OverlayContentView` itself (not a chip's text field) is first
-    /// responder — SPEC §7.5's "внутри поля — обычный ввод текста" is therefore automatic: text
-    /// fields simply receive `keyDown` directly and this method never runs.
+    /// Only reached when `OverlayContentView` itself (not a text field) is first responder —
+    /// SPEC §7.5's "внутри поля — обычный ввод текста" is therefore automatic: text fields
+    /// receive `keyDown` directly and this method never runs.
     func handleKeyDown(_ event: NSEvent) {
         guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty else { return }
 
         if event.keyCode == Keycode.escape {
-            if capture == nil {
-                if selectionStartLocal == nil { close(); delegate?.overlayEditorDidCancel(self) }
-                return
-            }
-            cancelEditing()
+            handleEscape()
             return
         }
 
-        guard let key = event.charactersIgnoringModifiers?.uppercased(), let tool = EditorTool(rawValue: key) else { return }
-        // SPEC-DELTA-2B.md §C7: the `N` hotkey routes through `commentButtonClicked()` (which
-        // captures `commentParentId` from whatever is currently selected) instead of the plain
-        // `selectTool(_:)` every other letter uses.
+        guard let key = event.charactersIgnoringModifiers?.uppercased(), let tool = EditorShortcuts.tool(forKey: key) else { return }
+        // SPEC-DELTA-2B.md §C7: the `N` key routes through `commentButtonClicked()` (which captures
+        // `commentParentId` from whatever is selected) instead of the plain `selectTool(_:)` every
+        // other letter uses.
         if tool == .comment {
             commentButtonClicked()
         } else {
             selectTool(tool)
+        }
+    }
+
+    /// Port of the Escape ladder (`NextEscapeStep`, `Appearance.cs:614-620`, SPEC-DELTA-3 §1.4 E-10):
+    /// an open popover, then the Comment tool, then the selection, and only with nothing left to give
+    /// up, the capture itself. The mark being drawn is taken by the canvas before this runs at all.
+    private func handleEscape() {
+        if capture == nil {
+            if selectionStartLocal == nil {
+                close()
+                delegate?.overlayEditorDidCancel(self)
+            }
+            return
+        }
+        switch nextEscapeStep() {
+        case .popover:
+            closePopovers()
+        case .comment:
+            selectTool(.select)
+        case .selection:
+            canvasView?.selectAnnotation(id: nil)
+        case .capture:
+            cancelEditing()
         }
     }
 }

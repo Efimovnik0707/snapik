@@ -1,15 +1,13 @@
-// Port of `AnnotationCanvas.OnRender`/`DrawAnnotation`/`RenderAnnotated`, SPEC §1.7, §6.3.
+// Port of `AnnotationCanvas.OnRender`/`DrawAnnotation`/`RenderAnnotated`, SPEC §1.7, §6.3,
+// SPEC-DELTA-3 §1.4 E-1, E-2, E-4, E-6, E-14, E-20.
 //
-// On-screen rendering here is implemented directly against the exact per-pixel formulas in
-// SPEC §6.3 (colors, thickness floor, arrow geometry, label sizing, draw-pass ordering — in
-// particular "подписи-номера всегда поверх форм") rather than by delegating to the shared
-// `AnnotationPainter.draw` from `Sources/SnapikMac/Imaging` (which did not exist yet at the
-// time this file was written, and whose exact per-annotation draw-call ordering is not knowable
-// in advance — delegating risks the label/conceal z-order the spec explicitly calls out as
-// important). `renderFinalImage()` (used only for the Cmd+S save path, SPEC §1.13) *does* call
-// `AnnotationPainter.draw`, matching CONTRACTS.md's "рендер на экране и в экспорте совпадал"
-// intent for anything that leaves the app as a file. Live blur (SPEC §1.7) always goes through
-// the real `RegionBlur.blur` (Imaging).
+// On-screen rendering maps every mark into the view's own point space and then hands the actual
+// geometry to the shared `Imaging` helpers (`AnnotationPainter.drawBoxShape`/`strokePath`,
+// `ShapeMask`, `StrokePattern`, `ArrowDrawing`, `NoteBadgeGeometry`), so the canvas and the export
+// renderer draw the same shapes from the same numbers at two scales — the rule of SPEC-DELTA-3
+// §1.4 E-1 ("оба рендерера берут маску из одного места"). What stays here is only what belongs to
+// the screen: the draft being drawn, the selection frame, the eraser outline, the anchor of a
+// leader, and the blur placeholder shown while a blurred region is dragged.
 import AppKit
 import SnapikCore
 
@@ -25,28 +23,57 @@ extension AnnotationCanvasView {
         let displayImage = applyBlurAnnotations(capture.image)
         NSImage(cgImage: displayImage, size: imageRect.size).draw(in: imageRect)
 
-        for annotation in capture.annotations where annotation.kind != .blur && annotation.kind != .conceal {
+        for annotation in capture.annotations where !Self.isBlurred(annotation) && !Self.hasOpaqueFill(annotation) {
             drawAnnotation(ctx, annotation, target: imageRect, includeSelection: false, drawLabel: false)
         }
-        for annotation in capture.annotations where annotation.kind == .conceal {
+        for annotation in capture.annotations where Self.hasOpaqueFill(annotation) {
             drawAnnotation(ctx, annotation, target: imageRect, includeSelection: false, drawLabel: false)
         }
         for annotation in capture.annotations {
             drawAnnotation(ctx, annotation, target: imageRect, includeSelection: true, drawShape: false)
         }
 
-        if isManipulatingBlur, let selected = selectedAnnotation {
-            let bounds = displayBounds(of: selected)
-            ctx.setFillColor(NSColor.black.cgColor)
-            ctx.fill(bounds)
-            ctx.setStrokeColor(EditorTheme.accent.cgColor)
+        // The mark the eraser is about to take is outlined in red, so a click is never a surprise
+        // (SPEC-DELTA-3 §1.4 E-5).
+        if let erasing = eraseHover, capture.annotations.contains(where: { $0 === erasing }) {
+            ctx.saveGState()
+            ctx.setLineDash(phase: 0, lengths: [])
+            ctx.setStrokeColor(EditorTheme.eraseHoverOutline.cgColor)
             ctx.setLineWidth(1.5)
-            ctx.stroke(bounds)
+            ctx.stroke(displayBounds(of: erasing))
+            ctx.restoreGState()
+        }
+
+        // While a blurred region travels, the frame under it is the cached one, so the region itself
+        // is drawn as a cheap placeholder: the same for the blur tool and for a frame filled with
+        // blur (SPEC-DELTA-3 §1.4 E-14).
+        if manipulating, let selected = selectedAnnotation, Self.isBlurred(selected) {
+            AnnotationPainter.drawBoxShape(
+                in: ctx, shape: selected.shape, rect: displayBounds(of: selected),
+                scale: imageRect.width / CGFloat(max(1, capture.image.width)),
+                fill: .black, outline: EditorTheme.accent, thickness: 1.5, lineStyle: .solid)
         }
 
         if let draft {
             drawAnnotation(ctx, draft, target: imageRect)
         }
+    }
+
+    /// Port of `AnnotationCanvas.IsBlurred` for the editor's own model.
+    static func isBlurred(_ item: EditorAnnotation) -> Bool {
+        item.kind == .blur || (item.kind == .rectangle && item.fill == .blur)
+    }
+
+    /// Port of `AnnotationCanvas.HasOpaqueFill`: an opaque fill hides what stands under it, so it is
+    /// drawn after every other shape — that is what the conceal tool used to do.
+    static func hasOpaqueFill(_ item: EditorAnnotation) -> Bool {
+        item.kind == .rectangle && item.fill == .solid
+    }
+
+    /// Port of `HasResizeHandles` (`AnnotationCanvas.cs:747`): a caption is not stretched by its
+    /// corners — the box around it is the letters, and their size is set by the button on the panel.
+    static func hasResizeHandles(_ item: EditorAnnotation) -> Bool {
+        item.kind != .comment && item.kind != .text
     }
 
     /// Port of `DrawAnnotation` (`AnnotationCanvas.cs:328-415`).
@@ -63,84 +90,127 @@ extension AnnotationCanvasView {
         let scale = target.width / imageWidth
         let thickness = max(1.5, item.thickness * scale)
         let color = item.color
+        let lineStyle = StrokePattern.of(item.coreKind, item.lineStyle)
 
         if drawShape, item.kind == .pen || item.kind == .highlight {
-            let isHighlight = item.kind == .highlight
-            let strokeColor = color.withAlphaComponent(isHighlight ? 0.35 : 1)
-            ctx.setStrokeColor(strokeColor.cgColor)
-            ctx.setLineWidth(isHighlight ? thickness * 4 : thickness)
-            ctx.setLineCap(.round)
-            ctx.setLineJoin(.round)
-            for segment in [item.points] + item.additionalPathSegments where segment.count > 1 {
-                ctx.beginPath()
-                ctx.move(to: map(segment[0]))
-                for point in segment.dropFirst() { ctx.addLine(to: map(point)) }
-                ctx.strokePath()
-            }
+            let segments = ([item.points] + item.additionalPathSegments).map { $0.map(map) }
+            AnnotationPainter.strokePath(
+                segments, in: ctx, color: color, thickness: thickness,
+                lineStyle: lineStyle, highlight: item.kind == .highlight)
         } else if drawShape, item.points.count > 1 {
             let start = map(item.points[0])
             let end = map(item.points[1])
             let rect = CGRect(x: min(start.x, end.x), y: min(start.y, end.y), width: abs(end.x - start.x), height: abs(end.y - start.y))
             switch item.kind {
             case .rectangle:
-                ctx.setStrokeColor(color.cgColor)
-                ctx.setLineWidth(thickness)
-                ctx.stroke(rect)
+                let fillColor = item.fillColor ?? color
+                AnnotationPainter.drawBoxShape(
+                    in: ctx, shape: item.shape, rect: rect, scale: scale,
+                    fill: EditorAppearance.fillColor(fillColor, fill: item.fill),
+                    outline: EditorAppearance.outlineColor(fill: item.fill, color: color, fillColor: fillColor),
+                    thickness: thickness, lineStyle: lineStyle)
             case .conceal:
-                ctx.setFillColor(NSColor.black.cgColor)
-                ctx.fill(rect)
+                // Nothing draws this kind any more: the tool is gone and a legacy `redaction` mark is
+                // read back as a rectangle with a solid black fill (SPEC-DELTA-3 §2.1).
+                break
             case .blur:
-                ctx.setFillColor(EditorTheme.blurPreviewFill.cgColor)
-                ctx.fill(rect)
-                ctx.setStrokeColor(EditorTheme.accent.cgColor)
-                ctx.setLineWidth(1.5)
-                ctx.stroke(rect)
+                // The preview of a blur that is still being drawn shows the shape it will take.
+                AnnotationPainter.drawBoxShape(
+                    in: ctx, shape: item.shape, rect: rect, scale: scale,
+                    fill: EditorTheme.blurPreviewFill, outline: EditorTheme.accent,
+                    thickness: 1.5, lineStyle: .solid)
             case .crop:
-                ctx.setFillColor(EditorTheme.cropPreviewFill.cgColor)
+                ctx.saveGState()
+                ctx.setFillColor(AccentPalette.wash(alpha: 24.0 / 255.0).cgColor)
                 ctx.fill(rect)
                 ctx.setStrokeColor(EditorTheme.accent.cgColor)
                 ctx.setLineWidth(1.5)
                 ctx.setLineDash(phase: 0, lengths: [4, 3])
                 ctx.stroke(rect)
-                ctx.setLineDash(phase: 0, lengths: [])
+                ctx.restoreGState()
             case .text:
-                let fontSize = max(14, 18 * scale)
-                let attributes: [NSAttributedString.Key: Any] = [.font: EditorTheme.systemFont(fontSize), .foregroundColor: color]
-                NSAttributedString(string: item.text, attributes: attributes).draw(at: start)
+                // The mark being typed is drawn by the text field standing over it, not here
+                // (SPEC-DELTA-3 §1.4 E-6).
+                guard editingTextId != item.id else { break }
+                AnnotationPainter.drawText(
+                    item.text, fontSize: CGFloat(TextMarkMetrics.clamp(item.fontSize)) * scale, weight: .regular,
+                    color: color.cgColor, in: ctx, topLeft: start)
             case .arrow:
-                // Port of `AnnotationCanvas.cs:377-379` (SPEC-DELTA-2.md §1.2, §1.9): the shared
-                // `ArrowDrawing` renderer, keyed by `item.arrowStyle`.
-                ArrowDrawing.draw(in: ctx, from: start, to: end, color: color.cgColor, thickness: thickness, style: item.arrowStyle)
+                ArrowDrawing.draw(
+                    in: ctx, from: start, to: end, color: color.cgColor, thickness: thickness,
+                    style: item.arrowStyle, lineStyle: lineStyle)
             case .comment:
-                // SPEC-DELTA-2B.md §C1: "`.comment` → ничего (бейдж рисует фаза 3)" — the pin has
-                // no drawn shape of its own, only the label badge below.
+                // SPEC-DELTA-2B.md §C1: the pin has no drawn shape of its own, only the badge below.
                 break
-            case .select, .pen, .highlight:
+            case .select, .pen, .highlight, .eraser:
                 break
             }
         }
 
         if drawLabel, !item.label.isEmpty {
-            drawLabelBadge(ctx, label: item.label, at: map(item.points[0]))
+            drawLabelBadge(ctx, item: item, target: target, map: map, includeSelection: includeSelection)
         }
 
-        // SPEC-DELTA-2B.md §C4/§C7: a comment pin never shows a resize/selection outline
-        // ("пин без ручек и рамки").
-        if includeSelection, item === selectedAnnotation, item.kind != .comment {
+        // SPEC-DELTA-2B.md §C4/§C7: a comment pin and a caption never show a resize frame.
+        if includeSelection, item === selectedAnnotation, Self.hasResizeHandles(item) {
             drawSelectionOutline(ctx, item: item, map: map)
         }
     }
 
-    /// Port of the label-badge drawing at the end of `DrawAnnotation` (`:393-402`).
-    private func drawLabelBadge(_ ctx: CGContext, label: String, at anchor: CGPoint) {
-        let diameter = max(26, CGFloat(label.count * 7 + 12))
-        let center = CGPoint(x: anchor.x, y: anchor.y - diameter / 2 - 3)
-        ctx.setFillColor(EditorTheme.accent.cgColor)
-        ctx.fillEllipse(in: CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter))
-        let attributes: [NSAttributedString.Key: Any] = [.font: EditorTheme.systemFont(11, weight: .semibold), .foregroundColor: NSColor.white]
-        let text = NSAttributedString(string: label, attributes: attributes)
+    /// Port of the badge half of `DrawAnnotation` (`:393-412`): the circle, the leader back to the
+    /// mark when the badge was dragged away, and — on screen only — the anchor that end of the
+    /// leader is moved by.
+    private func drawLabelBadge(
+        _ ctx: CGContext, item: EditorAnnotation, target: CGRect,
+        map: (CGPoint) -> CGPoint, includeSelection: Bool
+    ) {
+        let badge = badgeOf(item, target: target)
+        let accent = EditorTheme.accent
+
+        ctx.saveGState()
+        ctx.setLineDash(phase: 0, lengths: [])
+        if item.noteOffset != nil {
+            let bounds = EditorGeometry.boundsOf(points: item.points, additionalSegments: item.additionalPathSegments)
+            let topLeft = map(CGPoint(x: bounds.minX, y: bounds.minY))
+            let bottomRight = map(CGPoint(x: bounds.maxX, y: bounds.maxY))
+            let outline = CGRect(
+                x: min(topLeft.x, bottomRight.x), y: min(topLeft.y, bottomRight.y),
+                width: abs(bottomRight.x - topLeft.x), height: abs(bottomRight.y - topLeft.y))
+            if let leader = NoteBadgeGeometry.leader(bounds: outline, badge: badge) {
+                ctx.setStrokeColor(accent.cgColor)
+                ctx.setLineWidth(1)
+                ctx.beginPath()
+                ctx.move(to: leader.from)
+                ctx.addLine(to: leader.to)
+                ctx.strokePath()
+            }
+        }
+
+        ctx.setFillColor(accent.cgColor)
+        ctx.fillEllipse(in: CGRect(x: badge.center.x - badge.radius, y: badge.center.y - badge.radius, width: badge.radius * 2, height: badge.radius * 2))
+
+        // The anchor of the leader, on screen only: `includeSelection` is what separates the canvas
+        // from the export, and a circle without a number explains nothing to whoever receives the
+        // picture. While the note sits on its mark there is no leader, and the anchor would only
+        // cover the number in the badge, so it is drawn for a note dragged away.
+        if includeSelection, item.kind == .comment, item.noteOffset != nil {
+            let anchor = map(item.points[0])
+            let radius = anchorHoverId == item.id ? Self.anchorHoverRadius : Self.anchorRadius
+            let circle = CGRect(x: anchor.x - radius, y: anchor.y - radius, width: radius * 2, height: radius * 2)
+            ctx.setFillColor(accent.cgColor)
+            ctx.fillEllipse(in: circle)
+            ctx.setStrokeColor(NSColor.white.cgColor)
+            ctx.setLineWidth(1.5)
+            ctx.strokeEllipse(in: circle)
+        }
+        ctx.restoreGState()
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: EditorTheme.systemFont(11, weight: .semibold), .foregroundColor: NSColor.white,
+        ]
+        let text = NSAttributedString(string: item.label, attributes: attributes)
         let size = text.size()
-        text.draw(at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
+        text.draw(at: CGPoint(x: badge.center.x - size.width / 2, y: badge.center.y - size.height / 2))
     }
 
     /// Port of the dashed selection rectangle + 4 corner handles (`:404-414`).
@@ -152,7 +222,8 @@ extension AnnotationCanvasView {
             x: min(topLeft.x, bottomRight.x), y: min(topLeft.y, bottomRight.y),
             width: abs(bottomRight.x - topLeft.x), height: abs(bottomRight.y - topLeft.y))
 
-        ctx.setStrokeColor(EditorTheme.selectionOutline.cgColor)
+        ctx.saveGState()
+        ctx.setStrokeColor(EditorTheme.accent.cgColor)
         ctx.setLineWidth(1)
         ctx.setLineDash(phase: 0, lengths: [4, 2])
         ctx.stroke(selectedRect)
@@ -162,33 +233,30 @@ extension AnnotationCanvasView {
             let handleRect = CGRect(x: corner.x - 4, y: corner.y - 4, width: 8, height: 8)
             ctx.setFillColor(NSColor.white.cgColor)
             ctx.fill(handleRect)
-            ctx.setStrokeColor(EditorTheme.handleBorder.cgColor)
+            ctx.setStrokeColor(EditorTheme.accent.cgColor)
             ctx.setLineWidth(1.5)
             ctx.stroke(handleRect)
         }
+        ctx.restoreGState()
     }
 
-    // MARK: - Blur compositing (SPEC §1.7)
+    // MARK: - Blur compositing (SPEC §1.7, SPEC-DELTA-3 §1.4 E-14)
 
-    var isManipulatingBlur: Bool {
-        manipulating && selectedAnnotation?.kind == .blur
-    }
-
-    /// Port of `ApplyBlurAnnotations` (`:441-461`): sequentially applies `RegionBlur.blur` for
-    /// every Blur annotation, cached by a hash of the source image identity plus each blur
-    /// annotation's id/thickness/points. While the selected Blur annotation is actively being
-    /// moved/resized, the previous cached raster is reused unconditionally (SPEC §1.7: "Во время
-    /// манипуляции используется прежний raster-кэш").
+    /// Port of `ApplyBlurAnnotations` (`:894-919`): sequentially applies `RegionBlur.blur` for every
+    /// **blurred** annotation — the blur tool and a region filled with blur alike, which is what
+    /// keeps a 4K capture usable while such a region is dragged: the cache is keyed by the same
+    /// predicate, so moving a blur-filled rectangle reuses the previous raster instead of rebuilding
+    /// the whole frame on every mouse move.
     func applyBlurAnnotations(_ source: CGImage) -> CGImage {
         guard let capture else { return source }
-        let blurAnnotations = capture.annotations.filter { $0.kind == .blur && $0.points.count > 1 }
+        let blurAnnotations = capture.annotations.filter { Self.isBlurred($0) && $0.points.count > 1 }
         guard !blurAnnotations.isEmpty else {
             blurCache = nil
             blurCacheKey = nil
             return source
         }
 
-        if isManipulatingBlur, let cache = blurCache {
+        if manipulating, let dragged = selectedAnnotation, Self.isBlurred(dragged), let cache = blurCache {
             return cache
         }
 
@@ -198,7 +266,7 @@ extension AnnotationCanvasView {
         hasher.combine(ObjectIdentifier(source))
         for annotation in blurAnnotations {
             hasher.combine(annotation.id)
-            hasher.combine(annotation.thickness)
+            hasher.combine(annotation.shape)
             for point in annotation.points {
                 hasher.combine(point.x)
                 hasher.combine(point.y)
@@ -212,7 +280,10 @@ extension AnnotationCanvasView {
             let bounds = EditorGeometry.boundsOf(points: annotation.points, additionalSegments: annotation.additionalPathSegments)
             let region = pixelRect(from: bounds, width: source.width, height: source.height)
             guard region.width > 0, region.height > 0 else { continue }
-            result = RegionBlur.blur(result, region: region, radius: EditorGeometry.blurRadius(thickness: annotation.thickness))
+            result = RegionBlur.blur(
+                result, region: region,
+                radius: RegionBlur.radiusFor(width: Double(region.width), height: Double(region.height)),
+                shape: annotation.shape)
         }
         blurCacheKey = key
         blurCache = result
@@ -232,10 +303,7 @@ extension AnnotationCanvasView {
     /// Port of `AnnotationCanvas.RenderAnnotated()` (`:270-289`), used only by the Cmd+S save
     /// path. Renders at full source-image pixel resolution via the shared `AnnotationPainter`
     /// (Imaging), matching CONTRACTS.md's "рендер на экране и в экспорте совпадал" for files that
-    /// leave the app. CHECK-API: `AnnotationPaintOptions`'s memberwise-init argument order/labels
-    /// and `AnnotationPainter.draw`'s exact per-annotation rendering (thickness, label placement)
-    /// are assumed to match `CONTRACTS.md`'s declared signature; that file did not exist yet at
-    /// the time this was written.
+    /// leave the app.
     func renderFinalImage() -> CGImage? {
         guard let capture else { return nil }
         let width = capture.image.width
