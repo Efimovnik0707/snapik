@@ -523,21 +523,22 @@ final class EdgeStackContentView: NSView {
     }
 
     private func layoutHeader(width: CGFloat) {
+        // [ТЗ№4 C4] Four columns of 22 against the right edge, the glyph centred in each: 88 of the
+        // 184 the header has, and the 96 that are left carry the name and the counter
+        // (`reference-png/04`).
         let size = StackMetrics.headerButtonSize
-        let gap: CGFloat = 2
         let centreY = (StackMetrics.headerHeight - size) / 2
 
-        var x = width - size
+        var buttonsLeft = width
         for button in [hideButton, collapseButton, moreButton, clearButton] {
-            button.frame = NSRect(x: x, y: centreY, width: size, height: size)
-            x -= size + gap
+            buttonsLeft -= size
+            button.frame = NSRect(x: buttonsLeft, y: centreY, width: size, height: size)
         }
 
-        titleDot.frame = NSRect(x: 0, y: (StackMetrics.headerHeight - 7) / 2, width: 7, height: 7)
-        let countWidth = max(countLabel.intrinsicContentSize.width + 10, 22)
-        let buttonsLeft = x + size + gap
-        let titleWidth = max(0, buttonsLeft - 14 - countWidth - 7 - 4)
-        titleLabel.frame = NSRect(x: 14, y: (StackMetrics.headerHeight - 16) / 2, width: titleWidth, height: 16)
+        titleDot.frame = NSRect(x: 1, y: (StackMetrics.headerHeight - 7) / 2, width: 7, height: 7)
+        let countWidth = max(countLabel.intrinsicContentSize.width + 10, 20)
+        let titleWidth = max(0, buttonsLeft - 15 - countWidth - 7 - 4)
+        titleLabel.frame = NSRect(x: 15, y: (StackMetrics.headerHeight - 16) / 2, width: titleWidth, height: 16)
         countPill.frame = NSRect(
             x: titleLabel.frame.maxX + 7, y: (StackMetrics.headerHeight - 16) / 2, width: countWidth, height: 16)
         countLabel.frame = countPill.bounds

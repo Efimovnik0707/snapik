@@ -23,8 +23,10 @@ final class StackCapsuleView: NSView {
         layer?.borderWidth = 1
         layer?.masksToBounds = false
         layer?.shadowColor = NSColor.black.cgColor
-        layer?.shadowRadius = 9
-        layer?.shadowOffset = CGSize(width: 0, height: -4)
+        // The same field of ten as the panel's (`StackMetrics.shadowMargin`), so the shadow of the
+        // capsule is not cut off at the edge of the window either.
+        layer?.shadowRadius = 7
+        layer?.shadowOffset = CGSize(width: 0, height: -3)
 
         badgeView.wantsLayer = true
         badgeView.layer?.cornerRadius = 14

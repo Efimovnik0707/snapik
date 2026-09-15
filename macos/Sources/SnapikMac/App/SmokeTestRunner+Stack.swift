@@ -14,13 +14,13 @@ extension SmokeTestRunner {
     static func stackProbes(options: CommandLineOptions) -> [(String, Bool)] {
         var checks: [(String, Bool)] = []
 
-        // [ТЗ№4 C4, C6] The chain of the round: 224 − 2·20 − 2·10 − 2·8 = 168. The card is the last
-        // link of it, and the reference of the round is drawn on that number.
+        // [ТЗ№4 C4, C6] The chain of the round: 224 − 2·10 − 2·10 − 2·8 = 168, the numbers of
+        // `reference-png/04`. The card is the last link of it, and the round is drawn on that figure.
         let width = CGFloat(StripResizeGeometry.defaultWidth)
         checks.append(
             (
-                "strip geometry chain 224 → 184 → 168",
-                width == 224 && StackMetrics.panelWidth(windowWidth: width) == 184
+                "strip geometry chain 224 → 204 → 168",
+                width == 224 && StackMetrics.panelWidth(windowWidth: width) == 204
                     && StackMetrics.cardWidth(windowWidth: width) == 168
             ))
 
