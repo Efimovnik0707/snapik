@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -28,8 +28,10 @@ public partial class AppearancePicker : UserControl
     /// <summary>The names of the themes, in the order the gallery shows them.</summary>
     private static readonly Dictionary<string, string> ThemeNames = new()
     {
-        ["dark"] = "Тёмная", ["light"] = "Светлая", ["glass"] = "Стекло",
-        ["night"] = "Ночь", ["sunset"] = "Закат", ["sea"] = "Море", ["dawn"] = "Рассвет"
+        ["dark"] = "Тёмная", ["glass"] = "Стекло",
+        // The dawn theme is the light one: the card says both words, so nobody looks for a "Light"
+        // card that is not there any more.
+        ["night"] = "Ночь", ["sunset"] = "Закат", ["sea"] = "Море", ["dawn"] = "Светлая · Рассвет"
     };
 
     // The identifier of an accent and its name have drifted apart: "teal" is shown as green and
@@ -212,7 +214,7 @@ public partial class AppearancePicker : UserControl
     // light ones, and the glass card shows the colours glass is meant to be seen through.
     private static Brush Backdrop(string theme) => theme switch
     {
-        "light" or "dawn" => Frozen(new SolidColorBrush(Color.FromRgb(0xE8, 0xEC, 0xF2))),
+        "dawn" => Frozen(new SolidColorBrush(Color.FromRgb(0xE8, 0xEC, 0xF2))),
         "glass" => Frozen(new LinearGradientBrush(new GradientStopCollection
         {
             new(Color.FromRgb(0x5B, 0x6B, 0x8C), 0), new(Color.FromRgb(0x8C, 0x6B, 0x7A), 0.5), new(Color.FromRgb(0x4E, 0x7C, 0x8A), 1)
@@ -356,10 +358,10 @@ public partial class AppearancePicker : UserControl
             Application.Current.Resources["SurfaceBrush"] is not LinearGradientBrush)
             throw new InvalidOperationException("Clicking a card must repaint the application at once.");
 
-        // Seven cards of 132 with a gap of 10 do not fit into the 520 the wizard gives the control,
+        // Six cards of 132 with a gap of 10 do not fit into the 520 the wizard gives the control,
         // so there is always something to page at this width.
         if (picker.Gallery.ScrollableWidth <= 0 || picker.Gallery.ExtentWidth <= picker.Gallery.ViewportWidth)
-            throw new InvalidOperationException("Seven cards of 132 must not fit into 520: the gallery has to have something to page.");
+            throw new InvalidOperationException("Six cards of 132 must not fit into 520: the gallery has to have something to page.");
         picker.PageBy(-picker.ThemeCards.Children.Count);
         picker.UpdateLayout();
         if (picker._firstCard != 0 || picker.PreviousTheme.IsEnabled || !picker.NextTheme.IsEnabled)

@@ -39,8 +39,8 @@ internal static class UiLanguage
         ["зелёно-бирюзовый"] = "green to cyan", ["янтарно-розовый"] = "amber to pink",
         ["розовый"] = "rose", ["бирюзовый"] = "cyan",
         ["розово-фиолетовый"] = "rose to violet", ["бирюзово-синий"] = "cyan to blue",
-        ["Тёмная"] = "Dark", ["Светлая"] = "Light", ["Стекло"] = "Glass",
-        ["Ночь"] = "Night", ["Закат"] = "Sunset", ["Море"] = "Sea", ["Рассвет"] = "Dawn",
+        ["Тёмная"] = "Dark", ["Стекло"] = "Glass",
+        ["Ночь"] = "Night", ["Закат"] = "Sunset", ["Море"] = "Sea",
         // The light theme is the dawn one now, and its card says both words at once.
         ["Светлая · Рассвет"] = "Light · Dawn",
         ["Тема: {0}"] = "Theme: {0}", ["Предыдущая тема"] = "Previous theme", ["Следующая тема"] = "Next theme",

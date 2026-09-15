@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -204,6 +204,7 @@ public static class SmokeTestRunner
                 throw new InvalidOperationException("The accent handed to a renderer must be a frozen copy, not the resource itself.");
         }
         ThemeService.Apply("dark", "blue");
+        VerifyTheThemesOfTheRound();
         WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
         WithoutBindingErrors("The colour spectrum", Controls.ColorSpectrum.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
@@ -829,7 +830,7 @@ public static class SmokeTestRunner
 
     // The chrome of the strip is painted by the theme now, and for the same reason as above the
     // window itself cannot be built here: what is checked is the chain it hangs on. Every token the
-    // shell, the header, the capsule and the toast ask for has to answer under all seven palettes —
+    // shell, the header, the capsule and the toast ask for has to answer under all six palettes —
     // a key present in one of them and missing from the next leaves a DynamicResource unresolved and
     // the strip half dark. And the shadow of the shell reads its colour and its opacity off the
     // palette through a Freezable (DropShadowEffect), which resolves a DynamicResource only while it
@@ -1187,6 +1188,25 @@ public static class SmokeTestRunner
                 if (pixels[i + 2] > 180 && pixels[i + 1] < 90 && pixels[i] < 90) ink++;
             return ink;
         }
+    }
+
+    // Six themes instead of seven, and the flat light one is not among them: a settings file that
+    // still carries it comes back dark. Glass is the frosted gradient of the reference now, and the
+    // bar of the editor panel takes the same three stops laid sideways.
+    private static void VerifyTheThemesOfTheRound()
+    {
+        if (ThemeService.Themes.Count != 6 || ThemeService.Themes.Contains("light") ||
+            ThemeService.NormalizeTheme("light") != "dark")
+            throw new InvalidOperationException("The round leaves six themes, and the light one has to come back as the dark one.");
+        ThemeService.Apply("glass", "blue");
+        var stops = new[] { Color.FromRgb(0x5F, 0x5C, 0x8C), Color.FromRgb(0x7E, 0x58, 0x78), Color.FromRgb(0x58, 0x62, 0x7A) };
+        if (Application.Current.Resources["SurfaceBrush"] is not LinearGradientBrush surface ||
+            !surface.GradientStops.Select(stop => stop.Color).SequenceEqual(stops) ||
+            Application.Current.Resources["SurfaceBarBrush"] is not LinearGradientBrush bar ||
+            !bar.GradientStops.Select(stop => stop.Color).SequenceEqual(stops) ||
+            bar.EndPoint != new Point(1, 0))
+            throw new InvalidOperationException("Glass must be the gradient of the reference, and its bar the same gradient laid sideways.");
+        ThemeService.Apply("dark", "blue");
     }
 
     private static byte[] PixelAt(System.Windows.Media.Imaging.BitmapSource bitmap, int x, int y)

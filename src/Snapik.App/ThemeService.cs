@@ -16,7 +16,10 @@ internal static class ThemeService
 {
     internal const string DefaultTheme = "dark";
     internal const string DefaultAccent = "blue";
-    internal static IReadOnlyList<string> Themes { get; } = ["dark", "light", "glass", "night", "sunset", "sea", "dawn"];
+    // Six themes: the flat light one is gone and "dawn" is the light theme now. A settings file that
+    // still says "light" is migrated to "dark" on the way in, and anything NormalizeTheme cannot
+    // find falls back to the same place.
+    internal static IReadOnlyList<string> Themes { get; } = ["dark", "glass", "night", "sunset", "sea", "dawn"];
     // Four solid accents and four gradients; "teal" is called green in the interface and "coral"
     // orange, because the file carries the identifier and renaming it would need a migration.
     internal static IReadOnlyList<string> Accents { get; } =
