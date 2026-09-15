@@ -113,9 +113,9 @@
                                     <Thumb>
                                         <Thumb.Template>
                                             <ControlTemplate TargetType="Thumb">
-                                                <Border x:Name="Grip" Background="{DynamicResource TextFaintBrush}" CornerRadius="2" />
+                                                <Border x:Name="Grip" Background="{DynamicResource ScrollThumbBrush}" CornerRadius="2" />
                                                 <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource TextMutedBrush}" /></Trigger>
+                                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}" /></Trigger>
                                                     <Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="{DynamicResource FocusBrush}" /></Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -189,20 +189,17 @@
                                         <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
                                                                 CanContentScroll="{TemplateBinding CanContentScroll}"
                                                                 ContentTemplate="{TemplateBinding ContentTemplate}" />
-                                        <!-- Four pixels at rest and six under the pointer: the grip fills the bar,
-                                             so the width of the bar is the width of the grip. -->
+                                        <!-- Four pixels, and four whatever the pointer is over: the bar used to
+                                             breathe out to six on any hover of the list, and a bar that changes
+                                             width under the pointer reads as the list moving. The grip fills the
+                                             bar, so the width of the bar is the width of the grip; the hover of
+                                             the grip itself is a colour, and it lives in the thumb above. -->
                                         <ScrollBar x:Name="PART_VerticalScrollBar" Orientation="Vertical" HorizontalAlignment="Right"
                                                    Width="4" Margin="0,2,1,2"
                                                    Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
                                                    ViewportSize="{TemplateBinding ViewportHeight}"
                                                    Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
                                     </Grid>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar" Storyboard.TargetProperty="Width" To="6" Duration="0:0:0.12" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></Trigger.EnterActions>
-                                            <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar" Storyboard.TargetProperty="Width" To="4" Duration="0:0:0.12" DecelerationRatio="0.8" /></Storyboard></BeginStoryboard></Trigger.ExitActions>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Setter.Value>
                         </Setter>
