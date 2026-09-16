@@ -43,6 +43,7 @@
     <!-- The settings file itself, away from the window that edits it, and the rules a mark keeps
          without a canvas; the badge geometry comes along because the export measures by it. -->
     <Compile Include="..\..\src\Snapik.App\HotkeySettings.cs" Link="HotkeySettings.cs" />
+    <Compile Include="..\..\src\Snapik.App\ToolAppearance.cs" Link="ToolAppearance.cs" />
     <Compile Include="..\..\src\Snapik.App\Controls\AnnotationRules.cs" Link="AnnotationRules.cs" />
     <Compile Include="..\..\src\Snapik.App\Imaging\NoteBadgeGeometry.cs" Link="Imaging\NoteBadgeGeometry.cs" />
   </ItemGroup>

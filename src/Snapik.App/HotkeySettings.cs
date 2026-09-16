@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows.Input;
 using Snapik.Windows;
 
@@ -85,6 +86,19 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// <summary>How many colours the "own" palette keeps.</summary>
     public const int MaxCustomPaletteColors = 12;
     private static readonly string[] NoPaletteColors = [];
+    /// <summary>
+    /// What each tool of the markup panel is set to, by the name of the tool in camel case. The four
+    /// common keys above stay and go on being written as a mirror of the frame, the highlighter and
+    /// the caption, so a file written here is still read whole by 1.5.0; a file without this one
+    /// hands every tool those same common values and opens exactly as it looked.
+    ///
+    /// A dictionary compares by reference, like the palette above it: an empty one is always the
+    /// single instance below, and a filled one is carried through the read unchanged, so a file that
+    /// holds settings of its own is not counted as migrated and is not written back on every start.
+    /// </summary>
+    [JsonPropertyName("toolAppearance")]
+    public Dictionary<string, ToolAppearanceEntry> ToolAppearance { get; init; } = NoToolAppearance;
+    private static readonly Dictionary<string, ToolAppearanceEntry> NoToolAppearance = new(StringComparer.Ordinal);
     public HotkeyGesture FullscreenSaveGesture => Find(FullscreenSaveId, DefaultFullscreenSaveId).Gesture;
     // A method rather than a property: everything the record exposes as a property is written into
     // settings.json, and this one is a fallback, not a preference of its own.
@@ -160,13 +174,18 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
                 CaptureId = Find(stored.CaptureId).Id,
                 PasteId = Find(stored.PasteId, Default.PasteId).Id,
                 FullscreenSaveId = Find(stored.FullscreenSaveId, DefaultFullscreenSaveId).Id,
-                CustomPaletteColors = KeepPaletteColors(stored.CustomPaletteColors)
+                CustomPaletteColors = KeepPaletteColors(stored.CustomPaletteColors),
+                ToolAppearance = KeepToolAppearance(stored.ToolAppearance)
             };
             // The palette is compared by its colours and not by the array that holds them: a record
             // compares arrays by reference, and a file carrying "CustomPaletteColors": [] deserialises
             // into an array of its own, which would count as a migration and rewrite settings.json on
             // every start.
-            migrated = settings != (stored with { CustomPaletteColors = settings.CustomPaletteColors }) ||
+            migrated = settings != (stored with
+            {
+                CustomPaletteColors = settings.CustomPaletteColors,
+                ToolAppearance = settings.ToolAppearance
+            }) ||
                 !settings.CustomPaletteColors.SequenceEqual(stored.CustomPaletteColors ?? []);
             return true;
         }
@@ -261,6 +280,12 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
         if (kept.Length == 0) return NoPaletteColors;
         return kept.Length == colours.Length ? colours : kept;
     }
+
+    // A file carrying "toolAppearance": {} (or nothing at all under it) deserialises into a
+    // dictionary of its own, and a record compares dictionaries by reference: answered with the one
+    // empty instance, such a file is not counted as migrated and is not written back on every start.
+    private static Dictionary<string, ToolAppearanceEntry> KeepToolAppearance(Dictionary<string, ToolAppearanceEntry>? tools) =>
+        tools is { Count: > 0 } ? tools : NoToolAppearance;
 
     private static bool IsHexColour(string? value)
     {
