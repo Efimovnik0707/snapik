@@ -298,23 +298,18 @@
                                 <DataTrigger Binding="{Binding Kind}" Value="Import">
                                     <Setter TargetName="ImportChip" Property="Visibility" Value="Visible" />
                                 </DataTrigger>
-                                <!-- The three triggers below move the card by a setter and not by an animation
-                                     on purpose: an animation holds its value above every setter of every
-                                     trigger for good (FillBehavior.HoldEnd), so after the first hover neither
-                                     the keyboard focus nor the selection could move the card any more. Four
-                                     pixels without an animation are not worth a second level of priority. -->
+                                <!-- Neither the pointer nor the keyboard moves the card any more: the margin
+                                     they used to unfold it with is part of Measure, so the strip grew by
+                                     four pixels under the pointer and the height the list is given stopped
+                                     matching what it holds. What is left is a lighter border and the close
+                                     button, and the selection shows nothing at all: a card that came back
+                                     from the editor has to look like every other card. -->
                                 <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True">
                                     <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#718096" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=ThumbCard}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
-                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
