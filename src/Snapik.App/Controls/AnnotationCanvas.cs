@@ -1024,27 +1024,15 @@ public sealed class AnnotationCanvas : FrameworkElement
         return new Rect(-ViewOffset.X, -ViewOffset.Y, image.Width * scale, image.Height * scale);
     }
 
-    // The wheel belongs to the picture only while it is shown at a scale of its own: fitted, there
-    // is nothing to scroll and nothing to zoom into.
+    // The wheel scrolls the picture only while it is shown at a scale of its own: fitted, there is
+    // nothing to scroll. Ctrl and the wheel answer from either state — with the switch beside the
+    // panel gone, this is the one way into a scale of one's own.
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
-        if (Image is null || ViewScale is not { } scale) return;
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-        {
-            // A tenth of the scale per notch, between "fit" and the picture at its own size: the
-            // switch beside the panel promises those two ends and nothing beyond them.
-            var wanted = Math.Clamp(scale * Math.Pow(1.1, e.Delta / 120.0), FitScale, 1);
-            // Back at the scale the picture is fitted with, the mode goes back to fitting, and the
-            // switch beside the panel moves to its left segment by itself.
-            if (wanted <= FitScale) { ViewOffset = default; ViewScale = null; }
-            else
-            {
-                ViewOffset = EditorGeometry.ZoomAround(e.GetPosition(this), ViewOffset, scale, wanted);
-                ViewScale = wanted;
-                InvalidateVisual();
-            }
-        }
+        if (Image is null) return;
+        if (ViewScale is null && !Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) ZoomByNotches(e.Delta, e.GetPosition(this));
         else
         {
             var travel = e.Delta * -0.6;
@@ -1053,6 +1041,38 @@ public sealed class AnnotationCanvas : FrameworkElement
         }
         // The wheel must not reach the window behind the canvas, which would scroll something else.
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Ctrl and one notch of the wheel, apart from the modifier that carries it: a smoke run has no
+    /// keyboard to hold Control down with, and this is the one way into a scale of the canvas's own
+    /// now that the switch beside the panel is gone.
+    /// </summary>
+    internal void ZoomByNotches(double delta, Point cursor)
+    {
+        if (Image is null) return;
+        // The scale the picture stands at right now, a scale of its own or the one it was fitted
+        // with. FitScale counts from ActualWidth less ImagePadding twice, and the editor hands the
+        // canvas ImagePadding="0", so the seed is the picture on screen to the pixel and the first
+        // notch does not make it jump. Put the padding back and it will.
+        var scale = ViewScale ?? FitScale;
+        // Fitted, the picture is centred by FitRect and ViewOffset is never read; scaled, that
+        // offset is what holds it. The centred picture written as an offset is the seed, so the
+        // point under the cursor stays where it is on the very first notch.
+        var offset = ViewScale is null
+            ? new Vector(-(ActualWidth - Image.PixelWidth * scale) / 2, -(ActualHeight - Image.PixelHeight * scale) / 2)
+            : ViewOffset;
+        // A tenth of the scale per notch, between "fit" and the picture at its own size: those two
+        // ends and nothing beyond them. A capture small enough to stand at its own size is fitted at
+        // a scale of one or above, and the floor and the ceiling meet there — without the floor held
+        // down to one, the clamp is asked for a range that runs backwards.
+        var floor = Math.Min(FitScale, 1);
+        var wanted = Math.Clamp(scale * Math.Pow(1.1, delta / 120.0), floor, 1);
+        // Back at the scale the picture is fitted with, the view goes back to fitting.
+        if (wanted <= floor) { ViewOffset = default; ViewScale = null; return; }
+        ViewOffset = EditorGeometry.ZoomAround(cursor, offset, scale, wanted);
+        ViewScale = wanted;
+        InvalidateVisual();
     }
 
     private static Rect FitRect(double imageWidth, double imageHeight, double width, double height, double padding)

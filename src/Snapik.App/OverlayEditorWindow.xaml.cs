@@ -65,9 +65,6 @@ public partial class OverlayEditorWindow : Window
     private bool _chipDragMoved;
     private bool _settingUp;
     private bool _busyCrop;
-    // The box the capture is fitted into. Empty until the layout is known, and filled from the
-    // working area then: the switch of the scale reads it, and so does the caption on the panel.
-    private Size _fitBox;
     // This press has already been spent on closing an editor beside the capture (the pill of a
     // note), so the release that follows must not finish the shot on top of it: one click, one thing.
     private bool _outsideClickConsumed;
@@ -494,11 +491,11 @@ public partial class OverlayEditorWindow : Window
     }
 
     /// <summary>
-    /// A capture of the whole screen on two monitors, which no working area shows at its own size:
-    /// the switch of the scale stands beside the panel, says which side the picture was fitted by,
-    /// and at one to one the pill of a mark scrolled off the capture is put away.
+    /// How a capture is shown: one that holds the working area together with the panel stands at
+    /// its own size, one of two monitors is fitted into it, Ctrl and the wheel take the fitted one
+    /// into a scale of its own, and there the pill of a mark scrolled off the capture is put away.
     /// </summary>
-    internal static void RunEditorScaleProbe(SessionWorkspace workspace, CaptureItem source)
+    internal static void RunEditorViewProbe(SessionWorkspace workspace, CaptureItem source)
     {
         var wide = new WriteableBitmap(3840, 1125, 96, 96, PixelFormats.Pbgra32, null);
         wide.Freeze();
@@ -517,42 +514,47 @@ public partial class OverlayEditorWindow : Window
         window.Arrange(new Rect(0, 0, 1920, 1080));
         try
         {
-            window._fitBox = new Size(1198, 593);
-            var fit = Controls.EditorGeometry.Fit(wide.PixelWidth, wide.PixelHeight, 1198, 593);
-            window._cropRect = new Rect(100, 100, wide.PixelWidth * fit, wide.PixelHeight * fit);
+            // The capture of two monitors does not hold a working area of 1536×824, so it is fitted
+            // into it; Катя's capture of 1420×700 does, and stands at its own size, which is what the
+            // box of 78 and 72 per cent used to take away from it.
+            var area = new Rect(0, 0, 1536, 824);
+            var panel = new Size(460, 50);
+            var ownSize = Controls.EditorGeometry.PlaceCapture(new Size(1420, 700), area, panel);
+            if (Math.Abs(ownSize.Width - 1420) > 0.001 || Math.Abs(ownSize.Height - 700) > 0.001)
+                throw new InvalidOperationException($"A capture of 1420×700 must open at its own size in a working area of {area}: {ownSize}.");
+            window._cropRect = Controls.EditorGeometry.PlaceCapture(
+                new Size(wide.PixelWidth, wide.PixelHeight), area, panel);
+            if (window._cropRect.Width >= wide.PixelWidth)
+                throw new InvalidOperationException($"A capture of two monitors must be fitted into the working area: {window._cropRect}.");
             window.SetupEditor();
-            var fitted = string.Format(UiLanguage.Text("По ширине · {0} %"), Math.Round(fit * 100));
-            if (window.ScaleSwitch.Visibility != Visibility.Visible || window.FitSegment.IsChecked != true ||
-                window.FitSegmentText.Text != fitted)
-                throw new InvalidOperationException($"A capture of two monitors must offer the scale switch, fitted by its width: \"{window.FitSegmentText.Text}\".");
             // The caption of the capture says what it is, in the same words the strip card carries.
             if (window.ShotKindChip.Visibility != Visibility.Visible ||
                 !window.ShotKindText.Text.Contains("3840×1125", StringComparison.Ordinal) ||
                 !window.ShotKindText.Text.Contains(UiLanguage.Text("весь экран"), StringComparison.Ordinal))
                 throw new InvalidOperationException($"The caption of a full screen capture must name it and its size: \"{window.ShotKindText.Text}\".");
 
-            // A capture of a region is shown as it is, and says nothing about itself.
-            var small = new WriteableBitmap(400, 300, 96, 96, PixelFormats.Pbgra32, null);
-            small.Freeze();
-            if (Controls.EditorGeometry.Fit(small.PixelWidth, small.PixelHeight, 1198, 593) < 1)
-                throw new InvalidOperationException("A capture that fits the screen must have nothing to switch between.");
-
-            // At one to one the mark by the right edge is scrolled out of sight, and its pill goes
-            // with it instead of hanging over the desktop.
             var mark = window._capture!.Annotations[0];
             window._visibleChipIds.Add(mark.Id);
             window.AddChip(mark, focus: false);
             window._chipExpanders[mark.Id](true);
             window.UpdateLayout();
-            window.OnOneToOneScaleClick(window, new RoutedEventArgs());
-            // Scrolled back to the left edge of the capture: a mark at 3600 px of a picture shown in
-            // a window 1198 px wide stands nowhere on the screen.
+            // Ctrl and the wheel are the one way into a scale of the picture's own: from the fitted
+            // state the canvas used to answer nothing at all, and with the switch gone the capture
+            // could not be looked at pixel for pixel any more.
+            if (window.Surface.ViewScale is not null)
+                throw new InvalidOperationException("A capture is fitted when the editor opens on it.");
+            window.Surface.ZoomByNotches(120, new Point(window.Surface.ActualWidth / 2, window.Surface.ActualHeight / 2));
+            if (window.Surface.ViewScale is not { } zoomed || zoomed > 1 || zoomed <= window.Surface.FitScale)
+                throw new InvalidOperationException($"Ctrl and the wheel must take a fitted capture into a scale of its own: {window.Surface.ViewScale}.");
+
+            // At one to one the mark by the right edge is scrolled out of sight, and its pill goes
+            // with it instead of hanging over the desktop. Scrolled back to the left edge: a mark at
+            // 3600 px of a picture shown in a window 1198 px wide stands nowhere on the screen.
+            window.Surface.ViewScale = 1;
             window.Surface.ViewOffset = default;
             window.Surface.InvalidateVisual();
             window.Surface.UpdateLayout();
             window.RepositionChips();
-            if (window.OneToOneSegment.IsChecked != true || window.FitSegment.IsChecked != false)
-                throw new InvalidOperationException("The switch must show that the capture is shown at its own size.");
             if (window._captureHandles.Any(handle => handle.Visibility == Visibility.Visible))
                 throw new InvalidOperationException("The handles of the capture borders must be put away while it is scrolled.");
             if (window._chipBorders[mark.Id].Visibility != Visibility.Collapsed)
@@ -962,15 +964,11 @@ public partial class OverlayEditorWindow : Window
         var work = WithoutCommentsStrip(new Rect(
             (monitor.Left - _frame.Left) * ActualWidth / _frame.PixelWidth, (monitor.Top - _frame.Top) * ActualHeight / _frame.PixelHeight,
             monitor.Width * ActualWidth / _frame.PixelWidth, monitor.Height * ActualHeight / _frame.PixelHeight), _commentsPanelVisible);
-        var maxWidth = work.Width * .78;
-        var maxHeight = work.Height * .72;
-        // The box the capture is fitted into, kept for the switch beside the panel: it is what says
-        // whether the picture had to be scaled down at all, and which side of it stopped it.
-        _fitBox = new Size(maxWidth, maxHeight);
-        var scale = Math.Min(maxWidth / _capture.Image.PixelWidth, maxHeight / _capture.Image.PixelHeight);
-        var width = _capture.Image.PixelWidth * scale;
-        var height = _capture.Image.PixelHeight * scale;
-        _cropRect = new Rect(work.Left + (work.Width - width) / 2, work.Top + (work.Height - height) / 2, width, height);
+        // The panel is measured before the capture is placed, not after: the capture stands at its
+        // own size whenever the working area holds it together with the panel underneath, and that
+        // is a question about the height of the panel.
+        _cropRect = Controls.EditorGeometry.PlaceCapture(
+            new Size(_capture.Image.PixelWidth, _capture.Image.PixelHeight), work, MeasureToolbar(work));
         SetupEditor();
     }
 
@@ -1101,15 +1099,7 @@ public partial class OverlayEditorWindow : Window
         ShotNoteChip.Visibility = Visibility.Collapsed;
         ShotNoteBox.Text = _capture.Note;
         ShotLabel.Text = string.Format(UiLanguage.Text("СНИМОК {0}"), _capture.DisplayLabel);
-        // A window that was never laid out on a monitor still has to answer what the capture is
-        // fitted into: the working area of the monitor the capture stands on is that answer.
-        if (_fitBox.IsEmpty)
-        {
-            var layout = LayoutWorkArea();
-            _fitBox = new Size(layout.Width * .78, layout.Height * .72);
-        }
         SyncShotKind();
-        SyncScaleSwitch();
         UpdateCaptureHandles();
         PositionShotNote();
         PositionShotKind();
@@ -1673,44 +1663,10 @@ public partial class OverlayEditorWindow : Window
         ShotKindChip.Margin = new Thickness(left, top, 0, 0);
     }
 
-    // The switch beside the panel: a capture that fits the screen at its own size has nothing to
-    // switch between, and one that does not says how far it was scaled down and which side did it.
-    private void SyncScaleSwitch()
-    {
-        if (_capture is null) return;
-        var fit = Controls.EditorGeometry.Fit(_capture.Image.PixelWidth, _capture.Image.PixelHeight, _fitBox.Width, _fitBox.Height);
-        ScaleSwitch.Visibility = fit >= 1 ? Visibility.Collapsed : Visibility.Visible;
-        FitSegmentText.Text = string.Format(UiLanguage.Text("По ширине · {0} %"), Math.Round(fit * 100));
-        FitSegment.IsChecked = Surface.ViewScale is null;
-        OneToOneSegment.IsChecked = Surface.ViewScale is not null;
-    }
-
-    // Both handlers end with the switch: a press on the segment that is already in force changes no
-    // scale, the canvas raises nothing, and the segments would be left showing neither of the two.
-    private void OnFitScaleClick(object sender, RoutedEventArgs e)
-    {
-        Surface.ViewOffset = default;
-        Surface.ViewScale = null;
-        SyncScaleSwitch();
-    }
-
-    private void OnOneToOneScaleClick(object sender, RoutedEventArgs e)
-    {
-        if (_capture is null) return;
-        // The middle of the capture stays the middle: at its own size the picture opens where the
-        // fitted one was looked at, and the clamp of the canvas takes it from there.
-        Surface.ViewOffset = new Vector(
-            (_capture.Image.PixelWidth - _cropRect.Width) / 2,
-            (_capture.Image.PixelHeight - _cropRect.Height) / 2);
-        Surface.ViewScale = 1;
-        SyncScaleSwitch();
-    }
-
-    // The scale changed, by the switch or by the wheel: the segments follow it, the pills that left
-    // the capture are hidden, and the handles of the capture borders come back only while it is fitted.
+    // The scale changed under Ctrl and the wheel: the pills that left the capture are hidden, and
+    // the handles of the capture borders come back only while the picture is fitted.
     private void OnSurfaceViewChanged(object? sender, EventArgs e)
     {
-        SyncScaleSwitch();
         UpdateCaptureHandles();
         RepositionChips();
     }
@@ -1724,6 +1680,27 @@ public partial class OverlayEditorWindow : Window
         ShotNoteChip.Margin = new Thickness(left, top, 0, 0);
     }
 
+    // The room the panel asks for in a working area, measured with nothing of the last placement
+    // left on it: Margin carries the absolute position of the panel and WPF counts it inside
+    // DesiredSize, so a panel measured as it stands grows by wherever it was put last time.
+    private Size MeasureToolbar(Rect work)
+    {
+        var free = Math.Max(380, work.Width - 16);
+        // The panel is Collapsed until SetupEditor shows it, and a collapsed element measures to
+        // nothing: the capture would then be given the whole working area and the panel would land
+        // on top of it.
+        Toolbar.Visibility = Visibility.Visible;
+        var savedMargin = Toolbar.Margin;
+        Toolbar.Margin = new Thickness(0);
+        Toolbar.MaxWidth = free;
+        Toolbar.InvalidateMeasure();
+        Toolbar.Measure(new Size(free, double.PositiveInfinity));
+        var asked = Toolbar.DesiredSize;
+        Toolbar.Margin = savedMargin;
+        Toolbar.InvalidateMeasure();
+        return new Size(Math.Max(asked.Width, 380), Math.Max(asked.Height, 50));
+    }
+
     private void PositionToolbar()
     {
         var work = LayoutWorkArea();
@@ -1731,19 +1708,11 @@ public partial class OverlayEditorWindow : Window
         // at each side of the working area, and a panel wider than what is left loses its tail, from
         // "Комментарий" to "Готово", off the screen. The floor is the width the placement already
         // assumes, so a working area narrower than that changes nothing that was not broken anyway.
-        Toolbar.MaxWidth = Math.Max(380, work.Width - 16);
+        var size = MeasureToolbar(work);
         Toolbar.UpdateLayout();
-        var width = Math.Max(Toolbar.ActualWidth, 380);
-        var height = Math.Max(Toolbar.ActualHeight, 50);
-        // The switch of the scale stands to the right of the panel with a gap of ten, and the two
-        // are placed as one: measured apart, the switch would run off the right edge of the screen.
-        ScaleSwitch.UpdateLayout();
-        var switchWidth = ScaleSwitch.Visibility == Visibility.Visible ? ScaleSwitch.ActualWidth + 10 : 0;
-        var placement = Controls.ToolbarLayout.PlaceToolbar(_cropRect, work, new Size(width + switchWidth, height),
+        var placement = Controls.ToolbarLayout.PlaceToolbar(_cropRect, work, size,
             VisibleNoteRects().ToArray(), mayOverlap: _capture?.Kind == Snapik.Core.Models.CaptureKind.Fullscreen || _isNew);
         Toolbar.Margin = new Thickness(placement.Left, placement.Top, 0, 0);
-        if (switchWidth > 0)
-            ScaleSwitch.Margin = new Thickness(placement.Left + Math.Max(Toolbar.ActualWidth, 0) + 10, placement.Top, 0, 0);
 
         IEnumerable<Rect> VisibleNoteRects()
         {

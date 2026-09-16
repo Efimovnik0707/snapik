@@ -285,20 +285,6 @@
                 <Button x:Name="DoneButton" Style="{StaticResource OverlayButton}" Click="OnDoneClick" Background="{DynamicResource AccentBrush}" Foreground="White" FontWeight="SemiBold" Content="Готово" />
             </WrapPanel>
         </Border>
-        <!-- Beside the panel, and only for a capture too large to be shown at its own size: the left
-             segment fits it into the screen and says how far it was scaled down, the right one shows
-             it pixel for pixel and lets the wheel, Shift, Ctrl and the space bar move it. -->
-        <Border x:Name="ScaleSwitch" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top" Height="36"
-                CornerRadius="9" Background="{DynamicResource SurfaceBarBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1">
-            <StackPanel Orientation="Horizontal">
-                <ToggleButton x:Name="FitSegment" Style="{StaticResource SegmentButton}" Height="34" Margin="0" Click="OnFitScaleClick">
-                    <TextBlock x:Name="FitSegmentText" Margin="12,0" FontSize="12" VerticalAlignment="Center" />
-                </ToggleButton>
-                <ToggleButton x:Name="OneToOneSegment" Style="{StaticResource SegmentButton}" Height="34" Margin="0" Click="OnOneToOneScaleClick" AutomationProperties.Name="1:1">
-                    <TextBlock Margin="12,0" FontSize="12" VerticalAlignment="Center" Text="1:1" />
-                </ToggleButton>
-            </StackPanel>
-        </Border>
         <Popup x:Name="AppearancePopup" PlacementTarget="{Binding ElementName=AppearanceButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" Closed="OnAppearanceClosed">
             <Border Width="280" Padding="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" CornerRadius="14" TextElement.Foreground="{DynamicResource TextBrush}" Cursor="Arrow" PreviewKeyDown="OnAppearanceKeyDown">
                 <StackPanel>
