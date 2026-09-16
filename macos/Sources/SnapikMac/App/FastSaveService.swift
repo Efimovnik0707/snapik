@@ -1,11 +1,9 @@
-// Port of `LocalImageSave` as used by `EdgeStackWindow.Saving.cs:16-32` (fullscreen quick save),
-// SPEC §1.14.
-import CoreGraphics
+// Port of `LocalImageSave.NewPath` as used by `EdgeStackWindow.Saving.cs:16-32`, SPEC §1.14.
 import Foundation
-import SnapikCore
 
-/// Writes a whole-desktop capture straight to disk, in the user's chosen folder/format, without
-/// touching the current package or clipboard (SPEC §1.14: "не добавляет... и не заменяет буфер").
+/// The name a capture is written under when it goes straight to the user's folder. [ТЗ№4 §2.7] The
+/// whole-screen shortcut no longer writes a PNG past the strip — it adds the capture to the strip
+/// like any other, and the only writer left is `AutoSaveService`, which asks for the path here.
 enum FastSaveService {
     /// Port of `LocalImageSave.NewPath`: a timestamped filename that never overwrites an existing
     /// file.
@@ -28,17 +26,5 @@ enum FastSaveService {
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter.string(from: Date())
-    }
-
-    static func save(_ image: CGImage, settings: HotkeySettings) throws {
-        let format: ImageCodec.Format =
-            settings.saveFormat == "jpeg"
-            ? .jpeg(quality: max(1, min(100, settings.jpegQuality)))
-            : .png
-        guard let data = ImageCodec.encode(image, format: format) else {
-            throw SnapikError.invalidData("Could not encode the captured screen.")
-        }
-        let destination = newPath(directory: URL(fileURLWithPath: settings.saveDirectory), format: settings.saveFormat)
-        try ImageCodec.writeAtomically(data, to: destination)
     }
 }

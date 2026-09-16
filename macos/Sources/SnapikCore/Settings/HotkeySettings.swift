@@ -247,10 +247,12 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
     }
 
     /// Port of `HotkeySettings.LoadAndMigrate`. Reads the file and writes back what the migration
-    /// changed, so an older file is brought up to date once instead of on every read. The start of
-    /// the application is the only caller: it is the one moment where writing to the settings file
-    /// is a deliberate step. A broken id is healed in the file here, and not only in memory, so the
-    /// file does not go on holding `custom:0:37` for good while the window shows Ctrl + Alt + S.
+    /// changed, so an older file is brought up to date once instead of on every read. It is called
+    /// where writing to the settings file is a deliberate step and not a side effect of reading: the
+    /// start of the application, and the wizard, which merges the fields it owns onto the file as it
+    /// is now (`OnboardingWindowController.mergeOnboarding`/`markPassed`). A broken id is healed in
+    /// the file here, and not only in memory, so the file does not go on holding `custom:0:37` for
+    /// good while the window shows Ctrl + Alt + S.
     public static func loadAndMigrate(path: URL) -> HotkeySettings {
         let read = tryRead(path: path)
         if read.migrated {

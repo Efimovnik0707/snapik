@@ -182,6 +182,30 @@ extension SmokeTestRunner {
         checks.append(("a whole-screen capture names itself", namesItself))
         checks.append(("the kind of a capture and its monitors survive the session file", survivesTheFile))
 
+        // [ТЗ№4 E-7] The seam between the strip and the editor: reopening a card and finishing it
+        // must not quietly turn it back into a region. The two calls asked here are the two the
+        // editor makes — `EditorCapture.fromCore` is what `presentExisting` opens the card with, and
+        // `toCore()` is what `commit` hands to the delegate — and the answer is read back off the
+        // session file, the place the loss would have shown.
+        var survivesTheEditor = false
+        if let probeImage = makeSolidImage(width: 64, height: 48) {
+            var reopened = fullscreen
+            reopened.title = "Экран.png"
+            let committed = EditorCapture.fromCore(reopened, image: probeImage).toCore()
+            do {
+                let session = try SessionOperations.addCapture(
+                    SnapikSession.create(nowUtc: start), capture: committed, nowUtc: start)
+                let restored = try SnapikJson.decoder.decode(
+                    SnapikSession.self, from: SnapikJson.encoder.encode(session)).captures.first
+                survivesTheEditor =
+                    restored?.kind == .fullscreen && restored?.monitorCount == 2
+                    && restored?.title == "Экран.png"
+            } catch {
+                // A probe that could not be run has not passed.
+            }
+        }
+        checks.append(("a reopened capture keeps its kind and its name through the editor", survivesTheEditor))
+
         // A-2: the import of a file from disk, the whole way — a real PNG, the decoder, and the name
         // of the file, which is what tells one import from another in `prompt.md` and on the card.
         let probeRoot = (options.dataDirectory ?? URL(fileURLWithPath: NSTemporaryDirectory()))
