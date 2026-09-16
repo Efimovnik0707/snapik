@@ -17,19 +17,25 @@ public struct PromptGenerator {
         for (captureIndex, capture) in session.captures.enumerated() {
             let captureLabel = try CaptureLabels.forIndex(captureIndex)
             let labeled = CaptureLabels.forNotedAnnotations(captureLabel: captureLabel, capture: capture)
-            // Port of `PromptGenerator.cs:23-29`: a capture the user said nothing about adds nothing
+            // Port of `PromptGenerator.cs:23`: a whole-screen shot has no title of its own, and
+            // without a word the receiver cannot tell it from a region — the kind speaks for it and
+            // counts as content of its own (SPEC-DELTA-4 §2.1).
+            let title =
+                ExportText.hasContent(capture.title)
+                ? capture.title : (PromptGenerator.kindTitle(capture.kind) ?? "")
+            // Port of `PromptGenerator.cs:26-29`: a capture the user said nothing about adds nothing
             // to the text — the image speaks for itself, and a bare "Снимок A." line would only
             // pollute the receiving prompt. Letters still come from the position in the package, so
             // the badges keep matching the text.
-            if !ExportText.hasContent(capture.title) && !ExportText.hasContent(capture.note)
+            if !ExportText.hasContent(title) && !ExportText.hasContent(capture.note)
                 && labeled.isEmpty
             {
                 continue
             }
 
             var section = "Снимок \(captureLabel)"
-            if ExportText.hasContent(capture.title) {
-                section += " — \(capture.title)"
+            if ExportText.hasContent(title) {
+                section += " — \(title)"
             }
             section += "."
 
@@ -53,5 +59,13 @@ public struct PromptGenerator {
         }
 
         return sections.joined(separator: "\n\n")
+    }
+
+    /// Port of `PromptGenerator.KindTitle` (`PromptGenerator.cs:66`). `prompt.md` is Russian from
+    /// the first line to the last, so the word for the kind is a literal here and does not travel
+    /// through `UiLanguage`. An imported capture speaks through its `title` (the name of the file
+    /// it came from), a region says nothing.
+    static func kindTitle(_ kind: CaptureKind) -> String? {
+        kind == .fullscreen ? "весь экран" : nil
     }
 }
