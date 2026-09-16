@@ -90,6 +90,58 @@ final class SessionWorkspace {
         try await save()
     }
 
+    /// Port of `PurgePreviousSessionsAsync` (`SessionWorkspace.cs:86-105`), C-15. A session lives for
+    /// one run, so whatever the previous run left in the sessions root goes before this one starts:
+    /// every subdirectory named as a guid and the pointer at the last session. Anything else in that
+    /// root (`settings.json`, `last-region.json`, the startup log of a run with `--data-dir`) belongs
+    /// to the application, not to a session, and stays. A directory that refuses to go is traced and
+    /// left to the next start. This also covers a run that was killed: nothing else has to clean up
+    /// after it.
+    func purgePreviousSessions(trace: ((String) -> Void)? = nil) {
+        // The listing is taken whole before the first deletion, as on Windows: walking a directory
+        // while its contents are being removed may step past entries.
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: sessionsRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [])
+        else { return }
+        for entry in entries where Self.isSessionDirectoryName(entry.lastPathComponent) {
+            Self.deleteDirectory(entry, trace: trace)
+        }
+        deletePointer(trace: trace)
+    }
+
+    /// Port of `DiscardCurrentSessionAsync` (`:108-118`), C-15: the directory of the current session
+    /// goes with everything in it (`session.json`, the originals, every `exports/revision-*`) and a
+    /// session of its own starts instead. Separate from `startNewSession()` on purpose — rotating a
+    /// session keeps the previous one on disk, and only this call is meant to delete. The caller gives
+    /// the clipboard back first: the published package is a list of paths into the directory that
+    /// goes here.
+    func discardCurrentSession(trace: ((String) -> Void)? = nil) {
+        Self.deleteDirectory(sessionDirectory, trace: trace)
+        deletePointer(trace: trace)
+        session = SnapikSession.create(nowUtc: timeProvider.utcNow())
+    }
+
+    /// `Guid.TryParseExact(name, "N")` of Windows: thirty-two hexadecimal digits and nothing else —
+    /// the name `JsonSessionStore` gives a session directory (`SBGuid.digitsLowercase`).
+    private static func isSessionDirectoryName(_ name: String) -> Bool {
+        name.count == 32 && name.allSatisfy(\.isHexDigit)
+    }
+
+    private static func deleteDirectory(_ directory: URL, trace: ((String) -> Void)?) {
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        do { try FileManager.default.removeItem(at: directory) } catch {
+            trace?("Session cleanup: \(directory.lastPathComponent) stayed on disk: \(error)")
+        }
+    }
+
+    private func deletePointer(trace: ((String) -> Void)?) {
+        guard FileManager.default.fileExists(atPath: currentPointer.path) else { return }
+        do { try FileManager.default.removeItem(at: currentPointer) } catch {
+            trace?("Session cleanup: the current-session pointer stayed on disk: \(error)")
+        }
+    }
+
     /// Port of `PrepareAsync` (`:126-131`): bump revision unconditionally, save, then export
     /// (SPEC §3.6: "каждая подготовка пакета увеличивает ревизию и пишет session.json").
     func prepareExport(renderer: ExportImageRendering) async throws -> PreparedExport {

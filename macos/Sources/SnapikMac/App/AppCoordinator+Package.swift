@@ -395,11 +395,34 @@ extension AppCoordinator {
 
     // MARK: - Quit (SPEC §9.7)
 
-    /// Returns `true` if it is safe to terminate (forced save succeeded).
+    /// Port of `DiscardSessionOnExitAsync` (`EdgeStackWindow.xaml.cs:1857-1889`), C-15: a session
+    /// lives for one run, so the run that is ending takes its directory with it — under the same
+    /// gate and in the same order as "Очистить ленту", the clipboard first (the package on it is a
+    /// list of paths into the directory that goes), the files after.
+    ///
+    /// Returns `true` if it is safe to terminate. An operation still in flight is the one case that
+    /// keeps the files: whatever it writes would land in a directory that was just deleted, and the
+    /// purge of the next start takes the whole root anyway (`:1863-1867`). That branch keeps this
+    /// port's forced save, which is what the quit reply has always been built on (SPEC §9.7).
     func prepareForQuit() async -> Bool {
-        let saved = await save()
-        if !saved { stackWindow?.reveal() }
-        return saved
+        guard !isBusy else {
+            StartupLog.write(options, "Exit: the session was left to the next start, an operation was still running.")
+            let saved = await save()
+            if !saved { stackWindow?.reveal() }
+            return saved
+        }
+
+        await clipboardPublicationGate.wait()
+        defer { clipboardPublicationGate.release() }
+        // Nothing may publish or rebuild the clipboard from here on: the strip is going.
+        isSessionResetting = true
+        cancelReceiverEchoWatch()
+        await releaseOwnedClipboard()
+        workspace.discardCurrentSession { [weak self] message in
+            guard let self else { return }
+            StartupLog.write(self.options, message)
+        }
+        return true
     }
 
     func shutdown() {
