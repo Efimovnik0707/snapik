@@ -49,10 +49,13 @@ extension SmokeTestRunner {
         // [ТЗ№4 C1] The cards are in the order of the data, the newest over the oldest: the last card
         // is the last subview (drawn last) and it sits lowest on the screen, overlapping the one
         // before it by `cardOverlap`.
+        // The three kinds stand next to each other on purpose: the two that carry a chip are on the
+        // screen when the English sweep below is taken.
+        let kinds: [CaptureKind] = [.region, .fullscreen, .import, .region]
         let rows = (0..<4).map { index in
             StackCaptureRow(
                 id: SBGuid(), label: (try? CaptureLabels.forIndex(index)) ?? "?", thumbnail: nil, noteCount: index,
-                isSent: false)
+                isSent: false, kind: kinds[index])
         }
         content.reload(rows: rows)
         content.listHeight = CGFloat(StripResizeGeometry.defaultListHeight)
