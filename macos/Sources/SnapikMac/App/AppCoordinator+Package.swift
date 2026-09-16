@@ -270,7 +270,12 @@ extension AppCoordinator {
                 guard let data = ImageCodec.encode(image, format: .png) else {
                     throw SnapikError.invalidData("Could not re-encode image as PNG.")
                 }
-                _ = try await workspace.addCapture(pngData: data, pixelWidth: image.width, pixelHeight: image.height)
+                // S-3 (`EdgeStackWindow.xaml.cs:1071-1074`): the name of the file is what tells one
+                // import from another, on the chip of the card and in `prompt.md`; a capture of a
+                // region has nothing to put there and leaves it empty.
+                _ = try await workspace.addCapture(
+                    pngData: data, pixelWidth: image.width, pixelHeight: image.height,
+                    title: url.lastPathComponent, kind: .import)
                 imported += 1
             } catch {
                 stackWindow?.setStatus(StatusStrings.importFailed(fileName: url.lastPathComponent, error: "\(error)"), isError: true)
@@ -309,16 +314,33 @@ extension AppCoordinator {
         }
     }
 
-    // MARK: - Fast save (SPEC §1.14)
+    // MARK: - The whole screen (SPEC-DELTA-4 §1.2 S-1, S-2, §2.7)
 
+    /// Port of `CaptureFullscreenAsync` (`EdgeStackWindow.Saving.cs:45-73`). The shortcut no longer
+    /// writes a PNG straight into the folder and shows nothing: the whole screen goes into the strip
+    /// like any other capture, and the folder gets it from the autosave the rest of them go through
+    /// — three files of five megabytes each used to land in Pictures while the strip stayed empty.
+    /// The tail is the tail of an ordinary capture minus the editor: the shortcut means "take
+    /// everything right now", and a full-screen editor over a picture 3840 px wide is not that.
     func saveFullscreen() async {
         // Finding 11 / SPEC-DELTA-2A §4: don't race a paste-intent-driven session rotation
         // that's still in flight.
         await pasteIntentTransition?.value
         guard !isBusy else { return }
+        // Asked before anything is hidden, exactly as in the capture of a region (`:53, 57`): a press
+        // on a full strip must not black the screen out for a capture that has nowhere to go. The
+        // toast is the strip's, so the strip is left on the screen to carry it.
+        guard stackWindow?.stripIsFull() != true else {
+            stackWindow?.reveal()
+            return
+        }
         isBusy = true
-        let wasVisible = stackWindow?.isVisible ?? false
-        defer { isBusy = false }
+        defer {
+            isBusy = false
+            // S-2 (`:72`): the strip comes back whether it was on the screen or not — the capture
+            // that has just been taken is in it, and a hidden strip would say nothing of that.
+            stackWindow?.reveal()
+        }
 
         hideAllOwnWindows()
         try? await Task.sleep(nanoseconds: 120_000_000)
@@ -327,16 +349,21 @@ extension AppCoordinator {
             guard let frame = await captureDesktopFrame() else {
                 throw SnapikError.invalidData("no screen frame")
             }
-            try FastSaveService.save(frame.image, settings: settings)
-            // Finding 4: gate on "Показывать уведомления".
-            if settings.showNotifications { notificationService.notify("Снимок сохранён", language: language) }
+            guard let data = ImageCodec.encode(frame.image, format: .png) else {
+                throw SnapikError.invalidData("Could not encode the screen as PNG.")
+            }
+            let capture = try await workspace.addCapture(
+                pngData: data, pixelWidth: frame.image.width, pixelHeight: frame.image.height,
+                kind: .fullscreen, monitorCount: NSScreen.screens.count)
+            stackWindow?.refresh()
+            invalidatePrepared()
+            UiSoundService.capture(settings)
+            _ = await saveAndCopyCommittedPackage()
+            await autoSave(capture)
         } catch {
-            stackWindow?.setStatus(StatusStrings.couldNotSaveScreen("\(error)"), isError: true)
-            stackWindow?.reveal()
-            return
+            stackWindow?.setStatus(
+                "\(MacUiText.text("Не удалось снять экран", language: language)): \(error)", isError: true)
         }
-
-        if wasVisible { stackWindow?.reveal() }
     }
 
     // MARK: - Settings (SPEC §1.17)

@@ -103,10 +103,16 @@ final class SessionWorkspace {
 
     /// Port of `AddImageAsync`/`SaveDerivedImageAsync`: persists `pngData` as a new capture's
     /// source image and appends it to the session.
+    ///
+    /// `kind`/`monitorCount` are set here and not by the caller after the fact (`EdgeStackWindow`
+    /// assigns them on the returned object, which it can because its `CaptureItem` is a class):
+    /// a Swift capture is a value, and the copy in the session would keep the defaults
+    /// (SPEC-DELTA-4 §2.1).
     @discardableResult
     func addCapture(
         pngData: Data, pixelWidth: Int, pixelHeight: Int,
-        dpiX: Double = 96, dpiY: Double = 96, title: String? = nil, note: String? = nil
+        dpiX: Double = 96, dpiY: Double = 96, title: String? = nil, note: String? = nil,
+        kind: CaptureKind = .region, monitorCount: Int = 0
     ) async throws -> CaptureItem {
         let captureId = SBGuid()
         let relativePath = try await assetStore.saveOriginalPNG(
@@ -120,7 +126,9 @@ final class SessionWorkspace {
             dpiY: dpiY,
             title: title ?? "",
             note: note ?? "",
-            annotations: [])
+            annotations: [],
+            kind: kind,
+            monitorCount: monitorCount)
         session = try SessionOperations.addCapture(session, capture: capture, nowUtc: timeProvider.utcNow())
         return capture
     }
