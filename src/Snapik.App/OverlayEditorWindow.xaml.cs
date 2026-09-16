@@ -1084,7 +1084,7 @@ public partial class OverlayEditorWindow : Window
         window.EndNoteDrag();
 
         // The badge is dragged by itself on the capture as well, and it is not held inside it: a
-        // badge carried out past the left edge is what the margin of the exported PNG is for, and
+        // badge carried out past the right edge is what the margin of the exported PNG is for, and
         // the point it is attached to does not move with it.
         var carried = window._capture.Annotations.Single(a => a.Id == comment.Id);
         var anchorBefore = carried.Points[0];
@@ -1093,12 +1093,13 @@ public partial class OverlayEditorWindow : Window
         new System.Windows.Media.Imaging.RenderTargetBitmap(
             (int)window._cropRect.Width, (int)window._cropRect.Height, 96, 96, PixelFormats.Pbgra32).Render(window.Surface);
         window.Surface.SelectAnnotation(carried.Id);
-        window.Surface.BeginGesture(window.Surface.GetBadgeCenter(carried));
-        window.Surface.UpdateGesture(new Point(-160, window.Surface.GetBadgeCenter(carried).Y), pressed: true);
+        var badgeCenter = window.Surface.GetBadgeCenter(carried);
+        window.Surface.BeginGesture(badgeCenter);
+        window.Surface.UpdateGesture(new Point(window._cropRect.Width + 120, badgeCenter.Y), pressed: true);
         window.Surface.EndGesture();
         if (carried.NoteOffset is not { } carriedTo || carried.Points[0] != anchorBefore)
             throw new InvalidOperationException("Dragging a badge must move the badge alone and leave the point where it is.");
-        if (carried.Points[0].X + carriedTo.X >= 0)
+        if (carried.Points[0].X + carriedTo.X <= window._capture.Image.PixelWidth)
             throw new InvalidOperationException($"A badge must be draggable out past the edge of the capture: {carriedTo}.");
 
         window.SelectToolMode(EditorTool.Rectangle);

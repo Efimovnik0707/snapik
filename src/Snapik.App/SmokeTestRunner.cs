@@ -469,8 +469,17 @@ public static class SmokeTestRunner
             noteProbePng, default);
         // The badge of the dragged note has to be in the exported PNG where the editor showed it.
         var movedNote = noteProbe.Annotations.Single(a => a.Kind == EditorTool.Comment);
+        // The badge is placed from where the capture begins inside the export: a badge carried off
+        // the picture gave it a field of its own, and the header alone is no longer the offset.
+        var noteProbeMargin = WpfExportImageRenderer.MarginsOf(noteProbeCore, "A", noteProbe.Image.PixelWidth, noteProbe.Image.PixelHeight);
         var movedBadge = WpfExportImageRenderer.ExportBadge(noteProbeCore.Annotations.Single(a => a.Id == movedNote.Id),
-            noteProbeLabel.DisplayLabel, noteProbe.Image.PixelWidth, noteProbe.Image.PixelHeight, 48);
+            noteProbeLabel.DisplayLabel, noteProbe.Image.PixelWidth, noteProbe.Image.PixelHeight,
+            WpfExportImageRenderer.CaptureOrigin(noteProbeMargin));
+        if (noteProbeMargin.IsEmpty)
+            throw new InvalidOperationException("A badge carried off the capture must give the exported picture a field to stand on.");
+        if (noteProbeExportWidth(noteProbeMargin, noteProbe.Image.PixelWidth) <= noteProbe.Image.PixelWidth)
+            throw new InvalidOperationException("The exported picture must be wider than the capture when a badge stands beside it.");
+        static int noteProbeExportWidth(Snapik.App.Imaging.ExportMargin margin, int width) => margin.Left + width + margin.Right;
         noteProbePng.Position = 0;
         var noteProbeExport = System.Windows.Media.Imaging.BitmapFrame.Create(noteProbePng,
             System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
