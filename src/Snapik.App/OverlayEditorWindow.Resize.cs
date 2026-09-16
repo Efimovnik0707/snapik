@@ -110,10 +110,14 @@ public partial class OverlayEditorWindow
             _resizeSourceRect = _isNew ? new Rect(0, 0, ActualWidth, ActualHeight) : _cropRect;
         }
         var corners = ResizeGeometry.Corners(_cropRect);
+        // The handles change the borders of the capture in the pixels the capture is fitted with:
+        // at a scale of its own the picture is scrolled inside them, and dragging a corner would
+        // mean nothing, so they are put away until it is fitted again.
+        var fitted = Surface.ViewScale is null;
         for (var i = 0; i < _captureHandles.Length; i++)
         {
             var handle = _captureHandles[i];
-            handle.Visibility = Visibility.Visible;
+            handle.Visibility = fitted ? Visibility.Visible : Visibility.Collapsed;
             Canvas.SetLeft(handle, Math.Clamp(corners[i].X - 11, 0, Math.Max(0, ActualWidth - 22)));
             Canvas.SetTop(handle, Math.Clamp(corners[i].Y - 11, 0, Math.Max(0, ActualHeight - 22)));
         }

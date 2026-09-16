@@ -68,21 +68,38 @@ public partial class OverlayEditorWindow
 
     private void OnShapeMenuClick(object sender, RoutedEventArgs e) => OpenToolMenu(BuildShapeMenu((UIElement)sender));
 
-    // The other half of the pencil capsule: the pen and the highlighter, drawn with the same two
-    // geometries the button itself wears.
+    // The two faces of the pencil capsule, as glyphs of the system icon font: the button wears the
+    // one of the mode it is in, and the menu of the capsule offers both.
+    internal const string PencilGlyph = "\uED63";
+    internal const string HighlightGlyph = "\uED64";
+
+    // An icon of the chrome: a glyph of Segoe, in the family the application declares once, so a
+    // machine without Segoe Fluent Icons falls through to Segoe MDL2 Assets glyph by glyph.
+    private TextBlock IconGlyph(string glyph, double size, string? foregroundKey = null)
+    {
+        var icon = new TextBlock
+        {
+            FontFamily = (FontFamily)FindResource("IconFont"), FontSize = size, Text = glyph,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        // A resource reference and not a brush: the palette may change while the pill that carries
+        // the glyph is open. Without a key the glyph takes the colour it stands in, which is what
+        // the rows of a tool menu want.
+        if (foregroundKey is not null) icon.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+        return icon;
+    }
+
+    // The other half of the pencil capsule: the pen and the highlighter, wearing the same two
+    // glyphs the button itself wears.
     private ContextMenu BuildPencilMenu(UIElement target)
     {
         var menu = ToolMenu(target);
-        Add(EditorTool.Pen, "PencilGlyph");
-        Add(EditorTool.Highlight, "HighlightGlyph");
+        Add(EditorTool.Pen, PencilGlyph);
+        Add(EditorTool.Highlight, HighlightGlyph);
         return menu;
 
         void Add(EditorTool tool, string glyph) => menu.Items.Add(MenuRow(
-            new Path
-            {
-                Width = 16, Height = 16, Stroke = Brushes.White, StrokeThickness = 1.7,
-                StrokeLineJoin = PenLineJoin.Round, Data = (Geometry)FindResource(glyph)
-            },
+            IconGlyph(glyph, 16),
             EditorShortcuts.Caption(tool), _activePencil == tool, () => SelectToolMode(tool)));
     }
 

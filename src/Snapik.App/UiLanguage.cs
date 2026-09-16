@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -37,14 +37,18 @@ internal static class UiLanguage
         ["зелёный"] = "green", ["оранжевый"] = "orange",
         ["сине-фиолетовый"] = "blue to violet", ["оранжево-розовый"] = "orange to rose",
         ["зелёно-бирюзовый"] = "green to cyan", ["янтарно-розовый"] = "amber to pink",
-        ["Тёмная"] = "Dark", ["Светлая"] = "Light", ["Стекло"] = "Glass",
-        ["Ночь"] = "Night", ["Закат"] = "Sunset", ["Море"] = "Sea", ["Рассвет"] = "Dawn",
+        ["розовый"] = "rose", ["бирюзовый"] = "cyan",
+        ["розово-фиолетовый"] = "rose to violet", ["бирюзово-синий"] = "cyan to blue",
+        ["Тёмная"] = "Dark", ["Стекло"] = "Glass",
+        ["Ночь"] = "Night", ["Закат"] = "Sunset", ["Море"] = "Sea",
+        // The light theme is the dawn one now, and its card says both words at once.
+        ["Светлая · Рассвет"] = "Light · Dawn",
         ["Тема: {0}"] = "Theme: {0}", ["Предыдущая тема"] = "Previous theme", ["Следующая тема"] = "Next theme",
         ["Тема · фон и панели"] = "Theme · background and panels",
         ["Цвет · рамки, кнопки, номера отметок"] = "Color · frames, buttons, marker numbers",
         ["так будут выглядеть отметки"] = "this is how the marks will look",
         ["Палитра отметок"] = "Marker palette",
-        ["Сделать скриншот"] = "Take a screenshot", ["Скриншот всего экрана в папку"] = "Save the whole screen to a folder",
+        ["Сделать скриншот"] = "Take a screenshot", ["Снимок всего экрана"] = "Capture the whole screen",
         ["Формат"] = "Format", ["Папка сохранения"] = "Save folder", ["Выбрать папку"] = "Choose folder",
         ["Качество JPEG: {0} % (меньше, легче файл)"] = "JPEG quality: {0} % (lower means a smaller file)",
         ["Сохранить"] = "Save", ["Отмена"] = "Cancel", ["Закрыть"] = "Close",
@@ -74,7 +78,7 @@ internal static class UiLanguage
         ["Стиль стрелки"] = "Arrow style", ["Фигура"] = "Shape",
         ["Прямоугольник"] = "Rectangle", ["Скруглённый прямоугольник"] = "Rounded rectangle", ["Овал"] = "Ellipse",
         ["Заливка"] = "Fill", ["Контур"] = "Outline", ["Сплошная заливка"] = "Solid fill", ["Полупрозрачная заливка"] = "Translucent fill",
-        ["Заливка размытием"] = "Blurred fill", ["Рамка"] = "Frame", ["Показывать рамку"] = "Show the frame",
+        ["Заливка размытием"] = "Blurred fill",
         ["Цвет заливки"] = "Fill color",
         ["Сохранить на компьютер"] = "Save to computer", ["Свернуть в трей"] = "Hide to tray", ["Ещё"] = "More",
         ["Свернуть в капсулу"] = "Collapse to a capsule", ["Развернуть ленту"] = "Expand the strip",
@@ -180,7 +184,17 @@ internal static class UiLanguage
         ["Лента живёт, пока открыта. Закроешь — снимки удалятся."] = "The strip lives while it is open. Close it and the captures are gone.",
         ["Сохранить — «Сохранить пакет…», или включи автосохранение в папку."] = "To keep them, use \"Save package…\", or switch on auto-saving to a folder.",
         ["Мешает — сверни в капсулу, клик разворачивает обратно."] = "In the way? Collapse it into the capsule, a click opens it again.",
-        ["Лишний снимок — крестик. Всё сразу — «Очистить»."] = "One capture too many: the cross. All of them: \"Clear\"."
+        ["Лишний снимок — крестик. Всё сразу — «Очистить»."] = "One capture too many: the cross. All of them: \"Clear\".",
+        // The strings of the 1.5.0 round: the wizard link in the settings, the empty strip, the chip
+        // of a card and the caption of the editor, the scale switch and the button of the palette.
+        ["Пройти знакомство заново"] = "Take the tour again",
+        ["Нажми {0} или «Новый снимок»"] = "Press {0} or \"New capture\"",
+        ["Нажми «Новый снимок»"] = "Press \"New capture\"",
+        ["экран"] = "screen", ["импорт"] = "import",
+        ["Не удалось снять экран"] = "The screen could not be captured",
+        ["весь экран"] = "whole screen", ["мониторов: {0}"] = "monitors: {0}",
+        ["По ширине · {0} %"] = "Fit width · {0} %", ["По высоте · {0} %"] = "Fit height · {0} %",
+        ["Добавить цвет в свою палитру"] = "Add the colour to my palette"
     };
     /// <summary>Every English value, for the smoke check that no two Russian keys share one: the way
     /// back (English to Russian) is a search by value, and a duplicate would answer with the wrong key.</summary>

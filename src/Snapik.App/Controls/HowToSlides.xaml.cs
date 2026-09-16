@@ -221,15 +221,33 @@ public partial class HowToSlides : UserControl
         var slides = new HowToSlides();
         slides.Measure(new Size(480, 620));
         slides.Arrange(new Rect(0, 0, 480, 620));
-        for (var index = 0; index < SlideCount; index++)
+        // The block of captions has one height for all four slides, so the row of dots under it
+        // stands still and the step never grows a scrollbar. Both languages are walked: the lines
+        // wrap at different places in each, and a longer translation is exactly what would push the
+        // block past the height it is given.
+        foreach (var language in new[] { "ru", "en" })
         {
-            slides.ShowSlide(index);
-            slides.UpdateLayout();
-            var visible = 0;
-            foreach (var scene in slides._scenes) if (scene.Visibility == Visibility.Visible) visible++;
-            if (slides.Slide != index || visible != 1)
-                throw new InvalidOperationException($"The how-to slides must show exactly one drawing, and it must be slide {index + 1}.");
+            UiLanguage.Apply(slides, language);
+            slides.ApplyLanguage(language);
+            for (var index = 0; index < SlideCount; index++)
+            {
+                slides.ShowSlide(index);
+                slides.UpdateLayout();
+                var visible = 0;
+                foreach (var scene in slides._scenes) if (scene.Visibility == Visibility.Visible) visible++;
+                if (slides.Slide != index || visible != 1)
+                    throw new InvalidOperationException($"The how-to slides must show exactly one drawing, and it must be slide {index + 1}.");
+                // Measured without a ceiling on purpose: asked inside the block, the captions would
+                // report the height of the block itself however far past it they went.
+                slides._captions[index].Measure(new Size(480, double.PositiveInfinity));
+                var asked = slides._captions[index].DesiredSize.Height;
+                if (asked > slides.CaptionsBlock.Height)
+                    throw new InvalidOperationException(
+                        $"The captions of slide {index + 1} in \"{language}\" ask for {asked} px of the {slides.CaptionsBlock.Height} the block has.");
+            }
         }
+        UiLanguage.Apply(slides, "ru");
+        slides.ApplyLanguage("ru");
         slides.ShowSlide(0);
         slides.Start();
         RunSlideNavigationProbe(slides);

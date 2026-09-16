@@ -61,14 +61,6 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public double AnnotationHighlightThickness { get; init; } = 16;
     /// <summary>The size a caption is typed in, in image pixels; read back clamped to 8..96.</summary>
     public double AnnotationFontSize { get; init; } = 20;
-    /// <summary>The frame the editor draws by default: rectangle, rounded or ellipse.</summary>
-    public string AnnotationShape { get; init; } = "rectangle";
-    /// <summary>How that frame is filled by default: none, solid, translucent or blur.</summary>
-    public string AnnotationFill { get; init; } = "none";
-    /// <summary>The colour inside that frame; empty means "the colour of the outline".</summary>
-    public string AnnotationFillColor { get; init; } = string.Empty;
-    /// <summary>Whether that frame carries an outline at all; a solid fill without one conceals.</summary>
-    public bool AnnotationOutline { get; init; } = true;
     public string SaveFormat { get; init; } = "png";
     public int JpegQuality { get; init; } = 92;
     public string SaveDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Snapik");
@@ -107,15 +99,18 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     public static HotkeySettings Default { get; } = new("ctrl-alt-s", "ctrl-alt-v") { SettingsVersion = CurrentSettingsVersion };
 
     /// <summary>
-    /// Brings a file written by an older build up to the current version. Today it is one rule: the
-    /// volume that used to be the default becomes the new one, and anything the user picked is left
-    /// alone. Applied while loading, and written back once, so it cannot run on every start.
+    /// Brings a file written by an older build up to the current version. Two rules so far: the
+    /// volume that used to be the default becomes the new one, and the retired light theme becomes
+    /// the dark one; anything the user picked is left alone, because each rule asks the version it
+    /// was introduced in. Applied while loading, and written back once, so it cannot run on every
+    /// start.
     /// </summary>
     internal static HotkeySettings Migrate(HotkeySettings stored) =>
         SettingsMigration.NeedsMigration(stored.SettingsVersion)
             ? stored with
             {
                 SoundVolume = SettingsMigration.SoundVolume(stored.SettingsVersion, stored.SoundVolume),
+                Theme = SettingsMigration.Theme(stored.SettingsVersion, stored.Theme),
                 SettingsVersion = CurrentSettingsVersion
             }
             : stored;
@@ -318,6 +313,12 @@ public partial class HotkeySettingsWindow : Window
     public Func<HotkeySettings, string?>? TryApply { get; init; }
     public HotkeySettings? Result { get; private set; }
 
+    /// <summary>
+    /// The link of the settings that asks for the wizard again. The window only says so; opening it
+    /// belongs to whoever opened the settings, because the wizard has to outlive them.
+    /// </summary>
+    internal bool OnboardingRequested { get; private set; }
+
     public HotkeySettingsWindow(HotkeySettings settings, bool showPasteSettings = false)
     {
         _original = settings;
@@ -492,6 +493,17 @@ public partial class HotkeySettingsWindow : Window
         if (dialog.ShowDialog(this) == true) DirectoryBox.Text = dialog.FolderName;
     }
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
+
+    // The link asks for the wizard and leaves; the strip opens it, because two modal windows one on
+    // top of the other are not what the user asked for. The result is "false" and not "true": edits
+    // made in the dialog and not saved are dropped, so the wizard reads the file from the disk and
+    // shows one state instead of two.
+    private void OnRunOnboarding(object sender, MouseButtonEventArgs e)
+    {
+        OnboardingRequested = true;
+        DialogResult = false;
+    }
+
     private void OnSave(object sender, RoutedEventArgs e)
     {
         try
@@ -571,5 +583,15 @@ public partial class HotkeySettingsWindow : Window
         if (window.ErrorText.Visibility != Visibility.Visible ||
             window.ErrorText.Text != "Одно сочетание на два действия. Поменяй одно из них.")
             throw new InvalidOperationException("One combination for two actions must be explained under the tabs.");
+
+        // The link asks for the wizard and saves nothing: the flag the strip reads goes up, and the
+        // settings the user was typing stay where they were, unsaved. The window of the probe was
+        // never shown as a dialog, so WPF refuses the "false" the link hands back after that; the
+        // refusal is the only part of the link a run without a screen cannot see.
+        var tour = new HotkeySettingsWindow(settings);
+        try { tour.OnRunOnboarding(tour.RunOnboardingLink, new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)); }
+        catch (InvalidOperationException) { }
+        if (!tour.OnboardingRequested || tour.Result is not null)
+            throw new InvalidOperationException("The link to the wizard must ask for it and save nothing.");
     }
 }

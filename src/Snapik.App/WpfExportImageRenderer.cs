@@ -52,9 +52,9 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
     {
         using var stream = File.OpenRead(path);
         var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-        var frame = decoder.Frames[0];
-        frame.Freeze();
-        return frame;
+        // The export runs off the UI thread, and a frame still belongs to the decoder that made it:
+        // the copy owns its pixels, so the stream closes here and nothing reaches back for them.
+        return Imaging.FrameCopy.Detach(decoder.Frames[0]);
     }
 
     private static void DrawCaptureBadge(DrawingContext dc, string label)
@@ -121,9 +121,13 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
             switch (item.Kind)
             {
                 case AnnotationKind.Rectangle:
-                    var fillColor = ParseFillColor(item.FillColor) ?? color;
-                    Controls.AnnotationCanvas.DrawBoxShape(dc, Controls.AnnotationCanvas.ShapeFillBrush(fillColor, item.Fill),
-                        item.HasOutline ? pen : null, item.Shape, rect, 1);
+                    var ownFill = ParseFillColor(item.FillColor);
+                    // The same rule as on the canvas: the outline of a filled box takes the colour of
+                    // the fill, a blurred one has none, and the pen only lends its thickness and pattern.
+                    var outline = Controls.AnnotationCanvas.OutlineColorOf(item.Fill, color, ownFill);
+                    var outlinePen = outline is { } oc ? new Pen(new SolidColorBrush(oc), pen.Thickness) { DashStyle = pen.DashStyle } : null;
+                    Controls.AnnotationCanvas.DrawBoxShape(dc, Controls.AnnotationCanvas.ShapeFillBrush(ownFill ?? color, item.Fill),
+                        outlinePen, item.Shape, rect, 1);
                     break;
                 case AnnotationKind.Redaction: dc.DrawRectangle(Brushes.Black, null, rect); break;
                 // The size the caption was typed in, in the pixels of the capture, and the same

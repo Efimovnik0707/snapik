@@ -17,9 +17,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\src\Snapik.App\Imaging\RegionBlur.cs" Link="Imaging\RegionBlur.cs" />
+    <Compile Include="..\..\src\Snapik.App\Imaging\FrameCopy.cs" Link="Imaging\FrameCopy.cs" />
     <Compile Include="..\..\src\Snapik.App\Imaging\ShapeMask.cs" Link="Imaging\ShapeMask.cs" />
     <Compile Include="..\..\src\Snapik.App\Imaging\ColorConversion.cs" Link="Imaging\ColorConversion.cs" />
     <Compile Include="..\..\src\Snapik.App\Controls\ResizeGeometry.cs" Link="ResizeGeometry.cs" />
+    <!-- How far a capture is scaled down to fit the screen, and how far it may be scrolled once it
+         is shown at its own size: eleven places of the canvas count from what these decide. -->
+    <Compile Include="..\..\src\Snapik.App\Controls\EditorGeometry.cs" Link="EditorGeometry.cs" />
     <Compile Include="..\..\src\Snapik.App\Controls\StripResizeGeometry.cs" Link="StripResizeGeometry.cs" />
     <Compile Include="..\..\src\Snapik.App\Controls\HotkeyLabelParts.cs" Link="HotkeyLabelParts.cs" />
     <Compile Include="..\..\src\Snapik.App\HotkeyRules.cs" Link="HotkeyRules.cs" />

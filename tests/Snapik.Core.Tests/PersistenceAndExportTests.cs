@@ -173,12 +173,12 @@ public sealed class PersistenceAndExportTests : IDisposable
     }
 
     [Fact]
-    public async Task Json_store_round_trips_the_fill_colour_the_outline_flag_and_the_blur_fill()
+    public async Task Json_store_round_trips_the_fill_colour_and_the_blur_fill_and_writes_no_outline_flag()
     {
         var store = new JsonSessionStore(Path.Combine(_root, "sessions"));
         var concealed = AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.1, 0.1), new(0.4, 0.4)]) with
         {
-            Fill = AnnotationFill.Solid, FillColor = "#FF000000", HasOutline = false
+            Fill = AnnotationFill.Solid, FillColor = "#FF000000"
         };
         var blurred = AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.5, 0.5), new(0.9, 0.9)]) with
         {
@@ -190,19 +190,20 @@ public sealed class PersistenceAndExportTests : IDisposable
         await store.SaveAsync(session);
         var restored = await store.LoadAsync(session.Id);
 
-        // The names in the file matter as much as the values: the Mac port reads the same three keys.
+        // The names in the file matter as much as the values: the Mac port reads the same two keys.
+        // The old outline flag is not among them any more, and the file on disk has to prove it.
         var json = JsonSerializer.Serialize(session, SnapikJson.Options);
         Assert.Contains("\"fill\": \"blur\"", json, StringComparison.Ordinal);
         Assert.Contains("\"fillColor\": \"#FF000000\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"hasOutline\": false", json, StringComparison.Ordinal);
+        var written = await File.ReadAllTextAsync(Path.Combine(store.GetSessionDirectory(session.Id), "session.json"));
+        Assert.DoesNotContain("hasOutline", written, StringComparison.Ordinal);
         var restoredConcealed = restored!.Captures[0].Annotations[0];
         Assert.Equal(AnnotationFill.Solid, restoredConcealed.Fill);
         Assert.Equal("#FF000000", restoredConcealed.FillColor);
-        Assert.False(restoredConcealed.HasOutline);
+        Assert.Null(restoredConcealed.LegacyHasOutline);
         var restoredBlurred = restored.Captures[0].Annotations[1];
         Assert.Equal(AnnotationFill.Blur, restoredBlurred.Fill);
         Assert.Null(restoredBlurred.FillColor);
-        Assert.True(restoredBlurred.HasOutline);
         SessionValidation.Validate(restored);
     }
 
@@ -220,7 +221,6 @@ public sealed class PersistenceAndExportTests : IDisposable
             var item = annotation!.AsObject();
             item.Remove("fill");
             item.Remove("fillColor");
-            Assert.True(item.Remove("hasOutline"));
         }
         var directory = store.GetSessionDirectory(session.Id);
         Directory.CreateDirectory(directory);
@@ -228,12 +228,13 @@ public sealed class PersistenceAndExportTests : IDisposable
 
         var restored = await store.LoadAsync(session.Id);
 
-        // A file written before the fill carried a colour reads exactly as it did: no fill, no colour
-        // of its own, and an outline. The redaction kind stays readable for the editor to migrate.
+        // A file written before the fill carried a colour reads exactly as it did: no fill and no
+        // colour of its own, and nothing to migrate, because the old flag is absent as well. The
+        // redaction kind stays readable for the editor to migrate.
         var restoredBox = restored!.Captures[0].Annotations[0];
         Assert.Equal(AnnotationFill.None, restoredBox.Fill);
         Assert.Null(restoredBox.FillColor);
-        Assert.True(restoredBox.HasOutline);
+        Assert.Null(restoredBox.LegacyHasOutline);
         Assert.Equal(AnnotationKind.Redaction, restored.Captures[0].Annotations[1].Kind);
         SessionValidation.Validate(restored);
     }

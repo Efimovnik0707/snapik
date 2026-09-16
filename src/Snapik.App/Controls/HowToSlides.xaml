@@ -1,4 +1,4 @@
-<UserControl x:Class="Snapik.App.Controls.HowToSlides"
+﻿<UserControl x:Class="Snapik.App.Controls.HowToSlides"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Snapik.App.Controls"
@@ -912,8 +912,13 @@
    </Grid>
   </Border>
 
-  <Grid Margin="0,0,0,2">
-   <StackPanel x:Name="SlideCaptions1">
+  <!-- One height for all four blocks of captions, so the row of dots below stands still while the
+       slides change. 140 and not 120: a caption row is 32 px at one line of text and 50 at two, the
+       second line of the fourth slide wraps in both languages, and that slide is already 136. Above
+       140 the step stops fitting the wizard: 67 of heading, 224 of scene, 142 here and 30 of dots
+       come to 463 of the 466 the scroll viewer gives it. -->
+  <Grid x:Name="CaptionsBlock" Height="140" Margin="0,0,0,2">
+   <StackPanel x:Name="SlideCaptions1" VerticalAlignment="Top">
     <Grid Style="{StaticResource CaptionRow}">
      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <Border Style="{StaticResource CaptionNumber}"><TextBlock Text="1" Style="{StaticResource CaptionNumberText}"/></Border>
@@ -933,7 +938,7 @@
     </Grid>
    </StackPanel>
 
-   <StackPanel x:Name="SlideCaptions2" Visibility="Collapsed">
+   <StackPanel x:Name="SlideCaptions2" Visibility="Collapsed" VerticalAlignment="Top">
     <Grid Style="{StaticResource CaptionRow}">
      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <Border Style="{StaticResource CaptionNumber}"><TextBlock Text="1" Style="{StaticResource CaptionNumberText}"/></Border>
@@ -959,7 +964,7 @@
     </Grid>
    </StackPanel>
 
-   <StackPanel x:Name="SlideCaptions3" Visibility="Collapsed">
+   <StackPanel x:Name="SlideCaptions3" Visibility="Collapsed" VerticalAlignment="Top">
     <Grid Style="{StaticResource CaptionRow}">
      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <Border Style="{StaticResource CaptionNumber}"><TextBlock Text="1" Style="{StaticResource CaptionNumberText}"/></Border>
@@ -979,7 +984,7 @@
     </Grid>
    </StackPanel>
 
-   <StackPanel x:Name="SlideCaptions4" Visibility="Collapsed">
+   <StackPanel x:Name="SlideCaptions4" Visibility="Collapsed" VerticalAlignment="Top">
     <Grid Style="{StaticResource CaptionRow}">
      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <Border Style="{StaticResource CaptionNumber}"><TextBlock Text="1" Style="{StaticResource CaptionNumberText}"/></Border>

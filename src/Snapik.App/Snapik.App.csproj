@@ -15,7 +15,7 @@
     <ApplicationIcon>Assets\Snapik.ico</ApplicationIcon>
     <AssemblyName>Snapik</AssemblyName>
     <RootNamespace>Snapik.App</RootNamespace>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <Product>Snapik</Product>
     <Authors>Nikita Efimov</Authors>
     <Copyright>Copyright (c) 2026 Nikita Efimov</Copyright>

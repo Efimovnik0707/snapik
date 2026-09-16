@@ -34,6 +34,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     private Guid? _anchorHover;
     private int _blurCacheKey;
     private BitmapSource? _blurCache;
+    private double? _viewScale;
+    private Point? _panStart;
+    private Vector _panOrigin;
 
     public static readonly DependencyProperty ImageProperty = DependencyProperty.Register(
         nameof(Image), typeof(BitmapSource), typeof(AnnotationCanvas), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -56,7 +59,6 @@ public sealed class AnnotationCanvas : FrameworkElement
     public AnnotationShape ActiveShape { get; set; } = AnnotationShape.Rectangle;
     public AnnotationFill ActiveFill { get; set; } = AnnotationFill.None;
     public Color? ActiveFillColor { get; set; }
-    public bool ActiveHasOutline { get; set; } = true;
     public double ActiveFontSize { get; set; } = TextMarkMetrics.DefaultFontSize;
     public AnnotationLineStyle ActiveLineStyle { get; set; } = AnnotationLineStyle.Solid;
     // The mark whose letters are being typed on the capture right now: the canvas leaves it to the
@@ -64,7 +66,42 @@ public sealed class AnnotationCanvas : FrameworkElement
     public Guid? EditingTextId { get; set; }
     public double ImagePadding { get; set; } = 28;
 
+    /// <summary>
+    /// Null is "fit": the picture is scaled down to the canvas and centred, the way it always was.
+    /// Anything else is the scale in canvas units per pixel of the picture, and the picture stands
+    /// where <see cref="ViewOffset"/> holds it. Everything the canvas measures is counted from the
+    /// rectangle those two decide, so the marks follow without a line of their own.
+    /// </summary>
+    public double? ViewScale
+    {
+        get => _viewScale;
+        set
+        {
+            if (Nullable.Equals(_viewScale, value)) return;
+            _viewScale = value;
+            // At its own size the picture must show its own pixels: with smoothing on, the seam
+            // between two monitors is spread over two of them.
+            RenderOptions.SetBitmapScalingMode(this, value is null ? BitmapScalingMode.Unspecified : BitmapScalingMode.NearestNeighbor);
+            InvalidateVisual();
+            ViewChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>How far the picture is scrolled, in canvas units. Ignored while fitting.</summary>
+    public Vector ViewOffset { get; set; }
+
+    /// <summary>The scale the picture is shown at while fitting: the floor of Ctrl and the wheel.</summary>
+    public double FitScale => Image is null || Image.PixelWidth <= 0 || Image.PixelHeight <= 0
+        ? 1
+        : Math.Min(Math.Max(1, ActualWidth - ImagePadding * 2) / Image.PixelWidth,
+                   Math.Max(1, ActualHeight - ImagePadding * 2) / Image.PixelHeight);
+
+    /// <summary>Space is held down: the next press drags the picture instead of drawing on it.</summary>
+    public bool Panning { get; set; }
+
     public event EventHandler<AnnotationItem>? AnnotationCreated;
+    /// <summary>The scale or the offset changed: the switch beside the panel says which is in force.</summary>
+    public event EventHandler? ViewChanged;
     public event EventHandler<AnnotationItem>? AnnotationActivated;
     public event EventHandler<AnnotationItem?>? SelectionChanged;
     public event EventHandler? AnnotationChanged;
@@ -150,7 +187,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         base.OnRender(dc);
         if (Image is null) return;
 
-        _imageRect = FitRect(Image.PixelWidth, Image.PixelHeight, ActualWidth, ActualHeight, ImagePadding);
+        _imageRect = ViewScale is { } viewScale ? ScaledRect(viewScale) : FitRect(Image.PixelWidth, Image.PixelHeight, ActualWidth, ActualHeight, ImagePadding);
         dc.DrawRectangle(Brushes.White, null, _imageRect);
         dc.DrawImage(ApplyBlurAnnotations(Image), _imageRect);
 
@@ -184,6 +221,14 @@ public sealed class AnnotationCanvas : FrameworkElement
     internal void BeginGesture(Point point, int clickCount = 1)
     {
         if (Image is null) return;
+        // Space held down turns the press into a drag of the picture itself, wherever it lands.
+        if (Panning && ViewScale is not null)
+        {
+            _panStart = point;
+            _panOrigin = ViewOffset;
+            CaptureMouse();
+            return;
+        }
         if (!_imageRect.Contains(point)) return;
 
         // The eraser draws nothing: it removes the mark under the pointer and tells the window,
@@ -222,7 +267,10 @@ public sealed class AnnotationCanvas : FrameworkElement
             return;
         }
         var handleHit = FindResizeHandle(point);
-        if (Tool != EditorTool.Comment && (Tool == EditorTool.Select || handleHit.Annotation is not null || FindMoveHandle(point) is not null))
+        // With the comment tool in the hand only a badge under the pointer takes the press:
+        // FindResizeHandle answers nothing at all, and FindMoveHandle answers for pins alone, so
+        // anywhere else the press falls through and puts a new pin down.
+        if (Tool == EditorTool.Select || handleHit.Annotation is not null || FindMoveHandle(point) is not null)
         {
             var imagePoint = ToImage(point);
             var hit = handleHit.Annotation ?? FindMoveHandle(point) ?? HitTestAnnotation(imagePoint);
@@ -257,7 +305,6 @@ public sealed class AnnotationCanvas : FrameworkElement
             Shape = Tool is EditorTool.Rectangle or EditorTool.Blur ? ActiveShape : AnnotationShape.Rectangle,
             Fill = Tool == EditorTool.Rectangle ? ActiveFill : AnnotationFill.None,
             FillColor = Tool == EditorTool.Rectangle ? ActiveFillColor : null,
-            HasOutline = Tool != EditorTool.Rectangle || ActiveHasOutline,
             Color = ActiveColor,
             Thickness = ActiveThickness,
             LineStyle = ActiveLineStyle,
@@ -279,6 +326,14 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     internal void UpdateGesture(Point displayPoint, bool pressed)
     {
+        // The picture travels under the pointer, and nothing else moves: the marks keep the pixels
+        // of the capture they were put on.
+        if (_panStart is { } panStart && pressed)
+        {
+            ViewOffset = _panOrigin - (displayPoint - panStart);
+            InvalidateVisual();
+            return;
+        }
         // The anchor travels and its badge stays: the note keeps the place it was put in, so the
         // offset of the badge gives back exactly what the anchor takes, and the leader grows between
         // the two. A note that was never moved has no offset to compensate, and its badge follows.
@@ -340,6 +395,8 @@ public sealed class AnnotationCanvas : FrameworkElement
     // ordinary arrow everywhere else.
     private void UpdateCursor(Point displayPoint)
     {
+        // Space is held: whatever stands under the pointer, the next press drags the picture.
+        if (Panning && ViewScale is not null) { Cursor = Cursors.Hand; return; }
         if (Tool == EditorTool.Eraser)
         {
             var hover = EraseTarget(displayPoint);
@@ -355,7 +412,9 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (anchorHover is not null) { Cursor = Cursors.Hand; return; }
         var handle = FindResizeHandle(displayPoint);
         if (handle.Corner >= 0) { Cursor = handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW; return; }
-        var movablePin = Tool == EditorTool.Select && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
+        // A pin can be grabbed with the select tool and with the comment tool, and the pointer says
+        // so; with a drawing tool in the hand the same pixels are still a place to draw.
+        var movablePin = (Tool is EditorTool.Select or EditorTool.Comment) && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
         Cursor = FindMoveHandle(displayPoint) is not null || movablePin ? Cursors.Hand
             : IsDrawingTool(Tool) && _imageRect.Contains(displayPoint) ? Cursors.Cross
             : Cursors.Arrow;
@@ -379,6 +438,12 @@ public sealed class AnnotationCanvas : FrameworkElement
     // left behind. A gesture that ends properly must have nothing left for it to drop.
     internal void EndGesture()
     {
+        if (_panStart is not null)
+        {
+            _panStart = null;
+            ReleaseMouseCapture();
+            return;
+        }
         if (_anchorDrag is not null)
         {
             var moved = _anchorMoved;
@@ -436,6 +501,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        _panStart = null;
         if (_anchorDrag is not null)
         {
             _anchorDrag = null;
@@ -543,7 +609,10 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     private (AnnotationItem? Annotation, int Corner) FindResizeHandle(Point displayPoint)
     {
-        if (Image is null || Annotations is null) return (null, -1);
+        // The corners of the selected mark answer to every tool but the comment: there a press beside
+        // the corner of whatever was selected last has to put a new pin down, and the pointer over
+        // that corner must not promise a resize the press will not make.
+        if (Image is null || Annotations is null || Tool == EditorTool.Comment) return (null, -1);
         // The selected mark owns overlapping handles; corners remain draggable with any tool active.
         if (SelectedAnnotation is { } selected && HasResizeHandles(selected))
         {
@@ -735,13 +804,29 @@ public sealed class AnnotationCanvas : FrameworkElement
         _ => null
     };
 
+    // The colour of the outline follows the fill: a solid or a translucent box outlines itself in
+    // the colour of its fill, so no separate frame is seen; a blurred one has no outline at all; an
+    // empty box keeps the colour of the mark. Null means "draw no outline".
+    internal static Color? OutlineColorOf(AnnotationFill fill, Color color, Color? fillColor) => fill switch
+    {
+        AnnotationFill.Blur => null,
+        AnnotationFill.Solid or AnnotationFill.Translucent => fillColor ?? color,
+        _ => color
+    };
+
     // An opaque fill is drawn after every other mark, because it hides whatever stands under it;
     // that is what the conceal tool used to do, and a solid region does the same.
     internal static bool HasOpaqueFill(AnnotationItem item) =>
         item.Kind == EditorTool.Rectangle && item.Fill == AnnotationFill.Solid;
 
-    private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale) =>
-        DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), item.HasOutline ? pen : null, item.Shape, rect, scale);
+    private static void DrawBoxShape(DrawingContext dc, AnnotationItem item, Rect rect, Pen pen, double scale)
+    {
+        // The pen arrives painted with the colour of the mark, so the outline of a filled box is
+        // rebuilt here; the thickness and the pattern of the stroke come from that pen unchanged.
+        var outline = OutlineColorOf(item.Fill, item.Color, item.FillColor);
+        var outlinePen = outline is { } oc ? new Pen(new SolidColorBrush(oc), pen.Thickness) { DashStyle = pen.DashStyle } : null;
+        DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), outlinePen, item.Shape, rect, scale);
+    }
 
     // A caption is not stretched by its corners: the box around it is the letters, and their size
     // is set by the button on the panel. It is moved and it is retyped, like a comment pin.
@@ -766,11 +851,12 @@ public sealed class AnnotationCanvas : FrameworkElement
     // free for the next drawing, except where the mark is opaque and there is nothing to draw into.
     // The circle at the point a comment is attached to: the visible end of the leader, and the only
     // way to move that end without moving the note with it. A comment without a number has no badge
-    // and no leader yet, so it has no anchor either. Only the select tool takes it: with a box, an
-    // arrow, a pencil or a text armed, a press seven pixels from a pin has to draw, not drag.
+    // and no leader yet, so it has no anchor either. The select tool and the comment tool take it:
+    // with a box, an arrow, a pencil or a text armed, a press seven pixels from a pin has to draw,
+    // not drag, so the condition is narrowed by one tool rather than dropped.
     private AnnotationItem? FindLeaderAnchor(Point point)
     {
-        if (Annotations is null || Image is null || Tool != EditorTool.Select) return null;
+        if (Annotations is null || Image is null || Tool is not (EditorTool.Select or EditorTool.Comment)) return null;
         return Annotations.Reverse().FirstOrDefault(item =>
             item.Kind == EditorTool.Comment && !string.IsNullOrEmpty(item.Label) && item.Points.Count > 0 &&
             (point - ToDisplay(item.Points[0])).Length <= AnchorHoverRadius);
@@ -783,13 +869,16 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     private AnnotationItem? FindMoveHandle(Point point)
     {
-        if (Annotations is null || Image is null || Tool == EditorTool.Comment) return null;
+        if (Annotations is null || Image is null) return null;
         return Annotations.Reverse().FirstOrDefault(a => IsMoveHandle(a, point));
     }
 
     private bool IsMoveHandle(AnnotationItem item, Point point)
     {
         if (item.Points.Count == 0 || Image is null) return false;
+        // With the comment tool in the hand only a pin answers: the band along the edge of a drawn
+        // frame would otherwise take the press, and a pin could not be put on top of that frame.
+        if (Tool == EditorTool.Comment && item.Kind != EditorTool.Comment) return false;
         var scale = _imageRect.Width / Image.PixelWidth;
         var band = Math.Max(6, item.Thickness * scale);
         switch (item.Kind)
@@ -814,13 +903,17 @@ public sealed class AnnotationCanvas : FrameworkElement
             }
             default:
             {
+                // A mark of the kind the tool in the hand draws is grabbed by a wider band: "a frame
+                // by a frame, an arrow by an arrow" is about hitting the mark itself, and ten pixels
+                // are what a hand hits. The interior of an empty frame stays free to draw into.
+                var reach = item.Kind == Tool ? 10 : 6;
                 var bounds = GetDisplayBounds(item);
-                var outer = bounds; outer.Inflate(6, 6);
+                var outer = bounds; outer.Inflate(reach, reach);
                 if (!outer.Contains(point)) return false;
                 // An opaque mark has no free interior, and a small one has no room for a band.
                 if (HasInteriorGrab(item) || bounds.Width < 24 || bounds.Height < 24) return true;
                 var inner = bounds;
-                inner.Inflate(-Math.Min(6, inner.Width / 2), -Math.Min(6, inner.Height / 2));
+                inner.Inflate(-Math.Min(reach, inner.Width / 2), -Math.Min(reach, inner.Height / 2));
                 return !inner.Contains(point);
             }
         }
@@ -932,6 +1025,46 @@ public sealed class AnnotationCanvas : FrameworkElement
         return new Int32Rect(left, top, right - left, bottom - top);
     }
 
+    // The picture at a scale of its own: the offset is held first, so no edge of it ever comes
+    // inside the canvas, and a picture shorter than the canvas is centred along that axis.
+    private Rect ScaledRect(double scale)
+    {
+        var image = new Size(Image!.PixelWidth, Image.PixelHeight);
+        ViewOffset = EditorGeometry.ClampOffset(image, scale, new Size(ActualWidth, ActualHeight), ViewOffset);
+        return new Rect(-ViewOffset.X, -ViewOffset.Y, image.Width * scale, image.Height * scale);
+    }
+
+    // The wheel belongs to the picture only while it is shown at a scale of its own: fitted, there
+    // is nothing to scroll and nothing to zoom into.
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        if (Image is null || ViewScale is not { } scale) return;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            // A tenth of the scale per notch, between "fit" and the picture at its own size: the
+            // switch beside the panel promises those two ends and nothing beyond them.
+            var wanted = Math.Clamp(scale * Math.Pow(1.1, e.Delta / 120.0), FitScale, 1);
+            // Back at the scale the picture is fitted with, the mode goes back to fitting, and the
+            // switch beside the panel moves to its left segment by itself.
+            if (wanted <= FitScale) { ViewOffset = default; ViewScale = null; }
+            else
+            {
+                ViewOffset = EditorGeometry.ZoomAround(e.GetPosition(this), ViewOffset, scale, wanted);
+                ViewScale = wanted;
+                InvalidateVisual();
+            }
+        }
+        else
+        {
+            var travel = e.Delta * -0.6;
+            ViewOffset += Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? new Vector(travel, 0) : new Vector(0, travel);
+            InvalidateVisual();
+        }
+        // The wheel must not reach the window behind the canvas, which would scroll something else.
+        e.Handled = true;
+    }
+
     private static Rect FitRect(double imageWidth, double imageHeight, double width, double height, double padding)
     {
         var availableWidth = Math.Max(1, width - padding * 2);
@@ -1029,6 +1162,41 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (canvas.HitTestAnnotation(new Point(90, 80)) is not null)
             throw new InvalidOperationException("A click 40 px away from a highlighter stroke must find nothing.");
         annotations.Remove(wide);
+
+        // The comment tool takes what is already there: a press on the badge of a pin, or on the
+        // anchor of its leader, grabs that pin instead of putting a second one beside it, and the
+        // tool stays in the hand. A press beside the corner of a selected frame is a new pin, not
+        // the corner of that frame.
+        // Every point below is taken inside the picture as it is laid out on the canvas: outside it
+        // a press is not a gesture at all.
+        var area = canvas._imageRect;
+        Point In(double x, double y) => new(area.X + area.Width * x, area.Y + area.Height * y);
+        canvas.Tool = EditorTool.Comment;
+        Gesture(In(.4, .35));
+        if (annotations.Count != 1 || annotations[0].Kind != EditorTool.Comment)
+            throw new InvalidOperationException("One press with the comment tool must put one pin down.");
+        var pinned = annotations[0];
+        // A pin answers for its anchor only once it carries a number, and the badge is dragged away
+        // from the anchor so that the two are told apart by the press that lands on them.
+        pinned.Label = "A1";
+        pinned.NoteOffset = new Point(source.PixelWidth * .15, -source.PixelHeight * .1);
+        Gesture(canvas.GetBadgeCenter(pinned));
+        if (annotations.Count != 1 || !ReferenceEquals(canvas.SelectedAnnotation, pinned) || canvas.Tool != EditorTool.Comment)
+            throw new InvalidOperationException("A press on the badge of a pin must select it instead of placing a second one.");
+        canvas.SelectAnnotation(null);
+        Gesture(canvas.ToDisplay(pinned.Points[0]));
+        if (annotations.Count != 1 || !ReferenceEquals(canvas.SelectedAnnotation, pinned) || canvas.Tool != EditorTool.Comment)
+            throw new InvalidOperationException("A press on the anchor of a pin must take the anchor instead of placing a second pin.");
+
+        canvas.Tool = EditorTool.Rectangle;
+        Gesture(In(.1, .6), In(.45, .9));
+        var frame = annotations.Single(item => item.Kind == EditorTool.Rectangle);
+        canvas.SelectAnnotation(frame.Id);
+        canvas.Tool = EditorTool.Comment;
+        Gesture(canvas.GetDisplayBounds(frame).TopLeft);
+        if (annotations.Count(item => item.Kind == EditorTool.Comment) != 2)
+            throw new InvalidOperationException("A press at the corner of a selected frame with the comment tool must put a pin down.");
+        annotations.Clear();
     }
 
     // A caption is placed by one click, it carries the word of the interface and the size the panel
@@ -1130,6 +1298,24 @@ public sealed class AnnotationCanvas : FrameworkElement
             throw new InvalidOperationException("A comment pin is not movable while another drawing tool is active.");
         if (canvas.FindMoveHandle(new Point(pin.X + 40, pin.Y)) is not null)
             throw new InvalidOperationException("The empty space next to a comment pin was mistaken for a move handle.");
+
+        // With the comment tool in the hand only pins answer: the edge of a drawn frame lets the
+        // press through, so a pin can be put down on top of that frame, and the badge still grabs.
+        comment.Label = "A1";
+        canvas.Tool = EditorTool.Comment;
+        var frameBounds = canvas.GetDisplayBounds(rectangle);
+        if (canvas.FindMoveHandle(new Point(frameBounds.Left, frameBounds.Top + frameBounds.Height / 2)) is not null)
+            throw new InvalidOperationException("The edge of a frame must let the comment tool through instead of taking the press.");
+        if (!ReferenceEquals(canvas.FindMoveHandle(canvas.GetBadgeCenter(comment)), comment))
+            throw new InvalidOperationException("The badge of a pin must be grabbable with the comment tool in the hand.");
+        var anchor = canvas.ToDisplay(comment.Points[0]);
+        if (!ReferenceEquals(canvas.FindLeaderAnchor(new Point(anchor.X + 5, anchor.Y)), comment))
+            throw new InvalidOperationException("The anchor of a pin must answer to the comment tool.");
+        // And the other way round: with a frame in the hand a press five pixels from a pin draws.
+        canvas.Tool = EditorTool.Rectangle;
+        if (canvas.FindLeaderAnchor(new Point(anchor.X + 5, anchor.Y)) is not null)
+            throw new InvalidOperationException("The anchor of a pin must not take the press of a drawing tool.");
+        canvas.SelectAnnotation(null);
 
         void Verify(AnnotationItem target, EditorTool activeTool, bool interiorGrabs)
         {

@@ -62,9 +62,6 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     // drawn before the fill had a colour of its own still reads.
     public Color? FillColor { get; set; }
 
-    // A frame without an outline: a solid fill and no outline is what the conceal tool used to draw.
-    public bool HasOutline { get; set; } = true;
-
     // The size a text mark is typed in, in the pixels of the capture.
     public double FontSize { get; set; } = TextMarkMetrics.DefaultFontSize;
 
@@ -91,7 +88,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         Id = Id,
         Kind = Kind,
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle, NoteOffset = NoteOffset,
-        Shape = Shape, Fill = Fill, FillColor = FillColor, HasOutline = HasOutline, FontSize = FontSize,
+        Shape = Shape, Fill = Fill, FillColor = FillColor, FontSize = FontSize,
         LineStyle = LineStyle,
         Points = [.. Points],
         AdditionalPathSegments = AdditionalPathSegments.Select(segment => segment.ToList()).ToList(),
@@ -126,7 +123,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
     {
         ParentAnnotationId = ParentAnnotationId, ArrowStyle = ArrowStyle,
         NoteOffset = NoteOffset is { } offset ? new NormalizedPoint(offset.X / imageWidth, offset.Y / imageHeight) : null,
-        Shape = Shape, Fill = Fill, HasOutline = HasOutline, FontSize = FontSize, LineStyle = LineStyle,
+        Shape = Shape, Fill = Fill, FontSize = FontSize, LineStyle = LineStyle,
         FillColor = FillColor is { } fillColor ? $"#{fillColor.A:X2}{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}" : null,
         PathSegments = AdditionalPathSegments.Count == 0 ? [] : new[] { Points }.Concat(AdditionalPathSegments)
             .Select(segment => segment.Select(p => new NormalizedPoint(Math.Clamp(p.X / imageWidth, 0, 1), Math.Clamp(p.Y / imageHeight, 0, 1))).ToImmutableArray())
@@ -141,15 +138,20 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         // The tool is gone; what it drew is a region with a solid black fill and no outline, and it
         // is written back in that shape the next time the session is saved.
         var redaction = item.Kind == AnnotationKind.Redaction;
+        // The other source of such files is the frame a build before 1.5.0 wrote with
+        // "hasOutline": false. It meant "a solid fill of one colour", and that is the only thing the
+        // field still means; the colour of that fill is its own if the file carries one, the colour
+        // of the stroke otherwise.
+        var solidNoOutline = item.Kind == AnnotationKind.Rectangle && item.LegacyHasOutline == false;
+        var stroke = (Color)ColorConverter.ConvertFromString(item.StrokeColor);
         return new()
         {
         Id = item.Id,
         ParentAnnotationId = item.ParentAnnotationId, ArrowStyle = item.ArrowStyle,
         NoteOffset = item.NoteOffset is { } offset ? new Point(offset.X * imageWidth, offset.Y * imageHeight) : null,
         Shape = item.Shape,
-        Fill = redaction ? AnnotationFill.Solid : item.Fill,
-        FillColor = redaction ? Colors.Black : ParseFillColor(item.FillColor),
-        HasOutline = !redaction && item.HasOutline,
+        Fill = redaction || solidNoOutline ? AnnotationFill.Solid : item.Fill,
+        FillColor = redaction ? Colors.Black : ParseFillColor(item.FillColor) ?? (solidNoOutline ? stroke : null),
         FontSize = item.FontSize,
         LineStyle = item.LineStyle,
         Kind = item.Kind switch
@@ -165,7 +167,7 @@ public sealed class AnnotationItem : INotifyPropertyChanged
         },
         Points = segments.Count > 0 ? segments[0] : item.Points.Select(p => new Point(p.X * imageWidth, p.Y * imageHeight)).ToList(),
         AdditionalPathSegments = segments.Skip(1).ToList(),
-        Color = (Color)ColorConverter.ConvertFromString(item.StrokeColor),
+        Color = stroke,
         Thickness = item.Thickness,
         Text = item.Text,
         Note = item.Note
@@ -190,17 +192,33 @@ public sealed class CaptureItem : INotifyPropertyChanged
     private string _note = string.Empty;
     private bool _isSelected;
     private bool _isSent;
+    private string _title = string.Empty;
+    private CaptureKind _kind = CaptureKind.Region;
+    private int _monitorCount;
+    private string _displayLabel = "A";
+
+    // The card of the strip is bound to this object and to nothing else: the list used to be told
+    // to rebuild its containers (Items.Refresh) after every renumbering, and a rebuild resets the
+    // scroll offset and hands recycled containers the wrong indices. The letter and the number of
+    // notes announce themselves instead, and the list is left alone.
+    public CaptureItem() => Annotations.CollectionChanged += (_, _) => OnPropertyChanged(nameof(NoteCount));
 
     public Guid Id { get; init; } = Guid.NewGuid();
     public required BitmapSource Image { get; set; }
     public required string SourcePath { get; set; }
     public ObservableCollection<AnnotationItem> Annotations { get; } = [];
-    public string DisplayLabel { get; set; } = "A";
+
+    public string DisplayLabel
+    {
+        get => _displayLabel;
+        set { if (_displayLabel == value) return; _displayLabel = value; OnPropertyChanged(); }
+    }
 
     public string Note
     {
         get => _note;
-        set { if (_note == value) return; _note = value; OnPropertyChanged(); }
+        // The note of the capture is one of the notes the badge counts, so the count changes with it.
+        set { if (_note == value) return; _note = value; OnPropertyChanged(); OnPropertyChanged(nameof(NoteCount)); }
     }
 
     public bool IsSelected
@@ -216,15 +234,35 @@ public sealed class CaptureItem : INotifyPropertyChanged
         set { if (_isSent == value) return; _isSent = value; OnPropertyChanged(); }
     }
 
+    // Where the capture came from, how many monitors it covered and the name of the file it was
+    // imported from: the chip of the card and the caption of the editor are bound to all three.
+    public CaptureKind Kind
+    {
+        get => _kind;
+        set { if (_kind == value) return; _kind = value; OnPropertyChanged(); }
+    }
+
+    public int MonitorCount
+    {
+        get => _monitorCount;
+        set { var clamped = Math.Max(0, value); if (_monitorCount == clamped) return; _monitorCount = clamped; OnPropertyChanged(); }
+    }
+
+    public string Title
+    {
+        get => _title;
+        set { if (_title == value) return; _title = value; OnPropertyChanged(); }
+    }
+
     public int NoteCount => Annotations.Count(a => !string.IsNullOrWhiteSpace(a.Note)) + (string.IsNullOrWhiteSpace(Note) ? 0 : 1);
 
-    public CaptureSnapshot Snapshot() => new(Id, Image, SourcePath, DisplayLabel, Note, Annotations.Select(a => a.Clone()).ToList());
+    public CaptureSnapshot Snapshot() => new(Id, Image, SourcePath, DisplayLabel, Note, Kind, MonitorCount, Title, Annotations.Select(a => a.Clone()).ToList());
 
     public CaptureItem DeepClone()
     {
         // The sent flag travels with the copy: a capture restored through "Undo" must not come back
         // as unsent and land in the next package a second time.
-        var clone = new CaptureItem { Id = Id, Image = Image, SourcePath = SourcePath, DisplayLabel = DisplayLabel, Note = Note, IsSelected = IsSelected, IsSent = IsSent };
+        var clone = new CaptureItem { Id = Id, Image = Image, SourcePath = SourcePath, DisplayLabel = DisplayLabel, Note = Note, IsSelected = IsSelected, IsSent = IsSent, Kind = Kind, MonitorCount = MonitorCount, Title = Title };
         foreach (var annotation in Annotations.Select(a => a.Clone())) clone.Annotations.Add(annotation);
         return clone;
     }
@@ -236,16 +274,22 @@ public sealed class CaptureItem : INotifyPropertyChanged
         Image.PixelHeight,
         Image.DpiX > 0 ? Image.DpiX : 96,
         Image.DpiY > 0 ? Image.DpiY : 96,
-        string.Empty,
+        Title,
         Note,
         Annotations.Select(a => a.ToCore(Image.PixelWidth, Image.PixelHeight)).ToImmutableArray())
     {
-        Sent = IsSent
+        Sent = IsSent,
+        Kind = Kind,
+        MonitorCount = MonitorCount
     };
 
     public static CaptureItem FromCore(CoreCapture item, BitmapSource image)
     {
-        var capture = new CaptureItem { Id = item.Id, SourcePath = item.SourceImagePath, Image = image, Note = item.Note, IsSent = item.Sent };
+        var capture = new CaptureItem
+        {
+            Id = item.Id, SourcePath = item.SourceImagePath, Image = image, Note = item.Note, IsSent = item.Sent,
+            Kind = item.Kind, MonitorCount = item.MonitorCount, Title = item.Title
+        };
         foreach (var annotation in item.Annotations)
             capture.Annotations.Add(AnnotationItem.FromCore(annotation, image.PixelWidth, image.PixelHeight));
         return capture;
@@ -257,6 +301,9 @@ public sealed class CaptureItem : INotifyPropertyChanged
         SourcePath = snapshot.SourcePath;
         DisplayLabel = snapshot.DisplayLabel;
         Note = snapshot.Note;
+        Kind = snapshot.Kind;
+        MonitorCount = snapshot.MonitorCount;
+        Title = snapshot.Title;
         Annotations.Clear();
         foreach (var annotation in snapshot.Annotations.Select(a => a.Clone())) Annotations.Add(annotation);
     }
@@ -265,6 +312,6 @@ public sealed class CaptureItem : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
-public sealed record CaptureSnapshot(Guid CaptureId, BitmapSource Image, string SourcePath, string DisplayLabel, string Note, IReadOnlyList<AnnotationItem> Annotations);
+public sealed record CaptureSnapshot(Guid CaptureId, BitmapSource Image, string SourcePath, string DisplayLabel, string Note, CaptureKind Kind, int MonitorCount, string Title, IReadOnlyList<AnnotationItem> Annotations);
 
 public sealed record PreparedPackage(Guid ExportId, IReadOnlyList<string> ImagePaths, string PromptText, string DirectoryPath);

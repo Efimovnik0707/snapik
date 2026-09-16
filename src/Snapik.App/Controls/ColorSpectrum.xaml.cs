@@ -34,9 +34,6 @@ public partial class ColorSpectrum : UserControl
     /// <summary>Raised while the colour is being picked, on every move of a marker.</summary>
     public event EventHandler? ColorChanged;
 
-    /// <summary>Raised once the picking is over: what the row of saved colours listens to.</summary>
-    public event EventHandler? ColorCommitted;
-
     /// <summary>
     /// The colour the markers stand on. Set from outside (the HEX field, a swatch) it moves them;
     /// a colour without a hue of its own leaves the strip where it is.
@@ -97,14 +94,13 @@ public partial class ColorSpectrum : UserControl
         if (_dragging && e.LeftButton == MouseButtonState.Pressed) PickInHue(e.GetPosition(Hue));
     }
 
-    // The press is what the picking runs on, and the release is what it is remembered by: a colour
-    // dragged through is shown, a colour let go of is saved.
+    // The press is what the picking runs on: every move paints, and the release only ends the drag.
+    // Keeping a colour is the "+" beside the HEX field, and letting go of a marker is not that.
     private void OnReleased(object sender, MouseButtonEventArgs e)
     {
         if (!_dragging) return;
         _dragging = false;
         ((UIElement)sender).ReleaseMouseCapture();
-        ColorCommitted?.Invoke(this, EventArgs.Empty);
     }
 
     internal void PickInSquare(Point position)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -30,11 +30,10 @@ public static class SmokeTestRunner
         {
             AutoSaveCaptures = true, PlaySounds = false, SoundVolume = 35,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
-            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 240, ClearStackAfterPaste = true,
+            RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 260, ClearStackAfterPaste = true,
             ConfirmSessionDiscard = false, StackHeight = 300,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationFontSize = 28,
-            AnnotationShape = "ellipse", AnnotationFill = "translucent",
-            AnnotationFillColor = "#101820", AnnotationOutline = false, AnnotationPalette = "custom", AnnotationPencil = "highlight",
+            AnnotationPalette = "custom", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",
             PackageSaveDirectory = Path.Combine(root, "packages"), PackageCreateSubfolder = false,
             Theme = "dark", AccentId = "violet", OnboardingVersion = OnboardingWindow.CurrentVersion,
@@ -77,21 +76,6 @@ public static class SmokeTestRunner
         if (OverlayEditorWindow.ParseAnnotationColor(restoredSettings.AnnotationColor) != Color.FromRgb(255, 77, 79) ||
             OverlayEditorWindow.ParseAnnotationColor("not a colour") != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("Stored annotation colour must be read back, an invalid one must fall back to the default.");
-        // The shape and the fill of the frame are remembered next to the colour and the thickness,
-        // so the whole panel comes back the same way for the next capture.
-        if (OverlayEditorWindow.ParseAnnotationShape(restoredSettings.AnnotationShape) != Snapik.Core.Models.AnnotationShape.Ellipse ||
-            OverlayEditorWindow.ParseAnnotationFill(restoredSettings.AnnotationFill) != Snapik.Core.Models.AnnotationFill.Translucent ||
-            OverlayEditorWindow.ParseAnnotationShape("hexagon") != Snapik.Core.Models.AnnotationShape.Rectangle ||
-            OverlayEditorWindow.ParseAnnotationFill("2") != Snapik.Core.Models.AnnotationFill.None)
-            throw new InvalidOperationException("Stored frame shape and fill must be read back, unknown ones must fall back to the defaults.");
-        // The colour inside the frame and the outline switch travel with them; an empty colour is the
-        // preference "the fill takes the colour of the outline", not a broken value.
-        if (OverlayEditorWindow.ParseAnnotationFillColor(restoredSettings.AnnotationFillColor) != Color.FromRgb(16, 24, 32) ||
-            restoredSettings.AnnotationOutline ||
-            OverlayEditorWindow.ParseAnnotationFillColor(string.Empty) is not null ||
-            OverlayEditorWindow.ParseAnnotationFillColor("not a colour") is not null ||
-            !HotkeySettings.Default.AnnotationOutline || HotkeySettings.Default.AnnotationFillColor != string.Empty)
-            throw new InvalidOperationException("The stored fill colour and outline flag must be read back, with an outline and no own colour by default.");
         // The palette is remembered by its name; a name nobody knows falls back to the standard set,
         // and the colour the editor starts with has to belong to that set.
         if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "custom" ||
@@ -220,6 +204,10 @@ public static class SmokeTestRunner
                 throw new InvalidOperationException("The accent handed to a renderer must be a frozen copy, not the resource itself.");
         }
         ThemeService.Apply("dark", "blue");
+        VerifyTheThemesOfTheRound();
+        VerifyTheAccentsOfTheRound();
+        VerifyTheWizardFitsItsMonitor();
+        VerifyTheWizardCentresOnItsMonitor();
         WithoutBindingErrors("The appearance picker", Controls.AppearancePicker.RunProbe);
         WithoutBindingErrors("The colour spectrum", Controls.ColorSpectrum.RunProbe);
         var settingsWindow = WithoutBindingErrors("The settings window", () =>
@@ -336,7 +324,7 @@ public static class SmokeTestRunner
         foreach (var (russian, english) in new[]
         {
             ("Настройки", "Settings"), ("Настройки клавиш", "Shortcut settings"), ("Сделать скриншот", "Take a screenshot"),
-            ("Скриншот всего экрана в папку", "Save the whole screen to a folder"), ("Предлагать ту же область, что в прошлый раз", "Offer the same area as last time"),
+            ("Снимок всего экрана", "Capture the whole screen"), ("Предлагать ту же область, что в прошлый раз", "Offer the same area as last time"),
             ("Показывать курсор мыши на скриншоте", "Show the mouse pointer in the screenshot"), ("Звуки", "Sounds"),
             ("Показывать уведомления", "Show notifications"), ("Закрыть", "Close"), ("Громкость", "Volume"),
             ("Все снимки уже отправлены. Сделайте новый снимок.", "Every capture was already sent. Take a new one."),
@@ -350,7 +338,12 @@ public static class SmokeTestRunner
             ("Чаты обычно принимают до {0} картинок за раз", "Chats usually take up to {0} images at a time"),
             ("Снимки этой сессии будут удалены. Чтобы сохранить, нажмите «Сохранить пакет…» в меню •••",
                 "The captures of this session will be deleted. To keep them, use \"Save package…\" in the ••• menu."),
-            ("Snapik — Лента снимков", "Snapik — Capture strip")
+            ("Snapik — Лента снимков", "Snapik — Capture strip"),
+            // The strings of the 1.5.0 round that travel both ways: the wizard link of the settings,
+            // the chip of a card, the caption of the editor and the scale switch.
+            ("Пройти знакомство заново", "Take the tour again"), ("Светлая · Рассвет", "Light · Dawn"),
+            ("экран", "screen"), ("импорт", "import"), ("весь экран", "whole screen"),
+            ("По ширине · {0} %", "Fit width · {0} %"), ("По высоте · {0} %", "Fit height · {0} %")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");
@@ -415,14 +408,14 @@ public static class SmokeTestRunner
             Thickness = 6
         });
 
-        // Concealing is a region with a solid black fill and no outline now, and a region can also be
-        // filled with blur: both are checked on the exported PNG of the privacy capture below.
+        // Concealing is a region with a solid black fill now, and its outline takes the colour of
+        // that fill; a region can also be filled with blur, and both are checked on the exported PNG
+        // of the privacy capture below.
         captures[2].Annotations.Add(new AnnotationItem
         {
             Kind = EditorTool.Rectangle,
             Fill = Snapik.Core.Models.AnnotationFill.Solid,
             FillColor = Colors.Black,
-            HasOutline = false,
             Points = [new Point(200, 600), new Point(600, 800)],
             Color = Color.FromRgb(255, 59, 48),
             Thickness = 6
@@ -464,6 +457,7 @@ public static class SmokeTestRunner
         WithoutBindingErrors("The markup panel", () => OverlayEditorWindow.RunShortcutHintProbe(captures[0]));
         WithoutBindingErrors("The colour and thickness panel", () => OverlayEditorWindow.RunPanelProbe(captures[0]));
         WithoutBindingErrors("The comments panel", () => OverlayEditorWindow.RunCommentsPanelProbe(captures[0]));
+        WithoutBindingErrors("The scale of the editor", () => OverlayEditorWindow.RunEditorScaleProbe(workspace, captures[0]));
         WithoutBindingErrors("The click beside the capture", () => OverlayEditorWindow.RunOutsideClickProbe(captures[0]));
         WithoutBindingErrors("The text tool", () => OverlayEditorWindow.RunTextMarkProbe(captures[0]));
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
@@ -507,12 +501,14 @@ public static class SmokeTestRunner
         // exactly as the removed tool did.
         var filledConcealPixel = PixelAt(decoded[2], 400, 48 + 700);
         var concealedByFill = filledConcealPixel[3] == 255 && filledConcealPixel[0] < 8 && filledConcealPixel[1] < 8 && filledConcealPixel[2] < 8;
-        // A region filled with blur: the picture inside it is blurred and the outline is still drawn.
+        // A region filled with blur: the picture inside it is blurred and no outline is drawn over
+        // it any more, because the outline of a filled region is the colour of its fill and a blur
+        // has no colour of its own.
         var blurFillSourceCenter = PixelAt(captures[2].Image, 400, 300);
         var blurFillExportCenter = PixelAt(decoded[2], 400, 48 + 300);
         var blurFillOutlinePixel = PixelAt(decoded[2], 200, 48 + 300);
         var blurFilledRegionExported = !blurFillSourceCenter.SequenceEqual(blurFillExportCenter)
-            && blurFillOutlinePixel[0] == 48 && blurFillOutlinePixel[1] == 59 && blurFillOutlinePixel[2] == 255;
+            && !(blurFillOutlinePixel[0] == 48 && blurFillOutlinePixel[1] == 59 && blurFillOutlinePixel[2] == 255);
         var ovalSourceCenter = PixelAt(captures[1].Image, 400, 350);
         var ovalExportCenter = PixelAt(decoded[1], 400, 48 + 350);
         var ovalSourceCorner = PixelAt(captures[1].Image, 205, 205);
@@ -579,6 +575,9 @@ public static class SmokeTestRunner
         // in roots of their own, so they cannot touch the session this run is building.
         await VerifySessionPurgeAsync(Path.Combine(root, "purge-probe"));
         await VerifySessionDiscardAsync(Path.Combine(root, "discard-probe"));
+        await VerifyAWholeScreenCaptureNamesItselfAsync(Path.Combine(root, "fullscreen-probe"));
+        await VerifyAFileFromDiskReachesTheStripAsync(Path.Combine(root, "import-probe"));
+        VerifyTheWizardKeepsItsAppearance(root);
         var success = paths.Count == 3
             && preparedFilesOnDisk
             && decoded.All(bitmap => bitmap.PixelWidth == 1920 && bitmap.PixelHeight == 1128)
@@ -826,7 +825,7 @@ public static class SmokeTestRunner
         var stretched = Controls.StripResizeGeometry.ClampWidth(5000, work);
         if (stretched != work - Controls.StripResizeGeometry.EdgeGap || stretched <= 900)
             throw new InvalidOperationException("The width of the strip must be bounded by the working area, and that leaves room for half a screen.");
-        if (Controls.StripResizeGeometry.ClampWidth(1600, 1366) != 1356 ||
+        if (Controls.StripResizeGeometry.ClampWidth(1600, 1366) != 1366 ||
             Controls.StripResizeGeometry.ClampWidth(40, work) != Controls.StripResizeGeometry.MinimumWidth)
             throw new InvalidOperationException("A width stored on a large monitor must come back inside a small one, and the minimum must hold.");
         var (left, width) = Controls.StripResizeGeometry.WidthFromStart(work, 260, -2000, 0);
@@ -838,7 +837,7 @@ public static class SmokeTestRunner
 
     // The chrome of the strip is painted by the theme now, and for the same reason as above the
     // window itself cannot be built here: what is checked is the chain it hangs on. Every token the
-    // shell, the header, the capsule and the toast ask for has to answer under all seven palettes —
+    // shell, the header, the capsule and the toast ask for has to answer under all six palettes —
     // a key present in one of them and missing from the next leaves a DynamicResource unresolved and
     // the strip half dark. And the shadow of the shell reads its colour and its opacity off the
     // palette through a Freezable (DropShadowEffect), which resolves a DynamicResource only while it
@@ -867,7 +866,7 @@ public static class SmokeTestRunner
             "<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Background=\"{DynamicResource SurfaceBrush}\">" +
             "<Border.Effect><DropShadowEffect Color=\"{DynamicResource ShadowColor}\" BlurRadius=\"24\" ShadowDepth=\"5\" Opacity=\"{DynamicResource ShadowOpacity}\" /></Border.Effect></Border>");
         var shadow = (System.Windows.Media.Effects.DropShadowEffect)shell.Effect;
-        var host = new Window { Content = shell, Width = 208, Height = 420, ShowInTaskbar = false };
+        var host = new Window { Content = shell, Width = Controls.StripResizeGeometry.DefaultWidth, Height = 420, ShowInTaskbar = false };
         try
         {
             foreach (var (theme, opacity) in new[] { ("dawn", 0.15), ("dark", 0.4), ("sea", 0.45) })
@@ -1023,24 +1022,31 @@ public static class SmokeTestRunner
     }
 
     // A mark written by a build that still had the conceal tool comes back as a region with a solid
-    // black fill and no outline, and is written back in that shape; the fill also survives the clone
-    // the undo history is made of.
+    // black fill and is written back in that shape; a frame that carried "hasOutline": false comes
+    // back the same way, in the colour of its own stroke. The fill survives the clone the undo
+    // history is made of, and nothing writes the old field out again.
     private static void VerifyLegacyRedactionReadsAsAFilledRegion()
     {
         var legacy = Snapik.Core.Models.AnnotationItem.Create(Snapik.Core.Models.AnnotationKind.Redaction,
             [new Snapik.Core.Models.NormalizedPoint(0.1, 0.1), new Snapik.Core.Models.NormalizedPoint(0.4, 0.4)]);
         var migrated = AnnotationItem.FromCore(legacy, 1000, 800);
         if (migrated.Kind != EditorTool.Rectangle || migrated.Fill != Snapik.Core.Models.AnnotationFill.Solid ||
-            migrated.FillColor != Colors.Black || migrated.HasOutline)
-            throw new InvalidOperationException("A legacy redaction must read as a black region without an outline.");
+            migrated.FillColor != Colors.Black)
+            throw new InvalidOperationException("A legacy redaction must read as a black filled region.");
         var written = migrated.ToCore(1000, 800);
         if (written.Kind != Snapik.Core.Models.AnnotationKind.Rectangle ||
             written.Fill != Snapik.Core.Models.AnnotationFill.Solid ||
-            written.FillColor != "#FF000000" || written.HasOutline)
-            throw new InvalidOperationException("A migrated redaction must be written back as a filled region without an outline.");
+            written.FillColor != "#FF000000" || written.LegacyHasOutline is not null)
+            throw new InvalidOperationException("A migrated redaction must be written back as a filled region and without the old flag.");
         var clone = migrated.Clone();
-        if (clone.FillColor != migrated.FillColor || clone.HasOutline != migrated.HasOutline || clone.Fill != migrated.Fill)
+        if (clone.FillColor != migrated.FillColor || clone.Fill != migrated.Fill)
             throw new InvalidOperationException("The fill of a region must survive the clone the undo history is made of.");
+        var flagged = Snapik.Core.Models.AnnotationItem.Create(Snapik.Core.Models.AnnotationKind.Rectangle,
+            [new Snapik.Core.Models.NormalizedPoint(0.1, 0.1), new Snapik.Core.Models.NormalizedPoint(0.4, 0.4)],
+            strokeColor: "#FF112233") with { LegacyHasOutline = false };
+        var filled = AnnotationItem.FromCore(flagged, 1000, 800);
+        if (filled.Fill != Snapik.Core.Models.AnnotationFill.Solid || filled.FillColor != Color.FromRgb(0x11, 0x22, 0x33))
+            throw new InvalidOperationException("A frame written without an outline must read as a solid fill of one colour.");
     }
 
     // A binding that cannot resolve its path is not an exception: WPF writes it to the trace and
@@ -1191,12 +1197,84 @@ public static class SmokeTestRunner
         }
     }
 
+    // Six themes instead of seven, and the flat light one is not among them: a settings file that
+    // still carries it comes back dark. Glass is the frosted gradient of the reference now, and the
+    // bar of the editor panel takes the same three stops laid sideways.
+    private static void VerifyTheThemesOfTheRound()
+    {
+        if (ThemeService.Themes.Count != 6 || ThemeService.Themes.Contains("light") ||
+            ThemeService.NormalizeTheme("light") != "dark")
+            throw new InvalidOperationException("The round leaves six themes, and the light one has to come back as the dark one.");
+        ThemeService.Apply("glass", "blue");
+        var stops = new[] { Color.FromRgb(0x5F, 0x5C, 0x8C), Color.FromRgb(0x7E, 0x58, 0x78), Color.FromRgb(0x58, 0x62, 0x7A) };
+        if (Application.Current.Resources["SurfaceBrush"] is not LinearGradientBrush surface ||
+            !surface.GradientStops.Select(stop => stop.Color).SequenceEqual(stops) ||
+            Application.Current.Resources["SurfaceBarBrush"] is not LinearGradientBrush bar ||
+            !bar.GradientStops.Select(stop => stop.Color).SequenceEqual(stops) ||
+            bar.EndPoint != new Point(1, 0))
+            throw new InvalidOperationException("Glass must be the gradient of the reference, and its bar the same gradient laid sideways.");
+        ThemeService.Apply("dark", "blue");
+    }
+
+    // The wizard is placed before it is shown, on the monitor the pointer is on, and that monitor may
+    // have a scale of its own: the height it may take is the working area in the units of that
+    // monitor, less a finger of air. The placement needs a real monitor; the arithmetic does not.
+    private static void VerifyTheWizardFitsItsMonitor()
+    {
+        if (OnboardingWindow.UsefulHeight(1080, 1, 360) != 1040 ||
+            OnboardingWindow.UsefulHeight(1080, 1.25, 360) != 824 ||
+            OnboardingWindow.UsefulHeight(600, 2, 360) != 360)
+            throw new InvalidOperationException("The wizard must fit the working area of the monitor it opens on, whatever its scale.");
+    }
+
+    // Twelve accents, six solid ones and then six gradients: the row shows them in that order, and
+    // the divider it draws between the halves is placed by the flag rather than by a name, so a
+    // rearrangement cannot leave it in the middle of a half.
+    private static void VerifyTheAccentsOfTheRound()
+    {
+        string[] expected =
+        [
+            "blue", "teal", "violet", "coral", "rose", "cyan",
+            "blue-violet", "orange-rose", "green-cyan", "amber-pink", "rose-violet", "cyan-blue"
+        ];
+        if (!ThemeService.Accents.SequenceEqual(expected))
+            throw new InvalidOperationException("The row of accents must hold the twelve of the round, in the order of the reference.");
+        for (var i = 0; i < expected.Length; i++)
+        {
+            var gradient = ThemeService.IsGradientAccent(expected[i]);
+            if (gradient != i >= 6)
+                throw new InvalidOperationException($"The accent \"{expected[i]}\" stands on the wrong side of the divider.");
+            if (!gradient) continue;
+            // What needs a single Color (an alpha mix, the exported PNG) reads AccentFlatColor, and
+            // for a gradient that has to be the stop the eye starts at.
+            var dictionary = ThemeService.LoadAccent(expected[i]);
+            if (dictionary["AccentBrush"] is not LinearGradientBrush brush ||
+                (Color)dictionary["AccentFlatColor"] != brush.GradientStops[0].Color)
+                throw new InvalidOperationException($"The flat colour of \"{expected[i]}\" must be the first stop of its gradient.");
+        }
+    }
+
     private static byte[] PixelAt(System.Windows.Media.Imaging.BitmapSource bitmap, int x, int y)
     {
         var converted = new System.Windows.Media.Imaging.FormatConvertedBitmap(bitmap, System.Windows.Media.PixelFormats.Bgra32, null, 0);
         var pixel = new byte[4];
         converted.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0);
         return pixel;
+    }
+
+    // The other half of the placement: the window is centred in the physical pixels of the monitor it
+    // opens on. A second monitor to the left of the primary one has a negative left edge and may have
+    // a scale of its own, and that is where the old arithmetic put the wizard beside the monitor
+    // instead of on it.
+    private static void VerifyTheWizardCentresOnItsMonitor()
+    {
+        const double width = 620;
+        var start = OnboardingWindow.CenteredStart(-2560, 2560, width, 1.25);
+        var end = start + (int)(width * 1.25);
+        if (start < -2560 || end > 0)
+            throw new InvalidOperationException($"The wizard must open inside the monitor under the pointer, not beside it: {start}..{end}.");
+        if (OnboardingWindow.CenteredStart(0, 1920, width, 1) != 650)
+            throw new InvalidOperationException("The wizard must stand in the middle of the working area it opens on.");
     }
 
     private static bool HasLightPixel(System.Windows.Media.Imaging.BitmapSource bitmap, int x, int y, int width, int height)
@@ -1207,5 +1285,71 @@ public static class SmokeTestRunner
         for (var i = 0; i < pixels.Length; i += 4)
             if (pixels[i] > 210 && pixels[i + 1] > 210 && pixels[i + 2] > 210 && pixels[i + 3] == 255) return true;
         return false;
+    }
+
+    // A capture of the whole screen goes into the strip like any other, which leaves the text as the
+    // only place that says what it is: a capture nobody wrote a word about used to be left out of
+    // prompt.md altogether, and the kind now speaks for it. The number of monitors travels with it.
+    private static async Task VerifyAWholeScreenCaptureNamesItselfAsync(string probeRoot)
+    {
+        var workspace = new SessionWorkspace(probeRoot);
+        var capture = await workspace.AddImageAsync(SessionWorkspace.CreateDemoBitmap(0, 400, 300));
+        capture.Kind = Snapik.Core.Models.CaptureKind.Fullscreen;
+        capture.MonitorCount = 2;
+        var prepared = await workspace.PrepareAsync([capture], string.Empty, null);
+        if (!prepared.Manifest.PromptText.Contains("Снимок A — весь экран.", StringComparison.Ordinal))
+            throw new InvalidOperationException($"A whole-screen capture must name itself in prompt.md: \"{prepared.Manifest.PromptText}\".");
+        var reloaded = await new SessionWorkspace(probeRoot).LoadCurrentAsync();
+        if (reloaded.Count != 1 || reloaded[0].Kind != Snapik.Core.Models.CaptureKind.Fullscreen || reloaded[0].MonitorCount != 2)
+            throw new InvalidOperationException("The kind of a capture and the number of monitors it covered must survive the session file.");
+    }
+
+    // The import of a file from disk, the whole way: a real PNG, the decoder, and the encoding into
+    // the session that happens in the thread pool. The frame the decoder returns belongs to the UI
+    // thread and freezing it does not change that, which is how the import threw in 1.4.0; the
+    // bitmap comes back as a copy now. The name of the file reaches prompt.md the way the kind does.
+    private static async Task VerifyAFileFromDiskReachesTheStripAsync(string probeRoot)
+    {
+        Directory.CreateDirectory(probeRoot);
+        var path = Path.Combine(probeRoot, "IMG_0512.png");
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(CreatePrivacyBitmap(160, 120)));
+        await using (var file = File.Create(path)) encoder.Save(file);
+
+        var workspace = new SessionWorkspace(probeRoot);
+        var loaded = SessionWorkspace.LoadBitmap(path);
+        var capture = await workspace.AddImageAsync(loaded);
+        capture.Kind = Snapik.Core.Models.CaptureKind.Import;
+        capture.Title = Path.GetFileName(path);
+        if (!loaded.IsFrozen || capture.Image.PixelWidth != 160 || capture.Image.PixelHeight != 120)
+            throw new InvalidOperationException("A file imported from disk must reach the strip frozen and at its own size.");
+        var prepared = await workspace.PrepareAsync([capture], string.Empty, null);
+        if (!prepared.Manifest.PromptText.Contains("Снимок A — IMG_0512.png.", StringComparison.Ordinal))
+            throw new InvalidOperationException($"An imported file must name itself in prompt.md: \"{prepared.Manifest.PromptText}\".");
+    }
+
+    // The appearance the wizard collects is written to settings.json along with everything else it
+    // owns: the theme picked on its fourth step used to be applied at once and forgotten by the next
+    // start, because the merge that saves the wizard carried three fields and neither of these two.
+    private static void VerifyTheWizardKeepsItsAppearance(string root)
+    {
+        var path = Path.Combine(root, "onboarding-appearance.json");
+        var stored = HotkeySettings.Default with { Theme = "dark", AccentId = "blue", Language = "ru", SoundVolume = 55 };
+        stored.Save(path);
+        var candidate = stored with
+        {
+            Theme = "sea", AccentId = "rose-violet", Language = "en",
+            OnboardingVersion = OnboardingWindow.CurrentVersion
+        };
+        // The very merge the strip writes the wizard with, against a file that is already there.
+        EdgeStackWindow.MergeOnboarding(HotkeySettings.Load(path), candidate).Save(path);
+        var read = HotkeySettings.Load(path);
+        if (read.Theme != "sea" || read.AccentId != "rose-violet" || read.Language != "en" ||
+            read.OnboardingVersion != OnboardingWindow.CurrentVersion)
+            throw new InvalidOperationException(
+                $"The wizard must write the look it collected into the file: \"{read.Theme}\", \"{read.AccentId}\", \"{read.Language}\".");
+        // And only what it owns: a volume the user set by hand is not the wizard's to touch.
+        if (read.SoundVolume != 55)
+            throw new InvalidOperationException("The merge of the wizard must leave the fields it does not own alone.");
     }
 }

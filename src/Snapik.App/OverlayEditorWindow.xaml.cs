@@ -46,6 +46,8 @@ public partial class OverlayEditorWindow : Window
     private double _activeThickness = DefaultAnnotationThickness;
     private double _activeHighlightThickness = DefaultHighlightThickness;
     private double _activeFontSize = TextMarkMetrics.DefaultFontSize;
+    // The frame, its fill and the colour of that fill start over with every capture: "a frame, no
+    // fill, a rectangle" is where the editor opens, whatever the last capture was drawn with.
     private Snapik.Core.Models.AnnotationShape _activeShape = Snapik.Core.Models.AnnotationShape.Rectangle;
     private Snapik.Core.Models.AnnotationFill _activeFill = Snapik.Core.Models.AnnotationFill.None;
     // The pattern the next stroke is drawn with. It lives as long as the editor window does and is
@@ -53,7 +55,6 @@ public partial class OverlayEditorWindow : Window
     // the settings is a change of their format, and this round declares none for the pattern.
     private Snapik.Core.Models.AnnotationLineStyle _activeLineStyle = Snapik.Core.Models.AnnotationLineStyle.Solid;
     private Color? _activeFillColor;
-    private bool _activeHasOutline = true;
     private PaletteSet _activePalette = Palettes[0];
     private EditorTool _activePencil = EditorTool.Pen;
     private Guid? _commentParentId;
@@ -64,6 +65,9 @@ public partial class OverlayEditorWindow : Window
     private bool _chipDragMoved;
     private bool _settingUp;
     private bool _busyCrop;
+    // The box the capture is fitted into. Empty until the layout is known, and filled from the
+    // working area then: the switch of the scale reads it, and so does the caption on the panel.
+    private Size _fitBox;
     // This press has already been spent on closing an editor beside the capture (the pill of a
     // note), so the release that follows must not finish the shot on top of it: one click, one thing.
     private bool _outsideClickConsumed;
@@ -79,10 +83,6 @@ public partial class OverlayEditorWindow : Window
         _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
         _activeHighlightThickness = Math.Clamp(preferences.AnnotationHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness);
         _activeFontSize = TextMarkMetrics.Clamp(preferences.AnnotationFontSize);
-        _activeShape = ParseAnnotationShape(preferences.AnnotationShape);
-        _activeFill = ParseAnnotationFill(preferences.AnnotationFill);
-        _activeFillColor = ParseAnnotationFillColor(preferences.AnnotationFillColor);
-        _activeHasOutline = preferences.AnnotationOutline;
         InitializePalette(preferences);
         _activePencil = ParseAnnotationPencil(preferences.AnnotationPencil);
         _capture = existing?.DeepClone();
@@ -213,10 +213,10 @@ public partial class OverlayEditorWindow : Window
             // capsule starts carrying it, glyph, tag and all.
             Row(pencilMenu, "Highlight (H)").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             if (window.Surface.Tool != EditorTool.Highlight || (string?)window.PenTool.Tag != "Highlight" ||
-                window.PencilCapsuleGlyph.Data.ToString() != window.FindResource("HighlightGlyph").ToString() || window.PenTool.IsChecked != true)
+                window.PencilCapsuleGlyph.Text != HighlightGlyph || window.PenTool.IsChecked != true)
                 throw new InvalidOperationException("A pick in the pencil menu must arm the mode and show it on the capsule.");
             window.SelectToolMode(EditorTool.Pen);
-            if ((string?)window.PenTool.Tag != "Pen" || window.PencilCapsuleGlyph.Data.ToString() != window.FindResource("PencilGlyph").ToString())
+            if ((string?)window.PenTool.Tag != "Pen" || window.PencilCapsuleGlyph.Text != PencilGlyph)
                 throw new InvalidOperationException("The P key must put the capsule back on the pencil.");
         }
         finally
@@ -337,8 +337,8 @@ public partial class OverlayEditorWindow : Window
             throw new InvalidOperationException("Arming the highlighter again must bring its own width back.");
         window.SelectToolMode(EditorTool.Rectangle);
 
-        // The fill has a button and a popover of its own now: the four fills, the twelve swatches of
-        // the fill colour, and the switch that hides the outline in the colour popover beside it.
+        // The fill has a button and a popover of its own: the four fills and the twelve swatches of
+        // the fill colour. The outline follows the fill and has no switch of its own any more.
         window.SelectToolMode(EditorTool.Arrow);
         window.OnFillButtonClick(window.FillButton, new RoutedEventArgs());
         // The swatches of the fill are built as the popover opens, the way the colour popover builds
@@ -359,17 +359,27 @@ public partial class OverlayEditorWindow : Window
             throw new InvalidOperationException("A swatch of the fill popover must paint the fill and leave the outline alone.");
         window.FillPopup.IsOpen = false;
         window.OpenAppearance();
-        window.OutlineSegment.IsChecked = false;
-        window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
-        if (window.Surface.ActiveHasOutline || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Black)
-            throw new InvalidOperationException("A region without an outline must show the colour of its fill on the panel.");
-        // One click on a panel dot now paints what is actually seen: the fill of a frame without an outline.
+        // The circle and the dots of the panel belong to the colour of the mark, whatever stands
+        // inside it: one click on a dot paints that colour and leaves the fill where it was.
         window.ApplyQuickColor(Colors.White);
-        if (window.Surface.ActiveFillColor != Colors.White || window.Surface.ActiveColor != outlineColor)
-            throw new InvalidOperationException("A dot on the panel must paint the colour the mark actually shows.");
-        window.OutlineSegment.IsChecked = true;
-        window.OnOutlineClick(window.OutlineSegment, new RoutedEventArgs());
+        if (window.Surface.ActiveColor != Colors.White || window.Surface.ActiveFillColor != Colors.Black ||
+            ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.White)
+            throw new InvalidOperationException("A dot on the panel must paint the colour of the mark, not its fill.");
+        window.ApplyQuickColor(outlineColor);
         window.OnFillClick(window.FillNoneSegment, new RoutedEventArgs());
+
+        // One active colour for every tool: picked with the comment tool in the hand, it reaches the
+        // canvas at once and is what the next frame is drawn with.
+        window.SelectToolMode(EditorTool.Comment);
+        window.ApplyQuickColor(Colors.Cyan);
+        if (window.Surface.ActiveColor != Colors.Cyan || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Cyan)
+            throw new InvalidOperationException("A colour picked with the comment tool armed must reach the canvas and the panel.");
+        // And the frame armed after it takes that colour: the draft of the canvas is built out of
+        // ActiveColor, so what stands there when the region is armed is what the region is drawn with.
+        window.SelectToolMode(EditorTool.Rectangle);
+        if (window.Surface.ActiveColor != Colors.Cyan || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Cyan)
+            throw new InvalidOperationException("The frame armed after the comment tool must be drawn with the colour picked while it was armed.");
+        window.ApplyQuickColor(outlineColor);
 
         // A colour reaches a mark only while it is selected; with nothing selected it belongs to the
         // next one and leaves what is already drawn alone.
@@ -479,6 +489,78 @@ public partial class OverlayEditorWindow : Window
             window.Toolbar.Margin = savedMargin;
             window.Toolbar.MaxWidth = savedMaxWidth;
             window.Toolbar.InvalidateMeasure();
+        }
+    }
+
+    /// <summary>
+    /// A capture of the whole screen on two monitors, which no working area shows at its own size:
+    /// the switch of the scale stands beside the panel, says which side the picture was fitted by,
+    /// and at one to one the pill of a mark scrolled off the capture is put away.
+    /// </summary>
+    internal static void RunEditorScaleProbe(SessionWorkspace workspace, CaptureItem source)
+    {
+        var wide = new WriteableBitmap(3840, 1125, 96, 96, PixelFormats.Pbgra32, null);
+        wide.Freeze();
+        var capture = new CaptureItem
+        {
+            Id = Guid.NewGuid(), Image = wide, SourcePath = source.SourcePath, DisplayLabel = "A",
+            Kind = Snapik.Core.Models.CaptureKind.Fullscreen, MonitorCount = 2
+        };
+        capture.Annotations.Add(new AnnotationItem
+        {
+            Kind = EditorTool.Rectangle, Note = "У правого края", Points = [new Point(3600, 500), new Point(3800, 700)]
+        });
+        var frame = new DesktopFrame(wide, 0, 0, wide.PixelWidth, wide.PixelHeight);
+        var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1920, Height = 1080 };
+        window.Measure(new Size(1920, 1080));
+        window.Arrange(new Rect(0, 0, 1920, 1080));
+        try
+        {
+            window._fitBox = new Size(1198, 593);
+            var fit = Controls.EditorGeometry.Fit(wide.PixelWidth, wide.PixelHeight, 1198, 593);
+            window._cropRect = new Rect(100, 100, wide.PixelWidth * fit.Scale, wide.PixelHeight * fit.Scale);
+            window.SetupEditor();
+            var fitted = string.Format(UiLanguage.Text("По ширине · {0} %"), Math.Round(fit.Scale * 100));
+            if (window.ScaleSwitch.Visibility != Visibility.Visible || window.FitSegment.IsChecked != true ||
+                window.FitSegmentText.Text != fitted)
+                throw new InvalidOperationException($"A capture of two monitors must offer the scale switch, fitted by its width: \"{window.FitSegmentText.Text}\".");
+            // The caption of the capture says what it is, in the same words the strip card carries.
+            if (window.ShotKindChip.Visibility != Visibility.Visible ||
+                !window.ShotKindText.Text.Contains("3840×1125", StringComparison.Ordinal) ||
+                !window.ShotKindText.Text.Contains(UiLanguage.Text("весь экран"), StringComparison.Ordinal))
+                throw new InvalidOperationException($"The caption of a full screen capture must name it and its size: \"{window.ShotKindText.Text}\".");
+
+            // A capture of a region is shown as it is, and says nothing about itself.
+            var small = new WriteableBitmap(400, 300, 96, 96, PixelFormats.Pbgra32, null);
+            small.Freeze();
+            if (Controls.EditorGeometry.Fit(small.PixelWidth, small.PixelHeight, 1198, 593).BoundBy != Controls.FitBound.None)
+                throw new InvalidOperationException("A capture that fits the screen must have nothing to switch between.");
+
+            // At one to one the mark by the right edge is scrolled out of sight, and its pill goes
+            // with it instead of hanging over the desktop.
+            var mark = window._capture!.Annotations[0];
+            window._visibleChipIds.Add(mark.Id);
+            window.AddChip(mark, focus: false);
+            window._chipExpanders[mark.Id](true);
+            window.UpdateLayout();
+            window.OnOneToOneScaleClick(window, new RoutedEventArgs());
+            // Scrolled back to the left edge of the capture: a mark at 3600 px of a picture shown in
+            // a window 1198 px wide stands nowhere on the screen.
+            window.Surface.ViewOffset = default;
+            window.Surface.InvalidateVisual();
+            window.Surface.UpdateLayout();
+            window.RepositionChips();
+            if (window.OneToOneSegment.IsChecked != true || window.FitSegment.IsChecked != false)
+                throw new InvalidOperationException("The switch must show that the capture is shown at its own size.");
+            if (window._captureHandles.Any(handle => handle.Visibility == Visibility.Visible))
+                throw new InvalidOperationException("The handles of the capture borders must be put away while it is scrolled.");
+            if (window._chipBorders[mark.Id].Visibility != Visibility.Collapsed)
+                throw new InvalidOperationException(
+                    $"The pill of a mark scrolled off the capture must be hidden with it: the badge stood at {window.Surface.GetBadgeCenter(mark)} of {window._cropRect}.");
+        }
+        finally
+        {
+            window.Close();
         }
     }
 
@@ -881,6 +963,9 @@ public partial class OverlayEditorWindow : Window
             monitor.Width * ActualWidth / _frame.PixelWidth, monitor.Height * ActualHeight / _frame.PixelHeight), _commentsPanelVisible);
         var maxWidth = work.Width * .78;
         var maxHeight = work.Height * .72;
+        // The box the capture is fitted into, kept for the switch beside the panel: it is what says
+        // whether the picture had to be scaled down at all, and which side of it stopped it.
+        _fitBox = new Size(maxWidth, maxHeight);
         var scale = Math.Min(maxWidth / _capture.Image.PixelWidth, maxHeight / _capture.Image.PixelHeight);
         var width = _capture.Image.PixelWidth * scale;
         var height = _capture.Image.PixelHeight * scale;
@@ -1005,7 +1090,6 @@ public partial class OverlayEditorWindow : Window
         Surface.ActiveLineStyle = _activeLineStyle;
         Surface.ActiveFill = _activeFill;
         Surface.ActiveFillColor = _activeFillColor;
-        Surface.ActiveHasOutline = _activeHasOutline;
         Surface.ActiveFontSize = _activeFontSize;
         // A caption read out of a session carries the anchor and the size, and the box it takes is
         // measured from them here, once, before anything asks what it covers.
@@ -1016,8 +1100,18 @@ public partial class OverlayEditorWindow : Window
         ShotNoteChip.Visibility = Visibility.Collapsed;
         ShotNoteBox.Text = _capture.Note;
         ShotLabel.Text = string.Format(UiLanguage.Text("СНИМОК {0}"), _capture.DisplayLabel);
+        // A window that was never laid out on a monitor still has to answer what the capture is
+        // fitted into: the working area of the monitor the capture stands on is that answer.
+        if (_fitBox.IsEmpty)
+        {
+            var layout = LayoutWorkArea();
+            _fitBox = new Size(layout.Width * .78, layout.Height * .72);
+        }
+        SyncShotKind();
+        SyncScaleSwitch();
         UpdateCaptureHandles();
         PositionShotNote();
+        PositionShotKind();
         foreach (var annotation in _capture.Annotations) annotation.PropertyChanged += OnAnnotationPropertyChanged;
         _lastSnapshot = SnapshotState();
         RefreshLabels();
@@ -1026,7 +1120,7 @@ public partial class OverlayEditorWindow : Window
         PositionCommentsPanel();
         SyncCommentsPanel();
         _settingUp = false;
-        Dispatcher.BeginInvoke(() => { PositionCommentsPanel(); PositionToolbar(); PositionShotNote(); RepositionChips(); ResizeTextEditor(); }, DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(() => { PositionCommentsPanel(); PositionToolbar(); PositionShotNote(); PositionShotKind(); RepositionChips(); ResizeTextEditor(); }, DispatcherPriority.Loaded);
     }
 
     private void UpdateCropVisual()
@@ -1135,7 +1229,7 @@ public partial class OverlayEditorWindow : Window
         _appearanceDefaultsChanged |= tool != _activePencil;
         _activePencil = tool;
         PenTool.Tag = tool.ToString();
-        PencilCapsuleGlyph.Data = (Geometry)FindResource(tool == EditorTool.Highlight ? "HighlightGlyph" : "PencilGlyph");
+        PencilCapsuleGlyph.Text = tool == EditorTool.Highlight ? HighlightGlyph : PencilGlyph;
         if (EditorShortcuts.Find(tool) is { } shortcut)
         {
             PenTool.ToolTip = UiLanguage.Text(shortcut.Name);
@@ -1348,17 +1442,11 @@ public partial class OverlayEditorWindow : Window
             RefreshLabels();
         };
         note.GotKeyboardFocus += (_, _) => Surface.SelectAnnotation(annotation.Id);
-        var closePath = new System.Windows.Shapes.Path
-        {
-            StrokeThickness = 1.5,
-            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
-            Data = Geometry.Parse("M1,1 L9,9 M9,1 L1,9")
-        };
-        closePath.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "TextBrush");
+        var closeGlyph = IconGlyph("\uE8BB", 11, "TextBrush");
         var close = new Button
         {
             Width = 27, Height = 27, Padding = new Thickness(7), Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0), Content = closePath, ToolTip = UiLanguage.Text("Удалить комментарий"), Tag = annotation
+            BorderThickness = new Thickness(0), Content = closeGlyph, ToolTip = UiLanguage.Text("Удалить комментарий"), Tag = annotation
         };
         close.Click += OnDeleteAnnotationNoteClick;
         var grid = new Grid();
@@ -1498,6 +1586,17 @@ public partial class OverlayEditorWindow : Window
         {
             var id = (Guid)chip.Tag;
             if (_capture.Annotations.FirstOrDefault(item => item.Id == id) is not { } annotation) continue;
+            // The pills live in a layer over the whole window, which the borders of the capture do
+            // not clip: at a scale of its own a mark can be scrolled off the capture, and its pill
+            // would be left hanging over the desktop.
+            if (Surface.ViewScale is not null && !new Rect(0, 0, _cropRect.Width, _cropRect.Height).Contains(Surface.GetBadgeCenter(annotation)))
+            {
+                // Hidden the way a pill is hidden anywhere else: it is collapsed, and the number on
+                // the capture stands for the note until it is opened again.
+                if (_expandedChipId == id) _expandedChipId = null;
+                chip.Visibility = Visibility.Collapsed;
+                continue;
+            }
             var annotationBounds = Surface.GetDisplayBounds(annotation);
             var isExpanded = id == _expandedChipId;
             var width = chip.Width;
@@ -1537,6 +1636,86 @@ public partial class OverlayEditorWindow : Window
         UpdateNoteButton();
     }
 
+    // What the capture is, in words: the whole screen with the number of monitors behind it, or the
+    // name of the file that was imported, and the size in pixels either way. A capture of a region
+    // is what the editor has always shown, and it says nothing.
+    private void SyncShotKind()
+    {
+        if (_capture is null) return;
+        var size = $"{_capture.Image.PixelWidth}×{_capture.Image.PixelHeight}";
+        string[] parts = _capture.Kind switch
+        {
+            Snapik.Core.Models.CaptureKind.Fullscreen => _capture.MonitorCount > 1
+                ? [UiLanguage.Text("весь экран"), string.Format(UiLanguage.Text("мониторов: {0}"), _capture.MonitorCount), size]
+                : [UiLanguage.Text("весь экран"), size],
+            Snapik.Core.Models.CaptureKind.Import => string.IsNullOrWhiteSpace(_capture.Title)
+                ? [UiLanguage.Text("импорт"), size]
+                : [UiLanguage.Text("импорт"), _capture.Title, size],
+            _ => []
+        };
+        ShotKindChip.Visibility = parts.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (parts.Length == 0) return;
+        // A monitor for the whole screen, a sheet of paper for a file: the two glyphs of the chip
+        // the card in the strip wears for the same two kinds.
+        ShotKindGlyph.Text = _capture.Kind == Snapik.Core.Models.CaptureKind.Fullscreen ? "" : "";
+        ShotKindText.Text = string.Join(" · ", parts);
+    }
+
+    // The caption stands inside the top right corner of the capture, eight pixels in from both edges.
+    private void PositionShotKind()
+    {
+        if (ShotKindChip.Visibility != Visibility.Visible) return;
+        ShotKindChip.UpdateLayout();
+        var work = LayoutWorkArea();
+        var left = Math.Clamp(_cropRect.Right - ShotKindChip.ActualWidth - 8, work.Left + 8, Math.Max(work.Left + 8, work.Right - ShotKindChip.ActualWidth - 8));
+        var top = Math.Clamp(_cropRect.Top + 8, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - 8));
+        ShotKindChip.Margin = new Thickness(left, top, 0, 0);
+    }
+
+    // The switch beside the panel: a capture that fits the screen at its own size has nothing to
+    // switch between, and one that does not says how far it was scaled down and which side did it.
+    private void SyncScaleSwitch()
+    {
+        if (_capture is null) return;
+        var fit = Controls.EditorGeometry.Fit(_capture.Image.PixelWidth, _capture.Image.PixelHeight, _fitBox.Width, _fitBox.Height);
+        ScaleSwitch.Visibility = fit.BoundBy == Controls.FitBound.None ? Visibility.Collapsed : Visibility.Visible;
+        FitSegmentText.Text = string.Format(
+            UiLanguage.Text(fit.BoundBy == Controls.FitBound.Height ? "По высоте · {0} %" : "По ширине · {0} %"),
+            Math.Round(fit.Scale * 100));
+        FitSegment.IsChecked = Surface.ViewScale is null;
+        OneToOneSegment.IsChecked = Surface.ViewScale is not null;
+    }
+
+    // Both handlers end with the switch: a press on the segment that is already in force changes no
+    // scale, the canvas raises nothing, and the segments would be left showing neither of the two.
+    private void OnFitScaleClick(object sender, RoutedEventArgs e)
+    {
+        Surface.ViewOffset = default;
+        Surface.ViewScale = null;
+        SyncScaleSwitch();
+    }
+
+    private void OnOneToOneScaleClick(object sender, RoutedEventArgs e)
+    {
+        if (_capture is null) return;
+        // The middle of the capture stays the middle: at its own size the picture opens where the
+        // fitted one was looked at, and the clamp of the canvas takes it from there.
+        Surface.ViewOffset = new Vector(
+            (_capture.Image.PixelWidth - _cropRect.Width) / 2,
+            (_capture.Image.PixelHeight - _cropRect.Height) / 2);
+        Surface.ViewScale = 1;
+        SyncScaleSwitch();
+    }
+
+    // The scale changed, by the switch or by the wheel: the segments follow it, the pills that left
+    // the capture are hidden, and the handles of the capture borders come back only while it is fitted.
+    private void OnSurfaceViewChanged(object? sender, EventArgs e)
+    {
+        SyncScaleSwitch();
+        UpdateCaptureHandles();
+        RepositionChips();
+    }
+
     private void PositionShotNote()
     {
         var work = LayoutWorkArea();
@@ -1557,8 +1736,14 @@ public partial class OverlayEditorWindow : Window
         Toolbar.UpdateLayout();
         var width = Math.Max(Toolbar.ActualWidth, 380);
         var height = Math.Max(Toolbar.ActualHeight, 50);
-        var placement = PlaceToolbar(_cropRect, work, new Size(width, height), VisibleNoteRects().ToArray());
+        // The switch of the scale stands to the right of the panel with a gap of ten, and the two
+        // are placed as one: measured apart, the switch would run off the right edge of the screen.
+        ScaleSwitch.UpdateLayout();
+        var switchWidth = ScaleSwitch.Visibility == Visibility.Visible ? ScaleSwitch.ActualWidth + 10 : 0;
+        var placement = PlaceToolbar(_cropRect, work, new Size(width + switchWidth, height), VisibleNoteRects().ToArray());
         Toolbar.Margin = new Thickness(placement.Left, placement.Top, 0, 0);
+        if (switchWidth > 0)
+            ScaleSwitch.Margin = new Thickness(placement.Left + Math.Max(Toolbar.ActualWidth, 0) + 10, placement.Top, 0, 0);
 
         IEnumerable<Rect> VisibleNoteRects()
         {
@@ -1694,6 +1879,7 @@ public partial class OverlayEditorWindow : Window
         SyncAppearance();
         PositionToolbar();
         PositionShotNote();
+        PositionShotKind();
         Surface.InvalidateVisual();
     }
 
@@ -1767,6 +1953,14 @@ public partial class OverlayEditorWindow : Window
             if (e.Key == Key.Escape) { Surface.Focus(); e.Handled = true; }
             return;
         }
+        // Space drags the picture while it is held, and the key belongs to no tool: outside the
+        // scaled mode it does nothing at all, so nothing else has to know about it.
+        if (e.Key == Key.Space && Surface.ViewScale is not null)
+        {
+            Surface.Panning = true;
+            e.Handled = true;
+            return;
+        }
         // Enter is "Done", the way the button, Ctrl+C and the capture shortcut are. Text that is
         // being edited takes it first (a focused TextBox has already returned above), and an open
         // popover belongs to Escape, not to finishing the capture.
@@ -1812,6 +2006,14 @@ public partial class OverlayEditorWindow : Window
             if (tool == EditorTool.Comment) { OnCommentClick(this, e); e.Handled = true; }
             else if (tool is not null) { SelectToolMode(tool.Value); e.Handled = true; }
         }
+    }
+
+    // Space let go of: the picture stops following the pointer, whatever the mode is by then.
+    private void OnWindowKeyUp(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Space || !Surface.Panning) return;
+        Surface.Panning = false;
+        e.Handled = true;
     }
 
     private static Rect Normalize(Point a, Point b) => new(new Point(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y)), new Point(Math.Max(a.X, b.X), Math.Max(a.Y, b.Y)));

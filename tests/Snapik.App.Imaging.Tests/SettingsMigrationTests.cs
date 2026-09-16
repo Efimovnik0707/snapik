@@ -31,4 +31,22 @@ public sealed class SettingsMigrationTests
     {
         Assert.Equal(60, SettingsMigration.SoundVolume(SettingsMigration.CurrentVersion, 60));
     }
+
+    [Fact]
+    public void A_volume_set_by_hand_survives_the_version_after_its_own()
+    {
+        // The volume rule belongs to version 1. A file that has already been through it must not be
+        // taken back down to 40 because the version rose again for the theme.
+        Assert.Equal(60, SettingsMigration.SoundVolume(1, 60));
+    }
+
+    [Theory]
+    [InlineData(0, "light", "dark")]
+    [InlineData(1, "light", "dark")]
+    // A theme that still exists is left alone, and a file that has already seen version 2 is not
+    // touched: "light" in such a file could only have been written into it by hand.
+    [InlineData(0, "sea", "sea")]
+    [InlineData(2, "light", "light")]
+    public void The_retired_light_theme_becomes_the_dark_one(int storedVersion, string stored, string expected) =>
+        Assert.Equal(expected, SettingsMigration.Theme(storedVersion, stored));
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -206,8 +206,12 @@ public partial class EdgeStackWindow : Window
         catch (Exception ex) { StartupTrace.Write(_options, $"Hotkeys in Loaded: {ex}"); }
         // Before the session is restored: on the very first run there is nothing to restore, and the
         // wizard writes the language and the shortcut the rest of the startup reads.
+        var wizardShown = false;
         if (OnboardingWindow.ShouldShowOnboarding(File.Exists(_settingsPath), _settings, _options.Demo || _options.SmokeTest))
+        {
             ShowOnboarding();
+            wizardShown = true;
+        }
         _loading = true;
         try
         {
@@ -221,6 +225,11 @@ public partial class EdgeStackWindow : Window
             }
             Renumber();
             PositionAtEdge();
+            // The first run ends with the strip on the screen, empty and compact: the wizard closes
+            // on "Start" and on "Skip" alike, and a run that began with it has nothing else to show.
+            // Here and not straight after the dialog: the session is restored in between, and the
+            // strip would flash empty first and be placed twice.
+            if (wizardShown) ShowStackWithoutActivation();
             StartupTrace.Write(_options, $"EdgeStack.Loaded completed with {Captures.Count} captures");
         }
         catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось восстановить сессию")}: {ex.Message}", true); StartupTrace.Write(_options, ex.ToString()); }
@@ -241,7 +250,6 @@ public partial class EdgeStackWindow : Window
         {
             var handle = new WindowInteropHelper(this).EnsureHandle();
             _hotkeys = new WindowsGlobalHotkeyService(handle);
-            _ = SetWindowDisplayAffinity(handle, 0x00000011);
             _hotkeys.Pressed += OnHotkey;
             _ = RegisterHotkeys();
             StartupTrace.Write(_options, $"Hotkeys ready: hwnd={handle}");
@@ -281,7 +289,7 @@ public partial class EdgeStackWindow : Window
     {
         if (CaptureIsBlockedByADialog($"hotkey {e.Id}")) return;
         if (e.Id == "capture" && !OverlayEditorWindow.TryCommitAndRequestNext()) await CaptureLoopAsync();
-        else if (e.Id == "fullscreen-save") await SaveFullscreenAsync();
+        else if (e.Id == "fullscreen-save") await CaptureFullscreenAsync();
     });
 
     // Every modal window the application opens goes through SuspendTopmost, so the number of
@@ -643,9 +651,9 @@ public partial class EdgeStackWindow : Window
     private void OnHideClick(object sender, RoutedEventArgs e) => HideStack();
 
     // The strip collapsed into the capsule, and back. It is a mode of this window: the hotkeys, the
-    // display affinity, the topmost, the tray icon and the drag of the header all hang on this window
-    // and on its handle. The mode lives in memory only and is never written to the settings file: a
-    // strip that opens collapsed would look like a strip that failed to open.
+    // topmost, the tray icon and the drag of the header all hang on this window and on its handle.
+    // The mode lives in memory only and is never written to the settings file: a strip that opens
+    // collapsed would look like a strip that failed to open.
     private void OnCollapseToCapsuleClick(object sender, RoutedEventArgs e) => CollapseToCapsule();
 
     private void OnCapsuleClick(object sender, MouseButtonEventArgs e) => ExpandFromCapsule();
@@ -678,7 +686,9 @@ public partial class EdgeStackWindow : Window
         Capsule.Visibility = Visibility.Collapsed;
         Shell.Visibility = Visibility.Visible;
         WidthGrip.Visibility = Visibility.Visible;
-        CornerGrip.Visibility = Visibility.Visible;
+        // The list, the hint and the corner grip belong to the state of the strip, not to the mode:
+        // an empty strip unfolds back into an empty strip, without a grip that has nothing to pull.
+        UpdateEmptyState();
         SizeToContent = SizeToContent.Height;
         MinHeight = _expandedMinHeight;
         Width = _expandedWidth;
@@ -1057,10 +1067,22 @@ public partial class EdgeStackWindow : Window
         var failures = new List<string>();
         foreach (var path in chosen.Take(free))
         {
-            try { Captures.Add(await _workspace.AddImageAsync(SessionWorkspace.LoadBitmap(path))); imported++; }
+            try
+            {
+                var capture = await _workspace.AddImageAsync(SessionWorkspace.LoadBitmap(path));
+                // The name of the file is what tells one import from another, on the chip of the card
+                // and in prompt.md; a capture of a region has nothing to put there and leaves it empty.
+                capture.Kind = Snapik.Core.Models.CaptureKind.Import;
+                capture.Title = Path.GetFileName(path);
+                Captures.Add(capture);
+                imported++;
+            }
             catch (Exception ex) { failures.Add($"{Path.GetFileName(path)}: {ex.Message}"); }
         }
         Renumber(); NoteStripGrowth(); InvalidatePrepared();
+        // The chip of a card is written in the markup, so a card born after the strip was translated
+        // carries Russian until the next showing of the window: the new ones are translated here.
+        UiLanguage.Apply(this);
         var saved = await SaveAsync();
         // The clipboard package follows the stack even when the session file could not be written:
         // a receipt left pointing at the previous package makes the next Ctrl+V rotate the session.
@@ -1241,16 +1263,12 @@ public partial class EdgeStackWindow : Window
         }
     }
 
-    // Only the three fields the wizard owns, on top of the file as it is now; a file that could not
-    // be read is replaced whole, because there is nothing in it to merge into.
+    // Only the fields the wizard owns, on top of the file as it is now; a file that could not be
+    // read is replaced whole, because there is nothing in it to merge into. The appearance step is
+    // among them: a theme picked in the wizard used to live until the next start and no longer.
     private bool WriteOnboarding(HotkeySettings candidate, bool merge)
     {
-        if (merge)
-            return MutateSettings(stored => stored with
-            {
-                CaptureId = candidate.CaptureId, Language = candidate.Language,
-                OnboardingVersion = candidate.OnboardingVersion
-            });
+        if (merge) return MutateSettings(stored => MergeOnboarding(stored, candidate));
         try { candidate.Save(_settingsPath); _settings = candidate; return true; }
         catch (Exception ex)
         {
@@ -1258,6 +1276,17 @@ public partial class EdgeStackWindow : Window
             return false;
         }
     }
+
+    /// <summary>
+    /// The five fields the wizard owns, put on top of the file as it is now. It is a rule of its own
+    /// so that the smoke can read it without a strip window: the list of fields is the whole bug.
+    /// </summary>
+    internal static HotkeySettings MergeOnboarding(HotkeySettings stored, HotkeySettings candidate) => stored with
+    {
+        CaptureId = candidate.CaptureId, Language = candidate.Language,
+        Theme = candidate.Theme, AccentId = candidate.AccentId,
+        OnboardingVersion = candidate.OnboardingVersion
+    };
 
     // The wizard counts as passed the moment its window is gone, however it was closed, and the
     // version is written on its own: a shortcut that stayed in conflict keeps the user on its step,
@@ -1322,7 +1351,7 @@ public partial class EdgeStackWindow : Window
                     catch (Exception ex)
                     {
                         _hotkeys?.Unregister("capture");
-        _hotkeys?.Unregister("fullscreen-save");
+                        _hotkeys?.Unregister("fullscreen-save");
                         StartupTrace.Write(_options, $"Hotkey settings ({HotkeySettings.Find(candidate.CaptureId).Label}): {ex}");
                         if (ex is Win32Exception { NativeErrorCode: 1409 })
                             return UiLanguage.Text("Эта клавиша уже занята. Освободите её в другом приложении или выберите другую.");
@@ -1335,11 +1364,15 @@ public partial class EdgeStackWindow : Window
             bool? saved;
             using (SuspendTopmost()) saved = dialog.ShowDialog();
             if (saved == true) SetStatus(string.Empty);
+            // "Go through the tour again" is a link of the settings, and the wizard has to outlive
+            // the window that offered it: the dialog only says it was asked for. Inside the try, so
+            // the shortcuts are registered once, in the finally below, after both windows are gone.
+            if (dialog.OnboardingRequested) ShowOnboarding();
         }
         finally
         {
             _hotkeys?.Unregister("capture");
-        _hotkeys?.Unregister("fullscreen-save");
+            _hotkeys?.Unregister("fullscreen-save");
             _ = RegisterHotkeys();
         }
     }
@@ -1350,12 +1383,30 @@ public partial class EdgeStackWindow : Window
     {
         var labels = SentCaptureRules.StripLabels([.. Captures.Select(capture => capture.IsSent)]);
         for (var i = 0; i < Captures.Count; i++) if (labels[i] is { } label) Captures[i].DisplayLabel = label;
-        CaptureList?.Items.Refresh();
         var pending = PendingCaptures.Count;
         CountText.Text = pending.ToString();
         // The capsule shows the same number as the header: what is still waiting to be pasted.
         CapsuleCount.Text = CountText.Text;
         PasteButton.IsEnabled = pending > 0;
+        UpdateEmptyState();
+    }
+
+    // An empty strip shows a hint instead of an empty list, and it is the window that shrinks: the
+    // list carries its height outright (PositionAtEdge), so hiding it takes those pixels out of the
+    // layout and the first capture brings them back. The corner grip is hidden with the list, there
+    // being nothing to stretch, and it stays hidden in the capsule, where the mode owns it.
+    private void UpdateEmptyState()
+    {
+        if (CaptureList is null) return;
+        var empty = Captures.Count == 0;
+        CaptureList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        EmptyHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        CornerGrip.Visibility = empty || _capsuleMode ? Visibility.Collapsed : Visibility.Visible;
+        // The shortcut may be switched off, and then there is nothing to name: the hint says what is
+        // left, the button of the strip.
+        EmptyHintText.Text = _settings.CaptureEnabled
+            ? string.Format(UiLanguage.Text("Нажми {0} или «Новый снимок»"), HotkeySettings.Find(_settings.CaptureId).Label)
+            : UiLanguage.Text("Нажми «Новый снимок»");
     }
 
     private IReadOnlyList<CaptureItem> PendingCaptures => SentCaptureRules.ForPackage(Captures, capture => capture.IsSent);
@@ -1669,7 +1720,15 @@ public partial class EdgeStackWindow : Window
         action?.Invoke();
     }
 
-    private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
+    // The strip is dragged by any free spot of the panel, not by the header alone: the paddings, the
+    // gaps between the cards and the header itself, which is transparent and therefore hit-tested
+    // whole. Everything that wants a press of its own takes it before this: the buttons, the cards,
+    // the two grips and the scrollbar. A double click is let through, it is not the start of a drag.
+    private void OnShellMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || e.ClickCount > 1) return;
+        DragMove();
+    }
 
     private void OnCaptureThumbMouseEnter(object sender, MouseEventArgs e) => UiSoundService.Tick(_settings);
 
@@ -1684,7 +1743,6 @@ public partial class EdgeStackWindow : Window
 
         _busy = true;
         capture.IsSelected = true;
-        CaptureList.Items.Refresh();
         var stackHidden = false;
         var requestNext = false;
         try
@@ -1711,7 +1769,6 @@ public partial class EdgeStackWindow : Window
         finally
         {
             capture.IsSelected = false;
-            CaptureList.Items.Refresh();
             _busy = false;
             if (stackHidden) ShowStackWithoutActivation();
         }
@@ -1838,20 +1895,4 @@ public partial class EdgeStackWindow : Window
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmFlush();
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
-}
-
-// The depth of a card of the strip from its place in it: the first card is drawn over the second,
-// the second over the third, and so on down the stack, so the shadow of every card falls into the
-// seam below it. The index comes from ItemsControl.AlternationIndex, which is why the strip declares
-// an AlternationCount of MaxStripCaptures: within that count the index is the place of the card.
-public sealed class StripDepthConverter : System.Windows.Data.IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
-        value is int index ? -index : 0;
-
-    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
-        throw new NotSupportedException("The depth of a card is read from its index, never written back.");
 }
