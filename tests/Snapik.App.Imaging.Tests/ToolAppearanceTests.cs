@@ -30,6 +30,9 @@ public sealed class ToolAppearanceTests
             [EditorTool.Highlight] = new(true, false, SecondCapsule.Line, true),
             [EditorTool.Text] = new(true, false, SecondCapsule.FontSize, true),
             [EditorTool.Blur] = new(false, false, SecondCapsule.Shape, true),
+            // No tool draws a conceal any more, but an old mark of one can be selected, and then the
+            // block shows its fields, the way it does for any other filled region.
+            [EditorTool.Conceal] = new(true, true, SecondCapsule.Line, true),
             [EditorTool.Comment] = new(true, true, SecondCapsule.Line, false),
             [EditorTool.Eraser] = new(true, true, SecondCapsule.Line, false),
             [EditorTool.Crop] = new(true, true, SecondCapsule.Line, false),

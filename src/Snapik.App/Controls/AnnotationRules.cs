@@ -18,7 +18,7 @@ internal static class AnnotationRules
         fill == AnnotationFill.Blur ? null : color;
 
     /// <summary>What a press of the mouse has landed on, before the canvas acts on it.</summary>
-    internal enum PressTarget { Pan, Erase, CropDraft, Activate, CommentAnchor, ResizeHandle, Object, Empty }
+    internal enum PressTarget { Pan, Erase, CropDraft, Activate, CommentAnchor, ResizeHandle, Object, Deselect, Empty }
 
     /// <summary>
     /// What a press of the left button means, in the one order every tool obeys. One rule and not a
@@ -26,7 +26,8 @@ internal static class AnnotationRules
     /// comment and the mark under the cursor answer before a new mark is begun.
     /// <paramref name="activatable"/> is "the mark under the cursor is a caption or a comment", the
     /// two that a double click opens for typing; on a frame or an arrow a double click is two
-    /// single ones, that is, a selection.
+    /// single ones, that is, a selection. <see cref="PressTarget.Deselect"/> is the empty place
+    /// under a tool that draws nothing: the selection is dropped and no draft is begun.
     /// </summary>
     internal static PressTarget PressTargetOf(EditorTool tool, bool panning, int clickCount,
         bool onAnchor, bool onSelectedHandle, bool onObject, bool activatable) =>
@@ -38,5 +39,9 @@ internal static class AnnotationRules
           : onAnchor                       ? PressTarget.CommentAnchor
           : onSelectedHandle               ? PressTarget.ResizeHandle
           : onObject                       ? PressTarget.Object
+          // The pointer draws nothing of its own: over an empty place it only drops the selection.
+          // Without this the drag of a pointer would leave a mark of kind Select in the session,
+          // and the export, which knows no such kind, would put a rectangle in the picture.
+          : tool == EditorTool.Select      ? PressTarget.Deselect
           :                                  PressTarget.Empty;
 }

@@ -89,10 +89,12 @@ public partial class OverlayEditorWindow
         tool == EditorTool.Highlight ? HighlightThicknessPresets : ThicknessPresets;
 
     /// <summary>
-    /// The settings the panel shows and edits for a tool. Select, Eraser, Crop, Comment and Conceal
-    /// have none of their own: the block is there but dead for them (InspectorViewOf → Enabled is
-    /// false), and Surface.Active* go on carrying what the next mark will be drawn with, which is
-    /// the frame's set. The dictionary is never indexed straight — this is the one door to it.
+    /// The settings the panel shows and edits for a tool. Select, Eraser, Crop and Comment have none
+    /// of their own: the block is there but dead for them (InspectorViewOf → Enabled is false), and
+    /// Surface.Active* go on carrying what the next mark will be drawn with, which is the frame's
+    /// set. A conceal is drawn by no tool at all, but an old mark of one can be selected, and then
+    /// the block is alive and shows the fields of that mark, taken from the frame's set here.
+    /// The dictionary is never indexed straight — this is the one door to it.
     /// </summary>
     private ToolAppearance AppearanceOf(EditorTool tool) =>
         _tools.TryGetValue(tool, out var kept) ? kept : _tools[EditorTool.Rectangle];

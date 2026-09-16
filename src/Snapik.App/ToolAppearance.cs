@@ -177,6 +177,10 @@ internal static class EditorInspector
         EditorTool.Text => new(true, false, SecondCapsule.FontSize, true),
         // The blur has a shape and nothing else: the colours are hidden, not switched off.
         EditorTool.Blur => new(false, false, SecondCapsule.Shape, true),
+        // No tool of the panel draws a conceal any more, but a mark of one read out of an old
+        // session can be selected, and then the block belongs to that mark: it is a filled region
+        // and shows what a region shows. Reached through InspectedTool alone, never through a hand.
+        EditorTool.Conceal => new(true, true, SecondCapsule.Line, true),
         // Select, eraser, crop and comment carry no settings, so the block is there but dead.
         _ => new(true, true, SecondCapsule.Line, false)
     };

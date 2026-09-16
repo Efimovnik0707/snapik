@@ -35,6 +35,10 @@ public sealed class AnnotationRulesTests
         Assert.Equal(AnnotationRules.PressTarget.ResizeHandle, Target(EditorTool.Arrow, onSelectedHandle: true, onObject: true));
         Assert.Equal(AnnotationRules.PressTarget.Object, Target(EditorTool.Conceal, onObject: true));
         Assert.Equal(AnnotationRules.PressTarget.Empty, Target(EditorTool.Rectangle));
+        // The pointer draws nothing of its own: over an empty place it only drops the selection, so
+        // that a drag of it never becomes a mark the export would have to give a shape to.
+        Assert.Equal(AnnotationRules.PressTarget.Deselect, Target(EditorTool.Select));
+        Assert.Equal(AnnotationRules.PressTarget.Deselect, Target(EditorTool.Select, clickCount: 2));
     }
 
     private static AnnotationRules.PressTarget Target(EditorTool tool, bool panning = false, int clickCount = 1,

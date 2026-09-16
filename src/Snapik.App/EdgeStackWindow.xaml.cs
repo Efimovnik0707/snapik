@@ -83,7 +83,6 @@ public partial class EdgeStackWindow : Window
     private bool _softLimitWarned;
     private bool _capsuleMode;
     private double _expandedWidth;
-    private double _expandedListHeight;
     private double _expandedLeft;
     private double _expandedTop;
     private double _expandedMinHeight;
@@ -697,8 +696,6 @@ public partial class EdgeStackWindow : Window
         _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0053);
         UiLanguage.Apply(this);
         AnimateStackIn();
-
-
     }
 
     public void RevealStack() => ShowStackWithoutActivation();
@@ -726,7 +723,8 @@ public partial class EdgeStackWindow : Window
         if (_capsuleMode) return;
         _capsuleMode = true;
         _expandedWidth = Width;
-        _expandedListHeight = CaptureList.Height;
+        // The height of the list is not remembered on purpose: it follows the content, and the strip
+        // may have been given captures while it stood as a capsule.
         // The left edge is remembered with the rest of the rectangle: without it the strip came back
         // to the edge of the monitor whatever corner the user had dragged it to.
         _expandedLeft = Left;
@@ -757,12 +755,13 @@ public partial class EdgeStackWindow : Window
         // The order below is fixed: the height of the list is settled before the window is placed,
         // or ActualHeight is measured from the list the strip had before the capsule; and
         // SizeToContent goes off before Width is assigned, or WPF runs a pass of its own in between
-        // and moves the window.
+        // and moves the window. The height is settled by UpdateEmptyState through ApplyListHeight,
+        // and by nothing else: captures taken while the strip was a capsule count as well, and the
+        // ceiling belongs to the settings, not to the height the list happened to have back then.
         UpdateEmptyState();
         SizeToContent = SizeToContent.Manual;
         MinHeight = _expandedMinHeight;
         Width = _expandedWidth;
-        CaptureList.Height = Controls.StripResizeGeometry.ListHeightForCount(Captures.Count, _expandedListHeight);
         UpdateLayout();
         // The working area is the one of the monitor the capsule stands on, and it is a frame to
         // clamp against, not a place to move to: a strip dragged away from the edge comes back where

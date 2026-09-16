@@ -313,6 +313,12 @@ public sealed class AnnotationCanvas : FrameworkElement
                 _manipulationMoved = false;
                 CaptureMouse();
                 return;
+
+            // The pointer over an empty place: the selection goes and nothing is begun. It draws no
+            // mark of its own, and a draft of its kind would reach session.json and the export.
+            case AnnotationRules.PressTarget.Deselect:
+                Select(null);
+                return;
         }
 
         // A press on an empty part of the capture, or the frame of a crop over whatever lies under
@@ -1189,6 +1195,14 @@ public sealed class AnnotationCanvas : FrameworkElement
         Gesture(new Point(430, 60));
         if (canvas.SelectedAnnotation is not null || annotations.Count != 2)
             throw new InvalidOperationException("A click on an empty part of the capture must only drop the selection.");
+
+        // And a drag of the pointer over an empty place draws nothing either: the pointer has no
+        // mark of its own, and a draft of its kind would reach the session and the exported picture.
+        canvas.Tool = EditorTool.Select;
+        canvas.SelectAnnotation(annotations[0].Id);
+        Gesture(new Point(380, 40), new Point(430, 90));
+        if (canvas.SelectedAnnotation is not null || annotations.Count != 2)
+            throw new InvalidOperationException("A drag of the pointer over an empty place must draw nothing.");
 
         var bounds = canvas.GetDisplayBounds(annotations[0]);
         canvas.UpdateGesture(new Point(bounds.Left, bounds.Top + bounds.Height / 2), pressed: false);

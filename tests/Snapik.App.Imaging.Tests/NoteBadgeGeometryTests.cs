@@ -12,6 +12,9 @@ public sealed class NoteBadgeGeometryTests
     // The badge of a one-digit number: 34 px across, so 17 of radius, and 8 of padding beside it.
     private const int Reach = 17 + 8;
 
+    // And it stands above the point it belongs to, by half a diameter and the gap of four.
+    private const int Lift = 17 + 4;
+
     private static ExportMargin Margins(params (NormalizedPoint Anchor, NormalizedPoint? Offset, string Label)[] badges) =>
         NoteBadgeGeometry.ExportMargins(badges, Side, Side);
 
@@ -20,8 +23,14 @@ public sealed class NoteBadgeGeometryTests
         Assert.True(NoteBadgeGeometry.ExportMargins(new List<(NormalizedPoint, NormalizedPoint?, string)>(), Side, Side).IsEmpty);
 
     [Fact]
-    public void A_badge_left_where_it_was_born_needs_no_field() =>
-        Assert.Equal(ExportMargin.None, Margins((new NormalizedPoint(0, 0.5), null, "1")));
+    public void A_badge_left_where_it_was_born_inside_the_capture_needs_no_field() =>
+        Assert.Equal(ExportMargin.None, Margins((new NormalizedPoint(0.5, 0.5), null, "1")));
+
+    // Nothing has to be dragged for a badge to hang over the edge: it is drawn above its own point,
+    // and a comment put near the top of the capture reaches over it by itself.
+    [Fact]
+    public void A_badge_that_was_never_moved_still_asks_for_the_room_it_hangs_over() =>
+        Assert.Equal(new ExportMargin(0, Reach + Lift - 10, 0, 0), Margins((new NormalizedPoint(0.5, 0.01), null, "1")));
 
     [Fact]
     public void A_badge_moved_inside_the_capture_needs_no_field() =>
@@ -37,7 +46,7 @@ public sealed class NoteBadgeGeometryTests
 
     [Fact]
     public void A_badge_dragged_above_the_capture_asks_for_a_field_on_top() =>
-        Assert.Equal(new ExportMargin(0, 100 + Reach, 0, 0), Margins((new NormalizedPoint(0.5, 0), new NormalizedPoint(0, -0.1), "1")));
+        Assert.Equal(new ExportMargin(0, 100 + Reach + Lift, 0, 0), Margins((new NormalizedPoint(0.5, 0), new NormalizedPoint(0, -0.1), "1")));
 
     [Fact]
     public void Two_badges_pulled_apart_ask_for_a_field_on_both_sides() =>

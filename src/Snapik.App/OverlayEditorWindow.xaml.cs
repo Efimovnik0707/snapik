@@ -1863,7 +1863,9 @@ public partial class OverlayEditorWindow : Window
         var free = Math.Max(380, work.Width - 16);
         // The panel is Collapsed until SetupEditor shows it, and a collapsed element measures to
         // nothing: the capture would then be given the whole working area and the panel would land
-        // on top of it.
+        // on top of it. It is shown for the measuring only, and put back as it was: the panel is
+        // hidden while a note is being typed, and a measurement must not bring it back on screen.
+        var savedVisibility = Toolbar.Visibility;
         Toolbar.Visibility = Visibility.Visible;
         // Margin carries the absolute position of the panel on screen and WPF counts it inside
         // DesiredSize, so a panel measured as it stands grows by wherever it was put the last time.
@@ -1880,6 +1882,7 @@ public partial class OverlayEditorWindow : Window
         // the width worked out above is the width it is given, and the star holds the gap.
         Toolbar.Width = shape.Size.Width;
         Toolbar.Margin = savedMargin;
+        Toolbar.Visibility = savedVisibility;
         Toolbar.InvalidateMeasure();
         return shape;
 

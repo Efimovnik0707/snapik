@@ -31,7 +31,7 @@ internal static class NoteBadgeGeometry
     /// first row the badge may touch: the export draws a white header the badge must stay under.
     /// </summary>
     internal static NoteBadge Export(Point anchor, string label, Vector offset, double topMargin) =>
-        Create(anchor, ExportDiameter(label), offset, 4, topMargin);
+        Create(anchor, ExportDiameter(label), offset, ExportGap, topMargin);
 
     /// <summary>
     /// The leader of an exported badge, in pixels: the badge itself is drawn larger than the one on
@@ -44,6 +44,9 @@ internal static class NoteBadgeGeometry
 
     private static double ExportDiameter(string label) => Math.Max(34, label.Length * 9 + 16);
 
+    /// <summary>The air between the point of a mark and the rim of its badge in the export.</summary>
+    private const double ExportGap = 4;
+
     private static NoteBadge Create(Point anchor, double diameter, Vector offset, double gap, double topMargin)
     {
         var center = new Point(
@@ -53,9 +56,12 @@ internal static class NoteBadgeGeometry
     }
 
     /// <summary>
-    /// The field around the capture that the badges dragged off it need. Counted in the pixels of
-    /// the capture, without the header of the export: a badge left where it was born asks for
-    /// nothing, and a picture whose badges all stand inside it comes out byte for byte as before.
+    /// The field around the capture that the badges need. Counted in the pixels of the capture,
+    /// without the header of the export: a picture whose badges all stand inside it comes out byte
+    /// for byte as before. A badge that was never dragged counts too — it is drawn above the point
+    /// it belongs to, and a comment near the top edge hangs over the capture without any dragging.
+    /// The centre is the one <see cref="Create"/> gives: the same lift of half a diameter and the
+    /// gap, or the field would be measured from a circle nobody draws.
     /// </summary>
     internal static ExportMargin ExportMargins(
         IEnumerable<(NormalizedPoint Anchor, NormalizedPoint? Offset, string Label)> badges, int width, int height)
@@ -63,11 +69,13 @@ internal static class NoteBadgeGeometry
         double left = 0, top = 0, right = 0, bottom = 0;
         foreach (var (anchor, offset, label) in badges)
         {
-            // A comment without a note carries no number, and no number means no badge to fit in.
-            if (offset is not { } shift || string.IsNullOrEmpty(label)) continue;
-            var radius = ExportDiameter(label) / 2 + Padding;
+            // A comment without a number has no badge to fit in.
+            if (string.IsNullOrEmpty(label)) continue;
+            var shift = offset ?? new NormalizedPoint(0, 0);
+            var diameter = ExportDiameter(label);
+            var radius = diameter / 2 + Padding;
             var centerX = (anchor.X + shift.X) * width;
-            var centerY = (anchor.Y + shift.Y) * height;
+            var centerY = (anchor.Y + shift.Y) * height - diameter / 2 - ExportGap;
             left = Math.Max(left, radius - centerX);
             top = Math.Max(top, radius - centerY);
             right = Math.Max(right, centerX + radius - width);
