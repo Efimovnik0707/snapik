@@ -116,7 +116,7 @@ enum UiSoundService {
             gate.unlock()
 
             guard let sound else { return }
-            sound.volume = Float(max(0, min(100, volume)) / 100.0 * gain)
+            sound.volume = Float(Double(max(0, min(100, volume))) / 100.0 * gain)
             sound.stop()
             sound.play()
         }
