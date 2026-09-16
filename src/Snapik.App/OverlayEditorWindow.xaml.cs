@@ -65,6 +65,13 @@ public partial class OverlayEditorWindow : Window
     private bool _chipDragMoved;
     private bool _settingUp;
     private bool _busyCrop;
+    // Where the hand put the panel, in the units of the window, and what the drag of it started
+    // from. The point is absolute and lives as long as the editor does: one window is one capture,
+    // so "a new capture opens the panel under the picture again" needs no line of its own.
+    private Point? _toolbarUserPosition;
+    private Point _toolbarDragOrigin;
+    private Vector _toolbarDragStart;
+    private bool _toolbarDragging;
     // This press has already been spent on closing an editor beside the capture (the pill of a
     // note), so the release that follows must not finish the shot on top of it: one click, one thing.
     private bool _outsideClickConsumed;
@@ -410,58 +417,55 @@ public partial class OverlayEditorWindow : Window
                 throw new InvalidOperationException("One undo must bring an erased mark back.");
         }
 
-        // Everything measured below has to start from a bare panel. PositionToolbar leaves two
-        // properties on it: Margin, which carries the absolute position of the panel on screen and
-        // which WPF counts inside DesiredSize, and MaxWidth, which is the real width of the monitor.
-        // With those in place "the width the panel asks for" is really "its width plus where it was
-        // put, already wrapped by the screen", and on a narrow screen the arithmetic here turns over
-        // and calls a panel that fits perfectly well a panel that ran off the desktop.
+        // Everything below goes through MeasureToolbar, the way PositionToolbar does: the three
+        // blocks apart and the rows worked out from them. Measured as a finished panel the answer
+        // would be "the width it was allowed", because the free column between the halves is a star.
         var savedMargin = window.Toolbar.Margin;
         var savedMaxWidth = window.Toolbar.MaxWidth;
-        window.Toolbar.Margin = new Thickness(0);
-        window.Toolbar.MaxWidth = double.PositiveInfinity;
         try
         {
-            // The panel keeps its width whatever tool is armed: the thickness button never blanks its
-            // caption, and it and the colour circle are both a fixed size.
+            // The areas are made up on purpose — against the live monitor the answer would depend on
+            // the machine and on its scale, which is how this probe came to be red at 125 % on a
+            // panel that fits the screen. 1366×768 at 125 % is what the reference frame is drawn on.
+            var wide = new Rect(0, 0, 1093, 576);
+            var narrow = WithoutCommentsStrip(wide, true);
+            // The panel keeps its width whatever tool is armed: the properties block is one width
+            // under every tool, and that is what keeps "one row or two" from moving with the hand.
             var widths = new List<double>();
             foreach (var tool in new[] { EditorTool.Rectangle, EditorTool.Text, EditorTool.Blur, EditorTool.Select, EditorTool.Arrow })
             {
                 window.SelectToolMode(tool);
-                if (string.IsNullOrWhiteSpace((string?)window.ThicknessButton.Content))
-                    throw new InvalidOperationException($"The thickness button showed nothing while the {tool} tool was armed.");
-                // The fill button carries a word of its own and never blanks either, whatever is armed.
-                if (string.IsNullOrWhiteSpace(window.FillButtonLabel.Text) || window.FillButton.Visibility != Visibility.Visible)
-                    throw new InvalidOperationException($"The fill button showed nothing while the {tool} tool was armed.");
-                // The width the panel asks for, not the width it was given: a window that was never
-                // shown has no arranged size to read.
-                window.Toolbar.InvalidateMeasure();
-                window.Toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                widths.Add(window.Toolbar.DesiredSize.Width);
+                if (window.ToolbarProperties.Width != (double)window.FindResource("ToolbarPropertiesWidth"))
+                    throw new InvalidOperationException($"The properties block changed width while the {tool} tool was armed.");
+                widths.Add(window.MeasureToolbar(wide).Size.Width);
             }
             if (widths[0] < 100 || widths.Distinct().Count() != 1)
                 throw new InvalidOperationException($"The markup panel changed width with the tool: {string.Join(", ", widths)}.");
 
-            // And on a working area narrower than the row, the row wraps instead of running past it:
-            // the panel grew by a fill button and a size button, and a tail off the screen takes
-            // "Сохранить" and "Готово" with it.
-            var oneRow = window.Toolbar.DesiredSize.Height;
-            var narrow = Math.Max(200, widths[0] - 120);
-            window.Toolbar.MaxWidth = narrow;
-            window.Toolbar.InvalidateMeasure();
-            window.Toolbar.Measure(new Size(narrow, double.PositiveInfinity));
-            var wrapped = window.Toolbar.DesiredSize;
-            window.Toolbar.MaxWidth = double.PositiveInfinity;
-            window.Toolbar.InvalidateMeasure();
-            if (wrapped.Width > narrow + 0.5 || wrapped.Height <= oneRow)
-                throw new InvalidOperationException($"The markup panel must wrap into a working area of {narrow}, not run past it: {wrapped}.");
+            // The three chevrons of the tool menus travel with the tools and open at their own
+            // button: the panel was rebuilt around them, and a lost one is a lost menu.
+            window.SelectToolMode(EditorTool.Rectangle);
+            foreach (var chevron in new[] { window.ShapeMenuButton, window.ArrowMenuButton, window.PenMenuButton })
+                if (!window.ToolbarTools.Children.OfType<DependencyObject>().Contains(chevron))
+                    throw new InvalidOperationException("Every chevron of a tool menu must stand in the block of the tools.");
 
-            // The check this probe was meant to make and never did: the panel, at the width the
-            // working area lets it ask for, is placed inside that working area. The areas are made up
-            // on purpose — against the live monitor the answer would depend on the machine and on its
-            // scale, which is how this probe came to be red at 125 % on a panel that fits the screen.
-            // The placement is the same pair of steps PositionToolbar takes, only against a rectangle
-            // handed to it: the same MaxWidth, the same floors, the same PlaceToolbar.
+            // A free width of 1077 holds the row; 781, what is left of it with the comments panel
+            // out, does not, and the properties take a row of their own while the buttons stay put.
+            var one = window.MeasureToolbar(wide);
+            if (one.Rows != Controls.ToolbarRows.One || Grid.GetRow(window.ToolbarProperties) != 0 ||
+                Grid.GetColumn(window.ToolbarProperties) != 1)
+                throw new InvalidOperationException($"The markup panel must stand in one row in a working area of {wide}: {one}.");
+            var two = window.MeasureToolbar(narrow);
+            if (two.Rows != Controls.ToolbarRows.Two || Grid.GetRow(window.ToolbarProperties) != 1 ||
+                Grid.GetColumnSpan(window.ToolbarProperties) != 4 || two.Size.Height <= one.Size.Height ||
+                two.Size.Width > Math.Max(380, narrow.Width - 16) + 0.5)
+                throw new InvalidOperationException($"With the comments panel out the properties must move to a second row: {two}.");
+            if (Grid.GetRow(window.ToolbarActions) != 0 || Grid.GetColumn(window.ToolbarActions) != 3)
+                throw new InvalidOperationException("The buttons on the right stay in the first row whatever the properties do.");
+
+            // The panel, at the width the working area lets it ask for, is placed inside that area
+            // and not on top of the capture: a capture from the strip leaves room for the panel
+            // under it, and the promise is kept by mayOverlap being false.
             foreach (var area in new[]
             {
                 new Rect(0, 0, 1920, 1080),                                   // 1920×1080 at 100 %
@@ -469,18 +473,28 @@ public partial class OverlayEditorWindow : Window
                 WithoutCommentsStrip(new Rect(0, 0, 1536, 864), true)         // and with the comments panel out
             })
             {
-                var allowed = Math.Max(380, area.Width - 16);
-                window.Toolbar.MaxWidth = allowed;
-                window.Toolbar.InvalidateMeasure();
-                window.Toolbar.Measure(new Size(allowed, double.PositiveInfinity));
-                var asked = window.Toolbar.DesiredSize;
-                window.Toolbar.MaxWidth = double.PositiveInfinity;
-                window.Toolbar.InvalidateMeasure();
-                var placement = Controls.ToolbarLayout.PlaceToolbar(window._cropRect, area,
-                    new Size(Math.Max(asked.Width, 380), Math.Max(asked.Height, 50)), [], mayOverlap: false);
+                var shape = window.MeasureToolbar(area);
+                var placement = Controls.ToolbarLayout.PlaceToolbar(window._cropRect, area, shape.Size, [], mayOverlap: false);
                 if (placement.Right > area.Right - 8 + 0.5)
                     throw new InvalidOperationException($"The markup panel placed into a working area of {area} ran past its right edge: {placement}.");
+                if (placement.IntersectsWith(window._cropRect))
+                    throw new InvalidOperationException($"The markup panel must not fall on a capture that left room for it: {placement} of {window._cropRect}.");
             }
+
+            // Dragged by the free column between its halves, the panel stays where it was put, and
+            // the next placement does not take it back.
+            window.PositionToolbar();
+            var placed = window.Toolbar.Margin;
+            window.BeginToolbarDrag(new Point(placed.Left + 10, placed.Top + 10));
+            window.DragToolbarTo(new Point(placed.Left + 70, placed.Top + 50));
+            window.EndToolbarDrag();
+            var dragged = window.Toolbar.Margin;
+            if (Math.Abs(dragged.Left - placed.Left) < 1 && Math.Abs(dragged.Top - placed.Top) < 1)
+                throw new InvalidOperationException($"A drag by the background of the panel must move it: {placed} to {dragged}.");
+            window.PositionToolbar();
+            if (Math.Abs(window.Toolbar.Margin.Left - dragged.Left) > 0.5 || Math.Abs(window.Toolbar.Margin.Top - dragged.Top) > 0.5)
+                throw new InvalidOperationException($"A panel moved by hand must keep its place: {dragged} became {window.Toolbar.Margin}.");
+            window._toolbarUserPosition = null;
         }
         finally
         {
@@ -968,7 +982,7 @@ public partial class OverlayEditorWindow : Window
         // own size whenever the working area holds it together with the panel underneath, and that
         // is a question about the height of the panel.
         _cropRect = Controls.EditorGeometry.PlaceCapture(
-            new Size(_capture.Image.PixelWidth, _capture.Image.PixelHeight), work, MeasureToolbar(work));
+            new Size(_capture.Image.PixelWidth, _capture.Image.PixelHeight), work, MeasureToolbar(work).Size);
         SetupEditor();
     }
 
@@ -1680,37 +1694,67 @@ public partial class OverlayEditorWindow : Window
         ShotNoteChip.Margin = new Thickness(left, top, 0, 0);
     }
 
-    // The room the panel asks for in a working area, measured with nothing of the last placement
-    // left on it: Margin carries the absolute position of the panel and WPF counts it inside
-    // DesiredSize, so a panel measured as it stands grows by wherever it was put last time.
-    private Size MeasureToolbar(Rect work)
+    /// <summary>
+    /// The shape the panel takes in a working area, and the rows it is laid out in. The three blocks
+    /// are measured apart and not as a finished panel: the room for the capture is counted before
+    /// the panel is arranged, and the two counts have to agree. The width the panel may ask for is
+    /// what makes it wrap — PlaceToolbar keeps 8 px at each side of the working area, and a panel
+    /// wider than what is left loses its tail, from "Комментарий" to "Готово", off the screen.
+    /// </summary>
+    private Controls.ToolbarShape MeasureToolbar(Rect work)
     {
         var free = Math.Max(380, work.Width - 16);
         // The panel is Collapsed until SetupEditor shows it, and a collapsed element measures to
         // nothing: the capture would then be given the whole working area and the panel would land
         // on top of it.
         Toolbar.Visibility = Visibility.Visible;
+        // Margin carries the absolute position of the panel on screen and WPF counts it inside
+        // DesiredSize, so a panel measured as it stands grows by wherever it was put the last time.
         var savedMargin = Toolbar.Margin;
         Toolbar.Margin = new Thickness(0);
         Toolbar.MaxWidth = free;
-        Toolbar.InvalidateMeasure();
-        Toolbar.Measure(new Size(free, double.PositiveInfinity));
-        var asked = Toolbar.DesiredSize;
+        var shape = Controls.ToolbarLayout.Measure(Ask(ToolbarTools), Ask(ToolbarProperties), Ask(ToolbarActions), free);
+        var twoRows = shape.Rows == Controls.ToolbarRows.Two;
+        Grid.SetRow(ToolbarProperties, twoRows ? 1 : 0);
+        Grid.SetColumn(ToolbarProperties, twoRows ? 0 : 1);
+        Grid.SetColumnSpan(ToolbarProperties, twoRows ? 4 : 1);
+        ToolbarProperties.Margin = new Thickness(0, twoRows ? 7 : 0, 0, 0);
+        // The free column is a star, so the panel would ask for the whole width it is allowed:
+        // the width worked out above is the width it is given, and the star holds the gap.
+        Toolbar.Width = shape.Size.Width;
         Toolbar.Margin = savedMargin;
         Toolbar.InvalidateMeasure();
-        return new Size(Math.Max(asked.Width, 380), Math.Max(asked.Height, 50));
+        return shape;
+
+        static Size Ask(FrameworkElement block)
+        {
+            block.InvalidateMeasure();
+            block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return block.DesiredSize;
+        }
     }
+
+    // The panel inside a working area, with 8 px kept at every side of it: a panel dragged by hand
+    // is held here again when the area narrows under it, the way the comments panel narrows it.
+    private static Point ClampToolbar(Point point, Rect work, Size size) => new(
+        Math.Clamp(point.X, work.Left + 8, Math.Max(work.Left + 8, work.Right - size.Width - 8)),
+        Math.Clamp(point.Y, work.Top + 8, Math.Max(work.Top + 8, work.Bottom - size.Height - 8)));
 
     private void PositionToolbar()
     {
         var work = LayoutWorkArea();
-        // The width the panel may ask for, which is what makes its row wrap: PlaceToolbar keeps 8 px
-        // at each side of the working area, and a panel wider than what is left loses its tail, from
-        // "Комментарий" to "Готово", off the screen. The floor is the width the placement already
-        // assumes, so a working area narrower than that changes nothing that was not broken anyway.
-        var size = MeasureToolbar(work);
+        var shape = MeasureToolbar(work);
         Toolbar.UpdateLayout();
-        var placement = Controls.ToolbarLayout.PlaceToolbar(_cropRect, work, size,
+        // A panel the hand has moved stays where it was put: only the clamp is asked again, because
+        // the working area may have narrowed under it since.
+        if (_toolbarUserPosition is { } kept)
+        {
+            var held = ClampToolbar(kept, work, shape.Size);
+            _toolbarUserPosition = held;
+            Toolbar.Margin = new Thickness(held.X, held.Y, 0, 0);
+            return;
+        }
+        var placement = Controls.ToolbarLayout.PlaceToolbar(_cropRect, work, shape.Size,
             VisibleNoteRects().ToArray(), mayOverlap: _capture?.Kind == Snapik.Core.Models.CaptureKind.Fullscreen || _isNew);
         Toolbar.Margin = new Thickness(placement.Left, placement.Top, 0, 0);
 
@@ -1724,6 +1768,55 @@ public partial class OverlayEditorWindow : Window
             if (ShotNoteChip.Visibility == Visibility.Visible)
                 yield return new Rect(ShotNoteChip.Margin.Left, ShotNoteChip.Margin.Top, ShotNoteChip.Width, Math.Max(ShotNoteChip.ActualHeight, 60));
         }
+    }
+
+    // The panel is dragged by its background and by the free column between the two halves of it:
+    // the buttons take a press first, the way the strip is dragged by its shell. The editor window
+    // itself covers the desktop and must not move, so the panel travels by its own Margin.
+    private void OnToolbarMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || e.ClickCount > 1) return;
+        BeginToolbarDrag(e.GetPosition(this));
+    }
+
+    private void OnToolbarMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed) DragToolbarTo(e.GetPosition(this));
+    }
+
+    private void OnToolbarMouseUp(object sender, MouseButtonEventArgs e) => EndToolbarDrag();
+
+    // The capture can be taken away in the middle of a drag: while it is held the canvas sees no
+    // press at all, and one press left hanging would put the drawing away until the editor closes.
+    private void OnToolbarLostCapture(object sender, MouseEventArgs e) => _toolbarDragging = false;
+
+    // The three halves of the drag, apart from the mouse that usually drives them, the way the
+    // canvas splits its own gestures: a smoke run moves the panel through these without a pointer.
+    internal void BeginToolbarDrag(Point point)
+    {
+        _toolbarDragOrigin = point;
+        _toolbarDragStart = new Vector(Toolbar.Margin.Left, Toolbar.Margin.Top);
+        _toolbarDragging = true;
+        ToolbarBody.CaptureMouse();
+    }
+
+    internal void DragToolbarTo(Point point)
+    {
+        if (!_toolbarDragging) return;
+        var moved = _toolbarDragStart + (point - _toolbarDragOrigin);
+        // An absolute point and not an offset from where the panel would have stood: between one row
+        // and two the anchor of the placement moves, and an offset would move with it.
+        var held = ClampToolbar(new Point(moved.X, moved.Y), LayoutWorkArea(),
+            new Size(Math.Max(Toolbar.ActualWidth, double.IsNaN(Toolbar.Width) ? 380 : Toolbar.Width), Math.Max(Toolbar.ActualHeight, 50)));
+        _toolbarUserPosition = held;
+        Toolbar.Margin = new Thickness(held.X, held.Y, 0, 0);
+    }
+
+    internal void EndToolbarDrag()
+    {
+        if (!_toolbarDragging) return;
+        _toolbarDragging = false;
+        ToolbarBody.ReleaseMouseCapture();
     }
 
     private void OnCommentClick(object sender, RoutedEventArgs e)

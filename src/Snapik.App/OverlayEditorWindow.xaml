@@ -3,12 +3,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Snapik.App.Controls"
         xmlns:local="clr-namespace:Snapik.App"
+        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         Title="Snapik — Захват и разметка" AutomationProperties.Name="Snapik — Захват и разметка"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="False" Background="#0A0D12"
         ShowInTaskbar="False" Topmost="True"
         KeyDown="OnWindowKeyDown" KeyUp="OnWindowKeyUp" MouseLeftButtonDown="OnWindowMouseDown"
         MouseMove="OnWindowMouseMove" MouseLeftButtonUp="OnWindowMouseUp">
     <Window.Resources>
+        <!-- The width of the properties block, the same one under every tool: the panel is measured
+             before the capture is placed, and a block that changed width with the tool in the hand
+             would move the decision "one row or two" with it, and the panel under the pointer. -->
+        <sys:Double x:Key="ToolbarPropertiesWidth">176</sys:Double>
         <!-- The face of a region filled with blur: worn by the segment that picks it and by the
              preview on the fill button, so both say the same thing. -->
         <LinearGradientBrush x:Key="BlurFillPreview" StartPoint="0,0" EndPoint="1,1">
@@ -198,11 +203,23 @@
         <Border x:Name="Toolbar" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top"
                 Padding="7" CornerRadius="16" Background="{DynamicResource SurfaceBarBrush}">
             <Border.Effect><DropShadowEffect Color="{DynamicResource ShadowColor}" BlurRadius="22" ShadowDepth="5" Opacity="{DynamicResource ShadowOpacity}" /></Border.Effect>
-            <!-- A WrapPanel and not a StackPanel: with room the row is one row, and on a working
-                 area too narrow for it (1366 at 150 % leaves about 910 DIU) the tail moves to a
-                 second row instead of running off the screen. PositionToolbar sets the width the
-                 panel may ask for; without one a WrapPanel measures to a single row, as before. -->
-            <WrapPanel Orientation="Horizontal">
+            <!-- A grid of two rows and four columns, and not a WrapPanel: the panel wraps by meaning
+                 and not by the place a button happened to run out of. With room it is one row —
+                 tools, properties, free space, buttons on the right; without it the properties move
+                 to a second row of their own and the buttons stay where the hand looks for them.
+                 Background="Transparent": the background and the gaps take a press and drag the
+                 panel, while the buttons take theirs first, the way the strip does it. -->
+            <Grid x:Name="ToolbarBody" Background="Transparent" AutomationProperties.Name="{local:UiText Панель разметки}"
+                  MouseLeftButtonDown="OnToolbarMouseDown" MouseMove="OnToolbarMouseMove"
+                  MouseLeftButtonUp="OnToolbarMouseUp" LostMouseCapture="OnToolbarLostCapture">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />  <!-- 0 tools -->
+                    <ColumnDefinition Width="Auto" />  <!-- 1 properties, while they stand in one row -->
+                    <ColumnDefinition Width="*" />     <!-- 2 free space, and the handle of the panel -->
+                    <ColumnDefinition Width="Auto" />  <!-- 3 the buttons on the right -->
+                </Grid.ColumnDefinitions>
+            <StackPanel x:Name="ToolbarTools" Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
                 <ToggleButton x:Name="SelectTool" Style="{StaticResource OverlayTool}" Tag="Select" Click="OnToolClick">
                     <Path Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.7" StrokeLineJoin="Round" Data="M2,1 L14,9 L9,10 L7,15 Z" />
                 </ToggleButton>
@@ -232,6 +249,28 @@
                 <ToggleButton x:Name="CropTool" Style="{StaticResource OverlayTool}" Tag="Crop" Click="OnToolClick">
                     <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE7A8;" />
                 </ToggleButton>
+<!-- A tool like the others, and checked like the others: the comment stays armed until it is
+                     put down, so the panel has to show that it is in the hand. -->
+                <ToggleButton x:Name="CommentToolButton" Style="{StaticResource OverlayTool}" Tag="Comment" Click="OnCommentClick" AutomationProperties.Name="{local:UiText Комментарий}">
+                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE90A;" />
+                </ToggleButton>
+                <Button x:Name="ShortcutSheetButton" Style="{StaticResource OverlayButton}" Width="30" MinWidth="30" Padding="0" FontWeight="SemiBold" Content="?" Click="OnShortcutSheetClick" ToolTip="Сочетания клавиш" AutomationProperties.Name="{local:UiText Сочетания клавиш}" />
+                <Popup x:Name="ShortcutSheetPopup" PlacementTarget="{Binding ElementName=ShortcutSheetButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False">
+                    <Border Padding="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" CornerRadius="14" TextElement.Foreground="{DynamicResource TextBrush}" Cursor="Arrow">
+                        <StackPanel>
+                            <TextBlock Text="Сочетания клавиш" FontWeight="SemiBold" Margin="0,0,0,13" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="34" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel x:Name="SheetTools"><TextBlock Text="Инструменты" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,7" /></StackPanel>
+                                <StackPanel x:Name="SheetActions" Grid.Column="2"><TextBlock Text="Действия" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,7" /></StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+            </StackPanel>
+
+            <StackPanel x:Name="ToolbarProperties" Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                        Width="{StaticResource ToolbarPropertiesWidth}">
                 <StackPanel x:Name="ColorDots" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,2,0" />
                 <!-- The colour button is a circle and nothing else: the thickness and the fill both
                      moved to buttons of their own, so none of them changes width with the tool. -->
@@ -258,24 +297,9 @@
                 </Button>
                 <!-- The size of a caption, in the same shape as the thickness beside it. -->
                 <Button x:Name="FontSizeButton" Width="64" MinWidth="64" Padding="0" HorizontalContentAlignment="Center" Style="{StaticResource OverlayButton}" Click="OnFontSizeClick" ToolTip="Размер" AutomationProperties.Name="{local:UiText Размер}" Content="20 px" />
-<!-- A tool like the others, and checked like the others: the comment stays armed until it is
-                     put down, so the panel has to show that it is in the hand. -->
-                <ToggleButton x:Name="CommentToolButton" Style="{StaticResource OverlayTool}" Tag="Comment" Click="OnCommentClick" AutomationProperties.Name="{local:UiText Комментарий}">
-                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE90A;" />
-                </ToggleButton>
-                <Button x:Name="ShortcutSheetButton" Style="{StaticResource OverlayButton}" Width="30" MinWidth="30" Padding="0" FontWeight="SemiBold" Content="?" Click="OnShortcutSheetClick" ToolTip="Сочетания клавиш" AutomationProperties.Name="{local:UiText Сочетания клавиш}" />
-                <Popup x:Name="ShortcutSheetPopup" PlacementTarget="{Binding ElementName=ShortcutSheetButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False">
-                    <Border Padding="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" CornerRadius="14" TextElement.Foreground="{DynamicResource TextBrush}" Cursor="Arrow">
-                        <StackPanel>
-                            <TextBlock Text="Сочетания клавиш" FontWeight="SemiBold" Margin="0,0,0,13" />
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="34" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel x:Name="SheetTools"><TextBlock Text="Инструменты" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,7" /></StackPanel>
-                                <StackPanel x:Name="SheetActions" Grid.Column="2"><TextBlock Text="Действия" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,7" /></StackPanel>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                </Popup>
+            </StackPanel>
+
+            <StackPanel x:Name="ToolbarActions" Grid.Row="0" Grid.Column="3" Orientation="Horizontal">
                 <Border Width="1" Height="22" Margin="7,7" Background="{DynamicResource DividerBrush}" />
                 <Button x:Name="UndoButton" Style="{StaticResource OverlayButton}" Click="OnUndoClick"><TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE7A7;" /></Button>
                 <Button x:Name="RedoButton" Style="{StaticResource OverlayButton}" Click="OnRedoClick"><TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE7A6;" /></Button>
@@ -283,7 +307,8 @@
                     <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE74E;" />
                 </Button>
                 <Button x:Name="DoneButton" Style="{StaticResource OverlayButton}" Click="OnDoneClick" Background="{DynamicResource AccentBrush}" Foreground="White" FontWeight="SemiBold" Content="Готово" />
-            </WrapPanel>
+            </StackPanel>
+            </Grid>
         </Border>
         <Popup x:Name="AppearancePopup" PlacementTarget="{Binding ElementName=AppearanceButton}" Placement="Bottom" VerticalOffset="8" AllowsTransparency="True" StaysOpen="False" Closed="OnAppearanceClosed">
             <Border Width="280" Padding="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SurfaceLineBrush}" BorderThickness="1" CornerRadius="14" TextElement.Foreground="{DynamicResource TextBrush}" Cursor="Arrow" PreviewKeyDown="OnAppearanceKeyDown">
