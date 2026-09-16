@@ -6,7 +6,7 @@ import Foundation
 /// instead of only by the smoke run.
 public enum SettingsMigration {
     /// The schema version a file gets once every rule below has been applied to it.
-    public static let currentVersion = 1
+    public static let currentVersion = 2
 
     /// How loud the interface sounds are on a machine that has never chosen.
     public static let defaultSoundVolume = 40
@@ -20,12 +20,21 @@ public enum SettingsMigration {
         storedVersion < currentVersion
     }
 
-    /// Every rule of a future version must ask about **its own** threshold rather than this one, or
-    /// raising `currentVersion` would run the volume rule a second time over files that have
-    /// already had it (`tasks/tz-005-details/B-themes-accents.md` §2.4).
+    // Every rule asks the version it was introduced in and not the current one. A shared threshold
+    // would mean that raising the version for the theme runs the volume rule a second time over the
+    // files of version 1, and everybody who set 60 by hand after the first migration is quietly
+    // taken back down to 40 (SPEC-DELTA-4 §2.4). `needsMigration(_:)` is left as the sign that the
+    // file has to be written back at all.
     public static func soundVolume(storedVersion: Int, storedVolume: Int) -> Int {
-        needsMigration(storedVersion) && storedVolume == previousDefaultSoundVolume
+        storedVersion < 1 && storedVolume == previousDefaultSoundVolume
             ? defaultSoundVolume
             : storedVolume
+    }
+
+    /// Version 2 retires the flat light palette: the dawn theme is the light one now. Such a file
+    /// would open dark anyway, because an unknown theme falls back there; the rule is what makes the
+    /// file say so too, so the card the settings show is the theme that is on screen.
+    public static func theme(storedVersion: Int, storedTheme: String) -> String {
+        storedVersion < 2 && storedTheme.lowercased() == "light" ? "dark" : storedTheme
     }
 }

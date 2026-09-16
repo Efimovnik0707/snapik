@@ -30,6 +30,45 @@ final class SettingsMigrationTests: XCTestCase {
                 storedVersion: SettingsMigration.currentVersion, storedVolume: 60))
     }
 
+    /// Port of `SettingsMigrationTests.A_volume_set_by_hand_survives_the_version_after_its_own`.
+    /// The volume rule belongs to version 1. A file that has already been through it must not be
+    /// taken back down to 40 because the version rose again for the theme.
+    func test_A_volume_set_by_hand_survives_the_version_after_its_own() {
+        XCTAssertEqual(60, SettingsMigration.soundVolume(storedVersion: 1, storedVolume: 60))
+    }
+
+    /// Port of `SettingsMigrationTests.The_retired_light_theme_becomes_the_dark_one`. A theme that
+    /// still exists is left alone, and a file that has already seen version 2 is not touched:
+    /// "light" in such a file could only have been written into it by hand.
+    func test_The_retired_light_theme_becomes_the_dark_one() {
+        let cases: [(Int, String, String)] = [
+            (0, "light", "dark"),
+            (1, "light", "dark"),
+            (0, "sea", "sea"),
+            (2, "light", "light"),
+        ]
+        for (storedVersion, stored, expected) in cases {
+            XCTAssertEqual(
+                expected, SettingsMigration.theme(storedVersion: storedVersion, storedTheme: stored),
+                "\(storedVersion) \(stored)")
+        }
+    }
+
+    /// The file of version 1 goes through the rule of version 2 and through nothing else: the theme
+    /// that is gone becomes the dark one, the volume the user set stays where it was.
+    func test_A_file_of_the_previous_version_is_migrated_by_the_rule_of_this_one() {
+        var stored = HotkeySettings.default
+        stored.settingsVersion = 1
+        stored.theme = "light"
+        stored.soundVolume = 60
+
+        let migrated = HotkeySettings.migrate(stored)
+
+        XCTAssertEqual("dark", migrated.theme)
+        XCTAssertEqual(60, migrated.soundVolume)
+        XCTAssertEqual(HotkeySettings.currentSettingsVersion, migrated.settingsVersion)
+    }
+
     func test_A_file_written_by_the_previous_sync_keeps_its_keys_and_defaults_the_new_ones() throws {
         let path = try write(
             """
@@ -75,9 +114,6 @@ final class SettingsMigrationTests: XCTestCase {
         XCTAssertTrue(settings.confirmSessionDiscard)
         XCTAssertEqual("#FF3B30", settings.annotationColor)
         XCTAssertEqual("standard", settings.annotationPalette)
-        XCTAssertEqual("rectangle", settings.annotationShape)
-        XCTAssertEqual("none", settings.annotationFill)
-        XCTAssertTrue(settings.annotationOutline)
         XCTAssertEqual("dark", settings.theme)
         XCTAssertEqual("blue", settings.accentId)
         XCTAssertEqual(0, settings.onboardingVersion)
@@ -98,10 +134,6 @@ final class SettingsMigrationTests: XCTestCase {
         written.annotationThickness = 6
         written.annotationHighlightThickness = 24
         written.annotationFontSize = 32
-        written.annotationShape = "ellipse"
-        written.annotationFill = "blur"
-        written.annotationFillColor = "#30D158"
-        written.annotationOutline = false
         written.packageSaveDirectory = "/tmp/packages"
         written.packageCreateSubfolder = false
         written.onboardingVersion = 3

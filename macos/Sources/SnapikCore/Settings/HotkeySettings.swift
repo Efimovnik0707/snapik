@@ -81,14 +81,11 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
     public var annotationHighlightThickness: Double = 16
     /// The size a caption is typed in, in image pixels; the editor reads it back clamped to 8..96.
     public var annotationFontSize: Double = 20
-    /// The frame the editor draws by default: `rectangle`, `rounded` or `ellipse`.
-    public var annotationShape: String = "rectangle"
-    /// How that frame is filled by default: `none`, `solid`, `translucent` or `blur`.
-    public var annotationFill: String = "none"
-    /// The colour inside that frame; empty means "the colour of the outline".
-    public var annotationFillColor: String = ""
-    /// Whether that frame carries an outline at all; a solid fill without one conceals.
-    public var annotationOutline: Bool = true
+    // The shape, the fill, its colour and the outline flag are gone from the file (SPEC-DELTA-4
+    // §2.3): every capture starts with "an outline, no fill, a rectangle", and the old keys are
+    // ignored and disappear the first time the file is rewritten. What still travels between
+    // captures is the colour, the thickness, the size of a caption, the palette, the "own" row and
+    // the pencil.
     /// Where "Save package…" wrote the last time; empty means "wherever single captures go".
     public var packageSaveDirectory: String = ""
     public var packageCreateSubfolder: Bool = true
@@ -234,14 +231,17 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         tryRead(path: path).settings
     }
 
-    /// Port of `HotkeySettings.Migrate`. Brings a file written by an older build up to the current
-    /// version. Today it is one rule: the volume that used to be the default becomes the new one,
-    /// and anything the user picked is left alone.
+    /// Port of `HotkeySettings.Migrate` (`HotkeySettingsWindow.xaml.cs:109-113`). Brings a file
+    /// written by an older build up to the current version. Two rules, and each asks the version it
+    /// was introduced in: the volume that used to be the default becomes the new one, and the
+    /// retired light theme becomes the dark one. Anything the user picked is left alone.
     public static func migrate(_ stored: HotkeySettings) -> HotkeySettings {
         guard SettingsMigration.needsMigration(stored.settingsVersion) else { return stored }
         var migrated = stored
         migrated.soundVolume = SettingsMigration.soundVolume(
             storedVersion: stored.settingsVersion, storedVolume: stored.soundVolume)
+        migrated.theme = SettingsMigration.theme(
+            storedVersion: stored.settingsVersion, storedTheme: stored.theme)
         migrated.settingsVersion = currentSettingsVersion
         return migrated
     }
@@ -335,10 +335,6 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         case annotationThickness = "AnnotationThickness"
         case annotationHighlightThickness = "AnnotationHighlightThickness"
         case annotationFontSize = "AnnotationFontSize"
-        case annotationShape = "AnnotationShape"
-        case annotationFill = "AnnotationFill"
-        case annotationFillColor = "AnnotationFillColor"
-        case annotationOutline = "AnnotationOutline"
         case packageSaveDirectory = "PackageSaveDirectory"
         case packageCreateSubfolder = "PackageCreateSubfolder"
         case onboardingVersion = "OnboardingVersion"
@@ -389,10 +385,6 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         annotationHighlightThickness =
             try container.decodeIfPresent(Double.self, forKey: .annotationHighlightThickness) ?? 16
         annotationFontSize = try container.decodeIfPresent(Double.self, forKey: .annotationFontSize) ?? 20
-        annotationShape = try container.decodeIfPresent(String.self, forKey: .annotationShape) ?? "rectangle"
-        annotationFill = try container.decodeIfPresent(String.self, forKey: .annotationFill) ?? "none"
-        annotationFillColor = try container.decodeIfPresent(String.self, forKey: .annotationFillColor) ?? ""
-        annotationOutline = try container.decodeIfPresent(Bool.self, forKey: .annotationOutline) ?? true
         packageSaveDirectory = try container.decodeIfPresent(String.self, forKey: .packageSaveDirectory) ?? ""
         packageCreateSubfolder =
             try container.decodeIfPresent(Bool.self, forKey: .packageCreateSubfolder) ?? true
@@ -431,10 +423,6 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         try container.encode(annotationThickness, forKey: .annotationThickness)
         try container.encode(annotationHighlightThickness, forKey: .annotationHighlightThickness)
         try container.encode(annotationFontSize, forKey: .annotationFontSize)
-        try container.encode(annotationShape, forKey: .annotationShape)
-        try container.encode(annotationFill, forKey: .annotationFill)
-        try container.encode(annotationFillColor, forKey: .annotationFillColor)
-        try container.encode(annotationOutline, forKey: .annotationOutline)
         try container.encode(packageSaveDirectory, forKey: .packageSaveDirectory)
         try container.encode(packageCreateSubfolder, forKey: .packageCreateSubfolder)
         try container.encode(onboardingVersion, forKey: .onboardingVersion)
