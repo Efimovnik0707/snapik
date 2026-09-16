@@ -22,6 +22,9 @@ public partial class App : Application
         // Before the first write into the data folder: an update over SnapBrief 1.4.0 finds its
         // settings and sessions under the old name and they have to be carried over first.
         if (options.DataDirectory is null) AppDataPaths.CarryOverLegacyData();
+        // And the pinned icon of the old name, which lives outside the data folder: the shortcut on
+        // the taskbar is aimed at this application where it lies, so the button survives the update.
+        TaskbarPinService.CarryOverLegacyPin(message => StartupTrace.Write(options, message));
         StartupTrace.Write(options, "App.OnStartup entered");
         // Before any window exists: the shortcuts of the installer carry the same identity, and the
         // taskbar only puts the pinned icon and the running window together when the two agree.

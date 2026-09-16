@@ -78,13 +78,22 @@ internal static class TaskbarPinLegacy
     /// the file changed. Whether the taskbar shows it at once is the shell's own business: the icon
     /// and the caption of a pinned button are cached, and sometimes only a new session refreshes them.
     /// </summary>
-    internal static bool Retarget(string path, string exePath, string appId)
+    internal static bool Retarget(string path, string exePath, string appId) => Aim(path, exePath, appId, existing: true);
+
+    /// <summary>
+    /// Writes a shortcut where there is none. The carry-over itself never creates one — the pin it
+    /// works on is the one already on the taskbar — but the smoke run needs a shortcut of its own to
+    /// carry over, and building it here is what makes that check a check of this code.
+    /// </summary>
+    internal static bool WriteShortcut(string path, string exePath, string appId) => Aim(path, exePath, appId, existing: false);
+
+    private static bool Aim(string path, string exePath, string appId, bool existing)
     {
         try
         {
             var link = (IShellLink)new ShellLink();
             var file = (IPersistFile)link;
-            file.Load(path, StgmReadWrite);
+            if (existing) file.Load(path, StgmReadWrite);
             link.SetPath(exePath);
             link.SetIconLocation(exePath, 0);
             link.SetWorkingDirectory(Path.GetDirectoryName(exePath) ?? string.Empty);

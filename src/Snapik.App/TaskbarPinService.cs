@@ -63,6 +63,64 @@ internal static class TaskbarPinService
     internal static bool IsPinned() => !TurnedOff() && PinnedShortcuts().Any(IsOurShortcut);
 
     /// <summary>
+    /// The pin an installation over SnapBrief 1.4.0 leaves behind, carried over on the first start:
+    /// the old shortcut is aimed at this application where it lies, so the button keeps its place and
+    /// starts Snapik. Below 26052 the taskband is told about it as well, which is the only path that
+    /// also changes the caption of the button. Everything here is best effort, and a smoke run or a
+    /// demo does nothing at all: the gate is the one the rest of the file pins under.
+    /// </summary>
+    internal static void CarryOverLegacyPin(Action<string>? trace = null)
+    {
+        if (TurnedOff()) return;
+        try
+        {
+            TaskbarPinLegacy.CarryOverPin();
+            // From 26052 on the call returns success and does nothing, so it is never tried there;
+            // and there is nothing to tell the taskband about when our own pin is already beside the
+            // old one, which is exactly the case ChooseLegacyPin answers null for.
+            if (!SupportsPinnedList()) return;
+            if (TaskbarPinLegacy.ChooseLegacyPin(PinnedShortcuts(), ShortcutName(), TaskbarPinLegacy.LegacyShortcutName) is { } legacy)
+                ReplacePinnedItem(legacy, trace);
+        }
+        catch (Exception ex) { trace?.Invoke($"Taskbar pin carry-over: {ex}"); }
+    }
+
+    // The entry of the taskband itself, swapped from the old pin to the shortcut of the Start menu.
+    // Shell COM is free to hang and the start of the application is not: the thread is an STA of its
+    // own, it is not waited for, and the shortcut on disk has already been aimed by the time it runs.
+    private static void ReplacePinnedItem(string legacyPin, Action<string>? trace)
+    {
+        var shortcut = StartMenuShortcut();
+        if (shortcut is null) return;
+        var worker = new Thread(() =>
+        {
+            var from = IntPtr.Zero;
+            var to = IntPtr.Zero;
+            object? list = null;
+            try
+            {
+                from = ILCreateFromPathW(legacyPin);
+                to = ILCreateFromPathW(shortcut);
+                if (from == IntPtr.Zero || to == IntPtr.Zero) return;
+                var type = Type.GetTypeFromCLSID(TaskbandPin);
+                if (type is null) return;
+                list = Activator.CreateInstance(type);
+                ((IPinnedList3)list!).LegacyModify(from, to);
+            }
+            catch (Exception ex) { trace?.Invoke($"Taskbar pin list: {ex}"); }
+            finally
+            {
+                if (list is not null) Marshal.ReleaseComObject(list);
+                if (from != IntPtr.Zero) ILFree(from);
+                if (to != IntPtr.Zero) ILFree(to);
+            }
+        });
+        worker.SetApartmentState(ApartmentState.STA);
+        worker.IsBackground = true;
+        worker.Start();
+    }
+
+    /// <summary>
     /// Tries once, and answers with what the system says afterwards rather than with an HRESULT: on
     /// 24H2 the old interface returns S_OK and pins nothing.
     /// </summary>
@@ -228,8 +286,22 @@ internal static class TaskbarPinService
         catch (Exception) { return []; }
     }
 
-    private static bool IsOurShortcut(string path) =>
-        string.Equals(Path.GetFileName(path), ShortcutName(), StringComparison.OrdinalIgnoreCase);
+    // A pin is ours by its name, as it always was, and now also by what it holds: the pin carried
+    // over from SnapBrief 1.4.0 keeps the old name and opens this application. Reading a shortcut is
+    // COM on a file the shell may be holding open, so a refusal falls back on the name alone.
+    private static bool IsOurShortcut(string path)
+    {
+        var name = Path.GetFileName(path);
+        try
+        {
+            var (target, appId) = TaskbarPinLegacy.ReadShortcut(path);
+            return TaskbarPinLegacy.IsOurs(name, target, appId, Environment.ProcessPath);
+        }
+        catch (Exception)
+        {
+            return string.Equals(name, ShortcutName(), StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     private static string ShortcutName() =>
         $"{Path.GetFileNameWithoutExtension(Environment.ProcessPath) ?? "Snapik"}.lnk";

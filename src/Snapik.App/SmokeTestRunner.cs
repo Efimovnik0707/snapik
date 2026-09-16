@@ -578,6 +578,7 @@ public static class SmokeTestRunner
         await VerifyAWholeScreenCaptureNamesItselfAsync(Path.Combine(root, "fullscreen-probe"));
         await VerifyAFileFromDiskReachesTheStripAsync(Path.Combine(root, "import-probe"));
         VerifyTheWizardKeepsItsAppearance(root);
+        VerifyALegacyPinIsCarriedOver(Path.Combine(root, "pin-probe"));
         var success = paths.Count == 3
             && preparedFilesOnDisk
             && decoded.All(bitmap => bitmap.PixelWidth == 1920 && bitmap.PixelHeight == 1128)
@@ -1351,5 +1352,44 @@ public static class SmokeTestRunner
         // And only what it owns: a volume the user set by hand is not the wizard's to touch.
         if (read.SoundVolume != 55)
             throw new InvalidOperationException("The merge of the wizard must leave the fields it does not own alone.");
+    }
+
+    // The pin an installation over SnapBrief 1.4.0 leaves behind. A shortcut of the old name is built
+    // in a folder of this run, aimed at this application the way the start aims the real one, and read
+    // back: the COM of it runs for real here, and the taskbar of the machine is never touched. Which
+    // pin is chosen, and which one counts as ours, are two pure functions with tests of their own.
+    private static void VerifyALegacyPinIsCarriedOver(string probeRoot)
+    {
+        Directory.CreateDirectory(probeRoot);
+        var exePath = Environment.ProcessPath
+            ?? throw new InvalidOperationException("The pin probe needs the path of the running application.");
+        // A target that exists: a shortcut is read through the shell, and the shell goes looking for
+        // a target that is not there instead of answering with the path it carries.
+        var legacyExe = Path.Combine(probeRoot, "SnapBrief.exe");
+        File.WriteAllBytes(legacyExe, [0x4D, 0x5A]);
+        var legacyPin = Path.Combine(probeRoot, TaskbarPinLegacy.LegacyShortcutName);
+        if (!TaskbarPinLegacy.WriteShortcut(legacyPin, legacyExe, "YesWorkflow.SnapBrief"))
+            throw new InvalidOperationException("The probe must be able to write a pinned shortcut of the old application.");
+        var before = TaskbarPinLegacy.ReadShortcut(legacyPin);
+        if (TaskbarPinLegacy.IsOurs(Path.GetFileName(legacyPin), before.Target, before.AppId, exePath))
+            throw new InvalidOperationException("A pin of the old application must not read as ours before it is carried over.");
+        if (!TaskbarPinLegacy.Retarget(legacyPin, exePath, TaskbarPinLegacy.AppUserModelId))
+            throw new InvalidOperationException("A pin left behind by SnapBrief must be possible to aim at this application.");
+        var after = TaskbarPinLegacy.ReadShortcut(legacyPin);
+        if (!string.Equals(after.Target, exePath, StringComparison.OrdinalIgnoreCase) ||
+            after.AppId != TaskbarPinLegacy.AppUserModelId)
+            throw new InvalidOperationException(
+                $"A carried-over pin must open this application under its identity: \"{after.Target}\", \"{after.AppId}\".");
+        // This is what keeps the wizard from offering to pin a second icon beside the first.
+        if (!TaskbarPinLegacy.IsOurs(Path.GetFileName(legacyPin), after.Target, after.AppId, exePath))
+            throw new InvalidOperationException("A carried-over pin must read as ours.");
+        // The name of the file is the one thing that does not change: the taskbar keeps the order of
+        // its buttons as paths, and a renamed shortcut leaves a button that opens nothing.
+        if (Directory.GetFiles(probeRoot, "*.lnk").Length != 1 || !File.Exists(legacyPin))
+            throw new InvalidOperationException("Carrying a pin over must neither rename it nor leave a second shortcut beside it.");
+        // And the gate of this file holds for the run itself: a smoke run reads no taskbar and pins
+        // nothing, whatever is on the taskbar of the machine it runs on.
+        if (TaskbarPinService.IsPinned() || TaskbarPinService.CanTry())
+            throw new InvalidOperationException("A smoke run must not touch the taskbar of the machine it runs on.");
     }
 }
