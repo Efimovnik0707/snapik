@@ -36,6 +36,17 @@ extension SmokeTestRunner {
                 && picker.smokeDotCount == ThemeService.accents.count)
         check("accent divider stands before the first gradient", picker.smokeDividerPrecedesFirstGradient)
 
+        // The palette row is the one part of the control the wizard hides (O-6), so its translation
+        // is checked here, where it is on screen.
+        picker.applyLanguage("en")
+        let paletteTitles = picker.smokePaletteTitles
+        let paletteTranslated = paletteTitles == ["Standard", "Pastel", "Custom"]
+        check(
+            "the palette row translates"
+                + (paletteTranslated ? "" : ": \(paletteTitles.joined(separator: " · "))"),
+            paletteTranslated)
+        picker.applyLanguage(coordinator.language)
+
         // The gallery opens on the first card, pages by one, and stops where the last card is whole.
         var galleryOk = picker.firstCard == 0
         picker.pageBy(1)

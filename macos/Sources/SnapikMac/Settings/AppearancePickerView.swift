@@ -441,6 +441,11 @@ final class AppearancePickerView: NSView {
 
     var smokeDotCount: Int { dots.count }
 
+    /// The three captions of the palette row, in the language the control was last given. The wizard
+    /// switches this row off (O-6), so the settings window is the one place it is on screen and the
+    /// one place its translation is worth checking.
+    var smokePaletteTitles: [String] { paletteButtons.map(\.title) }
+
     /// The hairline stands in front of the first accent that paints with more than one colour, and
     /// there is exactly one of it. Windows compared the identifier `"blue-violet"` instead, which
     /// would have broken silently the next time the row was reordered.

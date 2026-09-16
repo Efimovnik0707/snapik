@@ -559,6 +559,11 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
 
     /// Every string the wizard is showing, for the Cyrillic sweep of the English run. The two segments
     /// of the language switch name the languages themselves and are the one part it skips.
+    ///
+    /// The steps themselves are walked whole, hidden or not — all five are built and only one is on
+    /// screen at a time. What is skipped is a control a step keeps switched off inside itself: the
+    /// palette row of the appearance control is not part of the wizard (O-6, `showPaletteRow`), so
+    /// its captions are the settings' to translate and the settings' probe to check.
     var smokeVisibleStrings: [String] {
         var found: [String] = [stepLabel.stringValue, skipLink.stringValue, errorLabel.stringValue]
         found.append(contentsOf: [backButton.title, nextButton.title, startButton.title])
@@ -566,7 +571,7 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
             if view === welcomeStep.languageSegment { return }
             if let field = view as? NSTextField { found.append(field.stringValue) }
             if let button = view as? NSButton { found.append(button.title) }
-            for subview in view.subviews { walk(subview) }
+            for subview in view.subviews where !subview.isHidden { walk(subview) }
         }
         for step in steps { walk(step) }
         return found.filter { !$0.isEmpty }
