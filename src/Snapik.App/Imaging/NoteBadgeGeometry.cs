@@ -1,7 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
+using Snapik.Core.Models;
 
 namespace Snapik.App.Imaging;
+
+/// <summary>The room the exported picture needs around itself, in its own pixels.</summary>
+internal readonly record struct ExportMargin(int Left, int Top, int Right, int Bottom)
+{
+    internal static readonly ExportMargin None = default;
+
+    internal bool IsEmpty => Left == 0 && Top == 0 && Right == 0 && Bottom == 0;
+}
 
 internal readonly record struct NoteBadge(Point Center, double Radius)
 {
@@ -41,6 +51,35 @@ internal static class NoteBadgeGeometry
             Math.Max(topMargin + diameter / 2, anchor.Y + offset.Y - diameter / 2 - gap));
         return new NoteBadge(center, diameter / 2);
     }
+
+    /// <summary>
+    /// The field around the capture that the badges dragged off it need. Counted in the pixels of
+    /// the capture, without the header of the export: a badge left where it was born asks for
+    /// nothing, and a picture whose badges all stand inside it comes out byte for byte as before.
+    /// </summary>
+    internal static ExportMargin ExportMargins(
+        IEnumerable<(NormalizedPoint Anchor, NormalizedPoint? Offset, string Label)> badges, int width, int height)
+    {
+        double left = 0, top = 0, right = 0, bottom = 0;
+        foreach (var (anchor, offset, label) in badges)
+        {
+            // A comment without a note carries no number, and no number means no badge to fit in.
+            if (offset is not { } shift || string.IsNullOrEmpty(label)) continue;
+            var radius = ExportDiameter(label) / 2 + Padding;
+            var centerX = (anchor.X + shift.X) * width;
+            var centerY = (anchor.Y + shift.Y) * height;
+            left = Math.Max(left, radius - centerX);
+            top = Math.Max(top, radius - centerY);
+            right = Math.Max(right, centerX + radius - width);
+            bottom = Math.Max(bottom, centerY + radius - height);
+        }
+        return new ExportMargin(Ceiling(left), Ceiling(top), Ceiling(right), Ceiling(bottom));
+
+        static int Ceiling(double value) => value <= 0 ? 0 : (int)Math.Ceiling(value);
+    }
+
+    /// <summary>The room kept between a badge and the edge of the field it was given.</summary>
+    private const double Padding = 8;
 
     // The thin leader between the mark and a badge the user moved away from it: it starts on the
     // outline of the mark and stops on the rim of the badge, so neither is covered by the line.
