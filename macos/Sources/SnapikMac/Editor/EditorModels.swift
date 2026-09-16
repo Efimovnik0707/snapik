@@ -182,9 +182,8 @@ final class EditorAnnotation {
             fill: fill,
             lineStyle: lineStyle,
             fillColor: fillColor?.hexARGB,
-            // [ТЗ№4 D1] The switch is gone from the panel and the field is only read: this editor
-            // always writes `true` (SPEC-DELTA-3 §2.1, §5 L-1).
-            hasOutline: true,
+            // [ТЗ№4 D1] The switch is gone from the panel and the flag with it: `hasOutline` is
+            // read and never written any more (SPEC-DELTA-4 §2.2).
             fontSize: fontSize)
     }
 
@@ -214,8 +213,9 @@ final class EditorAnnotation {
         }
         let redaction = item.kind == .redaction
         // [ТЗ№4 D1] `hasOutline: false` on a boxed mark reads as "a solid fill of one colour"; the
-        // field is never written again (SPEC-DELTA-3 §2.1, §5 L-1).
-        let solidWithoutOutline = item.kind == .rectangle && !item.hasOutline
+        // field is never written again (SPEC-DELTA-4 §2.2). The colour of that fill is its own if
+        // the file carries one, the colour of the stroke otherwise.
+        let solidWithoutOutline = item.kind == .rectangle && item.legacyHasOutline == false
         let strokeColor = NSColor(argbHex: item.strokeColor)
 
         return EditorAnnotation(

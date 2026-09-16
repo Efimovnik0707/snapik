@@ -131,14 +131,13 @@ final class CaptureCropperTests: XCTestCase {
         XCTAssertEqual(NormalizedPoint(0.1, -0.05), source.annotations[0].noteOffset)
     }
 
-    /// Port of `CaptureCropperTests.Crop_keeps_the_fill_colour_and_the_outline_flag_of_a_region`.
-    func test_Crop_keeps_the_fill_colour_and_the_outline_flag_of_a_region() throws {
+    /// Port of `CaptureCropperTests.Crop_keeps_the_fill_colour_of_a_region`.
+    func test_Crop_keeps_the_fill_colour_of_a_region() throws {
         var concealed = AnnotationItem.create(
             kind: .rectangle, points: [NormalizedPoint(0.3, 0.3), NormalizedPoint(0.6, 0.6)])
         concealed.shape = .ellipse
         concealed.fill = .solid
         concealed.fillColor = "#FF000000"
-        concealed.hasOutline = false
         var source = CaptureItem.create(sourceImagePath: "source/original.png", pixelWidth: 1000, pixelHeight: 800)
         source.annotations = [concealed]
 
@@ -154,7 +153,6 @@ final class CaptureCropperTests: XCTestCase {
         XCTAssertEqual(.ellipse, cropped.annotations[0].shape)
         XCTAssertEqual(.solid, cropped.annotations[0].fill)
         XCTAssertEqual("#FF000000", cropped.annotations[0].fillColor)
-        XCTAssertFalse(cropped.annotations[0].hasOutline)
     }
 
     /// Port of `CaptureCropperTests.Crop_keeps_the_size_a_caption_was_typed_in`.

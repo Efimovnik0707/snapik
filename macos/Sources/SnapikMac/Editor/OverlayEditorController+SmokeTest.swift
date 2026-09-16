@@ -352,7 +352,7 @@ extension OverlayEditorController {
         let core = annotation.toCore(imageWidth: capture.image.width, imageHeight: capture.image.height)
         let copied = annotation.clone()
         capture.annotations.removeAll(where: { $0 === annotation })
-        return core.lineStyle == .dashed && copied.lineStyle == .dashed && core.hasOutline
+        return core.lineStyle == .dashed && copied.lineStyle == .dashed
     }
 
     /// SPEC-DELTA-3 §1.4 E-14: a frame filled with blur is baked into the preview, and dragging it

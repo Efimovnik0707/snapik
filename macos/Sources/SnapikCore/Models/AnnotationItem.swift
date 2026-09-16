@@ -95,11 +95,11 @@ public struct AnnotationItem: Codable, Equatable, Sendable {
     /// Absent means the colour of the outline, which is what every mark written before the field
     /// carried.
     public var fillColor: String?
-    /// Port of `HasOutline` (`AnnotationItem.cs:74`): whether the outline of the box is drawn at
-    /// all. A solid fill without an outline is how a mark conceals; absent means the outline is
-    /// drawn, exactly as it always was. The editor of this round always writes `true`
-    /// (SPEC-DELTA-3 §5, L-1); the field stays in the schema so the files of older builds read.
-    public var hasOutline: Bool
+    /// Port of `LegacyHasOutline` (`AnnotationItem.cs:70-79`): read but never written any more. A
+    /// build before 1.5.0 put "do not draw the frame" here; the only value that still means
+    /// anything is `false` on a rectangle, and it means "a solid fill of one colour"
+    /// (SPEC-DELTA-4 §2.2). The key keeps its old spelling so the old files go on being read.
+    public var legacyHasOutline: Bool?
     /// Port of `FontSize` (`AnnotationItem.cs:79`): the size a text mark is typed in, in the pixels
     /// of the capture, so the screen and the export show the same letters. Absent means 20; the
     /// thickness of a text mark does not stand for its size any more.
@@ -121,7 +121,7 @@ public struct AnnotationItem: Codable, Equatable, Sendable {
         fill: AnnotationFill = .none,
         lineStyle: AnnotationLineStyle = .solid,
         fillColor: String? = nil,
-        hasOutline: Bool = true,
+        legacyHasOutline: Bool? = nil,
         fontSize: Double = AnnotationItem.defaultFontSize
     ) {
         self.id = id
@@ -139,7 +139,7 @@ public struct AnnotationItem: Codable, Equatable, Sendable {
         self.fill = fill
         self.lineStyle = lineStyle
         self.fillColor = fillColor
-        self.hasOutline = hasOutline
+        self.legacyHasOutline = legacyHasOutline
         self.fontSize = fontSize
     }
 
@@ -193,7 +193,7 @@ public struct AnnotationItem: Codable, Equatable, Sendable {
         case fill
         case lineStyle
         case fillColor
-        case hasOutline
+        case legacyHasOutline = "hasOutline"
         case fontSize
     }
 
@@ -218,7 +218,7 @@ public struct AnnotationItem: Codable, Equatable, Sendable {
         fill = try container.decodeIfPresent(AnnotationFill.self, forKey: .fill) ?? AnnotationFill.none
         lineStyle = try container.decodeIfPresent(AnnotationLineStyle.self, forKey: .lineStyle) ?? .solid
         fillColor = try container.decodeIfPresent(String.self, forKey: .fillColor)
-        hasOutline = try container.decodeIfPresent(Bool.self, forKey: .hasOutline) ?? true
+        legacyHasOutline = try container.decodeIfPresent(Bool.self, forKey: .legacyHasOutline)
         fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? AnnotationItem.defaultFontSize
     }
 
@@ -243,7 +243,9 @@ public struct AnnotationItem: Codable, Equatable, Sendable {
         try container.encode(fill, forKey: .fill)
         try container.encode(lineStyle, forKey: .lineStyle)
         try container.encode(fillColor, forKey: .fillColor)
-        try container.encode(hasOutline, forKey: .hasOutline)
+        // `legacyHasOutline` is deliberately absent: from 1.5.0 the key is read and never written
+        // again (SPEC-DELTA-4 §2.2). `encodeIfPresent` would keep writing it back out of the files
+        // that carry it, and the point of the round is that the flag leaves the format.
         try container.encode(fontSize, forKey: .fontSize)
     }
 }

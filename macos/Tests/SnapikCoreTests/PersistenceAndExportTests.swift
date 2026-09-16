@@ -321,14 +321,13 @@ final class PersistenceAndExportTests: XCTestCase {
         XCTAssertThrowsError(try SnapikJson.decoder.decode(SnapikSession.self, from: data))
     }
 
-    /// Port of `PersistenceAndExportTests.Json_store_round_trips_the_fill_colour_the_outline_flag_and_the_blur_fill`.
-    func test_Json_store_round_trips_the_fill_colour_the_outline_flag_and_the_blur_fill() async throws {
+    /// Port of `PersistenceAndExportTests.Json_store_round_trips_the_fill_colour_and_the_blur_fill_and_writes_no_outline_flag`.
+    func test_Json_store_round_trips_the_fill_colour_and_the_blur_fill_and_writes_no_outline_flag() async throws {
         let store = JsonSessionStore(sessionsRoot: root.appendingPathComponent("sessions"))
         var concealed = AnnotationItem.create(
             kind: .rectangle, points: [NormalizedPoint(0.1, 0.1), NormalizedPoint(0.4, 0.4)])
         concealed.fill = .solid
         concealed.fillColor = "#FF000000"
-        concealed.hasOutline = false
         var blurred = AnnotationItem.create(
             kind: .rectangle, points: [NormalizedPoint(0.5, 0.5), NormalizedPoint(0.9, 0.9)])
         blurred.shape = .ellipse
@@ -342,17 +341,22 @@ final class PersistenceAndExportTests: XCTestCase {
         let loadedRestored = try await store.load(sessionId: session.id)
         let restored = try XCTUnwrap(loadedRestored)
 
-        // The names in the file matter as much as the values: the Windows build reads the same keys.
+        // The names in the file matter as much as the values: the Windows build reads the same two
+        // keys. The old outline flag is not among them any more, and the file on disk has to prove
+        // it (SPEC-DELTA-4 §2.2).
         let written = try Self.annotationObjects(of: session)
         XCTAssertEqual("blur", written[1]["fill"] as? String)
         XCTAssertEqual("#FF000000", written[0]["fillColor"] as? String)
-        XCTAssertEqual(false, written[0]["hasOutline"] as? Bool)
+        let onDisk = try String(
+            contentsOf: store.getSessionDirectory(sessionId: session.id)
+                .appendingPathComponent("session.json"),
+            encoding: .utf8)
+        XCTAssertFalse(onDisk.contains("hasOutline"))
         XCTAssertEqual(.solid, restored.captures[0].annotations[0].fill)
         XCTAssertEqual("#FF000000", restored.captures[0].annotations[0].fillColor)
-        XCTAssertFalse(restored.captures[0].annotations[0].hasOutline)
+        XCTAssertNil(restored.captures[0].annotations[0].legacyHasOutline)
         XCTAssertEqual(.blur, restored.captures[0].annotations[1].fill)
         XCTAssertNil(restored.captures[0].annotations[1].fillColor)
-        XCTAssertTrue(restored.captures[0].annotations[1].hasOutline)
         try SessionValidation.validate(restored)
     }
 
@@ -368,15 +372,16 @@ final class PersistenceAndExportTests: XCTestCase {
         let session = try SessionOperations.addCapture(
             SnapikSession.create(nowUtc: Self.start), capture: capture, nowUtc: Self.start)
 
-        try Self.writeSession(session, store: store, droppingAnnotationKeys: ["fill", "fillColor", "hasOutline"])
+        try Self.writeSession(session, store: store, droppingAnnotationKeys: ["fill", "fillColor"])
         let loadedRestored = try await store.load(sessionId: session.id)
         let restored = try XCTUnwrap(loadedRestored)
 
-        // A file written before the fill carried a colour reads exactly as it did: no fill, no
-        // colour of its own, and an outline. The redaction kind stays readable for the editor.
+        // A file written before the fill carried a colour reads exactly as it did: no fill and no
+        // colour of its own, and nothing to migrate, because the old flag is absent as well. The
+        // redaction kind stays readable for the editor.
         XCTAssertEqual(AnnotationFill.none, restored.captures[0].annotations[0].fill)
         XCTAssertNil(restored.captures[0].annotations[0].fillColor)
-        XCTAssertTrue(restored.captures[0].annotations[0].hasOutline)
+        XCTAssertNil(restored.captures[0].annotations[0].legacyHasOutline)
         XCTAssertEqual(.redaction, restored.captures[0].annotations[1].kind)
         try SessionValidation.validate(restored)
     }
