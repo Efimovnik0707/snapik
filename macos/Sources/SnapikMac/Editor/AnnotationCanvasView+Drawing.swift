@@ -21,7 +21,14 @@ extension AnnotationCanvasView {
         ctx.fill(imageRect)
 
         let displayImage = applyBlurAnnotations(capture.image)
+        // At its own size the picture must show its own pixels: with smoothing on, the seam between
+        // two monitors is spread over two of them (`AnnotationCanvas.cs:83-85`). `NSImage.draw(in:)`
+        // reads the interpolation off the context and blits upright in a flipped view — a plain
+        // `CGContext.draw` would need the anti-flip of `macos/README.md` around it.
+        let interpolation = NSGraphicsContext.current?.imageInterpolation
+        NSGraphicsContext.current?.imageInterpolation = viewScale == nil ? .default : .none
         NSImage(cgImage: displayImage, size: imageRect.size).draw(in: imageRect)
+        if let interpolation { NSGraphicsContext.current?.imageInterpolation = interpolation }
 
         for annotation in capture.annotations where !Self.isBlurred(annotation) && !Self.hasOpaqueFill(annotation) {
             drawAnnotation(ctx, annotation, target: imageRect, includeSelection: false, drawLabel: false)

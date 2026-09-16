@@ -53,6 +53,28 @@ final class AnnotationCanvasView: NSView {
     /// non-overlay host.
     var imagePadding: CGFloat = 0
 
+    /// Port of `ViewScale` (`AnnotationCanvas.cs:75-87`, SPEC-DELTA-4 §4.1). `nil` is "fit": the
+    /// picture is scaled down to the canvas and centred, the way it always was. Anything else is the
+    /// scale in points per pixel of the picture, and the picture stands where `viewOffset` holds it.
+    /// Everything the canvas measures is counted from `imageRect`, which those two decide, so the
+    /// marks follow without a line of their own.
+    var viewScale: Double? {
+        didSet {
+            guard viewScale != oldValue else { return }
+            needsDisplay = true
+            onViewChanged?()
+        }
+    }
+
+    /// How far the picture is scrolled, in points. Ignored while fitting (`:90`).
+    var viewOffset: CGPoint = .zero
+
+    /// Space is held down: the next press drags the picture instead of drawing on it (`:99-100`).
+    var panning = false
+
+    private var panStart: CGPoint?
+    private var panOrigin: CGPoint = .zero
+
     private(set) var selectedAnnotation: EditorAnnotation?
     // Setter is internal (not private) so `AnnotationCanvasView+Drawing.swift` can refresh it.
     var imageRect: CGRect = .zero
@@ -61,6 +83,9 @@ final class AnnotationCanvasView: NSView {
     var onSelectionChanged: ((EditorAnnotation?) -> Void)?
     var onAnnotationChanged: (() -> Void)?
     var onCropRequested: ((CGRect) -> Void)?
+    /// Port of `ViewChanged` (`:101`): the scale or the offset changed, and the switch beside the
+    /// panel, the corner handles and the pills all follow it.
+    var onViewChanged: (() -> Void)?
     /// Port of `AnnotationActivated` (`:203-208`): a double click opens the note of whatever it
     /// lands on — the text editor for a caption, the note pill for everything else.
     var onAnnotationActivated: ((EditorAnnotation) -> Void)?
@@ -130,9 +155,34 @@ final class AnnotationCanvasView: NSView {
     // Internal (not private): also called from `AnnotationCanvasView+Drawing.swift`.
     func recomputeImageRect() {
         guard let capture else { imageRect = .zero; return }
+        // One line decides the rectangle the picture is drawn in, and the eleven places that count
+        // from it follow without a line of their own (`OnRender`, `:190`).
+        if let scale = viewScale {
+            imageRect = scaledRect(scale, capture: capture)
+            return
+        }
         imageRect = EditorGeometry.fitRect(
             imageWidth: Double(capture.image.width), imageHeight: Double(capture.image.height),
             width: Double(bounds.width), height: Double(bounds.height), padding: Double(imagePadding))
+    }
+
+    /// Port of `ScaledRect` (`:1031-1035`): the picture at a scale of its own, with the offset held
+    /// first, so no edge of it ever comes inside the canvas.
+    private func scaledRect(_ scale: Double, capture: EditorCapture) -> CGRect {
+        let image = CGSize(width: capture.image.width, height: capture.image.height)
+        viewOffset = EditorGeometry.clampOffset(image: image, scale: scale, viewport: bounds.size, offset: viewOffset)
+        return CGRect(
+            x: -viewOffset.x, y: -viewOffset.y,
+            width: image.width * CGFloat(scale), height: image.height * CGFloat(scale))
+    }
+
+    /// Port of `FitScale` (`:93-97`): the scale the picture is shown at while fitting, and the floor
+    /// of the wheel held with Cmd.
+    var fitScale: Double {
+        guard let capture, capture.image.width > 0, capture.image.height > 0 else { return 1 }
+        return min(
+            Double(max(1, bounds.width - imagePadding * 2)) / Double(capture.image.width),
+            Double(max(1, bounds.height - imagePadding * 2)) / Double(capture.image.height))
     }
 
     /// Points-per-image-pixel, the number every on-screen measurement is taken in.
@@ -219,6 +269,13 @@ final class AnnotationCanvasView: NSView {
     /// through these three without a pointer on screen.
     func beginGesture(_ point: CGPoint, clickCount: Int = 1) {
         guard let capture else { return }
+        // Space held down turns the press into a drag of the picture itself, wherever it lands
+        // (`:224-228`).
+        if panning, viewScale != nil {
+            panStart = point
+            panOrigin = viewOffset
+            return
+        }
         guard imageRect.contains(point) else { return }
 
         // The eraser draws nothing: it removes the mark under the pointer and tells the controller,
@@ -308,6 +365,17 @@ final class AnnotationCanvasView: NSView {
     func updateGesture(_ displayPoint: CGPoint, pressed: Bool) {
         guard let capture else { return }
 
+        // The picture travels under the pointer, and nothing else moves: the marks keep the pixels
+        // of the capture they were put on (`:331-336`).
+        if let panStart, pressed {
+            viewOffset = CGPoint(
+                x: panOrigin.x - (displayPoint.x - panStart.x),
+                y: panOrigin.y - (displayPoint.y - panStart.y))
+            needsDisplay = true
+            onViewChanged?()
+            return
+        }
+
         // The anchor travels and its badge stays: the note keeps the place it was put in, so the
         // offset of the badge gives back exactly what the anchor takes, and the leader grows between
         // the two. A note that was never moved has no offset to compensate, and its badge follows.
@@ -384,6 +452,11 @@ final class AnnotationCanvasView: NSView {
 
     /// Port of `EndGesture` (`:379-436`).
     func endGesture() {
+        if panStart != nil {
+            panStart = nil
+            return
+        }
+
         if anchorDrag != nil {
             let moved = anchorMoved
             anchorDrag = nil
@@ -451,10 +524,66 @@ final class AnnotationCanvasView: NSView {
         clearEraseHover()
     }
 
+    /// How many points one line of the wheel travels, and the divisor that turns the same number
+    /// back into notches: a trackpad reports points and a wheel reports lines, so the two are
+    /// brought to one scale before either the picture or the scale moves. Windows counts a notch as
+    /// `Delta / 120` (`:1042, 1059`).
+    private static let lineTravel: CGFloat = 40
+
+    /// Port of `OnMouseWheel` (`:1039-1065`). The wheel belongs to the picture only while it is
+    /// shown at a scale of its own: fitted, there is nothing to scroll and nothing to zoom into, and
+    /// the event goes on its way.
+    override func scrollWheel(with event: NSEvent) {
+        guard capture != nil, let scale = viewScale else {
+            super.scrollWheel(with: event)
+            return
+        }
+
+        if event.modifierFlags.contains(.command) {
+            // A tenth of the scale per notch, between "fit" and the picture at its own size: the
+            // switch beside the panel promises those two ends and nothing beyond them. The modifier
+            // is Cmd and not Ctrl, which on macOS belongs to the zoom of the system itself.
+            let notches = Double(event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / Self.lineTravel : event.scrollingDeltaY)
+            let wanted = min(max(scale * pow(1.1, notches), fitScale), 1)
+            // Back at the scale the picture is fitted with, the mode goes back to fitting, and the
+            // switch beside the panel moves to its left segment by itself.
+            if wanted <= fitScale {
+                viewOffset = .zero
+                viewScale = nil
+            } else {
+                viewOffset = EditorGeometry.zoomAround(
+                    cursor: convert(event.locationInWindow, from: nil), offset: viewOffset,
+                    fromScale: scale, toScale: wanted)
+                viewScale = wanted
+                needsDisplay = true
+            }
+            return
+        }
+
+        // Shift turns the wheel sideways; two fingers on a trackpad say which way they went by
+        // themselves, and AppKit reports that on the other axis already.
+        var travelX = event.scrollingDeltaX
+        var travelY = event.scrollingDeltaY
+        if event.modifierFlags.contains(.shift), travelX == 0 {
+            travelX = travelY
+            travelY = 0
+        }
+        let factor = event.hasPreciseScrollingDeltas ? 1 : Self.lineTravel
+        viewOffset = CGPoint(x: viewOffset.x - travelX * factor, y: viewOffset.y - travelY * factor)
+        needsDisplay = true
+        onViewChanged?()
+    }
+
     /// Port of `UpdateCursor` (`:341-362`): arrows on the corners of a selected mark, a hand where a
     /// mark can be grabbed, a crosshair over the capture with a drawing tool armed, and the ordinary
     /// arrow everywhere else.
     private func updateCursor(_ displayPoint: CGPoint) {
+        // Space is held: whatever stands under the pointer, the next press drags the picture
+        // (`:398-399`).
+        if panning, viewScale != nil {
+            NSCursor.openHand.set()
+            return
+        }
         if tool == .eraser {
             let hover = eraseTarget(displayPoint)
             if hover !== eraseHover {
@@ -516,6 +645,14 @@ final class AnnotationCanvasView: NSView {
             } else {
                 super.keyDown(with: event)
             }
+        case Keycode.space:
+            // Space drags the picture while it is held, and the key belongs to no tool: outside the
+            // scaled mode it does nothing at all (`OverlayEditorWindow.xaml.cs:1958-1963`).
+            if viewScale != nil {
+                panning = true
+            } else {
+                super.keyDown(with: event)
+            }
         case Keycode.escape:
             // Escape gives up what is going on, one step at a time: the mark being drawn first, the
             // selection after it. Only with neither of them does the window itself hear the key.
@@ -531,6 +668,16 @@ final class AnnotationCanvasView: NSView {
         default:
             super.keyDown(with: event)
         }
+    }
+
+    /// Space let go of: the picture stops following the pointer, whatever the mode is by then
+    /// (`OverlayEditorWindow.xaml.cs:2012-2017`).
+    override func keyUp(with event: NSEvent) {
+        guard event.keyCode == Keycode.space, panning else {
+            super.keyUp(with: event)
+            return
+        }
+        panning = false
     }
 
     // MARK: - Hit testing (SPEC §6.3)
@@ -691,6 +838,8 @@ enum Keycode {
     static let delete: UInt16 = 51
     static let forwardDelete: UInt16 = 117
     static let escape: UInt16 = 53
+    /// Space: the key that turns a press into a drag of the picture (SPEC-DELTA-4 §4.2).
+    static let space: UInt16 = 49
     /// Return (main keyboard) / Enter (numeric keypad) — SPEC-DELTA-2.md §1.3's `keyCode 36/76`.
     static let enter: UInt16 = 36
     static let enterAlternate: UInt16 = 76
