@@ -84,6 +84,7 @@ public partial class EdgeStackWindow : Window
     private bool _capsuleMode;
     private double _expandedWidth;
     private double _expandedListHeight;
+    private double _expandedLeft;
     private double _expandedTop;
     private double _expandedMinHeight;
     private CaptureItem? _draggedCapture;
@@ -685,9 +686,10 @@ public partial class EdgeStackWindow : Window
     {
         Renumber();
         // A capture taken while the strip is collapsed must not unfold it: the capsule stays where it
-        // is and only its counter grows. The placement of the strip would give the window the width
-        // and the height of the strip back.
-        if (_capsuleMode) PositionCapsuleAtEdge(); else EnsureStripPlaced();
+        // is and only its counter grows. It is already standing where it belongs, so there is
+        // nothing to place — the placement of the strip would give the window the width and the
+        // height of the strip back.
+        if (!_capsuleMode) EnsureStripPlaced();
         Show();
         _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0053);
         UiLanguage.Apply(this);
@@ -720,6 +722,9 @@ public partial class EdgeStackWindow : Window
         _capsuleMode = true;
         _expandedWidth = Width;
         _expandedListHeight = CaptureList.Height;
+        // The left edge is remembered with the rest of the rectangle: without it the strip came back
+        // to the edge of the monitor whatever corner the user had dragged it to.
+        _expandedLeft = Left;
         _expandedTop = Top;
         _expandedMinHeight = MinHeight;
         HideToastNow();
@@ -732,7 +737,7 @@ public partial class EdgeStackWindow : Window
         MinHeight = 0;
         Width = double.NaN;
         SizeToContent = SizeToContent.WidthAndHeight;
-        PositionCapsuleAtEdge();
+        PositionCapsuleAtStrip();
     }
 
     private void ExpandFromCapsule()
@@ -744,22 +749,41 @@ public partial class EdgeStackWindow : Window
         WidthGrip.Visibility = Visibility.Visible;
         // The list, the hint and the corner grip belong to the state of the strip, not to the mode:
         // an empty strip unfolds back into an empty strip, without a grip that has nothing to pull.
+        // The order below is fixed: the height of the list is settled before the window is placed,
+        // or ActualHeight is measured from the list the strip had before the capsule; and
+        // SizeToContent goes off before Width is assigned, or WPF runs a pass of its own in between
+        // and moves the window.
         UpdateEmptyState();
-        SizeToContent = SizeToContent.Height;
+        SizeToContent = SizeToContent.Manual;
         MinHeight = _expandedMinHeight;
         Width = _expandedWidth;
-        CaptureList.Height = _expandedListHeight;
+        CaptureList.Height = Controls.StripResizeGeometry.ListHeightForCount(Captures.Count, _expandedListHeight);
         UpdateLayout();
-        Left = StackWorkArea().Right - Width - Controls.StripResizeGeometry.EdgeGap;
-        Top = _expandedTop;
+        // The working area is the one of the monitor the capsule stands on, and it is a frame to
+        // clamp against, not a place to move to: a strip dragged away from the edge comes back where
+        // it was left.
+        PlaceWindow(Controls.StripResizeGeometry.RestoreRect(
+            new Rect(_expandedLeft, _expandedTop, Width, ActualHeight), StackWorkArea()));
+        SizeToContent = SizeToContent.Height;
     }
 
-    // The capsule keeps the edge and the height the strip was at: the same right edge with the same
-    // gap, and a Top that is not touched at all.
-    private void PositionCapsuleAtEdge()
+    // The capsule keeps the corner of the strip it came from: the same right edge, because both
+    // windows carry the same 20 px field under their shadow, and a Top that is not touched at all.
+    private void PositionCapsuleAtStrip()
     {
         UpdateLayout();
-        Left = StackWorkArea().Right - ActualWidth - Controls.StripResizeGeometry.EdgeGap;
+        Left = Controls.StripResizeGeometry.CapsuleLeft(_expandedLeft, _expandedWidth, ActualWidth);
+    }
+
+    // The window moved and sized in one call: assignments of Left, Top and Width are three layout
+    // passes, and the strip is seen travelling through all of them.
+    private void PlaceWindow(Rect target)
+    {
+        var dpi = VisualTreeHelper.GetDpi(this);
+        _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero,
+            (int)Math.Round(target.X * dpi.DpiScaleX), (int)Math.Round(target.Y * dpi.DpiScaleY),
+            (int)Math.Round(target.Width * dpi.DpiScaleX), (int)Math.Round(target.Height * dpi.DpiScaleY),
+            0x0014);   // SWP_NOZORDER | SWP_NOACTIVATE
     }
 
     private void AnimateStackIn()
