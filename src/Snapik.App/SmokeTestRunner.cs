@@ -1387,9 +1387,24 @@ public static class SmokeTestRunner
         // its buttons as paths, and a renamed shortcut leaves a button that opens nothing.
         if (Directory.GetFiles(probeRoot, "*.lnk").Length != 1 || !File.Exists(legacyPin))
             throw new InvalidOperationException("Carrying a pin over must neither rename it nor leave a second shortcut beside it.");
-        // And the gate of this file holds for the run itself: a smoke run reads no taskbar and pins
-        // nothing, whatever is on the taskbar of the machine it runs on.
-        if (TaskbarPinService.IsPinned() || TaskbarPinService.CanTry())
+        // And the gate of this file holds for the run itself: a smoke run reads no taskbar, pins
+        // nothing and says nothing to the wizard, whatever is on the taskbar of this machine.
+        if (TaskbarPinService.IsPinned() || TaskbarPinService.CanTry() || TaskbarPinService.LegacyPinNote() is not null)
             throw new InvalidOperationException("A smoke run must not touch the taskbar of the machine it runs on.");
+        // The three lines of step three, by the four ways the taskbar can look after an update. Two
+        // pins are two buttons, and the extra one comes off by hand: no program can take it.
+        var ours = Path.Combine(probeRoot, "Snapik.lnk");
+        if (TaskbarPinService.LegacyPinNote([ours], "Snapik.lnk", carriedOver: false, captionRewritable: false) is not null)
+            throw new InvalidOperationException("A taskbar without the old icon must leave the wizard silent.");
+        if (TaskbarPinService.LegacyPinNote([legacyPin, ours], "Snapik.lnk", carriedOver: true, captionRewritable: false)
+                is not "На панели задач остался старый значок SnapBrief. Нажми на него правой кнопкой и выбери «Открепить от панели задач»" ||
+            TaskbarPinService.LegacyPinNote([legacyPin], "Snapik.lnk", carriedOver: false, captionRewritable: true)
+                is not "На панели задач остался старый значок SnapBrief. Нажми на него правой кнопкой и выбери «Открепить от панели задач»")
+            throw new InvalidOperationException("Two pins, and a pin that could not be carried over, must both send the user to unpin the old one.");
+        if (TaskbarPinService.LegacyPinNote([legacyPin], "Snapik.lnk", carriedOver: true, captionRewritable: true)
+                is not "Старый значок SnapBrief теперь открывает Snapik" ||
+            TaskbarPinService.LegacyPinNote([legacyPin], "Snapik.lnk", carriedOver: true, captionRewritable: false)
+                is not "Подпись на панели задач обновится после перезахода в Windows")
+            throw new InvalidOperationException("A carried-over pin must be reported, and the caption promised only where it can be rewritten.");
     }
 }

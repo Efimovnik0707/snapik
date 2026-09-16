@@ -85,6 +85,46 @@ internal static class TaskbarPinService
         catch (Exception ex) { trace?.Invoke($"Taskbar pin carry-over: {ex}"); }
     }
 
+    /// <summary>
+    /// What step three of the wizard says about the icon an update over SnapBrief 1.4.0 found on the
+    /// taskbar, as the Russian key of the line, or null when there is nothing to say. Read from the
+    /// folder the shell keeps the pins in; a smoke run and a demo say nothing.
+    /// </summary>
+    internal static string? LegacyPinNote()
+    {
+        if (TurnedOff()) return null;
+        try
+        {
+            var pinned = PinnedShortcuts();
+            var legacy = pinned.FirstOrDefault(path =>
+                string.Equals(Path.GetFileName(path), TaskbarPinLegacy.LegacyShortcutName, StringComparison.OrdinalIgnoreCase));
+            if (legacy is null) return null;
+            var (target, appId) = TaskbarPinLegacy.ReadShortcut(legacy);
+            var carriedOver = TaskbarPinLegacy.IsOurs(Path.GetFileName(legacy), target, appId, Environment.ProcessPath);
+            return LegacyPinNote(pinned, ShortcutName(), carriedOver, SupportsPinnedList());
+        }
+        catch (Exception) { return null; }
+    }
+
+    /// <summary>
+    /// The choice itself, on its own: which of the three lines the step shows. The old pin that could
+    /// not be carried over, and the old pin with ours already beside it, come to the same thing — two
+    /// buttons where one is wanted, and no program can take the extra one off. A carried-over pin
+    /// opens this application; whether the caption of the button follows depends on the build, and
+    /// where it does not, the line says so instead of promising anything.
+    /// </summary>
+    internal static string? LegacyPinNote(System.Collections.Generic.IReadOnlyList<string> pinned,
+        string currentName, bool carriedOver, bool captionRewritable)
+    {
+        if (!pinned.Any(path => string.Equals(Path.GetFileName(path), TaskbarPinLegacy.LegacyShortcutName, StringComparison.OrdinalIgnoreCase)))
+            return null;
+        if (!carriedOver || pinned.Any(path => string.Equals(Path.GetFileName(path), currentName, StringComparison.OrdinalIgnoreCase)))
+            return "На панели задач остался старый значок SnapBrief. Нажми на него правой кнопкой и выбери «Открепить от панели задач»";
+        return captionRewritable
+            ? "Старый значок SnapBrief теперь открывает Snapik"
+            : "Подпись на панели задач обновится после перезахода в Windows";
+    }
+
     // The entry of the taskband itself, swapped from the old pin to the shortcut of the Start menu.
     // Shell COM is free to hang and the start of the application is not: the thread is an STA of its
     // own, it is not waited for, and the shortcut on disk has already been aimed by the time it runs.

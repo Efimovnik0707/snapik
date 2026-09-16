@@ -191,6 +191,11 @@
        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,14,0">
         <TextBlock Text="Закрепить на панели задач" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
         <TextBlock x:Name="PinSubtitle" Text="Иконка внизу экрана, клик открывает ленту" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+        <!-- What became of the icon an update over SnapBrief 1.4.0 found on the taskbar: it opens
+             Snapik now, or it does and keeps its old caption until the user signs in again, or it
+             could not be carried over at all and only the user can take it off. The line is chosen
+             once, when the step is built, and there is none on a machine that never had the old name. -->
+        <TextBlock x:Name="PinCarryOver" FontSize="12" Foreground="{DynamicResource TextFaintBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,6,0,0"/>
         <!-- Where the button was, once the button could not do it: the three steps of the manual way.
              Nothing is promised before that, so the button says what it does and nothing more. -->
         <StackPanel x:Name="PinInstructions" Visibility="Collapsed" Margin="0,8,0,0">

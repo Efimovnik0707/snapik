@@ -436,6 +436,13 @@ public partial class OnboardingWindow : Window
     {
         try
         {
+            // The icon of the old name, if the update found one: the step says what became of it
+            // whether or not the button beside it is still there to press.
+            if (TaskbarPinService.LegacyPinNote() is { } note)
+            {
+                PinCarryOver.Text = UiLanguage.Text(note, _language);
+                PinCarryOver.Visibility = Visibility.Visible;
+            }
             if (TaskbarPinService.IsPinned()) { ShowPinned(); return; }
             if (!TaskbarPinService.CanTry()) ShowPinInstructions();
         }
