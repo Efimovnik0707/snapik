@@ -21,8 +21,14 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PressedBrush}" /></Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource FocusBrush}" /></Trigger>
-                            <!-- The end of the strip is shown the way every other button of the application shows it. -->
-                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.42" /></Trigger>
+                            <!-- The end of the strip is a mark on the button, not a button switched off: an
+                                 availability worked out from a layout pass stays wherever a pass with no width
+                                 leaves it, and the gallery then reads as one that does not scroll at all. It
+                                 looks the way it always did, and a press at the end simply moves nothing. -->
+                            <Trigger Property="Tag" Value="end">
+                                <Setter Property="Opacity" Value="0.42" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
