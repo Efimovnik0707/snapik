@@ -36,6 +36,7 @@
     <Compile Include="..\..\src\Snapik.App\SaveNaming.cs" Link="SaveNaming.cs" />
     <Compile Include="..\..\src\Snapik.App\SettingsMigration.cs" Link="SettingsMigration.cs" />
     <Compile Include="..\..\src\Snapik.App\AppDataPaths.cs" Link="AppDataPaths.cs" />
+    <Compile Include="..\..\src\Snapik.App\TaskbarPinLegacy.cs" Link="TaskbarPinLegacy.cs" />
     <!-- The box of a caption is measured here; the model of a mark comes along, because the measure
          is written back into the points of one. -->
     <Compile Include="..\..\src\Snapik.App\TextMarkMetrics.cs" Link="TextMarkMetrics.cs" />

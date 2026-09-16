@@ -109,7 +109,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
-  Exec(ExpandConstant('{sys}	askkill.exe'), '/IM SnapBrief.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec(ExpandConstant('{sys}	askkill.exe'), '/IM Snapik.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM SnapBrief.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM Snapik.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := '';
 end;
