@@ -522,6 +522,40 @@ public partial class AppearancePicker : UserControl
     /// <summary>Whether a chevron stands at the end of the strip: the mark, not the availability.</summary>
     private static bool AtEnd(Button chevron) => chevron.Tag as string == "end";
 
+    /// <summary>
+    /// What the gallery measures itself at right now, for the startup log of the wizard. Read after a
+    /// change of monitor scale it says in one line whether a layout pass has left the strip believing
+    /// it stands at its own end.
+    /// </summary>
+    internal string DescribeGallery() =>
+        $"viewport={Gallery.ViewportWidth}, extent={Gallery.ExtentWidth}, offset={Gallery.HorizontalOffset}, " +
+        $"scrollable={Gallery.ScrollableWidth}, firstCard={_firstCard}, lastPage={LastPage}, " +
+        $"prevEnd={AtEnd(PreviousTheme)}, nextEnd={AtEnd(NextTheme)}";
+
+    /// <summary>
+    /// What the window answers at the centre of each chevron. The other explanation of a gallery that
+    /// stops paging is a hit test landing somewhere else after a change of scale, and this line beside
+    /// the one above tells the two apart without a second run.
+    /// </summary>
+    internal string DescribeChevronHit() =>
+        Window.GetWindow(this) is not { } window
+            ? "no window"
+            : $"next {HitAt(window, NextTheme)}; prev {HitAt(window, PreviousTheme)}";
+
+    private static string HitAt(Window window, Button chevron)
+    {
+        try
+        {
+            var centre = chevron.TranslatePoint(new Point(chevron.ActualWidth / 2, chevron.ActualHeight / 2), window);
+            var hit = window.InputHitTest(centre);
+            var owner = hit as DependencyObject;
+            while (owner is not null && !ReferenceEquals(owner, chevron)) owner = VisualTreeHelper.GetParent(owner);
+            return $"centre=({centre.X:0},{centre.Y:0}) DIP -> {(hit is null ? "nothing" : hit.GetType().Name)} " +
+                   $"{(ReferenceEquals(owner, chevron) ? "in" : "outside")} {chevron.Name}";
+        }
+        catch (Exception ex) { return $"unreadable ({ex.GetType().Name})"; }
+    }
+
     private static Brush? PreviewPanel(Button card) =>
         ((((card.Content as StackPanel)?.Children[0] as Border)?.Child as Grid)?.Children[0] as Border)?.Background;
 }

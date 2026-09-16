@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Drawing = System.Drawing;
 using WinForms = System.Windows.Forms;
 
@@ -128,6 +129,7 @@ public partial class OnboardingWindow : Window
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
         base.OnDpiChanged(oldDpi, newDpi);
+        TraceDpiChange(oldDpi, newDpi);
         if (_placed) return;
         _placed = true;
         try
@@ -160,6 +162,37 @@ public partial class OnboardingWindow : Window
     internal static int CenteredStart(int workStart, int workLength, double windowLength, double scale) =>
         workStart + (int)Math.Round((workLength - windowLength * (scale > 0 ? scale : 1)) / 2);
 
+    /// <summary>
+    /// Three lines about what a change of monitor scale did to the gallery of themes, written only
+    /// while the step the gallery lives on is the one on screen. Dragging the wizard between two
+    /// monitors of different scales is the one case that cannot be reproduced on a build agent, and
+    /// the two explanations of a gallery that stops paging — a chevron left switched off, and a hit
+    /// test that lands beside it — are told apart by these numbers in a single live run.
+    /// </summary>
+    private void TraceDpiChange(DpiScale oldDpi, DpiScale newDpi)
+    {
+        if (Trace is null || _step != 3) return;
+        Trace($"Onboarding DPI: {oldDpi.DpiScaleX} -> {newDpi.DpiScaleX}, placed={_placed}, " +
+              $"layout={ActualWidth}x{ActualHeight} DIP, rect={WindowRectangle()} px");
+        // WPF puts the new size of the layout in at this very priority, so the gallery is asked after
+        // it and not before: asked now, it would answer with the width it had on the old monitor.
+        Dispatcher.BeginInvoke(() =>
+        {
+            Trace?.Invoke($"Gallery after DPI: {Appearance.DescribeGallery()}");
+            Trace?.Invoke($"Chevron hit: {Appearance.DescribeChevronHit()}; caption band=0..48 DIP");
+        }, DispatcherPriority.Loaded);
+    }
+
+    // The physical rectangle of the window, which Left and Top cannot give: those two are read in the
+    // scale of the monitor the window belongs to at that moment, and that is the number in question.
+    private string WindowRectangle()
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        return handle != IntPtr.Zero && GetWindowRect(handle, out var rectangle)
+            ? $"{rectangle.Left},{rectangle.Top},{rectangle.Right},{rectangle.Bottom}"
+            : "unknown";
+    }
+
     private const int SwpNoSize = 0x0001;
     private const int SwpNoZOrder = 0x0004;
     private const int SwpNoActivate = 0x0010;
@@ -167,6 +200,19 @@ public partial class OnboardingWindow : Window
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, int flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hwnd, out WindowRect rectangle);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 
     /// <summary>Below this the wizard would be a strip of chrome; the content scrolls instead.</summary>
     private const double MinimumUsefulHeight = 360;
