@@ -146,7 +146,7 @@
                                            AnnotationCreated="OnAnnotationCreated" SelectionChanged="OnSelectionChanged"
                                            AnnotationActivated="OnAnnotationActivated"
                                            AnnotationChanged="OnAnnotationChanged" CropRequested="OnCropRequested"
-                                           ViewChanged="OnSurfaceViewChanged" />
+                                           ViewChanged="OnSurfaceViewChanged" NoteHovered="OnSurfaceNoteHovered" />
             </Border>
         </Canvas>
         <Canvas x:Name="CaptureHandleLayer" />

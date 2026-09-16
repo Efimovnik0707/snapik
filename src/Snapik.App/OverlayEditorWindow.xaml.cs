@@ -49,7 +49,6 @@ public partial class OverlayEditorWindow : Window
     private readonly Dictionary<EditorTool, ToolAppearance> _tools;
     private PaletteSet _activePalette = Palettes[0];
     private EditorTool _activePencil = EditorTool.Pen;
-    private Guid? _commentParentId;
     private Guid? _expandedChipId;
     private AnnotationItem? _chipDragAnnotation;
     private Point _chipDragStart;
@@ -1010,8 +1009,15 @@ public partial class OverlayEditorWindow : Window
         // panel, and the panel shows which tool that is. Escape is what puts it down.
         if (window.Surface.Tool != EditorTool.Comment || window.CommentToolButton.IsChecked != true)
             throw new InvalidOperationException("Placing a pin must leave the comment tool in the hand.");
+        // The pill of the new pin is open, and Escape gives that up first; the tool in the hand is
+        // the step after it, and the capture after that.
+        var openPill = window._expandedChipId;
+        if (window.NextEscapeStep() != EscapeStep.ExpandedNote)
+            throw new InvalidOperationException("The pill of a new pin must be the first thing Escape gives up.");
+        window._expandedChipId = null;
         if (window.NextEscapeStep() != EscapeStep.Comment)
-            throw new InvalidOperationException("Escape must put the comment tool down before it drops anything else.");
+            throw new InvalidOperationException("With no pill open, Escape must put the comment tool down before it drops anything else.");
+        window._expandedChipId = openPill;
         window.SelectToolMode(EditorTool.Select);
         if (window.Surface.Tool != EditorTool.Select || window.SelectTool.IsChecked != true || window.CommentToolButton.IsChecked == true)
             throw new InvalidOperationException("Putting the comment tool down must arm the select tool instead.");
@@ -1019,8 +1025,10 @@ public partial class OverlayEditorWindow : Window
             .Select(border => border.Child).OfType<Grid>()
             .SelectMany(grid => grid.Children.OfType<TextBox>()).Single();
         note.Text = "Контекстная заметка";
-        if (comment.Note != note.Text || comment.ParentAnnotationId != workingAnnotation.Id || window.ChipLayer.Children.Count != 1)
-            throw new InvalidOperationException("The one-shot comment did not bind its editor to the selected annotation.");
+        // A comment is a mark of its own: it is not bound to whatever was selected when it was put
+        // down, and moving that mark does not drag it along.
+        if (comment.Note != note.Text || comment.ParentAnnotationId is not null || window.ChipLayer.Children.Count != 1)
+            throw new InvalidOperationException("The comment did not open its own editor, or bound itself to the selected annotation.");
 
         window.Surface.SelectAnnotation(workingAnnotation.Id);
         window.OnCommentClick(window.CommentToolButton, new RoutedEventArgs());
@@ -1074,6 +1082,24 @@ public partial class OverlayEditorWindow : Window
         window.BeginNoteDrag(afterUndo, new Point(0, 0));
         window.DragNoteTo(new Point(60, -40));
         window.EndNoteDrag();
+
+        // The badge is dragged by itself on the capture as well, and it is not held inside it: a
+        // badge carried out past the left edge is what the margin of the exported PNG is for, and
+        // the point it is attached to does not move with it.
+        var carried = window._capture.Annotations.Single(a => a.Id == comment.Id);
+        var anchorBefore = carried.Points[0];
+        window.Surface.Measure(new Size(window._cropRect.Width, window._cropRect.Height));
+        window.Surface.Arrange(new Rect(0, 0, window._cropRect.Width, window._cropRect.Height));
+        new System.Windows.Media.Imaging.RenderTargetBitmap(
+            (int)window._cropRect.Width, (int)window._cropRect.Height, 96, 96, PixelFormats.Pbgra32).Render(window.Surface);
+        window.Surface.SelectAnnotation(carried.Id);
+        window.Surface.BeginGesture(window.Surface.GetBadgeCenter(carried));
+        window.Surface.UpdateGesture(new Point(-160, window.Surface.GetBadgeCenter(carried).Y), pressed: true);
+        window.Surface.EndGesture();
+        if (carried.NoteOffset is not { } carriedTo || carried.Points[0] != anchorBefore)
+            throw new InvalidOperationException("Dragging a badge must move the badge alone and leave the point where it is.");
+        if (carried.Points[0].X + carriedTo.X >= 0)
+            throw new InvalidOperationException($"A badge must be draggable out past the edge of the capture: {carriedTo}.");
 
         window.SelectToolMode(EditorTool.Rectangle);
         var blankRectangle = new AnnotationItem { Kind = EditorTool.Rectangle, Points = [new Point(320, 200), new Point(460, 300)] };
@@ -1368,8 +1394,9 @@ public partial class OverlayEditorWindow : Window
         if (_capture is null) return;
         if (annotation.Kind == EditorTool.Comment)
         {
-            annotation.ParentAnnotationId = _commentParentId;
-            _commentParentId = null;
+            // Nothing is written into ParentAnnotationId any more: a comment is a mark of its own,
+            // and moving a frame no longer drags the notes that were put on top of it. The field is
+            // still read, so a session of 1.5.0 keeps saying which mark its comments belong to.
             annotation.Points[1] = new Point(Math.Min(_capture.Image.PixelWidth, annotation.Points[0].X + 8), Math.Min(_capture.Image.PixelHeight, annotation.Points[0].Y + 8));
             // The tool stays in the hand, the way the frame and the arrow do: three comments in a row
             // without going back to the panel. It is put down by Escape, by "Select" and by arming
@@ -1498,7 +1525,6 @@ public partial class OverlayEditorWindow : Window
 
     private void OnAnnotationChanged(object sender, EventArgs e)
     {
-        MoveLinkedComments();
         PushHistory();
         RefreshLabels();
         if (_capture is not null && ChipLayer.Children.Count != _capture.Annotations.Count) RebuildChips();
@@ -1798,6 +1824,15 @@ public partial class OverlayEditorWindow : Window
         ShotKindChip.Margin = new Thickness(left, top, 0, 0);
     }
 
+    // The badge of a note came under the pointer: its pill opens, so the words behind a number are
+    // read by pointing at it. Moving off the badge leaves the pill open — the hand is on its way to
+    // it; a click beside it and Escape are what close it.
+    internal void OnSurfaceNoteHovered(object? sender, AnnotationItem? annotation)
+    {
+        if (annotation is null || _expandedChipId == annotation.Id) return;
+        if (_chipExpanders.TryGetValue(annotation.Id, out var expand)) expand(true);
+    }
+
     // The scale changed under Ctrl and the wheel: the pills that left the capture are hidden, and
     // the handles of the capture borders come back only while the picture is fitted.
     private void OnSurfaceViewChanged(object? sender, EventArgs e)
@@ -1943,7 +1978,6 @@ public partial class OverlayEditorWindow : Window
     private void OnCommentClick(object sender, RoutedEventArgs e)
     {
         if (_capture is null) return;
-        _commentParentId = Surface.SelectedAnnotation is { } selected ? (selected.Kind == EditorTool.Comment ? selected.ParentAnnotationId : selected.Id) : null;
         SelectToolMode(EditorTool.Comment);
     }
     private void OnDeleteAnnotationNoteClick(object sender, RoutedEventArgs e)
@@ -2161,6 +2195,12 @@ public partial class OverlayEditorWindow : Window
         }
         // The comment tool is armed until it is put down, and Escape is one of the ways to put it
         // down: it goes back to "Select" and leaves the capture where it is.
+        if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.ExpandedNote)
+        {
+            FinishExpandedChipIfOutside(null);
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape && NextEscapeStep() == EscapeStep.Comment)
         {
             SelectToolMode(EditorTool.Select);

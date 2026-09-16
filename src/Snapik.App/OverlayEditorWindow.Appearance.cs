@@ -658,10 +658,13 @@ public partial class OverlayEditorWindow
     // What Escape gives up, in order: an open popover, then the selection, and only with nothing
     // left to give up, the capture itself. The mark being drawn is taken by the canvas before the
     // window is asked at all.
-    internal enum EscapeStep { Popover, Comment, Selection, Capture }
+    internal enum EscapeStep { Popover, ExpandedNote, Comment, Selection, Capture }
 
     internal EscapeStep NextEscapeStep() =>
         ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || FillPopup.IsOpen || FontSizePopup.IsOpen ? EscapeStep.Popover
+        // A pill opened by pointing at a badge is given up before the tool in the hand is: it is
+        // the thing on screen, and the hand that opened it expects Escape to close it.
+        : _expandedChipId is not null ? EscapeStep.ExpandedNote
         : Surface.Tool == EditorTool.Comment ? EscapeStep.Comment
         : Surface.SelectedAnnotation is not null ? EscapeStep.Selection
         : EscapeStep.Capture;

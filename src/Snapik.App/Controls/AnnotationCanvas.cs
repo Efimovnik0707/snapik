@@ -33,7 +33,15 @@ public sealed class AnnotationCanvas : FrameworkElement
     private Point? _anchorOriginOffset;
     private Point _anchorDragStart;
     private bool _anchorMoved;
+    // The badge of a comment, dragged by itself: the point it is attached to stays where it is, and
+    // the leader grows between the two. It is not held inside the capture — a badge taken out onto
+    // the dark beside the picture is exactly what the margin of the export is for.
+    private AnnotationItem? _badgeDrag;
+    private Point? _badgeOriginOffset;
+    private Point _badgeDragStart;
+    private bool _badgeMoved;
     private Guid? _anchorHover;
+    private Guid? _badgeHover;
     private int _blurCacheKey;
     private BitmapSource? _blurCache;
     private double? _viewScale;
@@ -106,6 +114,9 @@ public sealed class AnnotationCanvas : FrameworkElement
     public event EventHandler? ViewChanged;
     public event EventHandler<AnnotationItem>? AnnotationActivated;
     public event EventHandler<AnnotationItem?>? SelectionChanged;
+    /// <summary>The badge of a comment came under the pointer, or left it: the window opens the
+    /// pill of that note, so the text is read by pointing at the number on the picture.</summary>
+    public event EventHandler<AnnotationItem?>? NoteHovered;
     public event EventHandler? AnnotationChanged;
     public event Action<Rect>? CropRequested;
 
@@ -280,6 +291,17 @@ public sealed class AnnotationCanvas : FrameworkElement
                 var hit = handleHit.Annotation ?? grabbed;
                 Select(hit);
                 if (hit is null) return;
+                // The badge of a comment travels on its own and the point it is attached to stays:
+                // that is what the leader is for. Moving the two together is what the anchor does.
+                if (hit.Kind == EditorTool.Comment && handleHit.Annotation is null)
+                {
+                    _badgeDrag = hit;
+                    _badgeOriginOffset = hit.NoteOffset;
+                    _badgeDragStart = imagePoint;
+                    _badgeMoved = false;
+                    CaptureMouse();
+                    return;
+                }
                 _gestureStart = imagePoint;
                 _originalPoints = [.. hit.Points];
                 _originalAdditionalSegments = hit.AdditionalPathSegments.Select(segment => segment.ToList()).ToList();
@@ -351,6 +373,18 @@ public sealed class AnnotationCanvas : FrameworkElement
             InvalidateVisual();
             return;
         }
+        // The badge travels and the point stays: no clamp to the picture here on purpose, a badge
+        // carried out beyond its edge is what the margin of the exported PNG is made for.
+        if (_badgeDrag is { } badged && pressed)
+        {
+            var moved = ToImage(displayPoint) - _badgeDragStart;
+            if (!_badgeMoved && moved.Length * (_imageRect.Width / Image!.PixelWidth) < GestureThreshold) return;
+            _badgeMoved = true;
+            var origin = _badgeOriginOffset ?? default;
+            badged.NoteOffset = new Point(origin.X + moved.X, origin.Y + moved.Y);
+            InvalidateVisual();
+            return;
+        }
         if (_manipulating && SelectedAnnotation is not null && _gestureStart is not null && _originalPoints is not null && pressed)
         {
             var current = ClampToImage(ToImage(displayPoint));
@@ -390,6 +424,15 @@ public sealed class AnnotationCanvas : FrameworkElement
             UpdateCursor(displayPoint);
             return;
         }
+        // A comment is put down by "press and drag": the press fixes the point, and what the hand
+        // drags away is the badge, not the second point of the mark. No clamp, as above.
+        if (_draft.Kind == EditorTool.Comment)
+        {
+            var carried = ToImage(displayPoint) - _gestureStart.Value;
+            _draft.NoteOffset = new Point(carried.X, carried.Y);
+            InvalidateVisual();
+            return;
+        }
         var point = ClampToImage(ToImage(displayPoint));
         if (_draft.Kind is EditorTool.Pen or EditorTool.Highlight)
             _draft.Points.Add(point);
@@ -420,10 +463,12 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (anchorHover is not null) { Cursor = Cursors.Hand; return; }
         var handle = FindResizeHandle(displayPoint);
         if (handle.Corner >= 0) { Cursor = handle.Corner is 0 or 2 ? Cursors.SizeNWSE : Cursors.SizeNESW; return; }
-        // A pin can be grabbed with the select tool and with the comment tool, and the pointer says
-        // so; with a drawing tool in the hand the same pixels are still a place to draw.
-        var movablePin = (Tool is EditorTool.Select or EditorTool.Comment) && HitTestAnnotation(ToImage(displayPoint)) is { Kind: EditorTool.Comment };
-        Cursor = FindMoveHandle(displayPoint) is not null || movablePin ? Cursors.Hand
+        // A pin is grabbed whatever tool is in the hand now, and the pointer says so. The badge
+        // under the pointer is told to the window as well: pointing at a number opens its note.
+        var grabbed = FindMoveHandle(displayPoint);
+        var badge = grabbed is { Kind: EditorTool.Comment } ? grabbed : null;
+        if (badge?.Id != _badgeHover) { _badgeHover = badge?.Id; NoteHovered?.Invoke(this, badge); }
+        Cursor = grabbed is not null ? Cursors.Hand
             : IsDrawingTool(Tool) && _imageRect.Contains(displayPoint) ? Cursors.Cross
             : Cursors.Arrow;
     }
@@ -465,6 +510,18 @@ public sealed class AnnotationCanvas : FrameworkElement
             InvalidateVisual();
             return;
         }
+        if (_badgeDrag is not null)
+        {
+            var carried = _badgeMoved;
+            _badgeDrag = null;
+            _badgeOriginOffset = null;
+            _badgeMoved = false;
+            ReleaseMouseCapture();
+            // One entry of the history for one drag, the way the anchor writes one.
+            if (carried) AnnotationChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            return;
+        }
         if (_manipulating)
         {
             _manipulating = false;
@@ -482,6 +539,11 @@ public sealed class AnnotationCanvas : FrameworkElement
         _draft = null;
         _gestureStart = null;
         ReleaseMouseCapture();
+        // A press that did not travel is a click, and a click puts the badge on the point it was
+        // put down at: an offset shorter than the threshold is no offset at all.
+        if (finished.Kind == EditorTool.Comment && finished.NoteOffset is { } carriedTo &&
+            new Vector(carriedTo.X, carriedTo.Y).Length * (_imageRect.Width / Image!.PixelWidth) < GestureThreshold)
+            finished.NoteOffset = null;
         if (GestureHasSize(finished))
         {
             if (finished.Kind == EditorTool.Crop)
@@ -516,6 +578,12 @@ public sealed class AnnotationCanvas : FrameworkElement
             _anchorOriginPoints = null;
             _anchorOriginOffset = null;
             _anchorMoved = false;
+        }
+        if (_badgeDrag is not null)
+        {
+            _badgeDrag = null;
+            _badgeOriginOffset = null;
+            _badgeMoved = false;
         }
         if (_draft is null && !_manipulating) return;
         _draft = null;
