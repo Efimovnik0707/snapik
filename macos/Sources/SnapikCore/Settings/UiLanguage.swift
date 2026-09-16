@@ -462,7 +462,6 @@ public enum UiLanguage {
         ("Закрыть ввод текста", "Close text editor"),
         ("Сохранить на компьютер (Ctrl+S)", "Save to computer (Ctrl+S)"),
         ("Показать стопку", "Show stack"),
-        ("Новая сессия", "New session"),
         (
             "Вставлено: {0} изображений · {1} заметок. Пакет остаётся в буфере, следующий снимок начнёт новую стопку",
             "Pasted: {0} images · {1} notes. The package stays on the clipboard, the next capture will start a new stack"
