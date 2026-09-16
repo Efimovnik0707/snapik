@@ -6,8 +6,8 @@ import SnapikCore
 /// Every number the strip is built from, in one place. The chain of this round reads left to right
 /// and only once: the window is `StripResizeGeometry.defaultWidth` wide, the field that carries the
 /// shadow takes `shadowMargin` off each side, the panel takes `panelPadding`, the list takes its
-/// own padding, and what is left is the card — 224 − 2·10 − 2·10 − 2·8 = **168** ([ТЗ№4 C4], C6,
-/// `reference-png/04`: "окно 224 · панель 204 · паддинг 10 · карточка 168×78").
+/// own padding, and what is left is the card — 244 − 2·20 − 2·10 − 2·8 = **168** ([ТЗ№4 C4], C6,
+/// `reference-png/04`: "окно 244 · панель 204 · паддинг 10 · карточка 168×78").
 ///
 /// Deliberately separate from `App/Theme.swift`'s `ThemeMetrics`, which belongs to the shell and
 /// still carries the numbers the strip had before this round.
@@ -16,18 +16,15 @@ enum StackMetrics {
 
     /// [ТЗ№4 C6] The field between the edge of the window and the edge of the visible panel, which is
     /// also the gap the strip keeps to the edge of the screen: the window sits flush against the
-    /// working area and the panel is seen ten points away from it, so `StripResizeGeometry.edgeGap`
-    /// is not added on top of it — the visible gap would double.
+    /// working area and the panel is seen twenty points away from it, which is why
+    /// `StripResizeGeometry.edgeGap` is nil — a gap of its own would double the visible one.
     ///
-    /// **Ten, not the twenty of SPEC-DELTA-3 §1.3 S-5.** The two figures of the round do not fit each
-    /// other: a window of 224 ([ТЗ№4 C4], and the floor `StripResizeGeometry` is already built on)
-    /// with a field of 20 leaves a panel of 184 and a card of 148, where C4 and the reference both
-    /// draw 168. `tasks/tz-005-details/C-strip.md` §0.1 found the same contradiction and its §9 gives
-    /// exactly two ways out: a window of 244, or a window of 224 with the shadow of the window cut
-    /// back to fit a field of ten. The first one moves a number Core has already been built and
-    /// tested on, so this is the second: blur 16 and depth 3 (8 + 3 = 11 ≈ 10), a shade harder than
-    /// blur 24 and depth 5 and not cut off at the edge of the window the way 1.4.0's was.
-    static let shadowMargin: CGFloat = 10
+    /// **Twenty.** The two figures of the intermediate round did not fit each other — a window of
+    /// 224 with a field of 20 leaves a card of 148, where the reference draws 168 — and sync 3 cut
+    /// the field back to ten to keep the window at 224. Windows settled the same contradiction the
+    /// other way: the window is 244 now, the field is the 20 a blur of 24 and a depth of 5 need,
+    /// and the panel and the card stay at 204 and 168 (SPEC-DELTA-4 §2.5, §3.1).
+    static let shadowMargin: CGFloat = 20
     static let panelPadding: CGFloat = 10
     static let panelCornerRadius: CGFloat = 16
     static let panelShadowBlur: CGFloat = 16

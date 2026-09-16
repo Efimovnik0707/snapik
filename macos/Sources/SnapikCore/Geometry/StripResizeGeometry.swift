@@ -1,24 +1,29 @@
-// Port of `src/Snapik.App/Controls/StripResizeGeometry.cs`, SPEC-DELTA-3 §1.3 S-9, §2.5.
+// Port of `src/Snapik.App/Controls/StripResizeGeometry.cs`, SPEC-DELTA-3 §1.3 S-9, §2.5,
+// SPEC-DELTA-4 §2.5, §3.1.
 import Foundation
 
 /// The width of the strip, dragged by its left edge. The right edge is fixed while the drag lasts,
 /// so the card grows into the screen instead of walking away from it. Sizes are window sizes: the
-/// visible card is narrower by the margin that carries the shadow (`StackMetrics`, the Stack zone).
+/// visible panel is 20 points narrower on each side, and that field carries the shadow
+/// (`StackMetrics.shadowMargin`, the Stack zone).
 ///
 /// Every figure is taken **from the start of the drag**, never as a sum of deltas: a delta added to
 /// the width of the moment keeps the travel already spent beyond a clamp, and the strip then ignores
 /// the whole way back until the pointer has given that travel up again — the dead zone the strip was
 /// reported to have.
 public enum StripResizeGeometry {
-    /// [ТЗ№4 C4] 224 on both edges: the strip of this round is 224 wide and never narrower. On
-    /// Windows 1.4.0 the pair is still 200/208.
-    public static let minimumWidth: Double = 224
-    public static let defaultWidth: Double = 224
+    /// 244 on both edges: the panel the user sees is 204 wide and the field under the shadow takes
+    /// 20 on each side (`204 + 2 · 20`). A width stored by a build whose floor was 200, 208 or the
+    /// 224 of the intermediate round is lifted to this one by `clampWidth`: the panel it stood for
+    /// is narrower than the one the strip draws now (SPEC-DELTA-4 §2.5).
+    public static let minimumWidth: Double = 244
+    public static let defaultWidth: Double = 244
 
     /// The gap the strip keeps between itself and the right edge of the working area. It is also the
     /// ceiling of the width: a strip as wide as the whole working area would have to start outside
-    /// of it to keep that gap.
-    public static let edgeGap: Double = 10
+    /// of it to keep that gap. The field under the shadow is the gap that is seen now, so this one
+    /// is zero and the panel still stands 20 points away from the edge.
+    public static let edgeGap: Double = 0
 
     /// The height of the strip is the height of the capture list, not of the window: the window
     /// derives its own height from this one. The card and the overlap stay as they are, the visible
@@ -31,7 +36,7 @@ public enum StripResizeGeometry {
     /// toast, the status line and the paddings of the card. The window measures its own before the
     /// first drag; this is the figure used until there is something to measure, and it is on the
     /// generous side on purpose — a list clamped a little short still fits on the screen.
-    public static let estimatedChromeHeight: Double = 140
+    public static let estimatedChromeHeight: Double = 160
 
     /// A width from the settings file. The ceiling is the working area of the screen the strip opens
     /// on, less the gap it keeps at the edge, so a width dragged out on a large monitor is pulled

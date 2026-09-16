@@ -108,7 +108,7 @@ final class SettingsMigrationTests: XCTestCase {
         XCTAssertFalse(settings.playSounds)
 
         XCTAssertEqual(SettingsMigration.defaultSoundVolume, settings.soundVolume)
-        XCTAssertEqual(224, settings.stackWidth)
+        XCTAssertEqual(StripResizeGeometry.defaultWidth, settings.stackWidth)
         XCTAssertEqual(372, settings.stackHeight)
         XCTAssertTrue(settings.stackTopmost)
         XCTAssertTrue(settings.confirmSessionDiscard)

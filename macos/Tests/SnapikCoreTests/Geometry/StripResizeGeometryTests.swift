@@ -1,21 +1,23 @@
 // Port of `tests/Snapik.App.Imaging.Tests/StripResizeGeometryTests.cs`, SPEC-DELTA-3 §1.3 S-9.
 //
-// The widths are the ones of this round: 224 is both the default and the floor ([ТЗ№4 C4]), where
-// Windows 1.4.0 still carries 208 and 200. The heights are the same numbers on both sides.
+// The widths are the ones of 1.5.0: 244 is both the default and the floor, because the field under
+// the shadow grew to 20 and the panel behind it stays 204 (SPEC-DELTA-4 §2.5). The heights are the
+// same numbers on both sides.
 import XCTest
 
 @testable import SnapikCore
 
 final class StripResizeGeometryTests: XCTestCase {
     func test_Dragging_the_left_edge_keeps_the_right_edge_where_it_was() {
-        let grown = StripResizeGeometry.widthFromStart(right: 1920, startWidth: 260, pointerDelta: -40, leftLimit: 0)
-        XCTAssertEqual(1620, grown.left)
-        XCTAssertEqual(300, grown.width)
+        // Both widths stay above the minimum, which is 244 since the field under the shadow grew:
+        // a drag that runs into the floor is the case right below this one.
+        let grown = StripResizeGeometry.widthFromStart(right: 1920, startWidth: 300, pointerDelta: -40, leftLimit: 0)
+        XCTAssertEqual(1580, grown.left)
+        XCTAssertEqual(340, grown.width)
 
-        // 220 is below the floor of this round, so the strip stops at 224 instead.
-        let shrunk = StripResizeGeometry.widthFromStart(right: 1920, startWidth: 260, pointerDelta: 40, leftLimit: 0)
-        XCTAssertEqual(1696, shrunk.left)
-        XCTAssertEqual(StripResizeGeometry.minimumWidth, shrunk.width)
+        let shrunk = StripResizeGeometry.widthFromStart(right: 1920, startWidth: 300, pointerDelta: 40, leftLimit: 0)
+        XCTAssertEqual(1660, shrunk.left)
+        XCTAssertEqual(260, shrunk.width)
     }
 
     /// A drag far past the left edge of a 1920 working area stops at that edge, not at a number.
@@ -155,12 +157,16 @@ final class StripResizeGeometryTests: XCTestCase {
 
     func test_A_stored_width_is_clamped_by_the_screen_and_nonsense_falls_back() {
         let cases: [(Double, Double, Double)] = [
-            (240, 1920, 240),
+            // A width stored by a build whose minimum was 200, 208 or 224 is lifted to the new one:
+            // the panel it stood for is narrower than the one the strip draws now.
+            (240, 1920, StripResizeGeometry.minimumWidth),
+            (400, 1920, 400),
             (40, 1920, StripResizeGeometry.minimumWidth),
-            // The working area less the gap at the edge is the ceiling, on both screens.
-            (5000, 1920, 1910),
+            // The working area less the gap at the edge is the ceiling, on both screens; the gap is
+            // nil now, because the field under the shadow is what stands between panel and edge.
+            (5000, 1920, 1920),
             // A width dragged out on a large monitor, opened on a laptop.
-            (1600, 1366, 1356),
+            (1600, 1366, 1366),
             (.nan, 1920, StripResizeGeometry.defaultWidth),
             // No screen to ask yet: the default stands, and the minimum is still a floor.
             (40, 0, StripResizeGeometry.minimumWidth),
