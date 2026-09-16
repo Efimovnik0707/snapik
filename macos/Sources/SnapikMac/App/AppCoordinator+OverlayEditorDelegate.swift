@@ -121,7 +121,10 @@ extension AppCoordinator: OverlayEditorDelegate {
     /// Port of `AutoSaveCaptureAsync` (SPEC-DELTA-2.md §1.8, SPEC-DELTA-2B.md §E3): renders and
     /// writes the just-committed capture to the user's save folder when "Автоматически сохранять
     /// готовые снимки" is on. Never interrupts the capture flow — a failure only sets status text.
-    private func autoSave(_ capture: CaptureItem) async {
+    ///
+    /// `internal` (not `private`): the whole-screen shortcut ends in the same autosave now that it
+    /// goes through the strip (`AppCoordinator+Package.swift`, SPEC-DELTA-4 §2.7).
+    func autoSave(_ capture: CaptureItem) async {
         guard settings.autoSaveCaptures else { return }
         let index = workspace.session.captures.firstIndex(where: { $0.id == capture.id }) ?? 0
         let displayLabel = (try? CaptureLabels.forIndex(index)) ?? "A"

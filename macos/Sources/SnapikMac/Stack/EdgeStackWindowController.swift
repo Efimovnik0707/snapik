@@ -150,7 +150,8 @@ final class EdgeStackWindowController: NSWindowController {
             let noteCount = annotationNoteCount + (ExportText.hasContent(capture.note) ? 1 : 0)
             return StackCaptureRow(
                 id: capture.id, label: index < labels.count ? labels[index] : nil,
-                thumbnail: thumbnail(for: capture), noteCount: noteCount, isSent: capture.sent)
+                thumbnail: thumbnail(for: capture), noteCount: noteCount, isSent: capture.sent,
+                kind: capture.kind)
         }
         contentContainer.reload(rows: rows)
         contentContainer.setEmptyHintShortcut(captureShortcutLabel())

@@ -42,6 +42,9 @@ struct StackCaptureRow {
     let thumbnail: NSImage?
     let noteCount: Int
     let isSent: Bool
+    /// Where the capture came from: the chip of the card and the way the thumbnail is fitted
+    /// (SPEC-DELTA-4 §1.2 S-4).
+    let kind: CaptureKind
 }
 
 /// Forwards every wheel event to `onScroll` (the hover/scroll tick) before scrolling normally.
@@ -323,18 +326,33 @@ final class EdgeStackContentView: NSView {
             let card = ThumbnailCardView(frame: .zero)
             card.delegate = self
             card.configure(
-                id: row.id, label: row.label, image: row.thumbnail, noteCount: row.noteCount, isSent: row.isSent)
+                id: row.id, label: row.label, image: row.thumbnail, noteCount: row.noteCount, isSent: row.isSent,
+                kind: row.kind)
             card.isSelected = row.id == selectedCaptureId
+            // The chip of a card is written by the card itself, and a card born while the strip is
+            // already in English must arrive translated (SPEC-DELTA-4 §5 point 2).
             card.applyLocalization(language: currentLanguage)
             listContainer.addSubview(card)
             return card
         }
 
-        emptyHintLabel.isHidden = !rows.isEmpty
-        scrollView.isHidden = rows.isEmpty
-        // [ТЗ№4 C3] An empty strip is not resized by its corner: there is no list to resize.
-        cornerGrip.isHidden = rows.isEmpty
+        updateEmptyState()
         needsLayout = true
+    }
+
+    /// Port of `UpdateEmptyState` (`EdgeStackWindow.xaml.cs:1398-1410`), §3.2 and §5 point 1: the
+    /// list, the hint and the corner grip belong to the state of the strip and have **one** owner.
+    /// Windows gave the grip a second one in `ExpandFromCapsule` and lost it after the first
+    /// capsule; the two places this port had (`reload` and `setCollapsed`) meet here instead.
+    /// [ТЗ№4 C3] An empty strip shows the hint instead of the list and is not resized by its corner;
+    /// the height the list was given is remembered through the empty state (`listHeight` is written
+    /// by `positionAtEdge` whether the list is shown or not), so the first capture unfolds it back.
+    private func updateEmptyState() {
+        let empty = rows.isEmpty
+        emptyHintLabel.isHidden = !empty
+        scrollView.isHidden = empty
+        cornerGrip.isHidden = empty || isCollapsed
+        applyEmptyHintText()
     }
 
     /// The label of the capture shortcut, or `nil` when that shortcut is switched off: the hint of
@@ -376,8 +394,10 @@ final class EdgeStackContentView: NSView {
         isCollapsed = collapsed
         panelView.isHidden = collapsed
         widthGrip.isHidden = collapsed
-        cornerGrip.isHidden = collapsed || rows.isEmpty
         capsuleView.isHidden = !collapsed
+        // The grip is the strip's, not the mode's: an empty strip unfolds back into an empty strip,
+        // without a grip that has nothing to pull (§5 point 1).
+        updateEmptyState()
         needsLayout = true
     }
 
@@ -421,11 +441,15 @@ final class EdgeStackContentView: NSView {
         needsDisplay = true
     }
 
+    /// Port of the two lines of `UpdateEmptyState` (`:1407-1409`), SPEC-DELTA-4 §3.2: the hint is one
+    /// sentence of the dictionary, and the shortcut is data — it is shown as it is written in the
+    /// settings, and the sentence without it is the one said when the shortcut is switched off.
     private func applyEmptyHintText() {
-        let first = MacUiText.text("Сначала сделайте снимок.", language: currentLanguage)
-        // The shortcut is data, not a string of the dictionary: it is shown as it is written in the
-        // settings, and it is left out when the capture shortcut is switched off.
-        emptyHintLabel.stringValue = emptyHintShortcut.map { "\(first)\n\($0)" } ?? first
+        emptyHintLabel.stringValue =
+            emptyHintShortcut.map {
+                MacUiText.text("Нажми {0} или «Новый снимок»", language: currentLanguage)
+                    .replacingOccurrences(of: "{0}", with: $0)
+            } ?? MacUiText.text("Нажми «Новый снимок»", language: currentLanguage)
     }
 
     // MARK: - Heights
@@ -621,6 +645,7 @@ final class EdgeStackContentView: NSView {
     func smokeVisibleStrings() -> [String] {
         var strings = [titleLabel.stringValue, countLabel.stringValue, newCaptureButton.title, emptyHintLabel.stringValue]
         strings += [clearButton, moreButton, collapseButton, hideButton].compactMap(\.toolTip)
+        strings += cardViews.flatMap { $0.smokeVisibleStrings() }
         if !statusLabel.isHidden { strings.append(statusLabel.stringValue) }
         return strings.filter { !$0.isEmpty }
     }

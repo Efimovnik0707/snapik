@@ -27,8 +27,11 @@ enum StackMetrics {
     static let shadowMargin: CGFloat = 20
     static let panelPadding: CGFloat = 10
     static let panelCornerRadius: CGFloat = 16
-    static let panelShadowBlur: CGFloat = 16
-    static let panelShadowOffset: CGFloat = 3
+    /// The shadow of a field of twenty: `BlurRadius="24" ShadowDepth="5"` of the panel border
+    /// (`EdgeStackWindow.xaml:137`). Sixteen and three were cut to fit the field of ten sync 3 had;
+    /// at twenty the shadow is drawn the way Windows draws it (SPEC-DELTA-4 §3.1).
+    static let panelShadowBlur: CGFloat = 24
+    static let panelShadowOffset: CGFloat = 5
 
     static let headerHeight: CGFloat = 28
     /// [ТЗ№4 C4] 22, not 26: four of them and their gaps have to fit the narrower header.

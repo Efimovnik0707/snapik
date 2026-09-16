@@ -11,15 +11,32 @@ extension AppCoordinator {
     /// Port of `SaveAndCopyCommittedPackageAsync` (`:386-404`). SPEC-DELTA-2A §4: runs under
     /// `clipboardPublicationGate` and cancels any in-flight receiver-echo watch first — this
     /// publishes a brand-new package, so any watch still chasing the *previous* one is obsolete.
+    ///
+    /// `includingSent` is the "Копировать пакет" command (`CopyPackageAsync`, `:1113-1135`): copying
+    /// by hand is about the strip as a whole and takes the sent captures with it, and it becomes the
+    /// current package because an intercepted Cmd+V pastes exactly that.
     @discardableResult
-    func saveAndCopyCommittedPackage() async -> Bool {
+    func saveAndCopyCommittedPackage(includingSent: Bool = false) async -> Bool {
         await clipboardPublicationGate.wait()
         defer { clipboardPublicationGate.release() }
         cancelReceiverEchoWatch()
 
         do {
+            // T-5, port of `SaveAndCopyCommittedPackageAsync`'s first branch (`:868-880`): everything
+            // in the strip was already pasted, so the clipboard is left as the user has it instead of
+            // publishing a package that repeats what the receiver already has.
+            let packageCaptures = includingSent ? workspace.session.captures : workspace.pendingCaptures
+            guard !packageCaptures.isEmpty else {
+                _ = await save()
+                prepared = nil
+                ownedClipboardReceipt = nil
+                ownedClipboardPromptText = nil
+                stackWindow?.setStatus("", isError: false)
+                return true
+            }
+
             let renderer = ExportImageRenderer()
-            let export = try await workspace.prepareExport(renderer: renderer)
+            let export = try await workspace.prepareExport(renderer: renderer, includingSent: includingSent)
             prepared = export
             let current = await withCheckedContinuation { (continuation: CheckedContinuation<ClipboardSnapshot, Never>) in
                 clipboard.capture { continuation.resume(returning: $0) }
@@ -73,7 +90,12 @@ extension AppCoordinator {
         }
 
         do {
-            if workspace.session.captures.isEmpty {
+            // T-5, port of `:1605-1618`: nothing is waiting. A strip that holds only sent captures
+            // keeps the package that was pasted from it — the clipboard, the package and the receipt
+            // all still describe it, so the same set can go somewhere else; only a strip that is
+            // really empty gives the clipboard back.
+            if workspace.pendingCaptures.isEmpty {
+                guard workspace.session.captures.isEmpty else { return }
                 let newReceipt = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ClipboardSnapshot, Error>) in
                     clipboard.setTextGuarded(text: "", expectedSequence: receipt.sequence) { result in continuation.resume(with: result) }
                 }
@@ -102,7 +124,8 @@ extension AppCoordinator {
     }
 
     func copyPackage() async {
-        if await saveAndCopyCommittedPackage() {
+        // T-5 (`:1110-1112`): copying by hand takes the strip as a whole, sent captures included.
+        if await saveAndCopyCommittedPackage(includingSent: true) {
             // G-10: the third sound of the round. It belongs to "Копировать пакет" and not to a
             // capture — a capture already has the shutter, and Windows takes the note off that path
             // for the same reason (`EdgeStackWindow.xaml.cs:1127`).
@@ -235,7 +258,8 @@ extension AppCoordinator {
         // never actually printed.
         stackWindow?.setStatus(StatusStrings.preparingPngAndText, isError: false)
         do {
-            let export = try await workspace.prepareExport(renderer: ExportImageRenderer())
+            // T-5 (`:1151`): saving by hand takes every capture of the strip, sent ones included.
+            let export = try await workspace.prepareExport(renderer: ExportImageRenderer(), includingSent: true)
             prepared = export
             stackWindow?.setStatus(
                 StatusStrings.prepared(imageCount: export.imagePathsInOrder().count, noteCount: export.manifest.noteCount),
@@ -270,7 +294,12 @@ extension AppCoordinator {
                 guard let data = ImageCodec.encode(image, format: .png) else {
                     throw SnapikError.invalidData("Could not re-encode image as PNG.")
                 }
-                _ = try await workspace.addCapture(pngData: data, pixelWidth: image.width, pixelHeight: image.height)
+                // S-3 (`EdgeStackWindow.xaml.cs:1071-1074`): the name of the file is what tells one
+                // import from another, on the chip of the card and in `prompt.md`; a capture of a
+                // region has nothing to put there and leaves it empty.
+                _ = try await workspace.addCapture(
+                    pngData: data, pixelWidth: image.width, pixelHeight: image.height,
+                    title: url.lastPathComponent, kind: .import)
                 imported += 1
             } catch {
                 stackWindow?.setStatus(StatusStrings.importFailed(fileName: url.lastPathComponent, error: "\(error)"), isError: true)
@@ -309,16 +338,33 @@ extension AppCoordinator {
         }
     }
 
-    // MARK: - Fast save (SPEC §1.14)
+    // MARK: - The whole screen (SPEC-DELTA-4 §1.2 S-1, S-2, §2.7)
 
+    /// Port of `CaptureFullscreenAsync` (`EdgeStackWindow.Saving.cs:45-73`). The shortcut no longer
+    /// writes a PNG straight into the folder and shows nothing: the whole screen goes into the strip
+    /// like any other capture, and the folder gets it from the autosave the rest of them go through
+    /// — three files of five megabytes each used to land in Pictures while the strip stayed empty.
+    /// The tail is the tail of an ordinary capture minus the editor: the shortcut means "take
+    /// everything right now", and a full-screen editor over a picture 3840 px wide is not that.
     func saveFullscreen() async {
         // Finding 11 / SPEC-DELTA-2A §4: don't race a paste-intent-driven session rotation
         // that's still in flight.
         await pasteIntentTransition?.value
         guard !isBusy else { return }
+        // Asked before anything is hidden, exactly as in the capture of a region (`:53, 57`): a press
+        // on a full strip must not black the screen out for a capture that has nowhere to go. The
+        // toast is the strip's, so the strip is left on the screen to carry it.
+        guard stackWindow?.stripIsFull() != true else {
+            stackWindow?.reveal()
+            return
+        }
         isBusy = true
-        let wasVisible = stackWindow?.isVisible ?? false
-        defer { isBusy = false }
+        defer {
+            isBusy = false
+            // S-2 (`:72`): the strip comes back whether it was on the screen or not — the capture
+            // that has just been taken is in it, and a hidden strip would say nothing of that.
+            stackWindow?.reveal()
+        }
 
         hideAllOwnWindows()
         try? await Task.sleep(nanoseconds: 120_000_000)
@@ -327,16 +373,21 @@ extension AppCoordinator {
             guard let frame = await captureDesktopFrame() else {
                 throw SnapikError.invalidData("no screen frame")
             }
-            try FastSaveService.save(frame.image, settings: settings)
-            // Finding 4: gate on "Показывать уведомления".
-            if settings.showNotifications { notificationService.notify("Снимок сохранён", language: language) }
+            guard let data = ImageCodec.encode(frame.image, format: .png) else {
+                throw SnapikError.invalidData("Could not encode the screen as PNG.")
+            }
+            let capture = try await workspace.addCapture(
+                pngData: data, pixelWidth: frame.image.width, pixelHeight: frame.image.height,
+                kind: .fullscreen, monitorCount: NSScreen.screens.count)
+            stackWindow?.refresh()
+            invalidatePrepared()
+            UiSoundService.capture(settings)
+            _ = await saveAndCopyCommittedPackage()
+            await autoSave(capture)
         } catch {
-            stackWindow?.setStatus(StatusStrings.couldNotSaveScreen("\(error)"), isError: true)
-            stackWindow?.reveal()
-            return
+            stackWindow?.setStatus(
+                "\(MacUiText.text("Не удалось снять экран", language: language)): \(error)", isError: true)
         }
-
-        if wasVisible { stackWindow?.reveal() }
     }
 
     // MARK: - Settings (SPEC §1.17)
@@ -368,11 +419,34 @@ extension AppCoordinator {
 
     // MARK: - Quit (SPEC §9.7)
 
-    /// Returns `true` if it is safe to terminate (forced save succeeded).
+    /// Port of `DiscardSessionOnExitAsync` (`EdgeStackWindow.xaml.cs:1857-1889`), C-15: a session
+    /// lives for one run, so the run that is ending takes its directory with it — under the same
+    /// gate and in the same order as "Очистить ленту", the clipboard first (the package on it is a
+    /// list of paths into the directory that goes), the files after.
+    ///
+    /// Returns `true` if it is safe to terminate. An operation still in flight is the one case that
+    /// keeps the files: whatever it writes would land in a directory that was just deleted, and the
+    /// purge of the next start takes the whole root anyway (`:1863-1867`). That branch keeps this
+    /// port's forced save, which is what the quit reply has always been built on (SPEC §9.7).
     func prepareForQuit() async -> Bool {
-        let saved = await save()
-        if !saved { stackWindow?.reveal() }
-        return saved
+        guard !isBusy else {
+            StartupLog.write(options, "Exit: the session was left to the next start, an operation was still running.")
+            let saved = await save()
+            if !saved { stackWindow?.reveal() }
+            return saved
+        }
+
+        await clipboardPublicationGate.wait()
+        defer { clipboardPublicationGate.release() }
+        // Nothing may publish or rebuild the clipboard from here on: the strip is going.
+        isSessionResetting = true
+        cancelReceiverEchoWatch()
+        await releaseOwnedClipboard()
+        workspace.discardCurrentSession { [weak self] message in
+            guard let self else { return }
+            StartupLog.write(self.options, message)
+        }
+        return true
     }
 
     func shutdown() {

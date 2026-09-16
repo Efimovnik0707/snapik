@@ -57,6 +57,10 @@ extension AppCoordinator {
         else { return }
 
         let pathsAtIntent = prepared?.imagePathsInOrder().map(\.path) ?? []
+        // T-5, port of `publishedAtIntent.CaptureIds` (`:377`): which captures the package on the
+        // clipboard was built from, read now and not after the completion — a capture edited in
+        // between keeps its id, and one added in between was never in this package.
+        let idsAtIntent = prepared?.manifest.images.map(\.captureId) ?? []
         // MEDIUM-6: while this sequence runs, a second physical Cmd+V/Ctrl+V must be swallowed
         // (not just left to the predicate, which already rejects it via `transitionInFlight` and
         // would otherwise let the raw keystroke through and paste the still-owned package again)
@@ -66,7 +70,8 @@ extension AppCoordinator {
         pasteIntentTransition = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.completePasteIntent(
-                intent, receiptAtIntent: receiptAtIntent, promptAtIntent: promptAtIntent, pathsAtIntent: pathsAtIntent)
+                intent, receiptAtIntent: receiptAtIntent, promptAtIntent: promptAtIntent,
+                pathsAtIntent: pathsAtIntent, idsAtIntent: idsAtIntent)
             self.pasteIntentTransition = nil
             self.setSequenceInFlight(false)
         }
@@ -86,7 +91,8 @@ extension AppCoordinator {
     /// (`completeSequential`) or the Codex Desktop text catch-up (`complete`), then either
     /// republishes the reusable package or rotates the session, depending on what happened.
     private func completePasteIntent(
-        _ intent: PasteIntent, receiptAtIntent: ClipboardSnapshot, promptAtIntent: String, pathsAtIntent: [String]
+        _ intent: PasteIntent, receiptAtIntent: ClipboardSnapshot, promptAtIntent: String, pathsAtIntent: [String],
+        idsAtIntent: [SBGuid]
     ) async {
         await clipboardPublicationGate.wait()
         defer { clipboardPublicationGate.release() }
@@ -127,6 +133,10 @@ extension AppCoordinator {
             if settings.clearStackAfterPaste {
                 await clearStack(clipboardGateHeld: true)
             } else {
+                // T-5, port of the rest of `MarkCapturesSentAsync` (`:1568-1573`): the captures that
+                // were in the package stay in the strip, dimmed and without a letter, and out of
+                // every package after this one.
+                await markCapturesSent(idsAtIntent)
                 await republishPackageForReuse(paths: pathsAtIntent, prompt: promptAtIntent)
             }
         case .notApplicable where !intent.intercepted:
@@ -145,6 +155,29 @@ extension AppCoordinator {
             stackWindow?.setStatus(
                 StatusStrings.capturesSavedButPasteIncomplete(result.message, language: language), isError: true)
         }
+    }
+
+    // MARK: - The mark of a sent capture (T-5, `MarkCapturesSentAsync`)
+
+    /// Port of `MarkCapturesSentAsync` (`:1565-1580`) without its first line (the "лента очищается
+    /// сама" branch, which the caller owns) and without its clipboard rebuild: Windows republishes
+    /// what is still waiting, this port republishes the package that was just pasted so the same set
+    /// can go into another application (SPEC-DELTA-2A §4.6), and the next capture starts a session of
+    /// its own. The two meet where they matter — a capture that has left is never in a package again.
+    private func markCapturesSent(_ ids: [SBGuid]) async {
+        let sent = Set(ids)
+        var marked = false
+        for capture in workspace.session.captures where sent.contains(capture.id) && !capture.sent {
+            var updated = capture
+            updated.sent = true
+            do { try workspace.replaceCapture(updated) } catch { continue }
+            marked = true
+        }
+        guard marked else { return }
+        // The letters of the strip are handed out again by `refresh()`
+        // (`SentCaptureRules.stripLabels`), the way `Renumber()` does it on Windows.
+        stackWindow?.refresh()
+        _ = await save()
     }
 
     // MARK: - Reusable package (Part 1 §4.6, `RepublishPackageForReuseAsync`)

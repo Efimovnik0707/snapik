@@ -49,10 +49,13 @@ extension SmokeTestRunner {
         // [ТЗ№4 C1] The cards are in the order of the data, the newest over the oldest: the last card
         // is the last subview (drawn last) and it sits lowest on the screen, overlapping the one
         // before it by `cardOverlap`.
+        // The three kinds stand next to each other on purpose: the two that carry a chip are on the
+        // screen when the English sweep below is taken.
+        let kinds: [CaptureKind] = [.region, .fullscreen, .import, .region]
         let rows = (0..<4).map { index in
             StackCaptureRow(
                 id: SBGuid(), label: (try? CaptureLabels.forIndex(index)) ?? "?", thumbnail: nil, noteCount: index,
-                isSent: false)
+                isSent: false, kind: kinds[index])
         }
         content.reload(rows: rows)
         content.listHeight = CGFloat(StripResizeGeometry.defaultListHeight)
@@ -89,6 +92,16 @@ extension SmokeTestRunner {
         let cyrillic = CharacterSet(charactersIn: "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ")
         let untranslated = content.smokeVisibleStrings().filter { $0.rangeOfCharacter(from: cyrillic) != nil }
         checks.append(("the strip translates into English", untranslated.isEmpty))
+
+        // §5 point 2: a card born while the strip is already in English arrives translated — the
+        // chip of the kind is written by the card, from the language the strip is showing.
+        content.reload(rows: rows)
+        let chipsOfNewCards = content.cardViews.flatMap { $0.smokeVisibleStrings() }
+        checks.append(
+            (
+                "a card born in an English strip carries a translated chip",
+                chipsOfNewCards == ["screen", "import"]
+            ))
         content.applyLocalization(language: coordinator.language)
 
         // S-10: the capsule is a mode of the same window, at the same right edge, and the strip comes
@@ -134,7 +147,81 @@ extension SmokeTestRunner {
                     && (!WindowCaptureExclusion.isEnabled || duringCapture == .none)
             ))
 
+        checks += kindProbes(options: options)
+
         controller.hide()
         return checks
+    }
+
+    /// A-1 and A-2 (`SmokeTestRunner.cs:1293-1329`): the two captures that are not a region say so
+    /// themselves. Both are checked without the strip on the screen — what is asked is the way the
+    /// kind and the title of a capture reach `prompt.md` and the session file.
+    private static func kindProbes(options: CommandLineOptions) -> [(String, Bool)] {
+        var checks: [(String, Bool)] = []
+        let start = Date(timeIntervalSince1970: 1_760_000_000)
+
+        // A-1: a whole-screen capture names itself even though nobody wrote a word about it, and the
+        // kind and the number of monitors it covered survive the file.
+        var fullscreen = CaptureItem.create(
+            sourceImagePath: "source/screen.png", pixelWidth: 3840, pixelHeight: 1125)
+        fullscreen.kind = .fullscreen
+        fullscreen.monitorCount = 2
+        var namesItself = false
+        var survivesTheFile = false
+        do {
+            let session = try SessionOperations.addCapture(
+                SnapikSession.create(nowUtc: start), capture: fullscreen, nowUtc: start)
+            namesItself = try PromptGenerator().generate(session) == "Снимок A — весь экран."
+            let restored = try SnapikJson.decoder.decode(
+                SnapikSession.self, from: SnapikJson.encoder.encode(session))
+            survivesTheFile =
+                restored.captures.first?.kind == .fullscreen && restored.captures.first?.monitorCount == 2
+        } catch {
+            // Both answers stay `false`: a probe that could not be run has not passed.
+        }
+        checks.append(("a whole-screen capture names itself", namesItself))
+        checks.append(("the kind of a capture and its monitors survive the session file", survivesTheFile))
+
+        // A-2: the import of a file from disk, the whole way — a real PNG, the decoder, and the name
+        // of the file, which is what tells one import from another in `prompt.md` and on the card.
+        let probeRoot = (options.dataDirectory ?? URL(fileURLWithPath: NSTemporaryDirectory()))
+            .appendingPathComponent("import-probe", isDirectory: true)
+        var reachesTheStrip = false
+        do {
+            try FileManager.default.createDirectory(at: probeRoot, withIntermediateDirectories: true)
+            let path = probeRoot.appendingPathComponent("IMG_0512.png")
+            guard let drawn = makeSolidImage(width: 160, height: 120), let png = ImageCodec.encode(drawn, format: .png)
+            else { throw SnapikError.invalidData("the probe image could not be encoded") }
+            try ImageCodec.writeAtomically(png, to: path)
+
+            guard let loaded = ImageCodec.loadImage(at: path) else {
+                throw SnapikError.invalidData("the probe image could not be read back")
+            }
+            var imported = CaptureItem.create(
+                sourceImagePath: "source/import.png", pixelWidth: loaded.width, pixelHeight: loaded.height,
+                title: path.lastPathComponent)
+            imported.kind = .import
+            let session = try SessionOperations.addCapture(
+                SnapikSession.create(nowUtc: start), capture: imported, nowUtc: start)
+            let prompt = try PromptGenerator().generate(session)
+            reachesTheStrip = loaded.width == 160 && loaded.height == 120 && prompt == "Снимок A — IMG_0512.png."
+        } catch {
+            reachesTheStrip = false
+        }
+        checks.append(("a file from disk reaches the strip under its own name", reachesTheStrip))
+
+        return checks
+    }
+
+    private static func makeSolidImage(width: Int, height: Int) -> CGImage? {
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo)
+        else { return nil }
+        context.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()
     }
 }

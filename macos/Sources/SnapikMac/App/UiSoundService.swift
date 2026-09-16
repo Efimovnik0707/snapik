@@ -59,6 +59,14 @@ enum UiSoundService {
         copiedSound.play(volume: settings.soundVolume)
     }
 
+    /// Port of `Preload` (`UiSoundService.cs:50-55`), called while the strip starts
+    /// (`EdgeStackWindow.OnLoaded:199`): the files are opened here so the first sound of the run is
+    /// not the one that waits for the disk. A file that cannot be opened switches its own sound off
+    /// and says nothing — audio feedback must never stand in the way of a capture.
+    static func preload() {
+        for sound in [shutter, tickSound, copiedSound] { sound.open() }
+    }
+
     /// Port of `VerifyAssets`; called first from `SmokeTestRunner` (SPEC §8.4). The three files are
     /// shipped, are not empty and really start as an MP3 stream.
     static func verifyAssets() throws {
@@ -93,6 +101,18 @@ enum UiSoundService {
         func data() -> Data? {
             guard let url = Self.resourceURL(named: fileName) else { return nil }
             return try? Data(contentsOf: url)
+        }
+
+        /// Port of `Sound.Open`: the file is read and handed to `NSSound` ahead of the first play.
+        func open() {
+            gate.lock()
+            defer { gate.unlock() }
+            guard !failed, player == nil else { return }
+            guard let data = data(), let opened = NSSound(data: data) else {
+                failed = true
+                return
+            }
+            player = opened
         }
 
         /// Port of `Sound.Play`: the volume of the preference, scaled by the gain of this sound, and

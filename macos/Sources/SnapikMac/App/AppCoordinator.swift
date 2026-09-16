@@ -161,6 +161,11 @@ final class AppCoordinator {
     func start() {
         StartupLog.write(options, "AppCoordinator start entered")
 
+        // Port of `UiSoundService.Preload()` (`EdgeStackWindow.OnLoaded:199`): the three files are
+        // opened while the strip starts, so the shutter of the first capture is not the sound that
+        // waits for the disk.
+        UiSoundService.preload()
+
         // Screen Recording is checked/requested lazily, at the first *real* capture
         // (`captureDesktopFrame()`) instead of here — SPEC §9.1 as scoped by CONTRACTS.md
         // "Shell": startup (including `--demo`) must never trigger the TCC prompt.
@@ -196,7 +201,13 @@ final class AppCoordinator {
                     self.stackWindow?.setStatus(StatusStrings.failedToRestoreSession("\(error)"), isError: true)
                 }
             } else {
-                _ = await self.workspace.loadCurrent()
+                // C-15, port of `EdgeStackWindow.OnLoaded`'s else-branch (`:222-224`): a session
+                // lives for one run. The strip starts empty and whatever the previous run left on
+                // disk — including a run that was killed — goes before this one writes anything,
+                // instead of being restored.
+                self.workspace.purgePreviousSessions { message in
+                    StartupLog.write(self.options, message)
+                }
             }
             self.stackWindow?.refresh()
             // [ТЗ№4 A7] A run that began with the wizard ends with the strip shown by the wizard's
@@ -508,7 +519,12 @@ final class AppCoordinator {
     // MARK: - Session lifecycle (SPEC §1.11)
 
     @discardableResult
-    func startNewSession() async -> Bool {
+    func startNewSession() async -> Bool { await resetSession(discardingFiles: false) }
+
+    /// The one tail both ways of leaving a session share. `discardingFiles` tells them apart (C-15):
+    /// a rotation keeps the previous session on disk so the package published from it can still be
+    /// pasted, and only the strip being emptied deletes the directory it points at.
+    private func resetSession(discardingFiles: Bool) async -> Bool {
         guard !isSessionResetting else { return false }
         isSessionResetting = true
         defer { isSessionResetting = false }
@@ -519,7 +535,14 @@ final class AppCoordinator {
         pasteObservedForCurrentPackage = false
 
         do {
-            try await workspace.startNewSession()
+            if discardingFiles {
+                workspace.discardCurrentSession { [weak self] message in
+                    guard let self else { return }
+                    StartupLog.write(self.options, message)
+                }
+            } else {
+                try await workspace.startNewSession()
+            }
             removedStack.removeAll()
             prepared = nil
             ownedClipboardReceipt = nil
@@ -553,14 +576,19 @@ final class AppCoordinator {
     private func clearStackCore() async -> Bool {
         guard !isSessionResetting else { return false }
         await releaseOwnedClipboard()
-        return await startNewSession()
+        // C-15, the second half: the files go with the strip. The clipboard has just been given back,
+        // so nothing is left pointing into the directory that is deleted here.
+        return await resetSession(discardingFiles: true)
     }
 
     /// Port of `ReleaseOwnedClipboardCoreAsync` (`:1520-1533`): the package lives on the clipboard
     /// until the next capture or until the strip is cleared, and only while the clipboard still
     /// holds our own write — a package another application has already replaced is not ours to
     /// erase.
-    private func releaseOwnedClipboard() async {
+    ///
+    /// `internal` (not `private`): the exit path gives the clipboard back the same way before it
+    /// deletes the session the package points into (`AppCoordinator+Package.swift`, C-15).
+    func releaseOwnedClipboard() async {
         defer {
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
