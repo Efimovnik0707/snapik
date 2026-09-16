@@ -110,16 +110,16 @@ enum SmokeTestRunner {
         // 2b. The settings window and the wizard (SPEC-DELTA-3 §1.7 K-3, K-4), each over a data
         // directory of its own so neither meets the session of another step.
         let settingsProbeRoot = root.appendingPathComponent("settings-probe", isDirectory: true)
-        for probe in await MainActor.run({ runSettingsAndOnboardingProbes(dataDirectory: settingsProbeRoot) }) {
-            check(probe.name, probe.ok)
+        let settingsProbes = await MainActor.run {
+            runSettingsAndOnboardingProbes(dataDirectory: settingsProbeRoot)
         }
+        for probe in settingsProbes { check(probe.name, probe.ok) }
 
         // 2c. The strip (SPEC-DELTA-3 §1.7 K-1).
         let stackProbeRoot = root.appendingPathComponent("stack-probe", isDirectory: true)
         let stackProbeOptions = CommandLineOptions.parse(arguments: ["--data-dir", stackProbeRoot.path], environment: [:])
-        for probe in await MainActor.run({ stackProbes(options: stackProbeOptions) }) {
-            check(probe.0, probe.1)
-        }
+        let stripProbes = await MainActor.run { stackProbes(options: stackProbeOptions) }
+        for probe in stripProbes { check(probe.0, probe.1) }
 
         // 3. Settings translation (point 3) and editor-internal probes for blur preview, resize
         // handles, and the comment-chip affordance (points 6, 9, 10) — the only things that need
@@ -361,9 +361,10 @@ enum SmokeTestRunner {
         // with the window it drove (SPEC-DELTA-3 §7 W0-6, S-1).
         do {
             let probeImage = try makeCheckerboardImage(width: 480, height: 300)
-            for probe in await MainActor.run({ editorProbesWithoutController(probeImage: probeImage) }) {
-                check(probe.name, probe.passed)
+            let standaloneProbes = await MainActor.run {
+                editorProbesWithoutController(probeImage: probeImage)
             }
+            for probe in standaloneProbes { check(probe.name, probe.passed) }
         } catch {
             check("editor probes without a controller", false)
         }
