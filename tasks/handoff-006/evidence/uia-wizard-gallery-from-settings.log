@@ -1,0 +1,13 @@
+﻿start 12:12:19
+12:12:20.371 wizard not open
+12:13:46.357 win=572,135,775x750 | no horizontal scroller (step4 not shown?)
+12:13:49.832 win=572,135,775x750 | gallery Hpercent=0 viewSize=53.1 | chevron@651,461 enabled=False under=ControlType.Button '' cls=Button rect=635,445,32,32 | chevron@1268,461 enabled=True under=ControlType.Button '' cls=Button rect=1252,445,33,32
+12:13:51.925 win=572,135,775x750 | gallery Hpercent=35.5 viewSize=53.1 | chevron@651,461 enabled=True under=ControlType.Button '' cls=Button rect=635,445,32,32 | chevron@1268,461 enabled=True under=ControlType.Button '' cls=Button rect=1252,445,33,32
+12:13:52.437 win=572,135,775x750 | gallery Hpercent=71 viewSize=53.1 | chevron@651,461 enabled=True under=ControlType.Button '' cls=Button rect=635,445,32,32 | chevron@1268,461 enabled=True under=ControlType.Button '' cls=Button rect=1252,445,33,32
+12:13:52.935 win=572,135,775x750 | gallery Hpercent=100 viewSize=53.1 | chevron@651,461 enabled=True under=ControlType.Button '' cls=Button rect=635,445,32,32 | chevron@1268,461 enabled=False under=ControlType.Button '' cls=Button rect=1252,445,33,32
+12:13:59.541 win=572,135,775x750 | gallery Hpercent=71 viewSize=53.1 | chevron@651,461 enabled=True under=ControlType.Button '' cls=Button rect=635,445,32,32 | chevron@1268,461 enabled=True under=ControlType.Button '' cls=Button rect=1252,445,33,32
+12:14:01.553 win=572,135,775x750 | gallery Hpercent=35.5 viewSize=53.1 | chevron@651,461 enabled=True under=ControlType.Button '' cls=Button rect=635,445,32,32 | chevron@1268,461 enabled=True under=ControlType.Button '' cls=Button rect=1252,445,33,32
+12:14:46.854 win=572,135,775x750 | no horizontal scroller (step4 not shown?) | chevron@864,775 enabled=False under=ControlType.Button '' cls=Button rect=845,756,37,38 | chevron@1056,775 enabled=True under=ControlType.Button '' cls=Button rect=1037,756,38,38
+12:14:49.149 win=,,x | no horizontal scroller (step4 not shown?)
+12:14:49.574 wizard not open
+end 12:24:20

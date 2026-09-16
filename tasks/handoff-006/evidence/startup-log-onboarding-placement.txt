@@ -1,0 +1,8 @@
+2026-09-16T11:46:06.3277539+02:00 Onboarding placement: re-aligned on monitor={X=1920,Y=45,Width=1920,Height=1032}, scale=1, MaxHeight=992, height=600
+2026-09-16T11:46:06.3928313+02:00 Onboarding placement: opened on monitor={X=1920,Y=45,Width=1920,Height=1032}, scale=1, MaxHeight=992, height=600
+2026-09-16T12:13:45.8881923+02:00 Onboarding opens: hotkeys=True, howToOnly=False
+2026-09-16T12:13:45.9166645+02:00 Onboarding corners: rounded=True
+2026-09-16T12:13:45.9173947+02:00 Onboarding placement: opened on monitor={X=0,Y=0,Width=1920,Height=1020}, scale=1.25, MaxHeight=776, height=600
+2026-09-16T13:45:01.8739933+02:00 Onboarding opens: hotkeys=True, howToOnly=False
+2026-09-16T13:45:01.9098548+02:00 Onboarding corners: rounded=True
+2026-09-16T13:45:01.9107131+02:00 Onboarding placement: opened on monitor={X=0,Y=0,Width=1920,Height=1020}, scale=1.25, MaxHeight=776, height=600
