@@ -479,7 +479,8 @@ public partial class OverlayEditorWindow : Window
                 var asked = window.Toolbar.DesiredSize;
                 window.Toolbar.MaxWidth = double.PositiveInfinity;
                 window.Toolbar.InvalidateMeasure();
-                var placement = PlaceToolbar(window._cropRect, area, new Size(Math.Max(asked.Width, 380), Math.Max(asked.Height, 50)), []);
+                var placement = Controls.ToolbarLayout.PlaceToolbar(window._cropRect, area,
+                    new Size(Math.Max(asked.Width, 380), Math.Max(asked.Height, 50)), [], mayOverlap: false);
                 if (placement.Right > area.Right - 8 + 0.5)
                     throw new InvalidOperationException($"The markup panel placed into a working area of {area} ran past its right edge: {placement}.");
             }
@@ -518,9 +519,9 @@ public partial class OverlayEditorWindow : Window
         {
             window._fitBox = new Size(1198, 593);
             var fit = Controls.EditorGeometry.Fit(wide.PixelWidth, wide.PixelHeight, 1198, 593);
-            window._cropRect = new Rect(100, 100, wide.PixelWidth * fit.Scale, wide.PixelHeight * fit.Scale);
+            window._cropRect = new Rect(100, 100, wide.PixelWidth * fit, wide.PixelHeight * fit);
             window.SetupEditor();
-            var fitted = string.Format(UiLanguage.Text("По ширине · {0} %"), Math.Round(fit.Scale * 100));
+            var fitted = string.Format(UiLanguage.Text("По ширине · {0} %"), Math.Round(fit * 100));
             if (window.ScaleSwitch.Visibility != Visibility.Visible || window.FitSegment.IsChecked != true ||
                 window.FitSegmentText.Text != fitted)
                 throw new InvalidOperationException($"A capture of two monitors must offer the scale switch, fitted by its width: \"{window.FitSegmentText.Text}\".");
@@ -533,7 +534,7 @@ public partial class OverlayEditorWindow : Window
             // A capture of a region is shown as it is, and says nothing about itself.
             var small = new WriteableBitmap(400, 300, 96, 96, PixelFormats.Pbgra32, null);
             small.Freeze();
-            if (Controls.EditorGeometry.Fit(small.PixelWidth, small.PixelHeight, 1198, 593).BoundBy != Controls.FitBound.None)
+            if (Controls.EditorGeometry.Fit(small.PixelWidth, small.PixelHeight, 1198, 593) < 1)
                 throw new InvalidOperationException("A capture that fits the screen must have nothing to switch between.");
 
             // At one to one the mark by the right edge is scrolled out of sight, and its pill goes
@@ -1678,10 +1679,8 @@ public partial class OverlayEditorWindow : Window
     {
         if (_capture is null) return;
         var fit = Controls.EditorGeometry.Fit(_capture.Image.PixelWidth, _capture.Image.PixelHeight, _fitBox.Width, _fitBox.Height);
-        ScaleSwitch.Visibility = fit.BoundBy == Controls.FitBound.None ? Visibility.Collapsed : Visibility.Visible;
-        FitSegmentText.Text = string.Format(
-            UiLanguage.Text(fit.BoundBy == Controls.FitBound.Height ? "По высоте · {0} %" : "По ширине · {0} %"),
-            Math.Round(fit.Scale * 100));
+        ScaleSwitch.Visibility = fit >= 1 ? Visibility.Collapsed : Visibility.Visible;
+        FitSegmentText.Text = string.Format(UiLanguage.Text("По ширине · {0} %"), Math.Round(fit * 100));
         FitSegment.IsChecked = Surface.ViewScale is null;
         OneToOneSegment.IsChecked = Surface.ViewScale is not null;
     }
@@ -1740,7 +1739,8 @@ public partial class OverlayEditorWindow : Window
         // are placed as one: measured apart, the switch would run off the right edge of the screen.
         ScaleSwitch.UpdateLayout();
         var switchWidth = ScaleSwitch.Visibility == Visibility.Visible ? ScaleSwitch.ActualWidth + 10 : 0;
-        var placement = PlaceToolbar(_cropRect, work, new Size(width + switchWidth, height), VisibleNoteRects().ToArray());
+        var placement = Controls.ToolbarLayout.PlaceToolbar(_cropRect, work, new Size(width + switchWidth, height),
+            VisibleNoteRects().ToArray(), mayOverlap: _capture?.Kind == Snapik.Core.Models.CaptureKind.Fullscreen || _isNew);
         Toolbar.Margin = new Thickness(placement.Left, placement.Top, 0, 0);
         if (switchWidth > 0)
             ScaleSwitch.Margin = new Thickness(placement.Left + Math.Max(Toolbar.ActualWidth, 0) + 10, placement.Top, 0, 0);

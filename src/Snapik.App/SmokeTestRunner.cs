@@ -21,7 +21,7 @@ public static class SmokeTestRunner
         var screen = new Rect(0, 0, 1920, 1080);
         foreach (var crop in new[] { new Rect(500, 400, 540, 120), new Rect(500, 940, 540, 130), new Rect(500, 0, 540, 120), new Rect(0, 0, 540, 1080) })
         {
-            var toolbar = OverlayEditorWindow.PlaceToolbar(crop, screen, new Size(460, 50), []);
+            var toolbar = Controls.ToolbarLayout.PlaceToolbar(crop, screen, new Size(460, 50), [], mayOverlap: false);
             if (toolbar.IntersectsWith(crop) || !screen.Contains(toolbar))
                 throw new InvalidOperationException("Toolbar obscures a capture with available outside space.");
         }

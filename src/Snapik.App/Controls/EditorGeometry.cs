@@ -3,12 +3,6 @@ using System.Windows;
 
 namespace Snapik.App.Controls;
 
-/// <summary>Which side of the box stopped the picture from growing any further.</summary>
-internal enum FitBound { None, Width, Height }
-
-/// <summary>The scale the picture is shown at, and the side that decided it.</summary>
-internal readonly record struct FitResult(double Scale, FitBound BoundBy);
-
 /// <summary>
 /// The arithmetic of the editor view: how much a capture is scaled down to fit the screen, and how
 /// far it may be scrolled once it is shown at its own size. Both are pure functions on purpose —
@@ -19,15 +13,34 @@ internal static class EditorGeometry
 {
     /// <summary>
     /// The scale a picture is fitted into a box with, never above its own size: a capture smaller
-    /// than the box is shown as it is and has nothing to switch between.
+    /// than the box is shown as it is, and the answer is 1. The side that decided the scale is not
+    /// reported any more — it was read by the caption of the scale switch, and that switch is gone.
     /// </summary>
-    internal static FitResult Fit(double imageWidth, double imageHeight, double boxWidth, double boxHeight)
+    internal static double Fit(double imageWidth, double imageHeight, double boxWidth, double boxHeight)
     {
-        if (imageWidth <= 0 || imageHeight <= 0 || boxWidth <= 0 || boxHeight <= 0) return new FitResult(1, FitBound.None);
-        var byWidth = boxWidth / imageWidth;
-        var byHeight = boxHeight / imageHeight;
-        var scale = Math.Min(byWidth, byHeight);
-        return scale >= 1 ? new FitResult(1, FitBound.None) : new FitResult(scale, byWidth < byHeight ? FitBound.Width : FitBound.Height);
+        if (imageWidth <= 0 || imageHeight <= 0 || boxWidth <= 0 || boxHeight <= 0) return 1;
+        var scale = Math.Min(boxWidth / imageWidth, boxHeight / imageHeight);
+        return scale >= 1 ? 1 : scale;
+    }
+
+    /// <summary>
+    /// Where the capture stands in the working area: at its own size when it fits there together
+    /// with the panel below it, fitted by its width or by its height when it does not. The answer is
+    /// in the units of the window, so "one to one" here is a size and not a mode of the canvas:
+    /// ViewScale stays null and every other count of the editor goes on as before.
+    /// </summary>
+    internal static Rect PlaceCapture(Size image, Rect work, Size panel, double gap = 10, double margin = 8)
+    {
+        var boxWidth = Math.Max(1, work.Width - margin * 2);
+        var boxHeight = Math.Max(1, work.Height - margin * 2 - panel.Height - gap);
+        var scale = image.Width <= boxWidth && image.Height <= boxHeight
+            ? 1
+            : Fit(image.Width, image.Height, boxWidth, boxHeight);
+        var size = new Size(image.Width * scale, image.Height * scale);
+        return new Rect(
+            work.Left + (work.Width - size.Width) / 2,
+            Math.Max(work.Top + margin, work.Top + (work.Height - panel.Height - gap - size.Height) / 2),
+            size.Width, size.Height);
     }
 
     /// <summary>
