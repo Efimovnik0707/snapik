@@ -400,6 +400,88 @@ extension OverlayEditorController {
         return abs(Double(box.width) - measured.width) < 2 && abs(Double(box.height) - measured.height) < 2 && core.fontSize == 32
     }
 
+    /// Port of `RunEditorScaleProbe` (`SmokeTestRunner.cs:460`, body `OverlayEditorWindow.xaml.cs:
+    /// 517-531`, SPEC-DELTA-4 §6): a capture of two monitors offers the switch fitted by its width,
+    /// names itself in its corner, and at one to one is scrolled — the mark by the right edge goes out
+    /// of sight and its pill with it. What the probe borrows it puts back: the controller has more
+    /// probes to run after this one.
+    @discardableResult
+    func smokeRunEditorScaleProbe() -> Bool {
+        guard let canvasView, let capture, let scaleSwitchView, let shotKindView, activeScreenIndex != nil else { return false }
+        guard let wide = Self.smokeSolidImage(width: 3840, height: 1125) else { return false }
+
+        let previousImage = capture.image
+        let previousKind = capture.kind
+        let previousMonitors = capture.monitorCount
+        let previousCrop = cropRectLocal
+        let previousFitBox = fitBox
+
+        let fit = EditorGeometry.fit(imageWidth: 3840, imageHeight: 1125, boxWidth: 1198, boxHeight: 593)
+        capture.image = wide
+        capture.kind = .fullscreen
+        capture.monitorCount = 2
+        fitBox = CGSize(width: 1198, height: 593)
+        cropRectLocal = CGRect(
+            x: 100, y: 100, width: 3840 * CGFloat(fit.scale), height: 1125 * CGFloat(fit.scale))
+        let mark = EditorAnnotation(
+            kind: .rectangle, points: [CGPoint(x: 3600, y: 500), CGPoint(x: 3800, y: 700)],
+            color: activeColor, thickness: activeThickness, note: "У правого края")
+        capture.annotations.append(mark)
+        visibleChipIds.insert(mark.id)
+        setupEditor()
+        // The pill is opened by hand: a collapsed one is already hidden, and the fact under test is
+        // that the scale is what puts it away.
+        expandChip(mark.id, expanded: true)
+
+        // The switch stands beside the panel, on its left segment, and says which side of the box
+        // stopped the picture and how far it was scaled down to get there.
+        let fitted = EditorStrings.fitPercent(language, boundBy: .width, percent: Int((fit.scale * 100).rounded()))
+        var ok = !scaleSwitchView.isHidden && scaleSwitchView.isFitted && scaleSwitchView.fitCaption == fitted
+        // The caption of the capture says what it is, in the same words the strip card carries.
+        ok = ok && !shotKindView.isHidden
+            && shotKindView.caption.contains("3840×1125")
+            && shotKindView.caption.contains(EditorStrings.wholeScreen(language))
+            && shotKindView.caption.contains(EditorStrings.monitorCount(language, 2))
+        // A capture that fits the screen as it is has nothing to switch between.
+        ok = ok && EditorGeometry.fit(imageWidth: 400, imageHeight: 300, boxWidth: 1198, boxHeight: 593).boundBy == .none
+
+        // At one to one the picture opens in its middle, the mark by the right edge is out of sight,
+        // and its pill goes with it instead of hanging over the desktop.
+        oneToOneScaleClicked()
+        ok = ok && canvasView.viewScale == 1 && !scaleSwitchView.isFitted
+        ok = ok && chipViews[mark.id]?.isHidden == true
+
+        // And the picture scrolls: an offset past the end of it stops where the picture ends, and the
+        // rectangle it is drawn in starts at minus that.
+        canvasView.viewOffset = CGPoint(x: 9000, y: 9000)
+        canvasView.recomputeImageRect()
+        ok = ok && abs(canvasView.viewOffset.x - (3840 - cropRectLocal.width)) < 0.5
+        ok = ok && abs(canvasView.imageRect.minX + canvasView.viewOffset.x) < 0.5
+
+        fitScaleClicked()
+        capture.annotations.removeAll(where: { $0 === mark })
+        visibleChipIds.remove(mark.id)
+        capture.image = previousImage
+        capture.kind = previousKind
+        capture.monitorCount = previousMonitors
+        cropRectLocal = previousCrop
+        fitBox = previousFitBox
+        setupEditor()
+        return ok
+    }
+
+    /// One flat grey picture of the size asked for: the probe above needs a capture of two monitors
+    /// and cares about nothing but its size.
+    private static func smokeSolidImage(width: Int, height: Int) -> CGImage? {
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)
+        else { return nil }
+        context.setFillColor(CGColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()
+    }
+
     /// SPEC-DELTA-3 §1.4 E-11: the panel keeps its width when the tool changes, and wraps onto a
     /// second row against a working area narrower than it — measured against a synthetic rectangle,
     /// not against a live monitor.

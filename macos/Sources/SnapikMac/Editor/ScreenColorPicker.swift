@@ -104,7 +104,21 @@ enum ScreenColorPicker {
             let x = min(max(Int(pixel.x.rounded(.down)) - side / 2, 0), max(0, image.width - side))
             let y = min(max(Int(pixel.y.rounded(.down)) - side / 2, 0), max(0, image.height - side))
             guard image.width >= side, image.height >= side else { return nil }
-            return image.cropping(to: CGRect(x: x, y: y, width: side, height: side))
+            guard let crop = image.cropping(to: CGRect(x: x, y: y, width: side, height: side)) else { return nil }
+            return Self.opaque(crop) ?? crop
+        }
+
+        /// The glass of the loupe must not be see-through: a copy of the screen carries whatever the
+        /// window server left in its alpha channel, and the desktop has no transparency to give, so
+        /// the copy is redrawn without an alpha channel at all before it is shown
+        /// (`Controls/ScreenColorPicker.cs:217-228`, SPEC-DELTA-4 §5 point 5).
+        private static func opaque(_ source: CGImage) -> CGImage? {
+            guard let context = CGContext(
+                data: nil, width: source.width, height: source.height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)
+            else { return nil }
+            context.draw(source, in: CGRect(x: 0, y: 0, width: source.width, height: source.height))
+            return context.makeImage()
         }
     }
 }

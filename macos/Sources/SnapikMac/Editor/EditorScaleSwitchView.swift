@@ -15,6 +15,11 @@ final class EditorScaleSwitchView: NSView {
     var onFitClicked: (() -> Void)?
     var onOneToOneClicked: (() -> Void)?
 
+    /// What the left segment says and which of the two is in force, read back by the smoke probe of
+    /// the round (SPEC-DELTA-4 §6, `RunEditorScaleProbe`).
+    private(set) var fitCaption = ""
+    private(set) var isFitted = true
+
     private let fitSegment: EditorSegmentView
     private let oneToOneSegment: EditorSegmentView
     private static let segmentInset: CGFloat = 1
@@ -37,6 +42,8 @@ final class EditorScaleSwitchView: NSView {
     /// The caption of the left segment and which of the two is in force, in one call — the switch
     /// has no state of its own to fall out of step with the canvas.
     func update(fitCaption: String, fitted: Bool) {
+        self.fitCaption = fitCaption
+        isFitted = fitted
         fitSegment.caption = fitCaption
         fitSegment.setAccessibilityLabel(fitCaption)
         fitSegment.isChosen = fitted
@@ -91,7 +98,9 @@ final class EditorShotKindView: NSView {
     private static let glyphGap: CGFloat = 6
 
     private var symbolName = EditorIcon.display
-    private var caption = ""
+    /// Read back by the smoke probe: the caption is the one string the editor says about the kind of
+    /// the capture (SPEC-DELTA-4 §6).
+    private(set) var caption = ""
 
     override var isFlipped: Bool { true }
 

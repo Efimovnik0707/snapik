@@ -114,6 +114,9 @@ extension OverlayEditorController {
     /// wheel — the segments follow it, the pills that left the capture are hidden, and the handles of
     /// the capture borders come back only while it is fitted.
     func surfaceViewChanged() {
+        // The pills and the handles are placed from `imageRect`, and the scale has just moved it:
+        // asking the canvas to redraw would answer too late, after they were placed from the old one.
+        canvasView?.recomputeImageRect()
         syncScaleSwitch()
         updateCaptureHandles()
         repositionChips()
