@@ -124,7 +124,7 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
                     var ownFill = ParseFillColor(item.FillColor);
                     // The same rule as on the canvas: the outline of a filled box takes the colour of
                     // the fill, a blurred one has none, and the pen only lends its thickness and pattern.
-                    var outline = Controls.AnnotationCanvas.OutlineColorOf(item.Fill, color, ownFill);
+                    var outline = Controls.AnnotationRules.OutlineColorOf(item.Fill, color, ownFill);
                     var outlinePen = outline is { } oc ? new Pen(new SolidColorBrush(oc), pen.Thickness) { DashStyle = pen.DashStyle } : null;
                     Controls.AnnotationCanvas.DrawBoxShape(dc, Controls.AnnotationCanvas.ShapeFillBrush(ownFill ?? color, item.Fill),
                         outlinePen, item.Shape, rect, 1);

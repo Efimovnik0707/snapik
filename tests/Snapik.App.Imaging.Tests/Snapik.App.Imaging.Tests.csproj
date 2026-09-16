@@ -14,6 +14,8 @@
   <ItemGroup>
     <!-- The blur masks a region by the shape it was drawn with, and that shape lives in Core. -->
     <ProjectReference Include="..\..\src\Snapik.Core\Snapik.Core.csproj" />
+    <!-- The settings record carries hotkey gestures, and a gesture lives in the transport layer. -->
+    <ProjectReference Include="..\..\src\Snapik.Windows\Snapik.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\src\Snapik.App\Imaging\RegionBlur.cs" Link="Imaging\RegionBlur.cs" />
@@ -37,5 +39,10 @@
          is written back into the points of one. -->
     <Compile Include="..\..\src\Snapik.App\TextMarkMetrics.cs" Link="TextMarkMetrics.cs" />
     <Compile Include="..\..\src\Snapik.App\EditorModels.cs" Link="EditorModels.cs" />
+    <!-- The settings file itself, away from the window that edits it, and the rules a mark keeps
+         without a canvas; the badge geometry comes along because the export measures by it. -->
+    <Compile Include="..\..\src\Snapik.App\HotkeySettings.cs" Link="HotkeySettings.cs" />
+    <Compile Include="..\..\src\Snapik.App\Controls\AnnotationRules.cs" Link="AnnotationRules.cs" />
+    <Compile Include="..\..\src\Snapik.App\Imaging\NoteBadgeGeometry.cs" Link="Imaging\NoteBadgeGeometry.cs" />
   </ItemGroup>
 </Project>

@@ -804,16 +804,6 @@ public sealed class AnnotationCanvas : FrameworkElement
         _ => null
     };
 
-    // The colour of the outline follows the fill: a solid or a translucent box outlines itself in
-    // the colour of its fill, so no separate frame is seen; a blurred one has no outline at all; an
-    // empty box keeps the colour of the mark. Null means "draw no outline".
-    internal static Color? OutlineColorOf(AnnotationFill fill, Color color, Color? fillColor) => fill switch
-    {
-        AnnotationFill.Blur => null,
-        AnnotationFill.Solid or AnnotationFill.Translucent => fillColor ?? color,
-        _ => color
-    };
-
     // An opaque fill is drawn after every other mark, because it hides whatever stands under it;
     // that is what the conceal tool used to do, and a solid region does the same.
     internal static bool HasOpaqueFill(AnnotationItem item) =>
@@ -823,7 +813,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     {
         // The pen arrives painted with the colour of the mark, so the outline of a filled box is
         // rebuilt here; the thickness and the pattern of the stroke come from that pen unchanged.
-        var outline = OutlineColorOf(item.Fill, item.Color, item.FillColor);
+        var outline = AnnotationRules.OutlineColorOf(item.Fill, item.Color, item.FillColor);
         var outlinePen = outline is { } oc ? new Pen(new SolidColorBrush(oc), pen.Thickness) { DashStyle = pen.DashStyle } : null;
         DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), outlinePen, item.Shape, rect, scale);
     }
