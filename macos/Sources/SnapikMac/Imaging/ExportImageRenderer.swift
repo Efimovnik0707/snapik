@@ -61,7 +61,11 @@ public final class ExportImageRenderer: ExportImageRendering {
             showLabels: true,
             labelFor: { labelsById[$0.id] },
             sourceImage: sourceImage,
-            labelStyle: .export)
+            labelStyle: .export,
+            // The badge stops below the white header instead of climbing into it. The painter draws
+            // in image-local coordinates (the context is already shifted down by the header), so the
+            // Windows HeaderHeight + 2 becomes plain 2 here (WpfExportImageRenderer.ExportBadge).
+            labelTopMargin: 2)
 
         ctx.saveGState()
         ctx.translateBy(x: 0, y: CGFloat(Self.headerHeight))

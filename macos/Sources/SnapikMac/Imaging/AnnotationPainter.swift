@@ -1,6 +1,6 @@
 // Port of `App/WpfExportImageRenderer.cs:82-142` (`DrawAnnotation`) and
 // `App/Controls/AnnotationCanvas.cs:270-289,328-415` (`RenderAnnotated`/`DrawAnnotation`),
-// SPEC §4.5, §4.6, §6.3.
+// SPEC §4.5, §4.6, §6.3, SPEC-DELTA-3 §1.4 E-1, E-2, E-20.
 import AppKit
 import CoreGraphics
 import SnapikCore
@@ -9,42 +9,47 @@ import SnapikCore
 ///
 /// The `labelStyle` field is an addition on top of the `CONTRACTS.md` sketch
 /// (`showLabels`/`labelFor`/`sourceImage` only): SPEC §4.5 (export PNG) and §4.6 (screen
-/// save / `RenderAnnotated`) use two different label-circle formulas and font sizes, and both
-/// call through this same painter, so a style selector is needed to keep them byte-for-byte
-/// faithful to their respective source methods. Defaults to `.screen` (§4.6).
+/// save / `RenderAnnotated`) use two different label-circle sizes and font sizes, and both
+/// call through this same painter, so a style selector is needed to keep them faithful to their
+/// respective source methods. Defaults to `.screen` (§4.6).
 public struct AnnotationPaintOptions {
     /// Draw circular labels for annotations `labelFor` returns text for (SPEC §4.1: only
     /// annotations with a non-empty note get a label). When `false`, phase 3 (labels) is skipped
     /// entirely — shapes are still drawn.
     public var showLabels: Bool
     public var labelFor: (AnnotationItem) -> String?
-    /// When set, `draw` first applies every `Blur` annotation's region (SPEC §2.8 radius formula)
-    /// onto this image via `RegionBlur.blur` and draws the result to fill `imageSize`, before any
-    /// annotation shapes — i.e. this single call reproduces "draw the image with all blur applied,
-    /// then shapes, then labels" (§4.5 steps 2-6 and §4.6's `RenderAnnotated`) in one place, so
-    /// screen and export rendering can never drift apart. When `nil`, the caller is responsible
-    /// for having already drawn the base image into `ctx`.
+    /// When set, `draw` first applies every blurred annotation's region (SPEC-DELTA-3 §1.4 E-1
+    /// radius formula) onto this image via `RegionBlur.blur` and draws the result to fill
+    /// `imageSize`, before any annotation shapes — i.e. this single call reproduces "draw the image
+    /// with all blur applied, then shapes, then labels" (§4.5 steps 2-6 and §4.6's
+    /// `RenderAnnotated`) in one place, so screen and export rendering can never drift apart. When
+    /// `nil`, the caller is responsible for having already drawn the base image into `ctx`.
     public var sourceImage: CGImage?
     public var labelStyle: LabelStyle
+    /// The first row a badge may touch, in this painter's own coordinate space: the export draws a
+    /// white header the badge has to stay under (`NoteBadgeGeometry.Export`'s `topMargin`).
+    public var labelTopMargin: CGFloat
 
     public init(
         showLabels: Bool,
         labelFor: @escaping (AnnotationItem) -> String?,
         sourceImage: CGImage? = nil,
-        labelStyle: LabelStyle = .screen
+        labelStyle: LabelStyle = .screen,
+        labelTopMargin: CGFloat = -CGFloat.greatestFiniteMagnitude
     ) {
         self.showLabels = showLabels
         self.labelFor = labelFor
         self.sourceImage = sourceImage
         self.labelStyle = labelStyle
+        self.labelTopMargin = labelTopMargin
     }
 
     public enum LabelStyle {
         /// SPEC §4.6 (`AnnotationCanvas.cs:393-402`): diameter `max(26, len*7+12)`, font 11
-        /// SemiBold, circle center `anchor.y - diameter/2 - 3`.
+        /// SemiBold, gap 3.
         case screen
         /// SPEC §4.5 (`WpfExportImageRenderer.cs:132-141`): diameter `max(34, len*9+16)`, font 13
-        /// Bold, circle center `max(diameter/2+2, anchor.y - diameter/2 - 4)`.
+        /// Bold, gap 4.
         case export
     }
 }
@@ -72,21 +77,38 @@ public enum AnnotationPainter {
             ctx.restoreGState()
         }
 
-        // Phase 1: every shape except Blur (pixels only, no outline) and Redaction (must sit on
-        // top of everything else it might cover).
-        for annotation in annotations where annotation.kind != .blur && annotation.kind != .redaction {
+        // Phase 1: every shape except a blurred one (its pixels are baked above) and an opaque
+        // fill, which hides whatever stands under it and is therefore drawn last of the shapes.
+        for annotation in annotations where !isBlurred(annotation) && !hasOpaqueFill(annotation) {
             drawShape(annotation, imageSize: imageSize, in: ctx)
         }
-        // Phase 2: Redaction shapes, on top of phase 1.
-        for annotation in annotations where annotation.kind == .redaction {
+        // Phase 2: the opaque fills, on top of phase 1.
+        for annotation in annotations where hasOpaqueFill(annotation) {
             drawShape(annotation, imageSize: imageSize, in: ctx)
         }
         // Phase 3: labels only, on top of every shape.
         guard options.showLabels else { return }
         for annotation in annotations {
             guard let label = options.labelFor(annotation), !label.isEmpty else { continue }
-            drawLabel(label, for: annotation, imageSize: imageSize, in: ctx, style: options.labelStyle)
+            drawLabel(
+                label, for: annotation, imageSize: imageSize, in: ctx,
+                style: options.labelStyle, topMargin: options.labelTopMargin)
         }
+    }
+
+    // MARK: - What is blurred and what covers (SPEC-DELTA-3 §1.4 E-1, E-14)
+
+    /// Port of `AnnotationCanvas.IsBlurred`: the blur tool and a region filled with blur bake the
+    /// same pixels into the picture, so one rule decides what is blurred and every caller asks it.
+    public static func isBlurred(_ item: AnnotationItem) -> Bool {
+        item.kind == .blur || (item.kind == .rectangle && item.fill == .blur)
+    }
+
+    /// Port of `AnnotationCanvas.HasOpaqueFill`: an opaque fill is drawn after every other mark,
+    /// because it hides whatever stands under it — that is what the conceal tool used to do, and a
+    /// solid region does the same. A legacy `redaction` mark counts too.
+    public static func hasOpaqueFill(_ item: AnnotationItem) -> Bool {
+        (item.kind == .rectangle && item.fill == .solid) || item.kind == .redaction
     }
 
     // MARK: - Blur application (SPEC §4.5 `ApplyBlurAnnotations`)
@@ -95,7 +117,7 @@ public enum AnnotationPainter {
         var result = source
         let width = CGFloat(source.width)
         let height = CGFloat(source.height)
-        for item in annotations where item.kind == .blur && item.points.count > 1 {
+        for item in annotations where isBlurred(item) && item.points.count > 1 {
             let p0x = CGFloat(item.points[0].x)
             let p0y = CGFloat(item.points[0].y)
             let p1x = CGFloat(item.points[1].x)
@@ -106,10 +128,10 @@ public enum AnnotationPainter {
             let bottom = min(max(ceil(max(p0y, p1y) * height), top), height)
             guard right > left, bottom > top else { continue }
             let region = CGRect(x: left, y: top, width: right - left, height: bottom - top)
-            // Always within `1...512`, so the non-throwing `RegionBlur.blur` never needs to fall
-            // back to clamping here.
-            let radius = min(max(Int((item.thickness * 3).rounded()), 4), 36)
-            result = RegionBlur.blur(result, region: region, radius: radius)
+            // The strength comes from the size of the region and no longer from the thickness of a
+            // stroke a blur does not even draw (SPEC-DELTA-3 §1.4 E-1).
+            let radius = RegionBlur.radiusFor(width: Double(region.width), height: Double(region.height))
+            result = RegionBlur.blur(result, region: region, radius: radius, shape: item.shape)
         }
         return result
     }
@@ -122,27 +144,16 @@ public enum AnnotationPainter {
 
     private static func drawShape(_ item: AnnotationItem, imageSize: CGSize, in ctx: CGContext) {
         guard !item.points.isEmpty else { return }
-        let color = cgColor(fromAARRGGBB: item.strokeColor)
+        let color = NSColor(argbHex: item.strokeColor)
         let thickness = CGFloat(item.thickness)
+        let lineStyle = StrokePattern.of(item.kind, item.lineStyle)
 
         switch item.kind {
         case .freehand, .highlight:
-            let lineColor = item.kind == .highlight ? (color.copy(alpha: 90.0 / 255.0) ?? color) : color
-            let lineWidth = item.kind == .highlight ? thickness * 4 : thickness
-            ctx.saveGState()
-            ctx.setStrokeColor(lineColor)
-            ctx.setLineWidth(lineWidth)
-            ctx.setLineCap(.round)
-            ctx.setLineJoin(.round)
-            for segment in item.getPathSegments() where segment.count > 1 {
-                ctx.beginPath()
-                ctx.move(to: mapPoint(segment[0], imageSize: imageSize))
-                for p in segment.dropFirst() {
-                    ctx.addLine(to: mapPoint(p, imageSize: imageSize))
-                }
-                ctx.strokePath()
-            }
-            ctx.restoreGState()
+            let segments = item.getPathSegments().map { $0.map { mapPoint($0, imageSize: imageSize) } }
+            strokePath(
+                segments, in: ctx, color: color, thickness: thickness,
+                lineStyle: lineStyle, highlight: item.kind == .highlight)
 
         case .rectangle, .redaction, .text, .arrow:
             guard item.points.count > 1 else { return }
@@ -154,30 +165,32 @@ public enum AnnotationPainter {
 
             switch item.kind {
             case .rectangle:
-                ctx.saveGState()
-                ctx.setStrokeColor(color)
-                ctx.setLineWidth(thickness)
-                ctx.setLineCap(.round)
-                ctx.setLineJoin(.round)
-                ctx.stroke(rect)
-                ctx.restoreGState()
+                let fillColor = EditorAppearance.parseFillColor(item.fillColor) ?? color
+                drawBoxShape(
+                    in: ctx, shape: item.shape, rect: rect, scale: 1,
+                    fill: EditorAppearance.fillColor(fillColor, fill: item.fill),
+                    outline: EditorAppearance.outlineColor(fill: item.fill, color: color, fillColor: fillColor),
+                    thickness: thickness, lineStyle: lineStyle)
 
             case .redaction:
-                // Always solid black, regardless of `item.strokeColor` (matches the C# renderers,
-                // which both hard-code `Brushes.Black` here).
+                // A mark of a build that still had the conceal tool: a solid black box, whatever
+                // `strokeColor` it carries (SPEC-DELTA-3 §2.1).
                 ctx.saveGState()
                 ctx.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
                 ctx.fill(rect)
                 ctx.restoreGState()
 
             case .text:
-                let fontSize = max(16, thickness * 4.5)
-                drawText(item.text, fontSize: fontSize, weight: .semibold, color: color, in: ctx, topLeft: start)
+                // The size the caption was typed in, in the pixels of the capture: the letters in
+                // the PNG are the letters on screen (SPEC-DELTA-3 §2.1).
+                drawText(
+                    item.text, fontSize: CGFloat(TextMarkMetrics.clamp(item.fontSize)), weight: .regular,
+                    color: color.cgColor, in: ctx, topLeft: start)
 
             case .arrow:
-                // Port of `WpfExportImageRenderer.cs:110-112` (SPEC-DELTA-2.md §1.2, §1.9): the
-                // shared `ArrowDrawing` renderer, keyed by `item.arrowStyle`.
-                ArrowDrawing.draw(in: ctx, from: start, to: end, color: color, thickness: thickness, style: item.arrowStyle)
+                ArrowDrawing.draw(
+                    in: ctx, from: start, to: end, color: color.cgColor, thickness: thickness,
+                    style: item.arrowStyle, lineStyle: lineStyle)
 
             default:
                 break
@@ -188,39 +201,120 @@ public enum AnnotationPainter {
         }
     }
 
-    // MARK: - Labels (circular number badges)
+    /// Port of `AnnotationCanvas.DrawBoxShape` (`:721-738`): the outline follows the shape, what
+    /// stands inside it follows the fill, and both renderers draw the same three shapes from the
+    /// same numbers. `scale` is points-per-image-pixel, so a rounded corner keeps its size.
+    public static func drawBoxShape(
+        in ctx: CGContext, shape: AnnotationShape, rect: CGRect, scale: CGFloat,
+        fill: NSColor?, outline: NSColor?, thickness: CGFloat, lineStyle: AnnotationLineStyle
+    ) {
+        let path = ShapeMask.path(shape, rect: rect, scale: scale)
+        ctx.saveGState()
+        if let fill {
+            ctx.addPath(path)
+            ctx.setFillColor(fill.cgColor)
+            ctx.fillPath()
+        }
+        if let outline {
+            ctx.setLineWidth(thickness)
+            ctx.setLineCap(.round)
+            ctx.setLineJoin(.round)
+            StrokePattern.apply(lineStyle, thickness: thickness, to: ctx)
+            ctx.setStrokeColor(outline.cgColor)
+            ctx.addPath(path)
+            ctx.strokePath()
+        }
+        ctx.restoreGState()
+    }
+
+    /// Port of `StrokeGeometry` + `DrawHighlightStroke` (`:678-704`): a stroke is one geometry and
+    /// not a line per pair of points, and a highlighter is that one geometry laid down once under a
+    /// single transparency, with square ends — transparent ink laid segment by segment piles up at
+    /// every joint.
+    public static func strokePath(
+        _ segments: [[CGPoint]], in ctx: CGContext, color: NSColor, thickness: CGFloat,
+        lineStyle: AnnotationLineStyle, highlight: Bool
+    ) {
+        let drawable = segments.filter { $0.count > 1 }
+        guard !drawable.isEmpty else { return }
+        ctx.saveGState()
+        if highlight {
+            ctx.setAlpha(EditorAppearance.highlightOpacity)
+            ctx.setLineCap(.square)
+            ctx.setLineJoin(.bevel)
+        } else {
+            ctx.setLineCap(.round)
+            ctx.setLineJoin(.round)
+            StrokePattern.apply(lineStyle, thickness: thickness, to: ctx)
+        }
+        ctx.setStrokeColor(color.cgColor)
+        ctx.setLineWidth(thickness)
+        ctx.beginPath()
+        for segment in drawable {
+            ctx.move(to: segment[0])
+            for point in segment.dropFirst() { ctx.addLine(to: point) }
+        }
+        ctx.strokePath()
+        ctx.restoreGState()
+    }
+
+    // MARK: - Labels (circular number badges, SPEC-DELTA-3 §1.4 E-20)
+
+    /// The circle of one noted mark in the coordinate space `imageSize` is given in.
+    public static func badge(
+        for item: AnnotationItem, label: String, imageSize: CGSize,
+        style: AnnotationPaintOptions.LabelStyle, topMargin: CGFloat
+    ) -> NoteBadge? {
+        guard let first = item.points.first else { return nil }
+        let anchor = mapPoint(first, imageSize: imageSize)
+        let offset = item.noteOffset.map { CGPoint(x: CGFloat($0.x) * imageSize.width, y: CGFloat($0.y) * imageSize.height) } ?? .zero
+        switch style {
+        case .screen: return NoteBadgeGeometry.screen(anchor: anchor, label: label, offset: offset)
+        case .export: return NoteBadgeGeometry.export(anchor: anchor, label: label, offset: offset, topMargin: topMargin)
+        }
+    }
 
     private static func drawLabel(
-        _ label: String, for item: AnnotationItem, imageSize: CGSize, in ctx: CGContext, style: AnnotationPaintOptions.LabelStyle
+        _ label: String, for item: AnnotationItem, imageSize: CGSize, in ctx: CGContext,
+        style: AnnotationPaintOptions.LabelStyle, topMargin: CGFloat
     ) {
-        guard let first = item.points.first else { return }
-        let anchor = mapPoint(first, imageSize: imageSize)
-        let diameter: CGFloat
-        let fontSize: CGFloat
-        let weight: NSFont.Weight
-        let centerY: CGFloat
-        switch style {
-        case .screen:
-            diameter = max(26, CGFloat(label.count) * 7 + 12)
-            fontSize = 11
-            weight = .semibold
-            centerY = anchor.y - diameter / 2 - 3
-        case .export:
-            diameter = max(34, CGFloat(label.count) * 9 + 16)
-            fontSize = 13
-            weight = .bold
-            centerY = max(diameter / 2 + 2, anchor.y - diameter / 2 - 4)
+        guard let badge = badge(for: item, label: label, imageSize: imageSize, style: style, topMargin: topMargin) else { return }
+        let accent = AccentPalette.flat
+
+        // A badge dragged away from its mark keeps one hair line back to it.
+        if item.noteOffset != nil {
+            let all = item.getPathSegments().flatMap { $0 } + item.points
+            if let minX = all.map(\.x).min(), let minY = all.map(\.y).min(),
+                let maxX = all.map(\.x).max(), let maxY = all.map(\.y).max()
+            {
+                let outline = CGRect(
+                    x: CGFloat(minX) * imageSize.width, y: CGFloat(minY) * imageSize.height,
+                    width: CGFloat(maxX - minX) * imageSize.width, height: CGFloat(maxY - minY) * imageSize.height)
+                if let leader = NoteBadgeGeometry.leader(bounds: outline, badge: badge) {
+                    ctx.saveGState()
+                    ctx.setStrokeColor(accent.cgColor)
+                    ctx.setLineWidth(style == .export ? NoteBadgeGeometry.exportLeaderThickness(label) : 1)
+                    ctx.setLineDash(phase: 0, lengths: [])
+                    ctx.beginPath()
+                    ctx.move(to: leader.from)
+                    ctx.addLine(to: leader.to)
+                    ctx.strokePath()
+                    ctx.restoreGState()
+                }
+            }
         }
-        let center = CGPoint(x: anchor.x, y: centerY)
 
         ctx.saveGState()
-        ctx.setFillColor(CGColor(red: 47.0 / 255.0, green: 140.0 / 255.0, blue: 255.0 / 255.0, alpha: 1))
-        ctx.fillEllipse(in: CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter))
+        ctx.setFillColor(accent.cgColor)
+        ctx.fillEllipse(
+            in: CGRect(
+                x: badge.center.x - badge.radius, y: badge.center.y - badge.radius,
+                width: badge.radius * 2, height: badge.radius * 2))
         ctx.restoreGState()
 
         drawText(
-            label, fontSize: fontSize, weight: weight,
-            color: CGColor(red: 1, green: 1, blue: 1, alpha: 1), in: ctx, centeredAt: center)
+            label, fontSize: style == .export ? 13 : 11, weight: style == .export ? .bold : .semibold,
+            color: CGColor(red: 1, green: 1, blue: 1, alpha: 1), in: ctx, centeredAt: badge.center)
     }
 
     // MARK: - Text (SPEC: use `NSFont.systemFont` + `NSAttributedString.draw` in a flipped context)
@@ -257,22 +351,5 @@ public enum AnnotationPainter {
         NSGraphicsContext.current = graphicsContext
         attributed.draw(at: origin)
         NSGraphicsContext.current = previous
-    }
-
-    // MARK: - Color
-
-    /// Parses SPEC §2.3's `#AARRGGBB` format. Falls back to opaque black on malformed input
-    /// (should not happen for annotations created through the editor).
-    static func cgColor(fromAARRGGBB hex: String) -> CGColor {
-        var value = hex
-        if value.hasPrefix("#") { value.removeFirst() }
-        guard value.count == 8, let intValue = UInt32(value, radix: 16) else {
-            return CGColor(red: 0, green: 0, blue: 0, alpha: 1)
-        }
-        let a = CGFloat((intValue >> 24) & 0xFF) / 255
-        let r = CGFloat((intValue >> 16) & 0xFF) / 255
-        let g = CGFloat((intValue >> 8) & 0xFF) / 255
-        let b = CGFloat(intValue & 0xFF) / 255
-        return CGColor(red: r, green: g, blue: b, alpha: a)
     }
 }

@@ -15,4 +15,12 @@ struct EditorWorkspaceContext {
     /// `SessionWorkspace.regionPath` (`Sources/SnapikMac/App`, outside this zone) and passed in
     /// here rather than re-derived, since this zone has no view onto the shell's app-support layout.
     let regionPath: URL
+
+    /// Where the panel writes what the next capture starts with (SPEC-DELTA-3 §1.4 E-16,
+    /// `SaveAppearanceDefaults`). Derived from `regionPath` rather than carried as a field of its
+    /// own: `SessionWorkspace` puts `last-region.json` beside `settings.json`, in the one directory
+    /// both of them live in, and the shell that builds this context is outside this zone.
+    var settingsPath: URL {
+        regionPath.deletingLastPathComponent().appendingPathComponent("settings.json")
+    }
 }

@@ -51,21 +51,52 @@ enum EditorGeometry {
     /// SPEC-DELTA-2B.md §C3: `.comment`/`.text` always count as having size — a Comment is a
     /// one-shot single click (no drag threshold at all) and Text already committed with a single
     /// click before this sync.
-    static func gestureHasSize(kind: EditorTool, points: [CGPoint]) -> Bool {
+    /// `scale` is points-per-image-pixel: "press and drag" is measured **on screen** and not in the
+    /// pixels of the capture (SPEC-DELTA-3 §1.4 E-10), because at the scale a 1920 px capture is
+    /// shown with, three image pixels are under two pixels of hand tremor.
+    static func gestureHasSize(kind: EditorTool, points: [CGPoint], scale: CGFloat = 1) -> Bool {
         guard points.count >= 2 else { return false }
         if kind == .comment || kind == .text { return true }
         if kind == .pen || kind == .highlight { return points.count > 2 }
         let dx = points[1].x - points[0].x
         let dy = points[1].y - points[0].y
-        return (dx * dx + dy * dy).squareRoot() >= 3
+        return (dx * dx + dy * dy).squareRoot() * scale >= gestureThreshold
     }
+
+    /// Port of `AnnotationCanvas.GestureThreshold` (`:752`).
+    static let gestureThreshold: CGFloat = 4
 
     // MARK: - Hit testing (SPEC §6.3)
 
-    /// Port of the inflate-by-`max(8, thickness*2)` rectangle hit test (`:316-326`).
+    /// Port of the rectangle hit test (`AnnotationCanvas.cs:562-577`, SPEC-DELTA-3 §1.4 E-13). The
+    /// box is drawn through the middle of the stroke, so it is widened by half of it and a little to
+    /// grab by. Twice the whole width was the same thing while the thickness of the highlighter
+    /// meant a quarter of its real one; with the real width it reached 96 px, and the eraser took
+    /// strokes the hand was nowhere near.
     static func hitTestInflatedBounds(_ bounds: CGRect, thickness: Double) -> CGRect {
-        let inset = -max(8, thickness * 2)
+        let inset = -max(8, thickness / 2 + 4)
         return bounds.insetBy(dx: inset, dy: inset)
+    }
+
+    /// Port of `DistanceToPolyline`/`DistanceToSegment` (`AnnotationCanvas.cs:861-878`): how far a
+    /// point is from a line the hand may grab (the shaft of an arrow, the stroke of a pencil).
+    static func distanceToPolyline(_ points: [CGPoint], _ target: CGPoint) -> CGFloat {
+        guard let first = points.first else { return .greatestFiniteMagnitude }
+        guard points.count > 1 else { return hypot(target.x - first.x, target.y - first.y) }
+        var best = CGFloat.greatestFiniteMagnitude
+        for index in 1..<points.count {
+            best = min(best, distanceToSegment(points[index - 1], points[index], target))
+        }
+        return best
+    }
+
+    private static func distanceToSegment(_ start: CGPoint, _ end: CGPoint, _ target: CGPoint) -> CGFloat {
+        let line = CGPoint(x: end.x - start.x, y: end.y - start.y)
+        let lengthSquared = line.x * line.x + line.y * line.y
+        guard lengthSquared > .ulpOfOne else { return hypot(target.x - start.x, target.y - start.y) }
+        let dot = (target.x - start.x) * line.x + (target.y - start.y) * line.y
+        let position = min(max(dot / lengthSquared, 0), 1)
+        return hypot(target.x - (start.x + line.x * position), target.y - (start.y + line.y * position))
     }
 
     // MARK: - Comment chip placement / hover-edge hit testing (SPEC-DELTA-2B.md §C3, §C7)
@@ -112,11 +143,15 @@ enum EditorGeometry {
     /// ring is `displayBounds` inflated by 6pt, the inner ring is inset by `min(6, w/2)`/
     /// `min(6, h/2)`; a hit is inside the outer ring but outside the inner one (the border band).
     /// Only meaningful for Rectangle/Blur/Conceal — the caller filters by kind and active tool.
-    static func findMoveEdge(displayBounds: CGRect, point: CGPoint) -> Bool {
-        let outer = displayBounds.insetBy(dx: -6, dy: -6)
+    /// `band` is how wide the grabbable ring around the outline is (`IsMoveHandle`'s default
+    /// branch). [ТЗ№4 D3, variant Б] a mark of the **same kind as the tool in the hand** widens it
+    /// from 6 to 10, so "a frame is grabbed by the frame" without the empty interior being taken
+    /// away from the next drawing (`tasks/tz-005-details/D-editor.md` §4.3).
+    static func findMoveEdge(displayBounds: CGRect, point: CGPoint, band: CGFloat = 6) -> Bool {
+        let outer = displayBounds.insetBy(dx: -band, dy: -band)
         guard outer.contains(point) else { return false }
-        let insetX = min(6, displayBounds.width / 2)
-        let insetY = min(6, displayBounds.height / 2)
+        let insetX = min(band, displayBounds.width / 2)
+        let insetY = min(band, displayBounds.height / 2)
         let inner = displayBounds.insetBy(dx: insetX, dy: insetY)
         return !inner.contains(point)
     }
@@ -323,13 +358,6 @@ enum EditorGeometry {
         let w = imageSize.width * scale
         let h = imageSize.height * scale
         return CGRect(x: (windowSize.width - w) / 2, y: (windowSize.height - h) / 2, width: w, height: h)
-    }
-
-    // MARK: - Blur radius (SPEC §1.7)
-
-    /// Port of `BlurRadius` (`AnnotationCanvas.cs:463`): `clamp(round(thickness*3), 4, 36)`.
-    static func blurRadius(thickness: Double) -> Int {
-        clampInt(Int((thickness * 3).rounded()), 4, 36)
     }
 
     // MARK: - Small numeric helpers

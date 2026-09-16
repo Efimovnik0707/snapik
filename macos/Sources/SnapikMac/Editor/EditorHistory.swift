@@ -50,6 +50,16 @@ final class EditorHistory {
         redoStack.removeAll()
     }
 
+    /// How deep the undo stack is. A caption that was only just placed and then given up takes the
+    /// entry of its own placement with it, and this is what tells whether that entry is still on top
+    /// (`OverlayEditorWindow.Text.cs:146`, SPEC-DELTA-3 §1.4 E-6).
+    var undoDepth: Int { undoStack.count }
+
+    @discardableResult
+    func popUndo() -> OverlaySnapshot? {
+        undoStack.popLast()
+    }
+
     func reset() {
         undoStack.removeAll()
         redoStack.removeAll()

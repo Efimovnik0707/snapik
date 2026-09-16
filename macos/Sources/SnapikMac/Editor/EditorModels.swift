@@ -17,17 +17,14 @@ enum EditorTool: String {
     /// Port of `EditorTool.Comment` (SPEC-DELTA-2.md §1.3, SPEC-DELTA-2B.md §C2). One-shot: a
     /// single click places a pin and returns to `.select` (`OverlayEditorController+Chips.swift`).
     case comment = "N"
+    /// Port of `EditorTool.Eraser` (`EditorModels.cs:29`, SPEC-DELTA-3 §1.4 E-5): a mode of the
+    /// panel and never the kind of a mark. The eraser removes what it is clicked on and nothing
+    /// carries this value into a session.
+    case eraser = "E"
 
-    /// True for the tools shown directly on the toolbar (SPEC §6.2 rows 1-3, 8-9; SPEC-DELTA-2B.md
-    /// §C5: Text moved onto the toolbar as of the 2026-09-09 sync). Pen/Highlight/Conceal live
-    /// only in the "•••" menu; Comment is its own dedicated action button, not a toggle in this
-    /// group (SPEC-DELTA-2B.md §C2: "`.comment` → false").
-    var isOnToolbar: Bool {
-        switch self {
-        case .select, .rectangle, .arrow, .text, .blur, .crop: return true
-        case .pen, .highlight, .conceal, .comment: return false
-        }
-    }
+    /// Port of `IsDrawingTool` (`AnnotationCanvas.cs:355`): everything but Select and the eraser
+    /// puts something on the capture, and shows the crosshair over it.
+    var isDrawing: Bool { self != .select && self != .eraser }
 }
 
 /// Port of `AnnotationItem` (`EditorModels.cs:30-131`). A plain reference type (no
@@ -53,6 +50,19 @@ final class EditorAnnotation {
     /// Port of `AnnotationItem.ArrowStyle` (SPEC-DELTA-2.md §2.1): `"straight"`/`"curved"`/
     /// `"bold"`/`"wide"`. Meaningless for non-arrow kinds, always carried along regardless.
     var arrowStyle: String
+    /// Port of `AnnotationItem.NoteOffset` (`EditorModels.cs:50`): the shift of the numbered badge
+    /// from its automatic place, **in image pixels**; `nil` is automatic. A plain property on
+    /// purpose: the drag of a note pill must not push a history entry per pixel.
+    var noteOffset: CGPoint?
+    /// Port of `Shape`/`Fill`/`FillColor`/`LineStyle`/`FontSize` (`EditorModels.cs:52-68`).
+    var shape: AnnotationShape
+    var fill: AnnotationFill
+    /// The colour inside the box; `nil` means "the colour of the outline", which is how every mark
+    /// drawn before the fill had a colour of its own still reads.
+    var fillColor: NSColor?
+    var lineStyle: AnnotationLineStyle
+    /// The size a caption is typed in, in the pixels of the capture.
+    var fontSize: Double
 
     init(
         id: SBGuid = SBGuid(),
@@ -64,7 +74,13 @@ final class EditorAnnotation {
         text: String? = nil,
         note: String = "",
         parentAnnotationId: SBGuid? = nil,
-        arrowStyle: String = "straight"
+        arrowStyle: String = "straight",
+        noteOffset: CGPoint? = nil,
+        shape: AnnotationShape = .rectangle,
+        fill: AnnotationFill = .none,
+        fillColor: NSColor? = nil,
+        lineStyle: AnnotationLineStyle = .solid,
+        fontSize: Double = TextMarkMetrics.defaultFontSize
     ) {
         self.id = id
         self.kind = kind
@@ -72,16 +88,22 @@ final class EditorAnnotation {
         self.additionalPathSegments = additionalPathSegments
         self.color = color
         self.thickness = thickness
-        self.text = text ?? EditorStrings.defaultText("ru")
+        self.text = text ?? ""
         self.note = note
         self.parentAnnotationId = parentAnnotationId
         self.arrowStyle = arrowStyle
+        self.noteOffset = noteOffset
+        self.shape = shape
+        self.fill = fill
+        self.fillColor = fillColor
+        self.lineStyle = lineStyle
+        self.fontSize = fontSize
     }
 
     /// Port of `AnnotationItem.Clone()` (`:62-74`). Identity (`id`) is preserved, matching the
     /// Windows deep-clone used for undo/redo snapshots.
     func clone() -> EditorAnnotation {
-        EditorAnnotation(
+        let copy = EditorAnnotation(
             id: id,
             kind: kind,
             points: points,
@@ -91,13 +113,26 @@ final class EditorAnnotation {
             text: text,
             note: note,
             parentAnnotationId: parentAnnotationId,
-            arrowStyle: arrowStyle)
+            arrowStyle: arrowStyle,
+            noteOffset: noteOffset,
+            shape: shape,
+            fill: fill,
+            fillColor: fillColor,
+            lineStyle: lineStyle,
+            fontSize: fontSize)
+        // The letter in the badge is state of the view and not of the model, but an undo that gave
+        // it back blank would redraw every badge as a placeholder until the next `refreshLabels`.
+        copy.label = label
+        return copy
     }
 
     /// Port of `EditorTool` -> `AnnotationKind` (SPEC §2.4 table; `EditorModels.cs:78-88`).
     /// Select/Crop fall back to `.rectangle`, matching the C# `_ => AnnotationKind.Rectangle`.
-    var coreKind: AnnotationKind {
-        switch kind {
+    var coreKind: AnnotationKind { Self.coreKind(of: kind) }
+
+    /// The same mapping without a mark to read it from: the panel asks it of the tool in the hand.
+    static func coreKind(of tool: EditorTool) -> AnnotationKind {
+        switch tool {
         case .arrow: return .arrow
         case .rectangle: return .rectangle
         case .pen: return .freehand
@@ -106,7 +141,7 @@ final class EditorAnnotation {
         case .conceal: return .redaction
         case .blur: return .blur
         case .comment: return .comment
-        case .select, .crop: return .rectangle
+        case .select, .crop, .eraser: return .rectangle
         }
     }
 
@@ -139,7 +174,18 @@ final class EditorAnnotation {
             note: note,
             pathSegments: pathSegments,
             parentAnnotationId: parentAnnotationId,
-            arrowStyle: arrowStyle)
+            arrowStyle: arrowStyle,
+            // A shift, not a coordinate: it is divided by the size of the image and never clamped
+            // into `[0,1]` (SPEC-DELTA-3 §2.1).
+            noteOffset: noteOffset.map { NormalizedPoint(Double($0.x) / Double(width), Double($0.y) / Double(height)) },
+            shape: shape,
+            fill: fill,
+            lineStyle: lineStyle,
+            fillColor: fillColor?.hexARGB,
+            // [ТЗ№4 D1] The switch is gone from the panel and the field is only read: this editor
+            // always writes `true` (SPEC-DELTA-3 §2.1, §5 L-1).
+            hasOutline: true,
+            fontSize: fontSize)
     }
 
     /// Port of `AnnotationItem.FromCore` (`:102-127`).
@@ -159,22 +205,38 @@ final class EditorAnnotation {
         case .freehand: kind = .pen
         case .highlight: kind = .highlight
         case .text: kind = .text
-        case .redaction: kind = .conceal
+        // A session written by a build that still had the conceal tool carries "redaction" marks.
+        // The tool is gone; what it drew is a region with a solid black fill, and it is written back
+        // in that shape the next time the session is saved (SPEC-DELTA-3 §2.1).
+        case .redaction: kind = .rectangle
         case .blur: kind = .blur
         case .comment: kind = .comment
         }
+        let redaction = item.kind == .redaction
+        // [ТЗ№4 D1] `hasOutline: false` on a boxed mark reads as "a solid fill of one colour"; the
+        // field is never written again (SPEC-DELTA-3 §2.1, §5 L-1).
+        let solidWithoutOutline = item.kind == .rectangle && !item.hasOutline
+        let strokeColor = NSColor(argbHex: item.strokeColor)
 
         return EditorAnnotation(
             id: item.id,
             kind: kind,
             points: points,
             additionalPathSegments: additional,
-            color: NSColor(argbHex: item.strokeColor),
+            color: strokeColor,
             thickness: item.thickness,
             text: item.text,
             note: item.note,
             parentAnnotationId: item.parentAnnotationId,
-            arrowStyle: item.arrowStyle)
+            arrowStyle: item.arrowStyle,
+            noteOffset: item.noteOffset.map { CGPoint(x: $0.x * width, y: $0.y * height) },
+            shape: item.shape,
+            fill: redaction || solidWithoutOutline ? .solid : item.fill,
+            fillColor: redaction
+                ? NSColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
+                : (EditorAppearance.parseFillColor(item.fillColor) ?? (solidWithoutOutline ? strokeColor : nil)),
+            lineStyle: item.lineStyle,
+            fontSize: item.fontSize)
     }
 }
 

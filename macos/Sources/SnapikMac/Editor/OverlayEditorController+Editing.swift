@@ -1,11 +1,11 @@
-// Port of `SetupEditor`, `OnToolClick`, `OnMoreToolsClick`, `OnCropRequested`
-// (`OverlayEditorWindow.xaml.cs:228-337,668-714`), SPEC §1.3, §6.2, §6.3. Color/thickness
-// (`OnColorClick`/`OnThicknessClick`) moved to `OverlayEditorController+Appearance.swift` (SPEC
-// §1.3, §6.2 "Дополнение 2026-09-09").
+// Port of `SetupEditor`, `OnToolClick`/`SelectToolMode`, the split-capsule menus
+// (`OverlayEditorWindow.Shapes.cs`, `.Arrows.cs`) and `OnCropRequested`
+// (`OverlayEditorWindow.xaml.cs:228-337,668-714`), SPEC §1.3, §6.2, §6.3,
+// SPEC-DELTA-3 §1.4 E-1, E-3, E-4, E-5, E-11, E-12, E-19.
 import AppKit
 import SnapikCore
 
-/// Port of `CropBorder` (`OverlayEditorWindow.xaml:45`): a 2pt `#2F8CFF` border with a transparent
+/// Port of `CropBorder` (`OverlayEditorWindow.xaml:45`): a 2pt accent border with a transparent
 /// interior, hosting the `AnnotationCanvasView`.
 @MainActor
 final class CropBorderContainerView: NSView {
@@ -21,11 +21,8 @@ final class CropBorderContainerView: NSView {
 
 @MainActor
 extension OverlayEditorController {
-    /// Port of `SetupEditor` (`:228-257`). `setupEditor()` is re-run after every crop/resize/
-    /// undo-redo restore, not just the initial capture — finding 20: only the very first call
-    /// (fresh selection or `presentExisting`) should default the tool to Rectangle; every later
-    /// call preserves whatever tool was active, matching the Windows source (`SetupEditor` there
-    /// does not touch the active tool at all; only initial construction does).
+    /// Port of `SetupEditor` (`:228-257`). Re-run after every crop/resize/undo-redo restore, not just
+    /// the initial capture — only the very first call defaults the tool.
     func setupEditor() {
         guard let capture, let screenIndex = activeScreenIndex else { return }
         settingUp = true
@@ -33,10 +30,6 @@ extension OverlayEditorController {
         slot.contentView.hintView.isHidden = true
         slot.contentView.holeRectLocal = cropRectLocal
 
-        // `canvasContainerView` is created only on the very first `setupEditor()` call for this
-        // controller and never torn down mid-session (`teardownEditingViews()` is reserved for a
-        // future "edit again" flow — see its doc comment below), so `== nil` doubles as "is this
-        // the first call" for the tool-reset decision above.
         let isInitialSetup = canvasContainerView == nil
         if canvasContainerView == nil {
             let container = CropBorderContainerView(frame: cropRectLocal)
@@ -54,11 +47,11 @@ extension OverlayEditorController {
         }
 
         if isInitialSetup {
+            // The half of the pencil capsule the settings file carries is armed only as the pencil's
+            // own mode; the tool the editor opens with is the region, as it always was.
             canvasView?.tool = .rectangle
         }
         canvasView?.language = language
-        canvasView?.activeColor = activeColor
-        canvasView?.activeThickness = activeThickness
         canvasView?.capture = capture
 
         if chipLayerView == nil {
@@ -70,13 +63,19 @@ extension OverlayEditorController {
 
         if toolbarView == nil {
             let toolbar = EditorToolbarView(language: language)
-            toolbar.onToolSelected = { [weak self] tool in self?.selectTool(tool) }
+            // The pencil capsule's own button arms whichever half was last chosen, not always the
+            // pen (SPEC-DELTA-3 §1.4 E-4).
+            toolbar.onToolSelected = { [weak self] tool in
+                if tool == .pen { self?.selectPencilTool() } else { self?.selectTool(tool) }
+            }
+            toolbar.onQuickColor = { [weak self] color in self?.applyAppearanceNow(color: color) }
             wireToolbarActions(toolbar)
             slot.contentView.addSubview(toolbar)
             toolbarView = toolbar
         }
+
+        setupCommentsPanelIfNeeded(on: slot)
         toolbarView?.setActiveTool(canvasView?.tool ?? .rectangle)
-        // Port of `SyncAppearance()` at the end of `SetupEditor` (`OverlayEditorWindow.xaml.cs:252`).
         syncAppearance()
 
         setupCaptureHandles(on: slot)
@@ -84,21 +83,37 @@ extension OverlayEditorController {
         lastSnapshot = snapshotState()
         refreshLabels()
         rebuildChips(on: slot)
+        positionCommentsPanel()
         positionToolbar()
         window(for: screenIndex)?.makeFirstResponder(canvasView)
         settingUp = false
+    }
+
+    /// Port of `_commentsPanelVisible` (`OverlayEditorWindow.xaml.cs:1020`, SPEC-DELTA-3 §1.4 E-12):
+    /// the panel belongs to a capture opened again from the strip that already carries at least one
+    /// note. A brand-new capture has nothing to list.
+    private func setupCommentsPanelIfNeeded(on slot: OverlayScreenSlot) {
+        guard commentsPanelView == nil, !isNewCapture, let capture else { return }
+        let hasNotes = capture.annotations.contains { !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard hasNotes else { return }
+        let panel = CommentsPanelView(language: language)
+        slot.contentView.addSubview(panel)
+        commentsPanelView = panel
+        syncCommentsPanel()
     }
 
     func window(for screenIndex: Int) -> AppKit.NSWindow? {
         slots[screenIndex].window
     }
 
-    /// Removes every editing-mode subview (used by `commit`/`cancelEditing` before `close()`
-    /// tears down the windows themselves, and available for a future "edit again" flow).
+    /// Removes every editing-mode subview (used by `commit`/`cancelEditing` before `close()` tears
+    /// down the windows themselves).
     func teardownEditingViews() {
         canvasContainerView?.removeFromSuperview()
         toolbarView?.removeFromSuperview()
         chipLayerView?.removeFromSuperview()
+        commentsPanelView?.removeFromSuperview()
+        textEditorView?.removeFromSuperview()
         for handle in captureHandleViews { handle.removeFromSuperview() }
         resizeOutlineView?.removeFromSuperview()
         chipViews.removeAll()
@@ -106,6 +121,8 @@ extension OverlayEditorController {
         canvasView = nil
         toolbarView = nil
         chipLayerView = nil
+        commentsPanelView = nil
+        textEditorView = nil
         captureHandleViews = []
         resizeOutlineView = nil
     }
@@ -115,24 +132,52 @@ extension OverlayEditorController {
         canvas.onSelectionChanged = { [weak self] annotation in self?.selectionChanged(annotation) }
         canvas.onAnnotationChanged = { [weak self] in self?.annotationChanged() }
         canvas.onCropRequested = { [weak self] bounds in self?.cropRequested(bounds) }
-        // SPEC-DELTA-2.md §1.3 "Text двойным кликом": show/focus that Text annotation's chip.
-        canvas.onTextDoubleClicked = { [weak self] annotation in
-            guard let self else { return }
-            self.visibleChipIds.insert(annotation.id)
-            if let chip = self.chipViews[annotation.id] {
-                self.expandChip(annotation.id, expanded: true)
-                chip.focusAndSelectAll()
-            } else {
-                self.addChip(for: annotation, focus: true)
-            }
-        }
+        canvas.onAnnotationActivated = { [weak self] annotation in self?.annotationActivated(annotation) }
     }
 
     private func wireToolbarActions(_ toolbar: EditorToolbarView) {
-        toolbar.appearanceButton.onClick = { [weak self] in self?.toggleAppearancePopover() }
-        toolbar.moreToolsButton.onClick = { [weak self] in self?.showMoreToolsMenu() }
+        toolbar.appearanceButton.onClick = { [weak self, weak toolbar] in
+            guard let toolbar else { return }
+            self?.togglePopover(.color, relativeTo: toolbar.appearanceButton)
+        }
+        toolbar.thicknessButton.onClick = { [weak self, weak toolbar] in
+            guard let toolbar else { return }
+            self?.togglePopover(.thickness, relativeTo: toolbar.thicknessButton)
+        }
+        toolbar.lineStyleButton.onClick = { [weak self, weak toolbar] in
+            guard let toolbar else { return }
+            self?.togglePopover(.lineStyle, relativeTo: toolbar.lineStyleButton)
+        }
+        toolbar.fillButton.onClick = { [weak self, weak toolbar] in
+            guard let self, let toolbar else { return }
+            // The fill belongs to a region: with another tool in the hand and nothing selected the
+            // button arms the region first, the way a pick in the shape menu does.
+            if self.canvasView?.selectedAnnotation == nil, !EditorAppearance.hasFill(self.canvasView?.tool ?? .select) {
+                self.selectTool(.rectangle)
+            }
+            self.togglePopover(.fill, relativeTo: toolbar.fillButton)
+        }
+        toolbar.fontSizeButton.onClick = { [weak self, weak toolbar] in
+            guard let toolbar else { return }
+            self?.togglePopover(.fontSize, relativeTo: toolbar.fontSizeButton)
+        }
+        toolbar.shortcutSheetButton.onClick = { [weak self, weak toolbar] in
+            guard let toolbar else { return }
+            self?.togglePopover(.shortcutSheet, relativeTo: toolbar.shortcutSheetButton)
+        }
+        toolbar.shapeMenuButton.onClick = { [weak self, weak toolbar] in
+            guard let toolbar else { return }
+            self?.showShapeMenu(from: toolbar.shapeMenuButton)
+        }
+        toolbar.arrowOptionsButton.onClick = { [weak self, weak toolbar] in
+            guard let toolbar else { return }
+            self?.showArrowStyleMenu(from: toolbar.arrowOptionsButton)
+        }
+        toolbar.pencilMenuButton.onClick = { [weak self, weak toolbar] in
+            guard let toolbar else { return }
+            self?.showPencilMenu(from: toolbar.pencilMenuButton)
+        }
         toolbar.commentButton.onClick = { [weak self] in self?.commentButtonClicked() }
-        toolbar.arrowOptionsButton.onClick = { [weak self] in self?.showArrowStyleMenu() }
         toolbar.undoButton.onClick = { [weak self] in self?.performUndo() }
         toolbar.redoButton.onClick = { [weak self] in self?.performRedo() }
         toolbar.saveButton.onClick = { [weak self] in self?.saveToFile() }
@@ -141,11 +186,16 @@ extension OverlayEditorController {
 
     // MARK: - Tool selection (SPEC §1.3)
 
-    /// Port of `OnToolClick`/`SelectToolMode` (`OverlayEditorWindow.xaml.cs:293-301,332-340`),
-    /// unified into one function on macOS. Both now deselect first (SPEC §1.3, §6.2 "Дополнение
-    /// 2026-09-09": switching tools no longer leaves a stale selection driving the appearance
-    /// popover) and resync the toolbar's appearance button / "•••" highlight afterward.
+    /// Port of `OnToolClick`/`SelectToolMode` (`:293-301,1120-1129`). A caption being typed is
+    /// finished first: the letters belong to the mark, not to the tool that is being put down.
     func selectTool(_ tool: EditorTool) {
+        if isEditingText { commitTextEdit() }
+        // The pencil capsule carries whichever half is armed, and that half travels between captures
+        // (SPEC-DELTA-3 §1.4 E-4, §2.2 `AnnotationPencil`).
+        if tool == .pen || tool == .highlight {
+            appearanceDefaultsChanged = appearanceDefaultsChanged || activePencil != tool
+            activePencil = tool
+        }
         canvasView?.selectAnnotation(id: nil)
         canvasView?.tool = tool
         toolbarView?.setActiveTool(tool)
@@ -153,52 +203,99 @@ extension OverlayEditorController {
         window(for: activeScreenIndex ?? 0)?.makeFirstResponder(canvasView)
     }
 
-    /// Port of `OnMoreToolsClick` (`:302-329`, updated in the 2026-09-09 sync to drop the
-    /// separator and the "Цвет отметки"/"Толщина" cycling items — those moved to the appearance
-    /// popover — and to mark the active extra tool with a checkmark). `target` only needs to
-    /// outlive this call: `NSMenu.popUp(positioning:at:in:)` runs its own modal event-tracking
-    /// loop and does not return until the menu closes, so a local `let` is enough to keep it alive
-    /// for every click.
-    /// SPEC-DELTA-2B.md §C6: "только Pen/Highlight/Conceal" — Text moved onto the main toolbar as
-    /// a regular toggle button, so it no longer appears here.
-    func showMoreToolsMenu() {
-        guard let toolbar = toolbarView else { return }
-        let target = MoreToolsMenuTarget(controller: self)
-        let menu = NSMenu()
-        let currentTool = canvasView?.tool
+    /// The pencil capsule's own button: it arms whichever half was last chosen, without opening the
+    /// menu beside it (`PenTool`, `xaml:213`).
+    func selectPencilTool() {
+        selectTool(activePencil)
+    }
 
-        func addTool(_ title: String, _ tool: EditorTool, _ action: Selector) {
-            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+    // MARK: - The split-capsule menus (`OverlayEditorWindow.Shapes.cs`)
+
+    /// The whole menu is one edit: it takes the state before opening and pushes at most one history
+    /// entry when it closes, exactly like a popover (`OpenToolMenu`, `Shapes.cs:37-42`).
+    private func beginMenuEdit() {
+        guard capture != nil else { return }
+        appearanceBefore = snapshotState()
+        appearanceChanged = false
+    }
+
+    private func endMenuEdit() {
+        commitAppearanceSession()
+        syncAppearance()
+        window(for: activeScreenIndex ?? 0)?.makeFirstResponder(canvasView)
+    }
+
+    /// Port of `BuildShapeMenu` (`Shapes.cs:44-67`): the three frames a region and a blur share.
+    func showShapeMenu(from anchor: NSView) {
+        guard let canvasView else { return }
+        beginMenuEdit()
+        let target = EditorMenuTarget(controller: self)
+        let menu = NSMenu()
+        let selected = canvasView.selectedAnnotation
+        let current = (selected?.kind == .rectangle || selected?.kind == .blur) ? selected?.shape ?? activeShape : activeShape
+
+        func add(_ shape: AnnotationShape, _ title: String) {
+            let item = NSMenuItem(title: title, action: #selector(EditorMenuTarget.selectShape(_:)), keyEquivalent: "")
             item.target = target
-            item.state = currentTool == tool ? .on : .off
+            item.representedObject = shape.rawValue
+            item.state = current == shape ? .on : .off
+            item.image = EditorIcon.image(symbol: shapeSymbol(shape), color: .white, pointSize: 13)
             item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: NSColor.white])
             menu.addItem(item)
         }
 
-        addTool("\(EditorStrings.toolPen(language))    P", .pen, #selector(MoreToolsMenuTarget.selectPen))
-        addTool("\(EditorStrings.toolHighlight(language))    H", .highlight, #selector(MoreToolsMenuTarget.selectHighlight))
-        addTool("\(EditorStrings.toolConcealSolid(language))    X", .conceal, #selector(MoreToolsMenuTarget.selectConceal))
-
-        let anchor = CGPoint(x: 0, y: toolbar.moreToolsButton.frame.maxY)
-        menu.popUp(positioning: nil, at: toolbar.convert(anchor, from: toolbar.moreToolsButton), in: toolbar)
+        add(.rectangle, EditorStrings.shapeRectangle(language))
+        add(.rounded, EditorStrings.shapeRounded(language))
+        add(.ellipse, EditorStrings.shapeEllipse(language))
+        popUp(menu, from: anchor)
+        endMenuEdit()
     }
 
-    // MARK: - Arrow style menu (SPEC-DELTA-2.md §1.2, SPEC-DELTA-2B.md §C6)
+    private func shapeSymbol(_ shape: AnnotationShape) -> String {
+        switch shape {
+        case .rectangle: return "rectangle"
+        case .rounded: return "rectangle.roundedtop"
+        case .ellipse: return "oval"
+        }
+    }
 
-    /// Port of the `ArrowOptionsButton` menu (`OverlayEditorWindow.Arrows.cs`): 4 items, each with
-    /// a rendered sample image and a checkmark on the currently-active style (the selected arrow's
-    /// own style if one is selected, else the tool-level default). Clicking an item either mutates
-    /// the selected arrow's style (pushing one undo step) or just arms the Arrow tool with that
-    /// style, and always updates `canvasView.activeArrowStyle` for the *next* new arrow.
-    func showArrowStyleMenu() {
-        guard let toolbar = toolbarView, let canvasView else { return }
-        let target = ArrowStyleMenuTarget(controller: self)
+    func applyShape(_ shape: AnnotationShape) {
+        // The shape belongs to the region and to the blur alike: a selected blur takes it without the
+        // tool switching out from under the hand.
+        let selected = canvasView?.selectedAnnotation
+        if !(selected?.kind == .rectangle || selected?.kind == .blur) { selectTool(.rectangle) }
+        applyAppearance(shape: shape)
+    }
+
+    /// Port of `BuildPencilMenu` (`Shapes.cs:71-86`): the other half of the pencil capsule.
+    func showPencilMenu(from anchor: NSView) {
+        let target = EditorMenuTarget(controller: self)
+        let menu = NSMenu()
+        for tool in [EditorTool.pen, EditorTool.highlight] {
+            let title = EditorShortcuts.caption(tool, language: language)
+            let item = NSMenuItem(title: title, action: #selector(EditorMenuTarget.selectTool(_:)), keyEquivalent: "")
+            item.target = target
+            item.representedObject = tool.rawValue
+            item.state = activePencil == tool ? .on : .off
+            item.image = EditorIcon.image(symbol: tool == .pen ? EditorIcon.pencil : EditorIcon.highlighter, color: .white, pointSize: 13)
+            item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: NSColor.white])
+            menu.addItem(item)
+        }
+        popUp(menu, from: anchor)
+    }
+
+    /// Port of the `ArrowOptionsButton` menu (`OverlayEditorWindow.Arrows.cs`): four styles, each
+    /// with a rendered sample and a checkmark on the one in force.
+    func showArrowStyleMenu(from anchor: NSView) {
+        guard let canvasView else { return }
+        beginMenuEdit()
+        let target = EditorMenuTarget(controller: self)
         let menu = NSMenu()
         let selectedArrow = canvasView.selectedAnnotation?.kind == .arrow ? canvasView.selectedAnnotation : nil
         let currentStyle = selectedArrow?.arrowStyle ?? canvasView.activeArrowStyle
 
-        func addStyle(_ title: String, _ style: String) {
-            let item = NSMenuItem(title: title, action: #selector(ArrowStyleMenuTarget.selectStyle(_:)), keyEquivalent: "")
+        func add(_ title: String, _ style: String) {
+            let item = NSMenuItem(title: title, action: #selector(EditorMenuTarget.selectArrowStyle(_:)), keyEquivalent: "")
             item.target = target
             item.representedObject = style
             item.image = ArrowDrawing.sampleImage(style: style)
@@ -207,33 +304,31 @@ extension OverlayEditorController {
             menu.addItem(item)
         }
 
-        addStyle(EditorStrings.arrowStraight(language), "straight")
-        addStyle(EditorStrings.arrowCurved(language), "curved")
-        addStyle(EditorStrings.arrowBold(language), "bold")
-        addStyle(EditorStrings.arrowWide(language), "wide")
-
-        let anchor = CGPoint(x: 0, y: toolbar.arrowOptionsButton.frame.maxY)
-        menu.popUp(positioning: nil, at: toolbar.convert(anchor, from: toolbar.arrowOptionsButton), in: toolbar)
+        add(EditorStrings.arrowStraight(language), "straight")
+        add(EditorStrings.arrowCurved(language), "curved")
+        add(EditorStrings.arrowBold(language), "bold")
+        add(EditorStrings.arrowWide(language), "wide")
+        popUp(menu, from: anchor)
+        endMenuEdit()
     }
 
-    /// Port of the arrow-style menu item click (`Arrows.cs:25-31`): mutating an already-selected
-    /// arrow pushes one undo step; otherwise this just arms the Arrow tool. `canvasView
-    /// .activeArrowStyle` (and `syncAppearance()`) is always refreshed either way, so the *next*
-    /// new arrow picks up the chosen style.
+    /// Port of the arrow-style click (`Arrows.cs:25-31`): a selected arrow takes the style, otherwise
+    /// the tool is armed with it; the next new arrow picks it up either way.
     func applyArrowStyle(_ style: String) {
         guard let canvasView else { return }
-        if let selected = canvasView.selectedAnnotation, selected.kind == .arrow {
-            if let before = lastSnapshot { history.pushWithoutClearingRedo(before) }
-            history.clearRedo()
-            selected.arrowStyle = style
-            lastSnapshot = snapshotState()
-            canvasView.needsDisplay = true
+        if canvasView.selectedAnnotation?.kind == .arrow {
+            applyAppearance(arrowStyle: style)
         } else {
             selectTool(.arrow)
+            canvasView.activeArrowStyle = style
+            syncAppearance()
         }
-        canvasView.activeArrowStyle = style
-        syncAppearance()
-        refreshUndoRedoButtons()
+    }
+
+    /// `NSMenu.popUp(positioning:at:in:)` runs its own modal event-tracking loop and does not return
+    /// until the menu closes, so the target only has to outlive this call.
+    private func popUp(_ menu: NSMenu, from anchor: NSView) {
+        menu.popUp(positioning: nil, at: CGPoint(x: 0, y: anchor.bounds.maxY), in: anchor)
     }
 
     // MARK: - In-canvas crop (SPEC §1.3 "Crop как отдельный случай")
@@ -277,36 +372,28 @@ extension OverlayEditorController {
     }
 }
 
-/// `NSMenu` requires an `@objc` target/selector pair; this small `NSObject` forwards each item to
-/// the controller via a weak reference (the controller itself is a plain Swift class, not
-/// `NSObject`, so it cannot be a menu target directly). `NSObject` itself isn't main-actor by
-/// default, and every forwarding method below calls into the now-`@MainActor` controller, so this
-/// needs its own explicit annotation (finding 2) — `NSMenu.popUp` only ever invokes these targets
-/// synchronously from the main thread's event-tracking loop, so this is not a change in behavior.
+/// `NSMenu` requires an `@objc` target/selector pair; this small `NSObject` forwards each item to the
+/// controller via a weak reference (the controller itself is a plain Swift class, not `NSObject`, so
+/// it cannot be a menu target directly).
 @MainActor
-final class MoreToolsMenuTarget: NSObject {
+final class EditorMenuTarget: NSObject {
     weak var controller: OverlayEditorController?
 
     init(controller: OverlayEditorController) {
         self.controller = controller
     }
 
-    @objc func selectPen() { controller?.selectTool(.pen) }
-    @objc func selectHighlight() { controller?.selectTool(.highlight) }
-    @objc func selectConceal() { controller?.selectTool(.conceal) }
-}
-
-/// `NSMenu` target for the arrow-style menu (`showArrowStyleMenu()`), same reasoning as
-/// `MoreToolsMenuTarget` above.
-@MainActor
-final class ArrowStyleMenuTarget: NSObject {
-    weak var controller: OverlayEditorController?
-
-    init(controller: OverlayEditorController) {
-        self.controller = controller
+    @objc func selectShape(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let shape = AnnotationShape(rawValue: raw) else { return }
+        controller?.applyShape(shape)
     }
 
-    @objc func selectStyle(_ sender: NSMenuItem) {
+    @objc func selectTool(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let tool = EditorTool(rawValue: raw) else { return }
+        controller?.selectTool(tool)
+    }
+
+    @objc func selectArrowStyle(_ sender: NSMenuItem) {
         guard let style = sender.representedObject as? String else { return }
         controller?.applyArrowStyle(style)
     }

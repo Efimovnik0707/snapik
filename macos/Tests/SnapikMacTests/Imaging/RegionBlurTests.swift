@@ -95,7 +95,55 @@ final class RegionBlurTests: XCTestCase {
         }
     }
 
+    // MARK: - Sync 3 (SPEC-DELTA-3 §6: the oval mask and the radius from the size of the region)
+
+    /// Port of `Apply_WithAnOvalMaskBlursTheCentreAndLeavesTheCornerOfItsBox`.
+    func test_Apply_WithAnOvalMaskBlursTheCentreAndLeavesTheCornerOfItsBox() throws {
+        let side = 24
+        let pixels = checkerPixels(width: side, height: side)
+        let source = try XCTUnwrap(makeBGRAImage(width: side, height: side, pixels: pixels))
+
+        let result = RegionBlur.blur(source, region: CGRect(x: 2, y: 2, width: 20, height: 20), radius: 3, shape: .ellipse)
+        let output = try XCTUnwrap(readBGRAPixels(result))
+
+        XCTAssertNotEqual(pixel(pixels, width: side, x: 12, y: 12), pixel(output, width: side, x: 12, y: 12))
+        // The corner of the bounding box is outside the oval: the picture there is untouched.
+        XCTAssertEqual(pixel(pixels, width: side, x: 2, y: 2), pixel(output, width: side, x: 2, y: 2))
+        XCTAssertEqual(pixel(pixels, width: side, x: 21, y: 21), pixel(output, width: side, x: 21, y: 21))
+    }
+
+    /// Port of `RadiusFor_FollowsTheShorterSideBetweenSixAndThirtySix`.
+    func test_RadiusFor_FollowsTheShorterSideBetweenSixAndThirtySix() {
+        XCTAssertEqual(6, RegionBlur.radiusFor(width: 40, height: 40))
+        XCTAssertEqual(20, RegionBlur.radiusFor(width: 240, height: 600))
+        XCTAssertEqual(36, RegionBlur.radiusFor(width: 2000, height: 1000))
+    }
+
+    /// The rectangle is the shape that covers every pixel of its box, so it comes back byte for byte
+    /// as it always did — the blend by the mask is skipped for it entirely.
+    func test_Apply_WithARectangleMaskIsByteForByteTheOldBlur() throws {
+        let side = 16
+        let pixels = checkerPixels(width: side, height: side)
+        let source = try XCTUnwrap(makeBGRAImage(width: side, height: side, pixels: pixels))
+
+        let masked = RegionBlur.blur(source, region: CGRect(x: 2, y: 2, width: 10, height: 10), radius: 2, shape: .rectangle)
+        let plain = RegionBlur.blur(source, region: CGRect(x: 2, y: 2, width: 10, height: 10), radius: 2)
+
+        XCTAssertEqual(try XCTUnwrap(readBGRAPixels(plain)), try XCTUnwrap(readBGRAPixels(masked)))
+    }
+
     // MARK: - Test helpers (BGRA8 premultiplied, top-down, matching `RegionBlur`'s own layout)
+
+    private func checkerPixels(width: Int, height: Int) -> [UInt8] {
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let value: UInt8 = (x + y) % 2 == 0 ? 255 : 0
+                setPixel(&pixels, width: width, x: x, y: y, blue: value, green: value, red: value, alpha: 255)
+            }
+        }
+        return pixels
+    }
 
     private func makeBGRAImage(width: Int, height: Int, pixels: [UInt8]) -> CGImage? {
         guard let provider = CGDataProvider(data: Data(pixels) as CFData) else { return nil }

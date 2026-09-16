@@ -1,6 +1,6 @@
 // Port of literal RU strings from OverlayEditorWindow.xaml / .xaml.cs / CaptureOverlay.xaml,
 // routed through `MacUiText.text(_:language:)` (which itself falls back to Core's
-// `UiLanguage.text(_:language:)`), SPEC §1.20, §6.1-6.3.
+// `UiLanguage.text(_:language:)`), SPEC §1.20, §6.1-6.3, SPEC-DELTA-3 §1.4.
 import Foundation
 import SnapikCore
 
@@ -11,7 +11,7 @@ import SnapikCore
 /// themselves (SPEC §1.20), matching the C# fallback.
 enum EditorStrings {
     /// Routes through `MacUiText` (`Sources/SnapikMac/App/MacUiText.swift`) rather than Core's
-    /// `UiLanguage.text` directly, so the 3 macOS-adapted strings (SPEC §1.20, e.g. "Сохранить на
+    /// `UiLanguage.text` directly, so the macOS-adapted strings (SPEC §1.20, e.g. "Сохранить на
     /// компьютер (Cmd+S)" instead of the Windows "(Ctrl+S)") apply here too.
     static func text(_ value: String, language: String) -> String {
         MacUiText.text(value, language: language)
@@ -20,37 +20,50 @@ enum EditorStrings {
     // Hint / selection mode
     static func selectHint(_ language: String) -> String { text("Выделите область · Esc отменяет", language: language) }
 
-    // Tool tooltips (also used as "•••" menu titles, with the trailing key letter appended by callers)
-    static func toolSelect(_ language: String) -> String { text("Выбор", language: language) }
-    static func toolRectangle(_ language: String) -> String { text("Область", language: language) }
-    static func toolArrow(_ language: String) -> String { text("Стрелка", language: language) }
-    static func toolPen(_ language: String) -> String { text("Перо", language: language) }
-    static func toolHighlight(_ language: String) -> String { text("Маркер", language: language) }
-    static func toolText(_ language: String) -> String { text("Текст", language: language) }
-    static func toolConceal(_ language: String) -> String { text("Скрыть", language: language) }
-    static func toolConcealSolid(_ language: String) -> String { text("Скрыть сплошным", language: language) }
-    static func toolBlur(_ language: String) -> String { text("Размыть", language: language) }
-    static func toolCrop(_ language: String) -> String { text("Обрезать", language: language) }
-    static func thickness(_ language: String) -> String { text("Толщина", language: language) }
-    static func moreTools(_ language: String) -> String { text("Ещё инструменты", language: language) }
-    // Appearance popover (SPEC §1.3, §6.2 "Дополнение 2026-09-09"). "Цвет отметки" (the old
-    // cycling menu item) is gone with the cycle it labeled; these four are new.
-    static func appearanceButtonTooltip(_ language: String) -> String { text("Цвет и толщина", language: language) }
+    // The name of a tool comes from `EditorShortcuts.tools`, which carries the letter beside it; the
+    // pencil is named here as well because its capsule shows the name without a letter of its own.
+    static func toolPencil(_ language: String) -> String { text("Карандаш", language: language) }
+
+    // Panel buttons and their popovers (SPEC-DELTA-3 §1.4 E-3, E-16, E-17, E-18)
     static func colorHeading(_ language: String) -> String { text("Цвет", language: language) }
+    static func thickness(_ language: String) -> String { text("Толщина", language: language) }
+    static func lineStyle(_ language: String) -> String { text("Линия", language: language) }
+    static func fill(_ language: String) -> String { text("Заливка", language: language) }
+    static func fillColorHeading(_ language: String) -> String { text("Цвет заливки", language: language) }
+    static func fontSize(_ language: String) -> String { text("Размер", language: language) }
+    static func shape(_ language: String) -> String { text("Фигура", language: language) }
+    static func shapeRectangle(_ language: String) -> String { text("Прямоугольник", language: language) }
+    static func shapeRounded(_ language: String) -> String { text("Скруглённый прямоугольник", language: language) }
+    static func shapeEllipse(_ language: String) -> String { text("Овал", language: language) }
+    static func lineSolid(_ language: String) -> String { text("Сплошная", language: language) }
+    static func lineDashed(_ language: String) -> String { text("Пунктир", language: language) }
+    static func lineDotted(_ language: String) -> String { text("Точки", language: language) }
+    static func fillOutline(_ language: String) -> String { text("Контур", language: language) }
+    static func fillSolid(_ language: String) -> String { text("Сплошная заливка", language: language) }
+    static func fillTranslucent(_ language: String) -> String { text("Полупрозрачная заливка", language: language) }
+    static func fillBlur(_ language: String) -> String { text("Заливка размытием", language: language) }
+    static func savedColors(_ language: String) -> String { text("Сохранённые цвета", language: language) }
+    static func pickColorFromScreen(_ language: String) -> String { text("Взять цвет с экрана", language: language) }
+    static func paletteName(_ key: String, _ language: String) -> String { text(key, language: language) }
     static func closeTooltip(_ language: String) -> String { text("Закрыть", language: language) }
     static func colorHexAccessibilityName(_ language: String) -> String { text("Цвет HEX", language: language) }
     static func strokeThicknessAccessibilityName(_ language: String) -> String { text("Толщина линии", language: language) }
+    static func fontSizeAccessibilityName(_ language: String) -> String { text("Размер шрифта", language: language) }
     static func addComment(_ language: String) -> String { text("Добавить комментарий", language: language) }
-    /// Port of the toolbar Comment button's tooltip (SPEC-DELTA-2.md §3: "Добавить комментарий
-    /// (N)"), distinct from `addComment` (used by SPEC-DELTA-2B.md §D's preview panel, out of this
-    /// zone, and by the plain "Добавить комментарий" reused string).
-    static func addCommentWithKey(_ language: String) -> String { text("Добавить комментарий (N)", language: language) }
     static func removeComment(_ language: String) -> String { text("Удалить комментарий", language: language) }
-    static func closeTextInput(_ language: String) -> String { text("Закрыть ввод текста", language: language) }
     static func undo(_ language: String) -> String { text("Отменить", language: language) }
     static func redo(_ language: String) -> String { text("Повторить", language: language) }
     static func saveToComputer(_ language: String) -> String { text("Сохранить на компьютер (Ctrl+S)", language: language) }
     static func done(_ language: String) -> String { text("Готово", language: language) }
+
+    // Key cheat sheet (SPEC-DELTA-3 §1.4 E-19)
+    static func shortcutSheet(_ language: String) -> String { text("Сочетания клавиш", language: language) }
+    static func shortcutTools(_ language: String) -> String { text("Инструменты", language: language) }
+    static func shortcutActions(_ language: String) -> String { text("Действия", language: language) }
+
+    // Comments panel (SPEC-DELTA-3 §1.4 E-12)
+    static func comments(_ language: String) -> String { text("Комментарии", language: language) }
+    static func noComments(_ language: String) -> String { text("Нет комментариев", language: language) }
 
     // Arrow style menu (SPEC-DELTA-2.md §1.2, §3; SPEC-DELTA-2B.md §C6).
     static func arrowStyle(_ language: String) -> String { text("Стиль стрелки", language: language) }
@@ -72,9 +85,9 @@ enum EditorStrings {
         "\(text("Угол снимка", language: language)) \(oneBasedIndex)"
     }
 
-    // Thickness button content, e.g. "4 px"
-    static func thicknessLabel(_ points: Double) -> String {
-        "\(Int(points)) px"
+    /// A value in pixels on a button, e.g. "4 px".
+    static func pixelLabel(_ points: Double) -> String {
+        "\(Int(points.rounded())) px"
     }
 
     // Errors / notifications

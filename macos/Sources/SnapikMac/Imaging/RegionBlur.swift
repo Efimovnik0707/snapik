@@ -12,6 +12,12 @@ public enum RegionBlur {
     private static let passCount = 3
     private static let maximumRadius = 512
 
+    /// Port of `RegionBlur.RadiusFor` (SPEC-DELTA-3 §1.4 E-1): how strongly a region is blurred comes
+    /// from its own size, so the strength is not a hidden setting of the stroke thickness any more.
+    public static func radiusFor(width: Double, height: Double) -> Int {
+        Int(min(max(min(width, height) / 12, 6), 36).rounded())
+    }
+
     /// Port of `RegionBlur.Apply`, matching `CONTRACTS.md`'s declared (non-throwing) signature —
     /// `Sources/SnapikMac/Editor/AnnotationCanvasView+Drawing.swift` already calls it this
     /// way. `radius` is clamped into `1...512` instead of trapping on out-of-range input (SPEC
@@ -19,16 +25,16 @@ public enum RegionBlur {
     /// rare internal failure (e.g. bitmap context allocation), returns `image` unchanged rather
     /// than crashing. `blurStrict` below preserves the exact reject-invalid-radius behavior for
     /// callers that can handle an error (SPEC §2.8 / ported tests 17-18).
-    public static func blur(_ image: CGImage, region: CGRect, radius: Int) -> CGImage {
+    public static func blur(_ image: CGImage, region: CGRect, radius: Int, shape: AnnotationShape = .rectangle) -> CGImage {
         let clampedRadius = min(max(radius, 1), maximumRadius)
-        return (try? blurStrict(image, region: region, radius: clampedRadius)) ?? image
+        return (try? blurStrict(image, region: region, radius: clampedRadius, shape: shape)) ?? image
     }
 
     /// Port of `RegionBlur.Apply`'s full behavior, including the radius range check. Not part of
     /// `CONTRACTS.md`'s sketch (kept internal); exists so tests 13-18 can exercise the exact
     /// ported Windows behavior, including radius rejection, without changing `blur`'s
     /// already-depended-upon non-throwing signature.
-    static func blurStrict(_ image: CGImage, region: CGRect, radius: Int) throws -> CGImage {
+    static func blurStrict(_ image: CGImage, region: CGRect, radius: Int, shape: AnnotationShape = .rectangle) throws -> CGImage {
         guard radius >= 1 && radius <= maximumRadius else {
             throw SnapikError.argumentOutOfRange(
                 "radius: Blur radius must be between 1 and \(maximumRadius) pixels.")
@@ -42,7 +48,9 @@ public enum RegionBlur {
 
         let clipped = clip(region, imageWidth: width, imageHeight: height)
         if clipped.width > 0 && clipped.height > 0 {
-            blurRegion(&pixels, fullStride: stride, region: clipped, radius: radius)
+            // The mask is measured against the region the user drew, not against the part of it that
+            // fits on the picture: half an oval over the edge stays half an oval.
+            blurRegion(&pixels, fullStride: stride, region: clipped, radius: radius, shape: shape, shapeBox: region)
         }
 
         return try makeImage(pixels: pixels, width: width, height: height, stride: stride)
@@ -137,7 +145,10 @@ public enum RegionBlur {
 
     // MARK: - Port of `RegionBlur.BlurRegion` / `BlurHorizontal` / `BlurVertical`
 
-    private static func blurRegion(_ fullPixels: inout [UInt8], fullStride: Int, region: PixelRect, radius: Int) {
+    private static func blurRegion(
+        _ fullPixels: inout [UInt8], fullStride: Int, region: PixelRect, radius: Int,
+        shape: AnnotationShape, shapeBox: CGRect
+    ) {
         let regionStride = region.width * bytesPerPixel
         var regionPixels = [UInt8](repeating: 0, count: regionStride * region.height)
         var scratch = [UInt8](repeating: 0, count: regionPixels.count)
@@ -148,16 +159,46 @@ public enum RegionBlur {
                 regionPixels[row * regionStride + byte] = fullPixels[sourceOffset + byte]
             }
         }
+        // A rectangle covers every pixel of its box, so it is written back untouched by the blend
+        // below and comes out byte for byte as it always did.
+        let untouched: [UInt8]? = shape == .rectangle ? nil : regionPixels
 
         for _ in 0..<passCount {
             blurHorizontal(regionPixels, &scratch, width: region.width, height: region.height, stride: regionStride, radius: radius)
             blurVertical(scratch, &regionPixels, width: region.width, height: region.height, stride: regionStride, radius: radius)
+        }
+        if let untouched {
+            blendByShape(&regionPixels, untouched: untouched, region: region, stride: regionStride, shape: shape, shapeBox: shapeBox)
         }
 
         for row in 0..<region.height {
             let destinationOffset = (region.y + row) * fullStride + region.x * bytesPerPixel
             for byte in 0..<regionStride {
                 fullPixels[destinationOffset + byte] = regionPixels[row * regionStride + byte]
+            }
+        }
+    }
+
+    /// Port of `BlendByShape`: `dst = original * (1 - coverage) + blurred * coverage`, so the picture
+    /// comes back untouched outside the shape and the edge of the shape is smooth.
+    private static func blendByShape(
+        _ blurred: inout [UInt8], untouched: [UInt8], region: PixelRect, stride: Int,
+        shape: AnnotationShape, shapeBox: CGRect
+    ) {
+        let boxWidth = Double(shapeBox.width)
+        let boxHeight = Double(shapeBox.height)
+        for row in 0..<region.height {
+            for column in 0..<region.width {
+                let coverage = ShapeMask.coverage(
+                    shape, width: boxWidth, height: boxHeight,
+                    x: Double(region.x) - Double(shapeBox.minX) + Double(column),
+                    y: Double(region.y) - Double(shapeBox.minY) + Double(row))
+                if coverage >= 1 { continue }
+                let offset = row * stride + column * bytesPerPixel
+                for channel in 0..<bytesPerPixel {
+                    let mixed = Double(untouched[offset + channel]) * (1 - coverage) + Double(blurred[offset + channel]) * coverage
+                    blurred[offset + channel] = UInt8(min(max(mixed.rounded(), 0), 255))
+                }
             }
         }
     }
