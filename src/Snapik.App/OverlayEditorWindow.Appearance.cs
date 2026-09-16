@@ -34,36 +34,29 @@ public partial class OverlayEditorWindow
         _ => null
     };
     internal static readonly double[] HighlightThicknessPresets = [8, 12, 16, 24];
-    // The tools drawn with a stroke, written out and depending on nothing else: a caption has a size
-    // instead of a thickness, and a comment pin has neither.
-    private static bool HasStroke(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Arrow or EditorTool.Pen or EditorTool.Highlight;
-    // The frame is shared by a region and by a blur: one shape is remembered for both. What stands
-    // inside the frame belongs to the region alone, a blur has its own picture inside it.
-    private static bool HasShape(EditorTool tool) => tool is EditorTool.Rectangle or EditorTool.Blur;
-    private static bool HasFill(EditorTool tool) => tool == EditorTool.Rectangle;
-    // The size of the letters belongs to a caption, and to nothing else on the panel.
-    private static bool HasFontSize(EditorTool tool) => tool == EditorTool.Text;
-    // The pattern of a stroke belongs to the marks that are drawn with one: the frame and the oval,
-    // the arrow and the pencil. The highlighter is left out on purpose — a dashed highlighter falls
-    // apart into blots.
-    private static bool HasLineStyle(EditorTool tool) => Imaging.StrokePattern.Participates(tool);
+    // What a tool of the panel may be set to, and whether the block answers at all, is one table now
+    // (EditorInspector.InspectorViewOf) instead of five predicates by tool. The one rule that is not
+    // in it is the pattern of a stroke: the highlighter carries a width but no dashes, because a
+    // dashed highlighter falls apart into blots, and the renderers ask StrokePattern the same way.
 
-    // A palette is twelve colours plus the five of them that sit on the panel, one click away. The
-    // sets are picked in the popover and remembered between captures; replacing the colours of a set
-    // is one array and no code.
-    internal sealed record PaletteSet(string Id, string NameKey, string[] Colors, string[] Quick);
+    // A palette is twelve colours, picked in the popover and remembered between captures; replacing
+    // the colours of a set is one array and no code. The quick row of five dots that used to stand
+    // on the panel is gone with the dots: the twelve swatches of the popover are the row now.
+    internal sealed record PaletteSet(string Id, string NameKey, string[] Colors);
 
     internal static readonly PaletteSet[] Palettes =
     [
         new("standard", "Стандартная",
-            ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#32ADE6", "#007AFF", "#AF52DE", "#FF2D55", "#FFFFFF", "#000000", "#8E8E93", "#A2845E"],
-            ["#FF3B30", "#FFCC00", "#34C759", "#007AFF", "#FFFFFF"]),
+            ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#32ADE6", "#007AFF", "#AF52DE", "#FF2D55", "#FFFFFF", "#000000", "#8E8E93", "#A2845E"]),
         new("pastel", "Пастель",
-            ["#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7", "#FFFFFF", "#000000", "#00C8DC", "#FF8C42", "#9BA7B8", "#7754D9"],
-            ["#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#FFFFFF"]),
+            ["#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7", "#FFFFFF", "#000000", "#00C8DC", "#FF8C42", "#9BA7B8", "#7754D9"]),
+        // Back as the fourth set, with the twelve colours it carried before it was taken out to make
+        // room for the own one: the reference of this round draws four segments, not three.
+        new("neon", "Неон",
+            ["#FF1744", "#FF6D00", "#FFEA00", "#C6FF00", "#00E676", "#1DE9B6", "#00E5FF", "#2979FF", "#651FFF", "#D500F9", "#FF4081", "#FFFFFF"]),
         // The own palette holds no colours of its own: they are the ones the user picked, they live
         // in the settings file, and PaletteFor puts them in.
-        new("custom", "Своя", [], [])
+        new("custom", "Своя", [])
     ];
 
     /// <summary>
@@ -76,11 +69,8 @@ public partial class OverlayEditorWindow
             ? CustomPalette(settings.CustomPaletteColors)
             : ParseAnnotationPalette(settings.AnnotationPalette);
 
-    internal static PaletteSet CustomPalette(System.Collections.Generic.IEnumerable<string> colours)
-    {
-        var kept = colours.Take(HotkeySettings.MaxCustomPaletteColors).ToArray();
-        return new PaletteSet("custom", "Своя", kept, [.. kept.Take(5)]);
-    }
+    internal static PaletteSet CustomPalette(System.Collections.Generic.IEnumerable<string> colours) =>
+        new("custom", "Своя", [.. colours.Take(HotkeySettings.MaxCustomPaletteColors)]);
 
     /// <summary>The colours of the own palette, newest first, as this window has them.</summary>
     private readonly System.Collections.Generic.List<string> _customColors = [];
@@ -93,27 +83,36 @@ public partial class OverlayEditorWindow
         _activePalette = PaletteFor(preferences);
     }
 
-    // The thickness the panel works on: the highlighter keeps one of its own, everything else with a
-    // stroke shares the other, which is what the common thickness button was asked to do.
+    // The thickness the panel works on: the highlighter counts in tens of pixels, everything else
+    // with a stroke in units of them.
     internal static double[] ThicknessPresetsFor(EditorTool tool) =>
         tool == EditorTool.Highlight ? HighlightThicknessPresets : ThicknessPresets;
 
-    internal double ActiveThicknessFor(EditorTool tool) =>
-        tool == EditorTool.Highlight ? _activeHighlightThickness : _activeThickness;
+    /// <summary>
+    /// The settings the panel shows and edits for a tool. Select, Eraser, Crop, Comment and Conceal
+    /// have none of their own: the block is there but dead for them (InspectorViewOf → Enabled is
+    /// false), and Surface.Active* go on carrying what the next mark will be drawn with, which is
+    /// the frame's set. The dictionary is never indexed straight — this is the one door to it.
+    /// </summary>
+    private ToolAppearance AppearanceOf(EditorTool tool) =>
+        _tools.TryGetValue(tool, out var kept) ? kept : _tools[EditorTool.Rectangle];
 
-    private void SetActiveThickness(EditorTool tool, double value)
+    // The frame and the blur share one shape, the way the reference says they do: it is kept on the
+    // frame, and the blur is written from it so the settings file says the same thing.
+    private AnnotationShape ActiveShape => AppearanceOf(EditorTool.Rectangle).Shape;
+
+    // What the next mark is drawn with: the set of the tool in the hand, whatever is selected.
+    private void SyncSurfaceDefaults()
     {
-        if (tool == EditorTool.Highlight)
-        {
-            _appearanceDefaultsChanged |= value != _activeHighlightThickness;
-            _activeHighlightThickness = value;
-        }
-        else
-        {
-            _appearanceDefaultsChanged |= value != _activeThickness;
-            _activeThickness = value;
-        }
-        Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
+        var kept = AppearanceOf(Surface.Tool);
+        Surface.ActiveColor = kept.Color;
+        Surface.ActiveThickness = kept.Thickness;
+        Surface.ActiveShape = ActiveShape;
+        Surface.ActiveFill = kept.Fill;
+        Surface.ActiveFillColor = kept.FillColor;
+        Surface.ActiveLineStyle = kept.LineStyle;
+        Surface.ActiveFontSize = kept.FontSize;
+        Surface.ActiveArrowStyle = kept.ArrowStyle;
     }
 
     private void OpenAppearance()
@@ -146,16 +145,6 @@ public partial class OverlayEditorWindow
         BuildFillPalette();
         SyncAppearance();
         FillPopup.IsOpen = true;
-    }
-
-    private void OpenLineStyle()
-    {
-        if (LineStylePopup.IsOpen) { LineStylePopup.IsOpen = false; return; }
-        if (_capture is null) return;
-        _appearanceBefore = SnapshotState();
-        _appearanceChanged = false;
-        SyncAppearance();
-        LineStylePopup.IsOpen = true;
     }
 
     private void OpenThickness()
@@ -204,80 +193,100 @@ public partial class OverlayEditorWindow
         }
     };
 
-    // The row of five dots on the panel: the quick row of the active palette, one click instead of
-    // two. The circle beside it still opens the full popover.
-    private void BuildColorDots()
-    {
-        ColorDots.Children.Clear();
-        foreach (var hex in _activePalette.Quick)
-        {
-            var color = (Color)ColorConverter.ConvertFromString(hex);
-            var dot = new Ellipse
-            {
-                Width = 14, Height = 14, Fill = new SolidColorBrush(color),
-                Stroke = new SolidColorBrush(Color.FromRgb(120, 130, 146)), StrokeThickness = 1
-            };
-            var button = new Button
-            {
-                Width = 22, MinWidth = 22, Height = 22, Margin = new Thickness(1, 0, 1, 0), Padding = new Thickness(0),
-                Style = (Style)FindResource("OverlayButton"), Tag = color, Content = dot, ToolTip = hex
-            };
-            System.Windows.Automation.AutomationProperties.SetName(button, hex);
-            button.Click += (_, _) => ApplyQuickColor(color);
-            ColorDots.Children.Add(button);
-        }
-    }
-
+    /// <summary>
+    /// The panel as an inspector: what is selected owns the block, and with nothing selected it is
+    /// the tool in the hand. Two capsules and no more — the colour of the outline with the square of
+    /// the fill beside it, and the width and pattern of a stroke, the size of a caption or the shape
+    /// of a blur. The block keeps one width under every tool, so the panel never jumps.
+    /// </summary>
     private void SyncAppearance()
     {
-        if (AppearanceButton is null || StrokeSlider is null) return;
+        if (ColorCapsule is null || StrokeSlider is null) return;
         _syncingAppearance = true;
         ArrowMenuButton.ToolTip = UiLanguage.Text("Стиль стрелки");
         ShapeMenuButton.ToolTip = UiLanguage.Text("Фигура");
         UndoButton.IsEnabled = _undo.Count > 0;
         RedoButton.IsEnabled = _redo.Count > 0;
         var selected = Surface.SelectedAnnotation;
-        var tool = selected?.Kind ?? Surface.Tool;
-        var color = selected?.Color ?? _activeColor;
-        var thickness = selected?.Thickness ?? ActiveThicknessFor(tool);
-        // The next mark takes the thickness of the tool in the hand, not of the mark under the cursor.
-        Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
-        var fillColor = (selected is not null ? selected.FillColor : _activeFillColor) ?? color;
-        // The circle on the panel and the dots beside it carry the colour of the mark itself; what
-        // stands inside a frame has a row of its own in the fill popover. There is one active colour
-        // and every tool takes it, so neither the circle nor the dots are ever dimmed.
-        ColorSwatch.Fill = new SolidColorBrush(color);
-        // A tool without a stroke leaves the last thickness on the button, dimmed by the disabled
-        // state of the style: an empty caption is what used to make the panel jump.
-        ThicknessButton.IsEnabled = HasStroke(tool);
-        ThicknessButton.Content = $"{(HasStroke(tool) ? thickness : ActiveThicknessFor(tool)):0} px";
-        // The pattern of the mark under the hand, or of the next one; a tool without a pattern keeps
-        // the last sample on the button, dimmed by the disabled state, the way the thickness does.
-        var lineStyle = selected is not null && HasLineStyle(selected.Kind) ? selected.LineStyle : _activeLineStyle;
-        LineStyleButton.IsEnabled = HasLineStyle(tool);
-        LineStyleGlyph.StrokeDashArray = DashesOf(lineStyle);
-        LineStyleGlyph.StrokeDashCap = lineStyle == AnnotationLineStyle.Dotted ? PenLineCap.Round : PenLineCap.Flat;
-        LineStylePreview.Stroke = new SolidColorBrush(color);
-        LineStylePreview.StrokeThickness = Math.Min(24, thickness);
-        LineStylePreview.StrokeDashArray = DashesOf(lineStyle);
-        LineStylePreview.StrokeDashCap = lineStyle == AnnotationLineStyle.Dotted ? PenLineCap.Round : PenLineCap.Flat;
-        foreach (var segment in LineStyleRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>())
-            segment.IsChecked = segment.Tag is string name && string.Equals(name, lineStyle.ToString(), StringComparison.Ordinal);
+        var tool = EditorInspector.InspectedTool(selected, Surface.Tool);
+        var view = EditorInspector.InspectorViewOf(tool);
+        var kept = AppearanceOf(tool);
+        var color = selected?.Color ?? kept.Color;
+        var thickness = selected?.Thickness ?? kept.Thickness;
+        // The pattern belongs to the marks drawn with one: the highlighter carries a width and no
+        // dashes, and the rule lives in StrokePattern, where both renderers read it.
+        var patterned = Imaging.StrokePattern.Participates(tool);
+        var lineStyle = patterned ? selected?.LineStyle ?? kept.LineStyle : AnnotationLineStyle.Solid;
+        var fill = selected?.Fill ?? kept.Fill;
+        var fillColor = (selected is not null ? selected.FillColor : kept.FillColor) ?? color;
+        var fontSize = selected?.FontSize ?? kept.FontSize;
+        var shape = selected is not null && selected.Kind is EditorTool.Rectangle or EditorTool.Blur ? selected.Shape : ActiveShape;
+        // What the next mark is drawn with is decided apart from what the block shows: the tool in
+        // the hand owns it, whatever mark the pointer happens to have selected.
+        SyncSurfaceDefaults();
+
+        // The first capsule: the circle of the outline and the square of what stands inside it. A
+        // blur has no colour at all, so the capsule is hidden and not dimmed; a tool with no settings
+        // of its own keeps both capsules in place and switched off, and the panel holds its width.
+        ColorCapsule.Visibility = view.Stroke ? Visibility.Visible : Visibility.Hidden;
+        ColorCapsule.IsEnabled = view.Enabled;
+        ColorCapsule.Opacity = view.Enabled ? 1 : 0.28;
+        StrokeDot.Fill = new SolidColorBrush(color);
+        FillSquare.Visibility = view.FillSwatch ? Visibility.Visible : Visibility.Collapsed;
+        FillSquare.Background = fill switch
+        {
+            AnnotationFill.Solid => new SolidColorBrush(fillColor),
+            AnnotationFill.Translucent => new SolidColorBrush(Color.FromArgb(0x40, fillColor.R, fillColor.G, fillColor.B)),
+            _ => Brushes.Transparent
+        };
+        FillSquareBlur.Visibility = fill == AnnotationFill.Blur ? Visibility.Visible : Visibility.Collapsed;
+        FillSquareNone.Visibility = fill == AnnotationFill.None ? Visibility.Visible : Visibility.Collapsed;
+
+        // The second capsule: the width and the pattern of a stroke, the size of a caption, or the
+        // shape a blur is cut in. One capsule for the three of them, as the reference draws it.
+        LineCapsule.IsEnabled = view.Enabled;
+        LineCapsule.Opacity = view.Enabled ? 1 : 0.28;
+        LineCapsule.ToolTip = UiLanguage.Text(view.Second switch
+        {
+            SecondCapsule.FontSize => "Размер",
+            SecondCapsule.Shape => "Фигура",
+            _ => "Толщина"
+        });
+        LineCapsuleGlyph.Visibility = view.Second is SecondCapsule.FontSize or SecondCapsule.Shape ? Visibility.Visible : Visibility.Collapsed;
+        LineCapsuleGlyph.Text = view.Second == SecondCapsule.FontSize ? "A" : "▢";
+        LineCapsuleValue.Text = view.Second switch
+        {
+            SecondCapsule.FontSize => $"{fontSize:0} pt",
+            SecondCapsule.Shape => UiLanguage.Text(ShapeName(shape)),
+            _ => $"{thickness:0} px"
+        };
+        LineCapsuleSample.Visibility = view.Second == SecondCapsule.Line ? Visibility.Visible : Visibility.Collapsed;
+        LineCapsuleSample.StrokeThickness = Math.Clamp(thickness, 1, 6);
+        LineCapsuleSample.StrokeDashArray = DashesOf(lineStyle);
+        LineCapsuleSample.StrokeDashCap = lineStyle == AnnotationLineStyle.Dotted ? PenLineCap.Round : PenLineCap.Flat;
+
+        // The stroke popover: the palettes, the swatches, the spectrum and the HEX field, and under
+        // them the width and the pattern the reference draws in the same sheet.
         ColorHex.Text = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
         ColorHex.BorderBrush = new SolidColorBrush(Color.FromRgb(70, 83, 102));
         var highlighting = tool == EditorTool.Highlight;
-        StrokeSlider.IsEnabled = HasStroke(tool);
+        StrokeSlider.IsEnabled = view.Second == SecondCapsule.Line;
         StrokeSlider.Minimum = highlighting ? MinimumHighlightThickness : 1;
         StrokeSlider.Maximum = highlighting ? MaximumHighlightThickness : 16;
         StrokeSlider.Value = Math.Clamp(thickness, StrokeSlider.Minimum, StrokeSlider.Maximum);
-        StrokeValue.Text = HasStroke(tool) ? $"{thickness:0} px" : "—";
+        StrokeValue.Text = view.Second == SecondCapsule.Line ? $"{thickness:0} px" : "—";
         StrokePreview.Stroke = new SolidColorBrush(color);
         // The preview shows what the stroke will look like, inside a box 36 px tall: a highlighter
         // that wide is drawn with its own transparency and its own square ends.
         StrokePreview.StrokeThickness = Math.Min(24, thickness);
         StrokePreview.Opacity = highlighting ? Controls.AnnotationCanvas.HighlightOpacity : 1;
         StrokePreview.StrokeStartLineCap = StrokePreview.StrokeEndLineCap = highlighting ? PenLineCap.Square : PenLineCap.Round;
-        StrokePreview.Visibility = HasStroke(tool) ? Visibility.Visible : Visibility.Hidden;
+        StrokePreview.StrokeDashArray = DashesOf(lineStyle);
+        StrokePreview.StrokeDashCap = lineStyle == AnnotationLineStyle.Dotted ? PenLineCap.Round : PenLineCap.Flat;
+        StrokePreview.Visibility = view.Second == SecondCapsule.Line ? Visibility.Visible : Visibility.Hidden;
+        LineStyleRow.IsEnabled = patterned;
+        foreach (var segment in LineStyleRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>())
+            segment.IsChecked = segment.Tag is string name && string.Equals(name, lineStyle.ToString(), StringComparison.Ordinal);
         // The four presets are the presets of the tool in the hand, values, tooltips and all.
         var presets = ThicknessPresetsFor(tool);
         var segments = ThicknessPresetRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>().ToArray();
@@ -314,18 +323,8 @@ public partial class OverlayEditorWindow
         ShapeMenuButton.Background = Surface.Tool == EditorTool.Rectangle ? accent : Brushes.Transparent;
         ArrowMenuButton.Background = Surface.Tool == EditorTool.Arrow ? accent : Brushes.Transparent;
         PenMenuButton.Background = Surface.Tool is EditorTool.Pen or EditorTool.Highlight ? accent : Brushes.Transparent;
-        // The dots paint the colour of the mark, the same one the circle on the panel shows, so the
-        // one that is ringed is the one that matches it.
-        foreach (Button dot in ColorDots.Children)
-            ((Ellipse)dot.Content).Stroke = (Color)dot.Tag == color
-                ? Brushes.White
-                : new SolidColorBrush(Color.FromRgb(120, 130, 146));
-        // The size of a caption: the button carries it, the popover shows it, and the canvas takes
+        // The size of a caption: the capsule carries it, the popover shows it, and the canvas takes
         // it for the next one.
-        var fontSize = selected?.FontSize ?? _activeFontSize;
-        Surface.ActiveFontSize = _activeFontSize;
-        FontSizeButton.IsEnabled = HasFontSize(tool);
-        FontSizeButton.Content = $"{(HasFontSize(tool) ? fontSize : _activeFontSize):0} px";
         FontSizeValue.Text = $"{fontSize:0} px";
         FontSizeSlider.Value = TextMarkMetrics.Clamp(fontSize);
         FontSizePreview.FontSize = Math.Min(44, TextMarkMetrics.Clamp(fontSize));
@@ -334,49 +333,90 @@ public partial class OverlayEditorWindow
             preset.IsChecked = preset.Tag is string sizeTag &&
                 double.TryParse(sizeTag, System.Globalization.CultureInfo.InvariantCulture, out var presetSize) &&
                 Math.Abs(presetSize - fontSize) < 0.001;
-        var fill = selected?.Fill ?? Surface.ActiveFill;
-        FillRow.IsEnabled = HasFill(tool);
+        FillRow.IsEnabled = view.FillSwatch;
         FillNoneSegment.IsChecked = fill == AnnotationFill.None;
         FillSolidSegment.IsChecked = fill == AnnotationFill.Solid;
         FillTranslucentSegment.IsChecked = fill == AnnotationFill.Translucent;
         FillBlurSegment.IsChecked = fill == AnnotationFill.Blur;
         // A blurred region shows the picture under it: it has no colour of its own to pick.
-        FillPalette.IsEnabled = HasFill(tool) && fill is AnnotationFill.Solid or AnnotationFill.Translucent;
-        // The button of the fill is dimmed only while a mark that cannot be filled is selected: with
-        // another tool in the hand it arms the region itself, so it must stay pressable.
-        FillButton.IsEnabled = selected is null || HasFill(selected.Kind);
+        FillPalette.IsEnabled = view.FillSwatch && fill is AnnotationFill.Solid or AnnotationFill.Translucent;
         FillValue.Text = UiLanguage.Text(FillName(fill));
-        FillButtonPreview.Fill = fill switch
-        {
-            AnnotationFill.Solid => new SolidColorBrush(fillColor),
-            AnnotationFill.Translucent => new SolidColorBrush(Color.FromArgb(0x40, fillColor.R, fillColor.G, fillColor.B)),
-            AnnotationFill.Blur => (Brush)FindResource("BlurFillPreview"),
-            _ => Brushes.Transparent
-        };
         _syncingAppearance = false;
     }
 
+    // The short name of a shape, the one the line capsule carries for a blur.
+    private static string ShapeName(AnnotationShape shape) => shape switch
+    {
+        AnnotationShape.Rounded => "Скруглённый",
+        AnnotationShape.Ellipse => "Овал",
+        _ => "Прямоугольник"
+    };
+
+    /// <summary>
+    /// Rule 2 of the specification: with a mark selected the change goes into that mark and nowhere
+    /// else; with nothing selected it goes into the tool it belongs to, and every mark that tool
+    /// draws from now on carries it. A tool with no settings of its own takes nothing at all.
+    /// </summary>
     private void ApplyAppearance(Color? color, double? thickness, AnnotationShape? shape = null, AnnotationFill? fill = null,
         string? arrowStyle = null, Color? fillColor = null, double? fontSize = null,
         AnnotationLineStyle? lineStyle = null)
     {
         var selected = Surface.SelectedAnnotation;
-        var tool = selected?.Kind ?? Surface.Tool;
-        // One active colour, taken whatever is in the hand: a colour picked with the comment tool
-        // armed is the colour the next frame is drawn with, instead of being thrown away.
-        if (color is { } c) { _appearanceDefaultsChanged |= c != _activeColor; _activeColor = c; Surface.ActiveColor = c; if (selected is not null) { selected.Color = c; _appearanceChanged = true; } }
-        if (thickness is { } t && HasStroke(tool)) { SetActiveThickness(tool, t); if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; } }
-        if (shape is { } s && HasShape(tool)) { _appearanceDefaultsChanged |= s != _activeShape; _activeShape = s; Surface.ActiveShape = s; if (selected is not null) { selected.Shape = s; _appearanceChanged = true; } }
-        if (fill is { } f && HasFill(tool)) { _appearanceDefaultsChanged |= f != _activeFill; _activeFill = f; Surface.ActiveFill = f; if (selected is not null) { selected.Fill = f; _appearanceChanged = true; } }
-        if (fillColor is { } fc && HasFill(tool)) { _appearanceDefaultsChanged |= fc != _activeFillColor; _activeFillColor = fc; Surface.ActiveFillColor = fc; if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; } }
-        if (arrowStyle is { } style && tool == EditorTool.Arrow) { Surface.ActiveArrowStyle = style; if (selected is not null) { selected.ArrowStyle = style; _appearanceChanged = true; } }
-        if (lineStyle is { } line && HasLineStyle(tool)) { _activeLineStyle = line; Surface.ActiveLineStyle = line; if (selected is not null) { selected.LineStyle = line; _appearanceChanged = true; } }
-        if (fontSize is { } size && HasFontSize(tool))
+        var tool = EditorInspector.InspectedTool(selected, Surface.Tool);
+        var view = EditorInspector.InspectorViewOf(tool);
+        void Keep(Func<ToolAppearance, ToolAppearance> change)
+        {
+            if (!_tools.TryGetValue(tool, out var before)) return;
+            var after = change(before);
+            _appearanceDefaultsChanged |= after != before;
+            _tools[tool] = after;
+        }
+        if (color is { } c && view.Stroke)
+        {
+            if (selected is not null) { selected.Color = c; _appearanceChanged = true; }
+            else Keep(before => before with { Color = c });
+        }
+        if (thickness is { } t && view.Second == SecondCapsule.Line)
+        {
+            if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; }
+            else Keep(before => before with { Thickness = t });
+        }
+        // The shape belongs to the frame and to the blur, and to nothing else on the panel.
+        if (shape is { } picked && tool is EditorTool.Rectangle or EditorTool.Blur)
+        {
+            if (selected is not null) { selected.Shape = picked; _appearanceChanged = true; }
+            else
+            {
+                // One shape for the frame and the blur: it is kept on the frame and mirrored onto the
+                // blur, so the settings file says the same thing whichever of the two wrote it.
+                _appearanceDefaultsChanged |= ActiveShape != picked;
+                _tools[EditorTool.Rectangle] = AppearanceOf(EditorTool.Rectangle) with { Shape = picked };
+                _tools[EditorTool.Blur] = AppearanceOf(EditorTool.Blur) with { Shape = picked };
+            }
+        }
+        if (fill is { } f && view.FillSwatch)
+        {
+            if (selected is not null) { selected.Fill = f; _appearanceChanged = true; }
+            else Keep(before => before with { Fill = f });
+        }
+        if (fillColor is { } fc && view.FillSwatch)
+        {
+            if (selected is not null) { selected.FillColor = fc; _appearanceChanged = true; }
+            else Keep(before => before with { FillColor = fc });
+        }
+        if (arrowStyle is { } style && tool == EditorTool.Arrow)
+        {
+            if (selected is not null) { selected.ArrowStyle = style; _appearanceChanged = true; }
+            else Keep(before => before with { ArrowStyle = style });
+        }
+        if (lineStyle is { } line && Imaging.StrokePattern.Participates(tool))
+        {
+            if (selected is not null) { selected.LineStyle = line; _appearanceChanged = true; }
+            else Keep(before => before with { LineStyle = line });
+        }
+        if (fontSize is { } size && view.Second == SecondCapsule.FontSize)
         {
             size = TextMarkMetrics.Clamp(size);
-            _appearanceDefaultsChanged |= size != _activeFontSize;
-            _activeFontSize = size;
-            Surface.ActiveFontSize = size;
             if (selected is not null)
             {
                 selected.FontSize = size;
@@ -384,6 +424,7 @@ public partial class OverlayEditorWindow
                 TextMarkMetrics.Fit(selected);
                 _appearanceChanged = true;
             }
+            else Keep(before => before with { FontSize = size });
             ResizeTextEditor();
         }
         Surface.InvalidateVisual();
@@ -430,13 +471,35 @@ public partial class OverlayEditorWindow
         if (!_syncingAppearance && FontSizePopup?.IsOpen == true) ApplyAppearance(null, null, fontSize: Math.Round(e.NewValue));
     }
 
-    private void OnFillButtonClick(object sender, RoutedEventArgs e)
+    // The square inside the colour capsule takes the press before the capsule does, and opens the
+    // fill popover instead of the stroke one: two properties of the mark, two ways in.
+    private void OnFillSquareDown(object sender, MouseButtonEventArgs e) => e.Handled = OpenFillFromSquare();
+
+    internal bool OpenFillFromSquare()
     {
-        if (_capture is null) return;
+        if (_capture is null || !ColorCapsule.IsEnabled) return false;
         // The fill belongs to a region: with another tool in the hand and nothing selected the
-        // button arms the region first, the way a pick in the shape menu does.
-        if (Surface.SelectedAnnotation is null && !HasFill(Surface.Tool)) SelectToolMode(EditorTool.Rectangle);
+        // square arms the region first, the way a pick in the shape menu does.
+        if (Surface.SelectedAnnotation is null && !EditorInspector.InspectorViewOf(Surface.Tool).FillSwatch)
+            SelectToolMode(EditorTool.Rectangle);
         OpenFill();
+        return true;
+    }
+
+    // The two capsules of the block, and the popover each of them opens. The line capsule carries
+    // three things by turns, so it opens three: the width and the pattern of a stroke, the size of
+    // a caption, or the menu of shapes the frame and the blur share.
+    private void OnColorCapsuleClick(object sender, RoutedEventArgs e) => OpenAppearance();
+
+    private void OnLineCapsuleClick(object sender, RoutedEventArgs e)
+    {
+        var tool = EditorInspector.InspectedTool(Surface.SelectedAnnotation, Surface.Tool);
+        switch (EditorInspector.InspectorViewOf(tool).Second)
+        {
+            case SecondCapsule.FontSize: OpenFontSize(); break;
+            case SecondCapsule.Shape: OpenToolMenu(BuildShapeMenu(LineCapsule)); break;
+            default: OpenThickness(); break;
+        }
     }
 
     private void OnFillClick(object sender, RoutedEventArgs e)
@@ -465,7 +528,7 @@ public partial class OverlayEditorWindow
     // screen under it, so it is closed for the picking and opened again with the colour.
     private void OnEyedropperClick(object sender, RoutedEventArgs e)
     {
-        var before = _activeColor;
+        var before = AppearanceOf(Surface.Tool).Color;
         AppearancePopup.IsOpen = false;
         var picked = Controls.ScreenColorPicker.Pick(this, ApplyPickedColor);
         // Given up on: the colour the dropper walked over goes back to the one it started with.
@@ -475,7 +538,7 @@ public partial class OverlayEditorWindow
 
     // The "+" beside the HEX field: the colour in force joins the own palette from wherever it was
     // picked, and the row on screen stays the one the user is looking at.
-    private void OnAddColorClick(object sender, RoutedEventArgs e) => RememberCustomColor(_activeColor);
+    private void OnAddColorClick(object sender, RoutedEventArgs e) => RememberCustomColor(AppearanceOf(EditorInspector.InspectedTool(Surface.SelectedAnnotation, Surface.Tool)).Color);
 
     /// <summary>
     /// The smoke check of the own palette: the spectrum and the eyedropper stand under every set,
@@ -487,7 +550,7 @@ public partial class OverlayEditorWindow
     {
         // Every palette, the own one last: the two ways of picking a colour are not a property of a
         // set, so neither of them may disappear with the set under it.
-        foreach (var palette in new[] { Palettes[0], Palettes[1], CustomPalette(_customColors) })
+        foreach (var palette in new[] { Palettes[0], Palettes[1], Palettes[2], CustomPalette(_customColors) })
         {
             SelectPalette(palette);
             if (SpectrumBlock.Visibility != Visibility.Visible || EyedropperButton.Visibility != Visibility.Visible)
@@ -510,19 +573,17 @@ public partial class OverlayEditorWindow
         RememberCustomColor(Color.FromRgb(0x2F, 0x8C, 0xFF));
         if (_customColors.Count != 2 || _customColors[0] != "#2F8CFF" ||
             ColorPalette.Children.OfType<Button>().Count() != 2 ||
-            ColorPalette.Children.Count != HotkeySettings.MaxCustomPaletteColors ||
-            ColorDots.Children.Count != 2)
+            ColorPalette.Children.Count != HotkeySettings.MaxCustomPaletteColors)
             throw new InvalidOperationException("A colour picked again must rise in the row instead of filling a second cell.");
         for (var step = 0; step < HotkeySettings.MaxCustomPaletteColors + 2; step++)
             RememberCustomColor(Color.FromRgb((byte)(10 + step), 0x20, 0x30));
         if (_customColors.Count != HotkeySettings.MaxCustomPaletteColors ||
-            ColorPalette.Children.OfType<Button>().Count() != HotkeySettings.MaxCustomPaletteColors ||
-            ColorDots.Children.Count != 5)
-            throw new InvalidOperationException("The own palette must hold twelve colours and no more, with five of them on the panel.");
+            ColorPalette.Children.OfType<Button>().Count() != HotkeySettings.MaxCustomPaletteColors)
+            throw new InvalidOperationException("The own palette must hold twelve colours and no more.");
         // The markers paint the mark, and the HEX field beside them shows the same colour.
         Spectrum.PickInHue(new Point(8, 0));
         Spectrum.PickInSquare(new Point(160, 0));
-        if (_activeColor != Color.FromRgb(0xFF, 0x00, 0x00) || ColorHex.Text != "#FF0000")
+        if (AppearanceOf(Surface.Tool).Color != Color.FromRgb(0xFF, 0x00, 0x00) || ColorHex.Text != "#FF0000")
             throw new InvalidOperationException("A colour picked in the spectrum must reach the mark and the HEX field.");
         _customColors.Clear();
         SelectPalette(Palettes[0]);
@@ -554,7 +615,6 @@ public partial class OverlayEditorWindow
         _appearanceDefaultsChanged = true;
         BuildColorPalette();
         BuildFillPalette();
-        BuildColorDots();
         SyncAppearance();
     }
 
@@ -591,7 +651,6 @@ public partial class OverlayEditorWindow
     private void OnHexKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { ApplyHex(); e.Handled = true; } }
     private void OnAppearanceKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { AppearancePopup.IsOpen = false; e.Handled = true; } }
     private void OnThicknessKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { ThicknessPopup.IsOpen = false; e.Handled = true; } }
-    private void OnLineStyleKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { LineStylePopup.IsOpen = false; e.Handled = true; } }
     private void OnFillKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { FillPopup.IsOpen = false; e.Handled = true; } }
     private void OnFontSizeKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { FontSizePopup.IsOpen = false; e.Handled = true; } }
     private void OnCloseAppearance(object sender, RoutedEventArgs e) => AppearancePopup.IsOpen = false;
@@ -602,7 +661,7 @@ public partial class OverlayEditorWindow
     internal enum EscapeStep { Popover, Comment, Selection, Capture }
 
     internal EscapeStep NextEscapeStep() =>
-        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || LineStylePopup.IsOpen || FillPopup.IsOpen || FontSizePopup.IsOpen ? EscapeStep.Popover
+        ShortcutSheetPopup.IsOpen || AppearancePopup.IsOpen || ThicknessPopup.IsOpen || FillPopup.IsOpen || FontSizePopup.IsOpen ? EscapeStep.Popover
         : Surface.Tool == EditorTool.Comment ? EscapeStep.Comment
         : Surface.SelectedAnnotation is not null ? EscapeStep.Selection
         : EscapeStep.Capture;
@@ -611,7 +670,6 @@ public partial class OverlayEditorWindow
     {
         AppearancePopup.IsOpen = false;
         ThicknessPopup.IsOpen = false;
-        LineStylePopup.IsOpen = false;
         FillPopup.IsOpen = false;
         FontSizePopup.IsOpen = false;
         ShortcutSheetPopup.IsOpen = false;
@@ -654,12 +712,13 @@ public partial class OverlayEditorWindow
             var path = _workspace.SettingsPath;
             // Load-modify-write over a file that exists but cannot be read would drop every other setting.
             if (!HotkeySettings.TryLoad(path, out var stored)) return;
+            var frame = AppearanceOf(EditorTool.Rectangle);
             var settings = stored with
             {
-                AnnotationColor = $"#{_activeColor.R:X2}{_activeColor.G:X2}{_activeColor.B:X2}",
-                AnnotationThickness = Math.Clamp(_activeThickness, 1, 16),
-                AnnotationHighlightThickness = Math.Clamp(_activeHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness),
-                AnnotationFontSize = TextMarkMetrics.Clamp(_activeFontSize),
+                AnnotationColor = $"#{frame.Color.R:X2}{frame.Color.G:X2}{frame.Color.B:X2}",
+                AnnotationThickness = Math.Clamp(frame.Thickness, 1, 16),
+                AnnotationHighlightThickness = Math.Clamp(AppearanceOf(EditorTool.Highlight).Thickness, MinimumHighlightThickness, MaximumHighlightThickness),
+                AnnotationFontSize = TextMarkMetrics.Clamp(AppearanceOf(EditorTool.Text).FontSize),
                 AnnotationPalette = _activePalette.Id,
                 CustomPaletteColors = [.. _customColors],
                 AnnotationPencil = _activePencil == EditorTool.Highlight ? "highlight" : "pen"

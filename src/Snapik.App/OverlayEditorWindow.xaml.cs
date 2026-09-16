@@ -42,19 +42,11 @@ public partial class OverlayEditorWindow : Window
     private Rect _cropRect;
     private CaptureItem? _capture;
     private OverlaySnapshot? _lastSnapshot;
-    private Color _activeColor = DefaultAnnotationColor;
-    private double _activeThickness = DefaultAnnotationThickness;
-    private double _activeHighlightThickness = DefaultHighlightThickness;
-    private double _activeFontSize = TextMarkMetrics.DefaultFontSize;
-    // The frame, its fill and the colour of that fill start over with every capture: "a frame, no
-    // fill, a rectangle" is where the editor opens, whatever the last capture was drawn with.
-    private Snapik.Core.Models.AnnotationShape _activeShape = Snapik.Core.Models.AnnotationShape.Rectangle;
-    private Snapik.Core.Models.AnnotationFill _activeFill = Snapik.Core.Models.AnnotationFill.None;
-    // The pattern the next stroke is drawn with. It lives as long as the editor window does and is
-    // not written to the settings file: the rest of the panel is remembered there, but a field of
-    // the settings is a change of their format, and this round declares none for the pattern.
-    private Snapik.Core.Models.AnnotationLineStyle _activeLineStyle = Snapik.Core.Models.AnnotationLineStyle.Solid;
-    private Color? _activeFillColor;
+    // What every tool of the panel is set to, its own set each: a green dashed frame and a yellow
+    // highlighter stand side by side instead of overwriting one colour between them. Six keys —
+    // Select, Eraser, Crop, Comment and Conceal have no settings and borrow the frame's, which is
+    // what AppearanceOf answers; nothing indexes this dictionary straight.
+    private readonly Dictionary<EditorTool, ToolAppearance> _tools;
     private PaletteSet _activePalette = Palettes[0];
     private EditorTool _activePencil = EditorTool.Pen;
     private Guid? _commentParentId;
@@ -83,10 +75,7 @@ public partial class OverlayEditorWindow : Window
         _frame = frame;
         _captureIndex = captureIndex;
         var preferences = workspace.Preferences;
-        _activeColor = ParseAnnotationColor(preferences.AnnotationColor);
-        _activeThickness = Math.Clamp(preferences.AnnotationThickness, 1, 16);
-        _activeHighlightThickness = Math.Clamp(preferences.AnnotationHighlightThickness, MinimumHighlightThickness, MaximumHighlightThickness);
-        _activeFontSize = TextMarkMetrics.Clamp(preferences.AnnotationFontSize);
+        _tools = ToolAppearanceStore.Read(preferences);
         InitializePalette(preferences);
         _activePencil = ParseAnnotationPencil(preferences.AnnotationPencil);
         _capture = existing?.DeepClone();
@@ -108,7 +97,6 @@ public partial class OverlayEditorWindow : Window
         InitializeCaptureHandles();
         InitializeNoteButton();
         InitializeTextEditor();
-        BuildColorDots();
         AttachLongPress(RectangleTool, () => BuildShapeMenu(RectangleTool));
         AttachLongPress(ArrowTool, () => BuildArrowMenu(ArrowTool));
         AttachLongPress(PenTool, () => BuildPencilMenu(PenTool));
@@ -300,57 +288,67 @@ public partial class OverlayEditorWindow : Window
         Color Parse(string hex) => (Color)ColorConverter.ConvertFromString(hex);
         void CheckPalette(PaletteSet palette)
         {
-            if (window.ColorPalette.Children.OfType<Button>().Select(swatch => (Color)swatch.Tag).SequenceEqual(palette.Colors.Select(Parse)) &&
-                window.ColorDots.Children.OfType<Button>().Select(dot => (Color)dot.Tag).SequenceEqual(palette.Quick.Select(Parse))) return;
-            throw new InvalidOperationException($"The swatches and the quick dots must both come from the \"{palette.Id}\" palette.");
+            if (window.ColorPalette.Children.OfType<Button>().Select(swatch => (Color)swatch.Tag).SequenceEqual(palette.Colors.Select(Parse))) return;
+            throw new InvalidOperationException($"The swatches must come from the \"{palette.Id}\" palette.");
         }
+        Color StrokeDotColor() => ((SolidColorBrush)window.StrokeDot.Fill).Color;
         // A clean workspace holds no settings file, so the panel starts on the standard palette, and
         // the colour it starts with belongs to it.
-        if (window._activePalette.Id != "standard" || !Palettes[0].Colors.Contains($"#{window._activeColor.R:X2}{window._activeColor.G:X2}{window._activeColor.B:X2}"))
+        if (window._activePalette.Id != "standard" || !Palettes[0].Colors.Contains($"#{StrokeDotColor().R:X2}{StrokeDotColor().G:X2}{StrokeDotColor().B:X2}"))
             throw new InvalidOperationException("The editor must start on the standard palette with a colour that belongs to it.");
         CheckPalette(Palettes[0]);
         window.SelectPalette(ParseAnnotationPalette("pastel"));
         CheckPalette(Palettes.Single(palette => palette.Id == "pastel"));
         if (window.PastelPaletteSegment.IsChecked != true || window.StandardPaletteSegment.IsChecked != false)
             throw new InvalidOperationException("The palette segments must show which set is in use.");
+        // The fourth set is back, and a name nobody knows still falls back to the standard one.
+        window.SelectPalette(ParseAnnotationPalette("neon"));
+        CheckPalette(Palettes.Single(palette => palette.Id == "neon"));
+        if (window.NeonPaletteSegment.IsChecked != true || window.PaletteRow.Columns != 4)
+            throw new InvalidOperationException("The stroke popover must offer four palettes, the neon one among them.");
         window.RunCustomPaletteProbe();
         window.SelectPalette(Palettes[0]);
 
-        // The thickness lives on its own button now: a preset reaches the canvas and the button.
+        // The thickness lives on the line capsule: a preset reaches the canvas and the capsule.
         window.OnThicknessPresetClick(window.ThicknessPreset3Segment, new RoutedEventArgs());
-        if (window.Surface.ActiveThickness != 6 || (string?)window.ThicknessButton.Content != "6 px" || window.ThicknessPreset3Segment.IsChecked != true)
-            throw new InvalidOperationException("A thickness preset must reach the canvas and the button that opens it.");
+        if (window.Surface.ActiveThickness != 6 || window.LineCapsuleValue.Text != "6 px" || window.ThicknessPreset3Segment.IsChecked != true)
+            throw new InvalidOperationException("A thickness preset must reach the canvas and the capsule that opens it.");
         double[] PresetRow() => [.. window.ThicknessPresetRow.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>()
             .Select(preset => double.Parse((string)preset.Tag, System.Globalization.CultureInfo.InvariantCulture))];
         if (!ThicknessPresets.SequenceEqual(PresetRow()))
             throw new InvalidOperationException("The thickness popover must offer the four presets.");
 
-        // The highlighter counts in tens of pixels and keeps a width of its own: the button shows the
-        // one of the tool in the hand, and switching between the two does not mix them.
+        // The highlighter counts in tens of pixels and keeps a width of its own: the capsule shows
+        // the one of the tool in the hand, and switching between the two does not mix them.
         window.SelectToolMode(EditorTool.Highlight);
         window.OnThicknessPresetClick(window.ThicknessPreset4Segment, new RoutedEventArgs());
-        if (window.Surface.ActiveThickness != 24 || (string?)window.ThicknessButton.Content != "24 px" ||
-            !HighlightThicknessPresets.SequenceEqual(PresetRow()) || window.StrokeSlider.Maximum != MaximumHighlightThickness)
-            throw new InvalidOperationException("The highlighter must carry presets, a range and a width of its own.");
+        if (window.Surface.ActiveThickness != 24 || window.LineCapsuleValue.Text != "24 px" ||
+            !HighlightThicknessPresets.SequenceEqual(PresetRow()) || window.StrokeSlider.Maximum != MaximumHighlightThickness ||
+            window.LineStyleRow.IsEnabled)
+            throw new InvalidOperationException("The highlighter must carry presets, a range and a width of its own, and no dashes.");
         window.SelectToolMode(EditorTool.Pen);
-        if (window.Surface.ActiveThickness != 6 || (string?)window.ThicknessButton.Content != "6 px" ||
+        window.OnThicknessPresetClick(window.ThicknessPreset1Segment, new RoutedEventArgs());
+        if (window.Surface.ActiveThickness != 2 || window.LineCapsuleValue.Text != "2 px" ||
             !ThicknessPresets.SequenceEqual(PresetRow()) || window.StrokeSlider.Maximum != 16)
-            throw new InvalidOperationException("The pencil must keep the thickness it shares with every other stroke.");
+            throw new InvalidOperationException("The pencil must keep a thickness of its own.");
         window.SelectToolMode(EditorTool.Highlight);
         if (window.Surface.ActiveThickness != 24)
             throw new InvalidOperationException("Arming the highlighter again must bring its own width back.");
         window.SelectToolMode(EditorTool.Rectangle);
+        if (window.Surface.ActiveThickness != 6 || window.LineCapsuleValue.Text != "6 px")
+            throw new InvalidOperationException("And the frame must bring back the six pixels it was given.");
 
-        // The fill has a button and a popover of its own: the four fills and the twelve swatches of
-        // the fill colour. The outline follows the fill and has no switch of its own any more.
+        // The fill has a square of its own inside the colour capsule, and a popover behind it: the
+        // four fills and the twelve swatches of the fill colour. The outline keeps its own colour.
         window.SelectToolMode(EditorTool.Arrow);
-        window.OnFillButtonClick(window.FillButton, new RoutedEventArgs());
+        window.OpenFillFromSquare();
         // The swatches of the fill are built as the popover opens, the way the colour popover builds
         // its own: a window that was never shown has no surface for the popup itself to appear on.
         if (window.Surface.Tool != EditorTool.Rectangle || window.FillPalette.Children.Count != 12)
-            throw new InvalidOperationException("The fill button must arm the region when the fill has nothing to belong to.");
+            throw new InvalidOperationException("The fill square must arm the region when the fill has nothing to belong to.");
         window.OnFillClick(window.FillBlurSegment, new RoutedEventArgs());
-        if (window.Surface.ActiveFill != Snapik.Core.Models.AnnotationFill.Blur || window.FillPalette.IsEnabled)
+        if (window.Surface.ActiveFill != Snapik.Core.Models.AnnotationFill.Blur || window.FillPalette.IsEnabled ||
+            window.FillSquareBlur.Visibility != Visibility.Visible)
             throw new InvalidOperationException("A region filled with blur must not offer a colour of its own.");
         window.OnFillClick(window.FillSolidSegment, new RoutedEventArgs());
         if (window.Surface.ActiveFill != Snapik.Core.Models.AnnotationFill.Solid || !window.FillPalette.IsEnabled)
@@ -363,26 +361,36 @@ public partial class OverlayEditorWindow : Window
             throw new InvalidOperationException("A swatch of the fill popover must paint the fill and leave the outline alone.");
         window.FillPopup.IsOpen = false;
         window.OpenAppearance();
-        // The circle and the dots of the panel belong to the colour of the mark, whatever stands
-        // inside it: one click on a dot paints that colour and leaves the fill where it was.
+        // The circle of the capsule belongs to the colour of the mark, whatever stands inside it: a
+        // swatch paints that colour and leaves the fill where it was.
         window.ApplyQuickColor(Colors.White);
         if (window.Surface.ActiveColor != Colors.White || window.Surface.ActiveFillColor != Colors.Black ||
-            ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.White)
-            throw new InvalidOperationException("A dot on the panel must paint the colour of the mark, not its fill.");
+            StrokeDotColor() != Colors.White)
+            throw new InvalidOperationException("A swatch must paint the colour of the mark, not its fill.");
         window.ApplyQuickColor(outlineColor);
         window.OnFillClick(window.FillNoneSegment, new RoutedEventArgs());
+        if (window.FillSquareNone.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("A region without a fill must show the slash through the square.");
 
-        // One active colour for every tool: picked with the comment tool in the hand, it reaches the
-        // canvas at once and is what the next frame is drawn with.
-        window.SelectToolMode(EditorTool.Comment);
-        window.ApplyQuickColor(Colors.Cyan);
-        if (window.Surface.ActiveColor != Colors.Cyan || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Cyan)
-            throw new InvalidOperationException("A colour picked with the comment tool armed must reach the canvas and the panel.");
-        // And the frame armed after it takes that colour: the draft of the canvas is built out of
-        // ActiveColor, so what stands there when the region is armed is what the region is drawn with.
+        // Rule 6: every tool keeps a set of its own. A colour picked with a tool that has none —
+        // the comment, the eraser, the crop — reaches nothing at all, and the frame goes on being
+        // drawn with what belongs to the frame. That is the end of the one common colour.
         window.SelectToolMode(EditorTool.Rectangle);
-        if (window.Surface.ActiveColor != Colors.Cyan || ((SolidColorBrush)window.ColorSwatch.Fill).Color != Colors.Cyan)
-            throw new InvalidOperationException("The frame armed after the comment tool must be drawn with the colour picked while it was armed.");
+        window.ApplyQuickColor(Colors.Lime);
+        window.SelectToolMode(EditorTool.Comment);
+        if (window.ColorCapsule.IsEnabled || window.LineCapsule.IsEnabled)
+            throw new InvalidOperationException("With the comment tool in the hand both capsules must be switched off.");
+        window.ApplyQuickColor(Colors.Cyan);
+        window.SelectToolMode(EditorTool.Rectangle);
+        if (window.Surface.ActiveColor != Colors.Lime || StrokeDotColor() != Colors.Lime)
+            throw new InvalidOperationException("A colour picked with a tool that carries no settings must reach nothing.");
+        // And the arrow keeps a colour of its own beside it, instead of taking the frame's.
+        window.ApplyQuickColor(Colors.Magenta);
+        window.SelectToolMode(EditorTool.Arrow);
+        window.ApplyQuickColor(Colors.Yellow);
+        window.SelectToolMode(EditorTool.Rectangle);
+        if (window.Surface.ActiveColor != Colors.Magenta || StrokeDotColor() != Colors.Magenta)
+            throw new InvalidOperationException("Two tools must not share one colour between them.");
         window.ApplyQuickColor(outlineColor);
 
         // A colour reaches a mark only while it is selected; with nothing selected it belongs to the
@@ -754,7 +762,8 @@ public partial class OverlayEditorWindow : Window
         }
 
         window.SelectToolMode(EditorTool.Text);
-        if (!window.FontSizeButton.IsEnabled || string.IsNullOrWhiteSpace((string?)window.FontSizeButton.Content))
+        if (!window.LineCapsule.IsEnabled || window.LineCapsuleGlyph.Visibility != Visibility.Visible ||
+            !window.LineCapsuleValue.Text.EndsWith("pt", StringComparison.Ordinal))
             throw new InvalidOperationException("The size of the letters must be offered while the text tool is armed.");
         var caption = Place(100, 100);
         if (!window.IsEditingText || window._textEditor.Visibility != Visibility.Visible || window._textEditor.SelectedText != word)
@@ -773,7 +782,7 @@ public partial class OverlayEditorWindow : Window
         var height = caption.Points[1].Y - caption.Points[0].Y;
         window.OnFontSizePresetClick(window.FontSize5Segment, new RoutedEventArgs());
         if (caption.FontSize != 32 || caption.Points[1].Y - caption.Points[0].Y <= height ||
-            (string?)window.FontSizeButton.Content != "32 px")
+            window.LineCapsuleValue.Text != "32 pt")
             throw new InvalidOperationException("A size picked on the panel must reach the caption and the box it takes.");
         window.Surface.SelectAnnotation(null);
 
@@ -817,9 +826,12 @@ public partial class OverlayEditorWindow : Window
         if (window._undo.Count != depthBeforeRetyping)
             throw new InvalidOperationException("A caption opened and left as it was must not fill the history.");
 
+        // The size of the letters belongs to captions alone: with the frame in the hand the capsule
+        // carries the width of a stroke instead, and the block keeps the width it had.
         window.SelectToolMode(EditorTool.Rectangle);
-        if (window.FontSizeButton.IsEnabled || string.IsNullOrWhiteSpace((string?)window.FontSizeButton.Content))
-            throw new InvalidOperationException("The size of the letters belongs to captions alone, and its caption never blanks.");
+        if (!window.LineCapsuleValue.Text.EndsWith("px", StringComparison.Ordinal) ||
+            window.LineCapsuleGlyph.Visibility == Visibility.Visible)
+            throw new InvalidOperationException("The size of the letters belongs to captions alone.");
     }
 
     internal static CaptureItem RunNoteAffordanceProbe(CaptureItem source)
@@ -1096,14 +1108,9 @@ public partial class OverlayEditorWindow : Window
         foreach (var button in ToolButtons)
             button.IsChecked = string.Equals(button.Tag?.ToString(), Surface.Tool.ToString(), StringComparison.Ordinal);
         // The whole panel starts from the settings file, so the sync below shows what the next mark
-        // will really look like.
-        Surface.ActiveColor = _activeColor;
-        Surface.ActiveThickness = ActiveThicknessFor(Surface.Tool);
-        Surface.ActiveShape = _activeShape;
-        Surface.ActiveLineStyle = _activeLineStyle;
-        Surface.ActiveFill = _activeFill;
-        Surface.ActiveFillColor = _activeFillColor;
-        Surface.ActiveFontSize = _activeFontSize;
+        // will really look like. A capture reopened from the strip arms Select, which has no
+        // settings of its own: the frame's are what the next mark is drawn with there.
+        SyncSurfaceDefaults();
         // A caption read out of a session carries the anchor and the size, and the box it takes is
         // measured from them here, once, before anything asks what it covers.
         foreach (var annotation in _capture.Annotations) TextMarkMetrics.Fit(annotation);
@@ -1211,10 +1218,6 @@ public partial class OverlayEditorWindow : Window
         foreach (var button in ToolButtons)
             button.IsChecked = ReferenceEquals(button, selected);
     }
-
-    private void OnColorClick(object sender, RoutedEventArgs e) => OpenAppearance();
-    private void OnThicknessClick(object sender, RoutedEventArgs e) => OpenThickness();
-    private void OnLineStyleClick(object sender, RoutedEventArgs e) => OpenLineStyle();
 
     private void SelectToolMode(EditorTool tool)
     {
