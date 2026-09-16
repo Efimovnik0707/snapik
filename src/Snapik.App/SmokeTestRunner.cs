@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 
 namespace Snapik.App;
@@ -47,6 +49,7 @@ public static class SmokeTestRunner
             throw new InvalidOperationException("Local capture preferences did not survive a settings round trip.");
         VerifySoundDefaults(root);
         VerifyStripIsBoundedByItsMonitor();
+        await VerifyALayeredWindowMinimisesAsync();
         // The wizard is shown once per version: never seen (no file, or an older version) opens it,
         // the current version does not, and a demo run never does.
         if (!OnboardingWindow.ShouldShowOnboarding(false, HotkeySettings.Default, false) ||
@@ -1352,4 +1355,69 @@ public static class SmokeTestRunner
         if (read.SoundVolume != 55)
             throw new InvalidOperationException("The merge of the wizard must leave the fields it does not own alone.");
     }
+
+    // The strip is a window on the taskbar, and the button there minimises a window only when it
+    // carries WS_MINIMIZEBOX: that bit, and nothing else, is why the strip is on ResizeMode
+    // CanMinimize. The strip is also layered (AllowsTransparency) and lives on SizeToContent, and a
+    // window of that kind is not promised to survive a trip to Minimized, so the question is asked
+    // of a window built with exactly the properties of the strip: the style bit, the way down, and
+    // the way back through SW_SHOWNOACTIVATE, which has to give the window the corner it left from.
+    private static async Task VerifyALayeredWindowMinimisesAsync()
+    {
+        var work = SystemParameters.WorkArea;
+        var left = Math.Round(work.Left + 40);
+        var top = Math.Round(work.Top + 40);
+        var window = new Window
+        {
+            Title = "Snapik minimise probe",
+            Width = 244,
+            MinHeight = 128,
+            SizeToContent = SizeToContent.Height,
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.CanMinimize,
+            AllowsTransparency = true,
+            Background = Brushes.Transparent,
+            ShowInTaskbar = true,
+            ShowActivated = false,
+            Topmost = false,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Left = left,
+            Top = top,
+            Content = new System.Windows.Controls.Border { Height = 240, Background = Brushes.Transparent }
+        };
+        try
+        {
+            window.Show();
+            await Task.Delay(120);
+            var handle = new WindowInteropHelper(window).Handle;
+            if ((GetWindowLong(handle, GwlStyle) & WsMinimizeBox) == 0)
+                throw new InvalidOperationException(
+                    "A strip window without WS_MINIMIZEBOX: the taskbar button would not minimise it, and that is what ResizeMode.CanMinimize is for.");
+            var height = window.ActualHeight;
+            window.WindowState = WindowState.Minimized;
+            await Task.Delay(200);
+            if (window.WindowState != WindowState.Minimized)
+                throw new InvalidOperationException("A layered window on SizeToContent did not stay minimised.");
+            _ = ShowWindow(handle, SwShowNoActivate);
+            await Task.Delay(200);
+            if (window.WindowState != WindowState.Normal ||
+                Math.Abs(window.Left - left) > 1 || Math.Abs(window.Top - top) > 1 ||
+                Math.Abs(window.ActualHeight - height) > 1)
+                throw new InvalidOperationException(
+                    $"A minimised strip has to come back where it was: state {window.WindowState}, " +
+                    $"{window.Left}×{window.Top} instead of {left}×{top}, height {window.ActualHeight} instead of {height}.");
+        }
+        finally { window.Close(); }
+    }
+
+    private const int GwlStyle = -16;
+    private const int WsMinimizeBox = 0x00020000;
+    private const int SwShowNoActivate = 4;
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowLong(IntPtr window, int index);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(IntPtr window, int command);
 }
