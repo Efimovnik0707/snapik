@@ -91,9 +91,9 @@ final class GeneralTabView: SettingsTabView {
         volumeLabel.stringValue = MacUiText.text("Громкость", language: language)
         volumeSlider.toolTip = MacUiText.text("Насколько громко звучит интерфейс", language: language)
         languageLabel.stringValue = MacUiText.text("Язык", language: language)
-        // [ТЗ№4 E2] The one string of this window that Windows has not written yet: it is localized
-        // here rather than through the shared table, the way the Q7 caption of the hotkeys tab is.
-        runOnboardingLink.stringValue = language == "en" ? "Take the tour again" : "Пройти знакомство заново"
+        // [ТЗ№4 E2] Localized here by hand while Windows had no pair for it; Windows wrote one
+        // (`UiLanguage.cs:190`), so the link reads it from the shared table like every neighbour.
+        runOnboardingLink.stringValue = MacUiText.text("Пройти знакомство заново", language: language)
         needsLayout = true
     }
 
