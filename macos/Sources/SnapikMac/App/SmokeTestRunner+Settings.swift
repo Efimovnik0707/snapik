@@ -106,7 +106,12 @@ extension SmokeTestRunner {
         let cyrillic = wizard.smokeVisibleStrings.filter {
             $0.range(of: "[А-Яа-яЁё]", options: .regularExpression) != nil
         }
-        check("the English wizard shows no Russian", cyrillic.isEmpty)
+        // A row that only says "no" would send the reader back to the window it cannot open; the
+        // lines that stayed Russian are named in the report instead.
+        check(
+            "the English wizard shows no Russian"
+                + (cyrillic.isEmpty ? "" : ": \(cyrillic.joined(separator: " · "))"),
+            cyrillic.isEmpty)
         wizard.applyLanguage("ru")
 
         check(

@@ -9,6 +9,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private let showItem = NSMenuItem()
     private let settingsItem = NSMenuItem()
+    private let howToItem = NSMenuItem()
     private let newCaptureItem = NSMenuItem()
     private let quitItem = NSMenuItem()
     private let startupItem = NSMenuItem()
@@ -17,6 +18,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     var onShowStack: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+    /// "Как пользоваться": the slides of the wizard alone (SPEC-DELTA-3 §1.6 O-8).
+    var onHowTo: (() -> Void)?
     var onNewCapture: (() -> Void)?
     var onQuit: (() -> Void)?
     var onLaunchAtLoginError: ((String) -> Void)?
@@ -52,6 +55,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         settingsItem.action = #selector(openSettingsClicked)
         menu.addItem(settingsItem)
 
+        howToItem.target = self
+        howToItem.action = #selector(howToClicked)
+        menu.addItem(howToItem)
+
         newCaptureItem.target = self
         newCaptureItem.action = #selector(newCaptureClicked)
         menu.addItem(newCaptureItem)
@@ -73,8 +80,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func applyLocalization() {
-        showItem.title = MacUiText.text("Показать стопку", language: language)
+        showItem.title = MacUiText.text("Показать ленту", language: language)
         settingsItem.title = MacUiText.text("Настройки", language: language)
+        howToItem.title = MacUiText.text("Как пользоваться", language: language)
         newCaptureItem.title = MacUiText.text("Новый снимок", language: language)
         quitItem.title = MacUiText.text("Выйти", language: language)
         // Port of §9.4: menu wording adapted to "Запускать при входе" / "Start at login".
@@ -110,6 +118,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         onShowStack?()
         onOpenSettings?()
     }
+
+    @objc private func howToClicked() { onHowTo?() }
 
     @objc private func newCaptureClicked() { onNewCapture?() }
 

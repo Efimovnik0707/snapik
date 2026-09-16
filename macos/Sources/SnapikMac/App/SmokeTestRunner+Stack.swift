@@ -94,19 +94,30 @@ extension SmokeTestRunner {
         // S-10: the capsule is a mode of the same window, at the same right edge, and the strip comes
         // back to the width it was collapsed at.
         if let window = controller.window {
-            let work = NSRect(x: 0, y: 0, width: 1440, height: 900)
+            // The working area of the machine the probe runs on, and not a desk-sized rectangle: the
+            // capsule is placed by `positionAtEdge`, which asks the screen, and a CI runner answers
+            // with a screen of its own size.
+            let work = controller.workArea()
             window.setFrame(
-                NSRect(x: work.maxX - width, y: 200, width: width, height: content.windowHeight()), display: false)
+                NSRect(
+                    x: work.maxX - width, y: work.minY + 20, width: width, height: content.windowHeight()),
+                display: false)
             let rightEdge = window.frame.maxX
             let topEdge = window.frame.maxY
             controller.collapseToCapsule()
             let capsuleKeepsTheEdge = window.frame.height <= StackMetrics.capsuleHeight + StackMetrics.shadowMargin * 2
             controller.expandFromCapsule()
+            let cameBack =
+                capsuleKeepsTheEdge && abs(window.frame.width - width) < 0.5
+                && abs(window.frame.maxY - topEdge) < 0.5 && abs(window.frame.maxX - rightEdge) < 0.5
             checks.append(
                 (
-                    "the capsule collapses and opens at the same corner",
-                    capsuleKeepsTheEdge && abs(window.frame.width - width) < 0.5
-                        && abs(window.frame.maxY - topEdge) < 0.5 && abs(window.frame.maxX - rightEdge) < 0.5
+                    "the capsule collapses and opens at the same corner"
+                        + (cameBack
+                            ? ""
+                            : ": corner \(topEdge)×\(rightEdge) came back as "
+                                + "\(window.frame.maxY)×\(window.frame.maxX), width \(window.frame.width)"),
+                    cameBack
                 ))
         }
 

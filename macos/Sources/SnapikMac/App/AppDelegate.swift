@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func wireStatusBar() {
         statusBar.onShowStack = { [weak self] in self?.stackWindow.reveal() }
         statusBar.onOpenSettings = { [weak self] in self?.stackWindow.openSettings() }
+        statusBar.onHowTo = { [weak self] in self?.coordinator.showOnboarding(howToOnly: true) }
         statusBar.onNewCapture = { [weak self] in
             guard let self else { return }
             Task { @MainActor in await self.coordinator.newCapture() }

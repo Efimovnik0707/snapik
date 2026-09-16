@@ -88,10 +88,25 @@ final class AppCoordinator {
     weak var stackWindow: EdgeStackWindowController?
     weak var statusBar: StatusBarController?
 
+    /// Whether `settings.json` was already on disk when this run started, read before anything of
+    /// ours could write it. The wizard asks it twice: a machine without a file has never seen the
+    /// wizard, and it is also the only machine whose language may be guessed from the locale
+    /// (SPEC-DELTA-3 §1.6 O-2).
+    let settingsFileExisted: Bool
+    /// The wizard while it is on screen: an `NSWindowController` nothing holds goes away with the
+    /// run-loop turn that opened it.
+    private var onboarding: OnboardingWindowController?
+
     init(options: CommandLineOptions) {
         self.options = options
         self.workspace = SessionWorkspace(dataDirectory: options.dataDirectory)
-        self.settings = workspace.preferences
+        // Read before the migration below, which writes the file it has just healed.
+        self.settingsFileExisted = FileManager.default.fileExists(atPath: workspace.settingsPath.path)
+        // SPEC-DELTA-3 §2.2 (C-9): the start of the run is where a file written by an older build
+        // is brought up to the current version and a broken shortcut id is healed **in the file**,
+        // not only in the copy this object holds. Every later read (`workspace.preferences`) is the
+        // plain one it has always been.
+        self.settings = HotkeySettings.loadAndMigrate(path: workspace.settingsPath)
         self.language = settings.language
         UiLanguage.current = settings.language
 
@@ -161,6 +176,14 @@ final class AppCoordinator {
 
         registerHotkeys()
 
+        // Port of the wizard branch of `EdgeStackWindow.OnLoaded` (`:209-214`), SPEC-DELTA-3 §1.6
+        // O-2: before the session is restored, because on the very first run there is nothing to
+        // restore and the wizard writes the language and the shortcut the rest of the startup reads.
+        let wizardShown = OnboardingWindowController.shouldShowOnboarding(
+            settingsFileExists: settingsFileExisted, settings: settings,
+            demo: options.demo || options.smokeTest)
+        if wizardShown { showOnboarding() }
+
         Task { @MainActor [weak self] in
             guard let self else { return }
             if self.options.demo {
@@ -173,8 +196,27 @@ final class AppCoordinator {
                 _ = await self.workspace.loadCurrent()
             }
             self.stackWindow?.refresh()
-            self.stackWindow?.reveal()
+            // [ТЗ№4 A7] A run that began with the wizard ends with the strip shown by the wizard's
+            // own `onFinished`, and not a moment earlier: the strip would flash empty behind it.
+            if !wizardShown { self.stackWindow?.reveal() }
         }
+    }
+
+    /// Port of `ShowOnboarding` (`EdgeStackWindow.xaml.cs:1194`), SPEC-DELTA-3 §1.6 O-2, S-15.
+    /// `howToOnly` is the "Как пользоваться" item of the menu bar: the slides alone, nothing
+    /// collected, nothing written, and the strip left exactly as they found it.
+    func showOnboarding(howToOnly: Bool = false) {
+        StartupLog.write(options, "Onboarding opens: howToOnly=\(howToOnly)")
+        let controller = OnboardingWindowController(
+            coordinator: self, howToOnly: howToOnly, settingsFileExists: settingsFileExisted)
+        onboarding = controller
+        controller.onFinished = { [weak self] in
+            self?.onboarding = nil
+            // [ТЗ№4 A7] "Начать" and "Пропустить" alike end with the strip on the screen, shown
+            // without activating the application.
+            if !howToOnly { self?.stackWindow?.reveal() }
+        }
+        controller.showWindow(nil)
     }
 
     // MARK: - Hotkeys

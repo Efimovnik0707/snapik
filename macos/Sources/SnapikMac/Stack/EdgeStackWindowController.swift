@@ -206,7 +206,9 @@ final class EdgeStackWindowController: NSWindowController {
     /// The working area the strip lives on. Finding 14: `NSScreen.main` follows key-window focus and
     /// is `nil` when Snapik has no key window, which made the placement nondeterministic; the primary
     /// display is the deterministic equivalent of "the screen" here.
-    private func workArea() -> NSRect {
+    /// `internal` (not `private`): the capsule probe of the smoke run measures against the same
+    /// working area the window is placed in, and on a CI runner that is not the screen of a desk.
+    func workArea() -> NSRect {
         (NSScreen.screens.first ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
     }
 
@@ -569,6 +571,9 @@ extension EdgeStackWindowController: EdgeStackContentViewDelegate {
             self?.settingsWindowController = nil
             self?.endTopmostSuspension()
         }
+        // [ТЗ№4 A7] "Пройти знакомство заново" ends the same way the first run does: the strip comes
+        // back on the screen without being activated.
+        settingsController.onOnboardingFinished = { [weak self] in self?.reveal() }
         settingsController.showWindow(self)
     }
 }
