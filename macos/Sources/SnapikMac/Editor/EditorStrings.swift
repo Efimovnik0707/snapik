@@ -49,7 +49,27 @@ enum EditorStrings {
     static func colorHexAccessibilityName(_ language: String) -> String { text("Цвет HEX", language: language) }
     static func strokeThicknessAccessibilityName(_ language: String) -> String { text("Толщина линии", language: language) }
     static func fontSizeAccessibilityName(_ language: String) -> String { text("Размер шрифта", language: language) }
+    /// The "+" beside the HEX field, which saves the colour in force into the own palette
+    /// (SPEC-DELTA-4 §1.3 E-9).
+    static func addColorToCustomPalette(_ language: String) -> String { text("Добавить цвет в свою палитру", language: language) }
     static func addComment(_ language: String) -> String { text("Добавить комментарий", language: language) }
+
+    // The caption of the capture and the switch of the scale (SPEC-DELTA-4 §3.5, §4)
+
+    static func wholeScreen(_ language: String) -> String { text("весь экран", language: language) }
+    static func importedFile(_ language: String) -> String { text("импорт", language: language) }
+    /// "мониторов: 2", said only by a whole-screen capture that covered more than one.
+    static func monitorCount(_ language: String, _ count: Int) -> String {
+        UiFormat.text(text("мониторов: {0}", language: language), "\(count)")
+    }
+    /// "По ширине · 31 %" / "По высоте · 25 %": the side of the box that stopped the picture, and how
+    /// far it was scaled down to get there.
+    static func fitPercent(_ language: String, boundBy: EditorGeometry.FitBound, percent: Int) -> String {
+        let template = boundBy == .height ? "По высоте · {0} %" : "По ширине · {0} %"
+        return UiFormat.text(text(template, language: language), "\(percent)")
+    }
+    /// The right segment of the switch: a ratio, not a sentence, and the same in both languages.
+    static let oneToOne = "1:1"
     static func removeComment(_ language: String) -> String { text("Удалить комментарий", language: language) }
     static func undo(_ language: String) -> String { text("Отменить", language: language) }
     static func redo(_ language: String) -> String { text("Повторить", language: language) }

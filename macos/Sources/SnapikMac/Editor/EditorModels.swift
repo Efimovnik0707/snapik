@@ -246,11 +246,16 @@ final class EditorCapture {
     var image: CGImage
     var sourceImagePath: String
     var displayLabel: String = "A"
-    /// Port of `CaptureItem.Title` (`EditorModels.cs:133-198`). Not surfaced anywhere in this
-    /// zone's UI (SPEC has no editor affordance for it); threaded through `toCore`/`fromCore` only
-    /// so a reopened capture's title round-trips instead of being silently blanked on every commit
-    /// (finding R7).
+    /// Port of `CaptureItem.Title` (`EditorModels.cs:133-198`). The name of the file an imported
+    /// capture came from, which the caption of the editor says out loud (SPEC-DELTA-4 §3.5); it is
+    /// threaded through `toCore`/`fromCore` so a reopened capture's title round-trips instead of
+    /// being silently blanked on every commit (finding R7).
     var title: String = ""
+    /// Port of `CaptureItem.Kind`/`MonitorCount` (SPEC-DELTA-4 §2.1, E-7): what the capture is, and
+    /// how many monitors a whole-screen one covered. The editor reads both for its caption and
+    /// carries them back untouched — the strip is what sets them.
+    var kind: CaptureKind = .region
+    var monitorCount = 0
     var note: String = ""
     var annotations: [EditorAnnotation] = []
     var dpiX: Double
@@ -303,13 +308,17 @@ final class EditorCapture {
             dpiY: dpiY > 0 ? dpiY : 96,
             title: title,
             note: note,
-            annotations: annotations.map { $0.toCore(imageWidth: image.width, imageHeight: image.height) })
+            annotations: annotations.map { $0.toCore(imageWidth: image.width, imageHeight: image.height) },
+            kind: kind,
+            monitorCount: monitorCount)
     }
 
     /// Port of `CaptureItem.FromCore(CoreCapture, BitmapSource)` (`:178-184`).
     static func fromCore(_ item: CaptureItem, image: CGImage) -> EditorCapture {
         let capture = EditorCapture(id: item.id, image: image, sourceImagePath: item.sourceImagePath, dpiX: item.dpiX, dpiY: item.dpiY)
         capture.title = item.title
+        capture.kind = item.kind
+        capture.monitorCount = item.monitorCount
         capture.note = item.note
         capture.annotations = item.annotations.map { EditorAnnotation.fromCore($0, imageWidth: image.width, imageHeight: image.height) }
         return capture

@@ -25,6 +25,10 @@ enum EditorIcon {
     static let add = "plus"
     static let chevronDown = "chevron.down"
     static let shortcutSheet = "questionmark"
+    /// The two glyphs of the caption of a capture (SPEC-DELTA-4 §3.5): a monitor for the whole
+    /// screen, a sheet of paper for a file that was imported.
+    static let display = "display"
+    static let importedFile = "doc"
 
     /// The three waves of the blur tool: no system symbol stands for "blur a region" (`D-editor.md`
     /// §3.3, §3.4), so this one glyph stays a path in a 16-unit box.

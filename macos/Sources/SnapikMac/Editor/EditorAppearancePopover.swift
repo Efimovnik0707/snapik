@@ -105,7 +105,9 @@ final class EditorSegmentView: NSView {
         }
     }
     private var isHovering = false { didSet { needsDisplay = true } }
-    private let caption: String?
+    /// Not a `let`: the left segment of the scale switch renames itself with every capture, and
+    /// with every size the window is given (`FitSegmentText`, SPEC-DELTA-4 §1.3 E-5).
+    var caption: String? { didSet { needsDisplay = true } }
     /// Draws the sample inside the cell, when the segment carries one instead of a caption.
     var drawSample: ((CGRect, NSColor) -> Void)?
     var onClick: (() -> Void)?
