@@ -35,6 +35,10 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
     // Whether "Начать" or "Пропустить настройку" is closing the window, so that every other way of
     // closing it can be answered as a skip.
     private var closedByButton = false
+    // Whether the window has been placed at all. It goes up the moment the placement succeeds, so
+    // that a window the user drags to another screen is not answered with a jump back to the centre
+    // of that one (`OnboardingWindow.xaml.cs:113, 131-132`).
+    private var placed = false
 
     /// Applies what the wizard has collected (the shortcut is registered here, so a conflict is
     /// reported before the user leaves the step) and answers with the error to show, or nil. Wave 2
@@ -197,6 +201,7 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
             x: area.midX - 310, y: area.midY - height / 2, width: 620, height: height)
         window.setFrame(window.frameRect(forContentRect: frame), display: false)
         layoutContent()
+        placed = true
     }
 
     private func layoutContent() {
@@ -420,6 +425,19 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
         return candidate
     }
 
+    /// The five fields the wizard owns, put on top of the file as it is now. It is a rule of its own
+    /// so that the smoke can read it without a window of the wizard: the list of fields is the whole
+    /// bug (`EdgeStackWindow.MergeOnboarding`).
+    static func mergeOnboarding(stored: HotkeySettings, candidate: HotkeySettings) -> HotkeySettings {
+        var merged = stored
+        merged.captureId = candidate.captureId
+        merged.language = candidate.language
+        merged.theme = candidate.theme
+        merged.accentId = candidate.accentId
+        merged.onboardingVersion = candidate.onboardingVersion
+        return merged
+    }
+
     // The shortcut is applied when the user leaves its step and again at the finish: the wizard has
     // no "cancel", so what is on screen is what the settings file gets.
     @discardableResult
@@ -450,8 +468,14 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
                 try coordinator.hotkeyService.register(
                     name: "fullscreen-save", identifier: HotkeyIdentifier.parse(candidate.fullscreenSaveId))
             }
-            try candidate.save(path: coordinator.workspace.settingsPath)
-            coordinator.applySettings(candidate)
+            // Only the five fields the wizard owns, on top of the file as it is now: the theme of
+            // its fourth step used to live until the next start, because the write carried the
+            // snapshot the wizard had opened with (`EdgeStackWindow.xaml.cs:1269-1284`).
+            let merged = Self.mergeOnboarding(
+                stored: HotkeySettings.loadAndMigrate(path: coordinator.workspace.settingsPath),
+                candidate: candidate)
+            try merged.save(path: coordinator.workspace.settingsPath)
+            coordinator.applySettings(merged)
             return nil
         } catch {
             StartupLog.write(coordinator.options, "Onboarding apply failed for \(candidate.captureId): \(error)")
@@ -521,7 +545,9 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
     /// user on its step, but must not bring the whole wizard back on every start.
     private func markPassed() {
         guard let coordinator, coordinator.settings.onboardingVersion < Self.currentVersion else { return }
-        var passed = coordinator.settings
+        // The version alone, on top of the file as it is now — the same rule the applying follows
+        // (`CompleteOnboarding`, `EdgeStackWindow.xaml.cs:1292-1299`).
+        var passed = HotkeySettings.loadAndMigrate(path: coordinator.workspace.settingsPath)
         passed.onboardingVersion = Self.currentVersion
         try? passed.save(path: coordinator.workspace.settingsPath)
         coordinator.applySettings(passed)
@@ -591,6 +617,15 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
 
     func windowDidResize(_ notification: Notification) {
         layoutContent()
+    }
+
+    /// The only case left for a screen change: the placement at the start did not happen (no screen
+    /// answered for the pointer), and the window is put where the screen it now has allows. A window
+    /// that was placed answers nothing, and the user keeps it where they dragged it
+    /// (`OnboardingWindow.xaml.cs:122-138`).
+    func windowDidChangeScreen(_ notification: Notification) {
+        guard !placed, let window else { return }
+        place(window)
     }
 }
 
