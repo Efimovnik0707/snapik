@@ -18,6 +18,56 @@ enum EditorGeometry {
         return CGRect(x: (width - w) / 2, y: (height - h) / 2, width: w, height: h)
     }
 
+    // MARK: - The view of the editor (SPEC-DELTA-4 §4.1, `Controls/EditorGeometry.cs:7-56`)
+
+    /// Which side of the box stopped the picture from growing any further.
+    enum FitBound {
+        case none
+        case width
+        case height
+    }
+
+    /// The scale the picture is shown at, and the side that decided it.
+    struct FitResult: Equatable {
+        let scale: Double
+        let boundBy: FitBound
+    }
+
+    /// The scale a picture is fitted into a box with, never above its own size: a capture smaller
+    /// than the box is shown as it is and has nothing to switch between (`EditorGeometry.cs:24-31`).
+    static func fit(imageWidth: Double, imageHeight: Double, boxWidth: Double, boxHeight: Double) -> FitResult {
+        guard imageWidth > 0, imageHeight > 0, boxWidth > 0, boxHeight > 0 else { return FitResult(scale: 1, boundBy: .none) }
+        let byWidth = boxWidth / imageWidth
+        let byHeight = boxHeight / imageHeight
+        let scale = min(byWidth, byHeight)
+        guard scale < 1 else { return FitResult(scale: 1, boundBy: .none) }
+        return FitResult(scale: scale, boundBy: byWidth < byHeight ? .width : .height)
+    }
+
+    /// The offset of a picture shown at `scale` inside a viewport, held so that no edge of the
+    /// picture comes inside the viewport. The offset is how far the picture is scrolled, so the
+    /// rectangle it is drawn in starts at minus this. An axis along which the picture is shorter
+    /// than the viewport is centred instead (`EditorGeometry.cs:39-44`).
+    static func clampOffset(image: CGSize, scale: Double, viewport: CGSize, offset: CGPoint) -> CGPoint {
+        CGPoint(
+            x: clampAxis(picture: image.width * CGFloat(scale), box: viewport.width, offset: offset.x),
+            y: clampAxis(picture: image.height * CGFloat(scale), box: viewport.height, offset: offset.y))
+    }
+
+    private static func clampAxis(picture: CGFloat, box: CGFloat, offset: CGFloat) -> CGFloat {
+        picture <= box ? -(box - picture) / 2 : clamp(offset, 0, picture - box)
+    }
+
+    /// The offset that keeps the point under the cursor where it is while the scale changes:
+    /// `cursor` is in the units of the viewport, and the answer is the new offset before it is
+    /// clamped (`EditorGeometry.cs:51-56`).
+    static func zoomAround(cursor: CGPoint, offset: CGPoint, fromScale: Double, toScale: Double) -> CGPoint {
+        guard fromScale > 0 else { return offset }
+        let imageX = Double(cursor.x + offset.x) / fromScale
+        let imageY = Double(cursor.y + offset.y) / fromScale
+        return CGPoint(x: imageX * toScale - Double(cursor.x), y: imageY * toScale - Double(cursor.y))
+    }
+
     // MARK: - Selection (SPEC §1.2, `Normalize`)
 
     static func normalize(_ a: CGPoint, _ b: CGPoint) -> CGRect {
@@ -348,6 +398,13 @@ enum EditorGeometry {
             y: oldCropRectLocal.minY + oldCropRectLocal.height * pixelRect.minY / CGFloat(imageHeight),
             width: oldCropRectLocal.width * pixelRect.width / CGFloat(imageWidth),
             height: oldCropRectLocal.height * pixelRect.height / CGFloat(imageHeight))
+    }
+
+    /// The box a capture reopened from the strip is fitted into: the same 0.72 of the window
+    /// `reopenCropRect` scales against, kept apart so the switch beside the panel can say how far the
+    /// picture was scaled down and which side of the box decided it (SPEC-DELTA-4 §4.1, `_fitBox`).
+    static func reopenFitBox(windowSize: CGSize) -> CGSize {
+        CGSize(width: windowSize.width * 0.72, height: windowSize.height * 0.72)
     }
 
     /// Port of the reopen-from-stack scale rule (SPEC §1.9 point 2, `OverlayEditorWindow.xaml.cs:156-163`):

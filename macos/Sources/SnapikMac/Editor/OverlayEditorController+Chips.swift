@@ -344,6 +344,20 @@ extension OverlayEditorController {
         let work = layoutWorkArea(screenIndex: screenIndex)
         var occupied: [CGRect] = []
 
+        // The pills live in a layer over the whole window, which the borders of the capture do not
+        // clip: at a scale of its own a mark can be scrolled off the capture, and its pill would be
+        // left hanging over the desktop. It is put away the way a pill is put away anywhere else —
+        // collapsed, with the number on the capture standing for the note until it is opened again
+        // (`OverlayEditorWindow.xaml.cs:1588-1599`, SPEC-DELTA-4 §1.3 E-8).
+        if canvasView.viewScale != nil {
+            let inside = CGRect(origin: .zero, size: cropRectLocal.size)
+            for annotation in capture.annotations where chipViews[annotation.id]?.isExpanded == true {
+                guard !inside.contains(canvasView.badgeCenter(of: annotation)) else { continue }
+                if expandedChipId == annotation.id { expandedChipId = nil }
+                chipViews[annotation.id]?.setExpanded(false)
+            }
+        }
+
         // Read out here and not inside the comparator: `sorted(by:)` takes a plain closure, and the
         // state of the controller cannot be reached from one.
         let expanded = expandedChipId
@@ -509,8 +523,19 @@ extension OverlayEditorController {
         toolbarView.maximumWidth = max(240, work.width - 16)
         let size = toolbarView.sizeToFitContent()
         let obstacles = chipViews.values.filter { !$0.isHidden }.map { $0.frame }
-        let origin = EditorGeometry.positionToolbar(cropRect: cropRectLocal, work: work, toolbarSize: size, obstacles: obstacles)
+        // The switch of the scale stands to the right of the panel with a gap of ten, and the two are
+        // placed as one: measured apart, the switch would run off the right edge of the screen
+        // (`PositionToolbar`, `:1741-1746`, SPEC-DELTA-4 §1.3 E-6).
+        let switchSize: CGSize = scaleSwitchView.map { $0.isHidden ? CGSize.zero : $0.sizeToFitContent() } ?? .zero
+        let gap: CGFloat = switchSize.width > 0 ? 10 : 0
+        let origin = EditorGeometry.positionToolbar(
+            cropRect: cropRectLocal, work: work,
+            toolbarSize: CGSize(width: size.width + switchSize.width + gap, height: size.height), obstacles: obstacles)
         toolbarView.frame = CGRect(origin: origin, size: size)
+        if let scaleSwitchView, switchSize.width > 0 {
+            scaleSwitchView.frame = CGRect(
+                origin: CGPoint(x: origin.x + size.width + gap, y: origin.y), size: switchSize)
+        }
     }
 
     // MARK: - Monitor work area (SPEC §1.4 `GetCropMonitorWorkArea`)

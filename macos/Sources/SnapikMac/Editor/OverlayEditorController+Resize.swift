@@ -41,8 +41,13 @@ extension OverlayEditorController {
             }
         }
 
+        // The handles change the borders of the capture in the pixels it is fitted with: at a scale
+        // of its own the picture is scrolled inside them and dragging a corner would mean nothing, so
+        // they are put away until it is fitted again (`Resize.cs:113-120`, SPEC-DELTA-4 §1.3 E-8).
+        let fitted = canvasView?.viewScale == nil
         let origins = EditorGeometry.captureHandleOrigins(cropRect: cropRectLocal, windowSize: slots[screenIndex].contentView.bounds.size)
         for (index, handle) in captureHandleViews.enumerated() where index < origins.count {
+            handle.isHidden = !fitted
             handle.frame = CGRect(origin: origins[index], size: CGSize(width: 22, height: 22))
         }
         resizeOutlineView?.frame = cropRectLocal
@@ -123,8 +128,11 @@ extension OverlayEditorController {
         }
         let sourceCapture = EditorCapture(id: capture.id, image: resizeSourceImage, sourceImagePath: capture.sourceImagePath, dpiX: capture.dpiX, dpiY: capture.dpiY)
         // Finding R7 sibling: carry `title` across too, or the resize's `toCore()` would blank it
-        // the same way the fixed `EditorCapture.toCore()` no longer does on its own.
+        // the same way the fixed `EditorCapture.toCore()` no longer does on its own. What the
+        // capture is travels with it for the same reason (SPEC-DELTA-4 §2.1).
         sourceCapture.title = capture.title
+        sourceCapture.kind = capture.kind
+        sourceCapture.monitorCount = capture.monitorCount
         sourceCapture.note = capture.note
         sourceCapture.annotations = remapped.annotations
 

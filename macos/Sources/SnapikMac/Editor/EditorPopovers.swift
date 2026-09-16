@@ -67,10 +67,9 @@ final class EditorColorPopoverContentView: EditorPopoverContentView {
     init(language: String) {
         closeButton = EditorIconButtonView(symbolName: EditorIcon.close, tooltip: EditorStrings.closeTooltip(language), size: 22)
         spectrum = ColorSpectrumView(language: language)
-        // A pair of its own for this tooltip does not exist in the table yet (SPEC-DELTA-3 §3.4
-        // leaves the new [ТЗ№4] strings to the 1.5.0 round), so the button names the palette it
-        // fills — "Своя"/"Custom".
-        addToCustomButton = EditorIconButtonView(symbolName: EditorIcon.add, tooltip: EditorStrings.paletteName("Своя", language))
+        // The pair of its own this tooltip was waiting for arrived with the 1.5.0 round
+        // (SPEC-DELTA-4 §3.4): the button says what it does instead of naming the palette it fills.
+        addToCustomButton = EditorIconButtonView(symbolName: EditorIcon.add, tooltip: EditorStrings.addColorToCustomPalette(language))
         eyedropperButton = EditorIconButtonView(symbolName: EditorIcon.eyedropper, tooltip: EditorStrings.pickColorFromScreen(language))
         titleLabel = EditorPopoverChrome.label(EditorStrings.colorHeading(language), bold: true)
         savedLabel = EditorPopoverChrome.label(EditorStrings.savedColors(language), color: EditorTheme.textSecondary9A)

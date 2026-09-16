@@ -75,6 +75,7 @@ extension OverlayEditorController {
         }
 
         setupCommentsPanelIfNeeded(on: slot)
+        setupScaleViews(on: slot)
         toolbarView?.setActiveTool(canvasView?.tool ?? .rectangle)
         syncAppearance()
 
@@ -111,6 +112,8 @@ extension OverlayEditorController {
     func teardownEditingViews() {
         canvasContainerView?.removeFromSuperview()
         toolbarView?.removeFromSuperview()
+        scaleSwitchView?.removeFromSuperview()
+        shotKindView?.removeFromSuperview()
         chipLayerView?.removeFromSuperview()
         commentsPanelView?.removeFromSuperview()
         textEditorView?.removeFromSuperview()
@@ -120,6 +123,8 @@ extension OverlayEditorController {
         canvasContainerView = nil
         canvasView = nil
         toolbarView = nil
+        scaleSwitchView = nil
+        shotKindView = nil
         chipLayerView = nil
         commentsPanelView = nil
         textEditorView = nil
@@ -133,6 +138,7 @@ extension OverlayEditorController {
         canvas.onAnnotationChanged = { [weak self] in self?.annotationChanged() }
         canvas.onCropRequested = { [weak self] bounds in self?.cropRequested(bounds) }
         canvas.onAnnotationActivated = { [weak self] annotation in self?.annotationActivated(annotation) }
+        canvas.onViewChanged = { [weak self] in self?.surfaceViewChanged() }
     }
 
     private func wireToolbarActions(_ toolbar: EditorToolbarView) {

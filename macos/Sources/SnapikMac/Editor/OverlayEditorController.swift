@@ -159,6 +159,13 @@ final class OverlayEditorController {
     var canvasContainerView: NSView?
     var canvasView: AnnotationCanvasView?
     var toolbarView: EditorToolbarView?
+    /// The switch beside the panel and the caption of the capture (SPEC-DELTA-4 §1.3 E-5, E-7).
+    var scaleSwitchView: EditorScaleSwitchView?
+    var shotKindView: EditorShotKindView?
+    /// The box the capture is fitted into, kept for the switch beside the panel: it is what says
+    /// whether the picture had to be scaled down at all, and which side of it stopped it
+    /// (`_fitBox`, `OverlayEditorWindow.xaml.cs:70`).
+    var fitBox: CGSize = .zero
     var captureHandleViews: [CaptureHandleView] = []
     var resizeOutlineView: ResizeOutlineView?
     /// Host view for every comment chip (SPEC-DELTA-2B.md §C7 "Новый `ChipLayerView`"), sized to
@@ -260,6 +267,10 @@ final class OverlayEditorController {
         currentSourcePath = capture.sourceImagePath
 
         let contentSize = slots[screenIndex].contentView.bounds.size
+        // A capture of the whole screen or a file from disk opens fitted, and the switch beside the
+        // panel says by which side (SPEC-DELTA-4 §4): the box it is fitted into is the same one
+        // `reopenCropRect` scales against.
+        fitBox = EditorGeometry.reopenFitBox(windowSize: contentSize)
         cropRectLocal = EditorGeometry.reopenCropRect(
             imageSize: CGSize(width: image.width, height: image.height), windowSize: contentSize)
 
