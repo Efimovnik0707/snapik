@@ -157,4 +157,34 @@ public sealed class StripResizeGeometryTests
         Assert.Equal(StripResizeGeometry.MinimumWidth, StripResizeGeometry.DefaultWidth);
         Assert.Equal(168, StripResizeGeometry.CardWidth(StripResizeGeometry.MinimumWidth));
     }
+
+    [Theory]
+    // The list is as tall as what it holds: 14 above, a card of 78, 30 for every card after the
+    // first and 8 below. An empty strip shows the hint instead, and the stored number is a ceiling.
+    [InlineData(0, 372d, 92d)]
+    [InlineData(1, 372d, 100d)]
+    [InlineData(2, 372d, 130d)]
+    [InlineData(5, 372d, 220d)]
+    [InlineData(12, 372d, 372d)]
+    [InlineData(12, 500d, 430d)]
+    [InlineData(5, 130d, 130d)]
+    [InlineData(12, double.NaN, 372d)]
+    public void The_list_is_as_tall_as_its_cards_up_to_the_ceiling(int count, double cap, double expected) =>
+        Assert.Equal(expected, StripResizeGeometry.ListHeightForCount(count, cap));
+
+    [Fact]
+    public void The_capsule_keeps_the_right_edge_of_the_strip_it_came_from() =>
+        Assert.Equal(1664, StripResizeGeometry.CapsuleLeft(1600, 244, 180));
+
+    [Fact]
+    public void A_strip_dragged_away_from_the_edge_comes_back_where_it_was_left()
+    {
+        var work = new Rect(0, 0, 1920, 1040);
+        var inside = new Rect(700, 300, 244, 500);
+        Assert.Equal(inside, StripResizeGeometry.RestoreRect(inside, work));
+        // The monitor it was on is gone: the strip is pulled back by its own width, not centred.
+        Assert.Equal(new Rect(1676, 300, 244, 500), StripResizeGeometry.RestoreRect(new Rect(2400, 300, 244, 500), work));
+        // Wider than the area it comes back to: the left edge wins, so the header stays reachable.
+        Assert.Equal(new Rect(0, 300, 2000, 500), StripResizeGeometry.RestoreRect(new Rect(-100, 300, 2000, 500), work));
+    }
 }

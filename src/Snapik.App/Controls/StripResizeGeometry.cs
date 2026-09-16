@@ -33,11 +33,67 @@ internal static class StripResizeGeometry
 
     /// <summary>The two paddings between the panel and a card: the shell and the capture list.</summary>
     internal const double ShellPadding = 10;
-    internal const double ListPadding = 8;
+
+    /// <summary>
+    /// The paddings of the capture list are not the same on both sides: the right one carries the
+    /// scroll bar, which stands over the cards and needs a field of its own, and the left one gives
+    /// the four pixels back so that the card keeps the 168 px of the reference shot.
+    /// </summary>
+    internal const double ListPaddingLeft = 4;
+    internal const double ListPaddingRight = 12;
 
     /// <summary>The card of a capture inside a window of that width: 168 px at 244.</summary>
     internal static double CardWidth(double windowWidth) =>
-        windowWidth - 2 * ShadowMargin - 2 * ShellPadding - 2 * ListPadding;
+        windowWidth - 2 * ShadowMargin - 2 * ShellPadding - ListPaddingLeft - ListPaddingRight;
+
+    /// <summary>The hint that stands where the list is while the strip holds nothing.</summary>
+    internal const double EmptyListHeight = 92;
+
+    internal const double ListTopPadding = 14;
+    internal const double ListBottomPadding = 8;
+
+    /// <summary>A card and the part of it the next card lies over; the difference is the pitch.</summary>
+    internal const double CardHeight = 78;
+    internal const double CardOverlap = 48;
+    internal const double CardPitch = CardHeight - CardOverlap;
+
+    /// <summary>
+    /// The height the capture list wants for <paramref name="count"/> cards, and the ceiling the
+    /// corner grip has written into the settings. The grip sets the ceiling, not the height: a list
+    /// of two cards is 130 tall whatever the settings say, and it stops growing at the ceiling.
+    /// <see cref="MinimumListHeight"/> is no floor here — it belongs to the stored number alone,
+    /// otherwise a single capture would open a list of 180 instead of 100.
+    /// </summary>
+    internal static double ListHeightForCount(int count, double cap)
+    {
+        if (count <= 0) return EmptyListHeight;
+        var content = ListTopPadding + (count - 1) * CardPitch + CardHeight + ListBottomPadding;
+        var ceiling = double.IsFinite(cap) && cap > 0 ? cap : DefaultListHeight;
+        return Math.Min(content, ceiling);
+    }
+
+    /// <summary>
+    /// The left edge of the capsule, so that it keeps the right edge of the strip it came from
+    /// rather than the edge of the monitor: both windows carry the same field under their shadow,
+    /// so the sides the user sees line up.
+    /// </summary>
+    internal static double CapsuleLeft(double stripLeft, double stripWidth, double capsuleWidth) =>
+        stripLeft + stripWidth - capsuleWidth;
+
+    /// <summary>
+    /// The rectangle the strip had before the capsule, moved back into the working area only when it
+    /// no longer fits: a strip dragged away from the edge stays where the user left it.
+    /// </summary>
+    internal static Rect RestoreRect(Rect stored, Rect work)
+    {
+        if (!work.IsEmpty && work.Width > 0 && work.Height > 0 && !work.Contains(stored))
+        {
+            var x = Math.Min(Math.Max(stored.X, work.Left), Math.Max(work.Left, work.Right - stored.Width));
+            var y = Math.Min(Math.Max(stored.Y, work.Top), Math.Max(work.Top, work.Bottom - stored.Height));
+            return new Rect(x, y, stored.Width, stored.Height);
+        }
+        return stored;
+    }
 
     // The height of the strip is the height of the capture list: the window lives on
     // SizeToContent="Height", and a height written to the window itself is overwritten by the next
@@ -92,7 +148,9 @@ internal static class StripResizeGeometry
 
     /// <summary>
     /// A list height from the settings file: out of range is clamped, nonsense falls back to the
-    /// default. The working area is a ceiling of its own, and the window is taller than its list by
+    /// default. What comes out is the ceiling the list grows to, not the height it is given — that
+    /// one is <see cref="ListHeightForCount"/>, and the stored number only stops it.
+    /// The working area is a ceiling of its own, and the window is taller than its list by
     /// <paramref name="chromeHeight"/>, so a height stored on a large monitor opens a window that
     /// still fits on the screen it comes back on, together with the corner grip that resizes it.
     /// </summary>
