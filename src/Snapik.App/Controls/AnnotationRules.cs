@@ -19,4 +19,24 @@ internal static class AnnotationRules
 
     /// <summary>What a press of the mouse has landed on, before the canvas acts on it.</summary>
     internal enum PressTarget { Pan, Erase, CropDraft, Activate, CommentAnchor, ResizeHandle, Object, Empty }
+
+    /// <summary>
+    /// What a press of the left button means, in the one order every tool obeys. One rule and not a
+    /// branch per tool: whatever is in hand, the corners of the selected mark, the anchor of a
+    /// comment and the mark under the cursor answer before a new mark is begun.
+    /// <paramref name="activatable"/> is "the mark under the cursor is a caption or a comment", the
+    /// two that a double click opens for typing; on a frame or an arrow a double click is two
+    /// single ones, that is, a selection.
+    /// </summary>
+    internal static PressTarget PressTargetOf(EditorTool tool, bool panning, int clickCount,
+        bool onAnchor, bool onSelectedHandle, bool onObject, bool activatable) =>
+            panning                        ? PressTarget.Pan
+          : tool == EditorTool.Eraser      ? PressTarget.Erase
+          // The crop is not an object tool: its frame is dragged over whatever lies under it.
+          : tool == EditorTool.Crop        ? PressTarget.CropDraft
+          : clickCount == 2 && activatable ? PressTarget.Activate
+          : onAnchor                       ? PressTarget.CommentAnchor
+          : onSelectedHandle               ? PressTarget.ResizeHandle
+          : onObject                       ? PressTarget.Object
+          :                                  PressTarget.Empty;
 }
