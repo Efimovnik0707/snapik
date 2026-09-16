@@ -24,6 +24,8 @@ public sealed class AnnotationCanvas : FrameworkElement
     private int _resizeCorner = -1;
     private Rect _originalBounds;
     private bool _manipulationChanged;
+    // The press on a mark travelled far enough to be a drag: below the threshold it is a click.
+    private bool _manipulationMoved;
     private AnnotationItem? _eraseHover;
     // The anchor of a leader: the circle at the point a comment is attached to, and the drag of it.
     private AnnotationItem? _anchorDrag;
@@ -222,79 +224,79 @@ public sealed class AnnotationCanvas : FrameworkElement
     {
         if (Image is null) return;
         // Space held down turns the press into a drag of the picture itself, wherever it lands.
-        if (Panning && ViewScale is not null)
-        {
-            _panStart = point;
-            _panOrigin = ViewOffset;
-            CaptureMouse();
-            return;
-        }
-        if (!_imageRect.Contains(point)) return;
-
-        // The eraser draws nothing: it removes the mark under the pointer and tells the window,
-        // which turns that into one history entry, exactly as the Delete key does.
-        if (Tool == EditorTool.Eraser)
-        {
-            if (EraseTarget(point) is not { } target || Annotations is null) return;
-            Select(null);
-            Annotations.Remove(target);
-            _eraseHover = null;
-            AnnotationChanged?.Invoke(this, EventArgs.Empty);
-            InvalidateVisual();
-            return;
-        }
-
-        // A double click opens the note of whatever it lands on: the text editor for a text mark,
-        // the note pill for everything else. The editor window listens for it.
-        if (clickCount == 2 && HitTestAnnotation(ToImage(point)) is { } activated)
-        {
-            Select(activated);
-            AnnotationActivated?.Invoke(this, activated);
-            return;
-        }
-        // The anchor of a leader is taken before the resize handles: it sits on the point of a
-        // comment, a place where the handle of a neighbouring mark may lie as well, and the handle
-        // would win the press by being asked first.
-        if (FindLeaderAnchor(point) is { } anchored)
-        {
-            Select(anchored);
-            _anchorDrag = anchored;
-            _anchorOriginPoints = [.. anchored.Points];
-            _anchorOriginOffset = anchored.NoteOffset;
-            _anchorDragStart = ToImage(point);
-            _anchorMoved = false;
-            CaptureMouse();
-            return;
-        }
+        var panning = Panning && ViewScale is not null;
+        if (!panning && !_imageRect.Contains(point)) return;
+        var imagePoint = ToImage(point);
+        var anchored = FindLeaderAnchor(point);
         var handleHit = FindResizeHandle(point);
-        // With the comment tool in the hand only a badge under the pointer takes the press:
-        // FindResizeHandle answers nothing at all, and FindMoveHandle answers for pins alone, so
-        // anywhere else the press falls through and puts a new pin down.
-        if (Tool == EditorTool.Select || handleHit.Annotation is not null || FindMoveHandle(point) is not null)
+        var grabbed = FindMoveHandle(point) ?? HitTestAnnotation(imagePoint);
+        var under = HitTestAnnotation(imagePoint);
+        // One order for every tool, and no branch per tool: whatever is in the hand, the corners of
+        // the selected mark, the anchor of a comment and the mark under the cursor answer before a
+        // new mark is begun. The rule itself lives in AnnotationRules, where a test can reach it.
+        switch (AnnotationRules.PressTargetOf(Tool, panning, clickCount,
+            onAnchor: anchored is not null, onSelectedHandle: handleHit.Annotation is not null,
+            onObject: grabbed is not null, activatable: under is { Kind: EditorTool.Text or EditorTool.Comment }))
         {
-            var imagePoint = ToImage(point);
-            var hit = handleHit.Annotation ?? FindMoveHandle(point) ?? HitTestAnnotation(imagePoint);
-            Select(hit);
-            if (hit is not null)
-            {
+            case AnnotationRules.PressTarget.Pan:
+                _panStart = point;
+                _panOrigin = ViewOffset;
+                CaptureMouse();
+                return;
+
+            // The eraser draws nothing: it removes the mark under the pointer and tells the window,
+            // which turns that into one history entry, exactly as the Delete key does.
+            case AnnotationRules.PressTarget.Erase:
+                if (EraseTarget(point) is not { } target || Annotations is null) return;
+                Select(null);
+                Annotations.Remove(target);
+                _eraseHover = null;
+                AnnotationChanged?.Invoke(this, EventArgs.Empty);
+                InvalidateVisual();
+                return;
+
+            // A double click opens what can be typed into: the text editor for a caption, the note
+            // pill for a comment. On a frame or an arrow it is two single clicks, that is, a
+            // selection, and it falls through to the branches below.
+            case AnnotationRules.PressTarget.Activate:
+                Select(under);
+                AnnotationActivated?.Invoke(this, under!);
+                return;
+
+            // The anchor of a leader is taken before the resize handles: it sits on the point of a
+            // comment, a place where the handle of a neighbouring mark may lie as well.
+            case AnnotationRules.PressTarget.CommentAnchor:
+                Select(anchored);
+                _anchorDrag = anchored;
+                _anchorOriginPoints = [.. anchored!.Points];
+                _anchorOriginOffset = anchored.NoteOffset;
+                _anchorDragStart = imagePoint;
+                _anchorMoved = false;
+                CaptureMouse();
+                return;
+
+            case AnnotationRules.PressTarget.ResizeHandle:
+            case AnnotationRules.PressTarget.Object:
+                var hit = handleHit.Annotation ?? grabbed;
+                Select(hit);
+                if (hit is null) return;
                 _gestureStart = imagePoint;
                 _originalPoints = [.. hit.Points];
                 _originalAdditionalSegments = hit.AdditionalPathSegments.Select(segment => segment.ToList()).ToList();
-                var bounds = BoundsOf(hit);
-                _originalBounds = bounds;
+                _originalBounds = BoundsOf(hit);
                 _resizeCorner = handleHit.Corner;
                 _resizing = _resizeCorner >= 0;
                 _manipulating = true;
                 _manipulationChanged = false;
+                _manipulationMoved = false;
                 CaptureMouse();
-            }
-            return;
+                return;
         }
 
-        // A press with a drawing tool armed drops the selection at once: whatever the hand does
-        // next, the colour and the thickness on the panel belong to the next mark from now on.
+        // A press on an empty part of the capture, or the frame of a crop over whatever lies under
+        // it: the selection is dropped at once, and from now on the panel belongs to the next mark.
         Select(null);
-        _gestureStart = ToImage(point);
+        _gestureStart = imagePoint;
         _draft = new AnnotationItem
         {
             Kind = Tool, ArrowStyle = ActiveArrowStyle,
@@ -352,6 +354,12 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (_manipulating && SelectedAnnotation is not null && _gestureStart is not null && _originalPoints is not null && pressed)
         {
             var current = ClampToImage(ToImage(displayPoint));
+            // A click on a mark with a pixel of tremor in it is a click and not a drag: without the
+            // gate below every press on a selected mark wrote an entry of the history. The threshold
+            // is the one the anchor and a new mark are both measured by, and it is measured on
+            // screen, not in the pixels of the capture.
+            if (!_manipulationMoved && (current - _gestureStart.Value).Length * (_imageRect.Width / Image!.PixelWidth) < GestureThreshold) return;
+            _manipulationMoved = true;
             if (_resizing)
             {
                 var resized = ResizeGeometry.Resize(_originalBounds, _resizeCorner, current,
@@ -515,6 +523,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         _manipulating = false;
         _resizing = false;
         _manipulationChanged = false;
+        _manipulationMoved = false;
         _originalPoints = null;
         _originalAdditionalSegments = null;
         InvalidateVisual();
@@ -607,26 +616,15 @@ public sealed class AnnotationCanvas : FrameworkElement
         InvalidateVisual();
     }
 
+    // The corners belong to the selected mark and to no other: they are drawn on it alone, and a
+    // corner that answers where nothing is drawn promises a resize the press will not make. Every
+    // tool is offered them, the comment included — one order of the press for all of them.
     private (AnnotationItem? Annotation, int Corner) FindResizeHandle(Point displayPoint)
     {
-        // The corners of the selected mark answer to every tool but the comment: there a press beside
-        // the corner of whatever was selected last has to put a new pin down, and the pointer over
-        // that corner must not promise a resize the press will not make.
-        if (Image is null || Annotations is null || Tool == EditorTool.Comment) return (null, -1);
-        // The selected mark owns overlapping handles; corners remain draggable with any tool active.
-        if (SelectedAnnotation is { } selected && HasResizeHandles(selected))
-        {
-            var corner = ResizeGeometry.HitCorner(GetDisplayBounds(selected), displayPoint, 10);
-            if (corner >= 0) return (selected, corner);
-        }
-        for (var i = Annotations.Count - 1; i >= 0; i--)
-        {
-            var annotation = Annotations[i];
-            if (!HasResizeHandles(annotation)) continue;
-            var corner = ResizeGeometry.HitCorner(GetDisplayBounds(annotation), displayPoint, 10);
-            if (corner >= 0) return (annotation, corner);
-        }
-        return (null, -1);
+        if (Image is null || Annotations is null) return (null, -1);
+        if (SelectedAnnotation is not { } selected || !HasResizeHandles(selected)) return (null, -1);
+        var corner = ResizeGeometry.HitCorner(GetDisplayBounds(selected), displayPoint, 10);
+        return corner >= 0 ? (selected, corner) : (null, -1);
     }
     private AnnotationItem? HitTestAnnotation(Point imagePoint)
     {
@@ -637,8 +635,10 @@ public sealed class AnnotationCanvas : FrameworkElement
             // The box is drawn through the middle of the stroke, so it is widened by half of it and
             // a little to grab by. Twice the whole width was the same thing while the thickness of
             // the highlighter meant a quarter of its real one; with the real width it reached 96 px,
-            // and the eraser took strokes the hand was nowhere near.
-            var reach = Math.Max(8, Annotations[i].Thickness / 2 + 4);
+            // and the eraser took strokes the hand was nowhere near. A caption is the exception: its
+            // thickness has nothing to do with the size of its letters, so a caption of twelve
+            // pixels would be caught by a band of eight all round it and cover its neighbours.
+            var reach = Annotations[i].Kind == EditorTool.Text ? 4 : Math.Max(8, Annotations[i].Thickness / 2 + 4);
             bounds.Inflate(reach, reach);
             if (bounds.Contains(imagePoint)) return Annotations[i];
         }
@@ -841,12 +841,11 @@ public sealed class AnnotationCanvas : FrameworkElement
     // free for the next drawing, except where the mark is opaque and there is nothing to draw into.
     // The circle at the point a comment is attached to: the visible end of the leader, and the only
     // way to move that end without moving the note with it. A comment without a number has no badge
-    // and no leader yet, so it has no anchor either. The select tool and the comment tool take it:
-    // with a box, an arrow, a pencil or a text armed, a press seven pixels from a pin has to draw,
-    // not drag, so the condition is narrowed by one tool rather than dropped.
+    // and no leader yet, so it has no anchor either. It answers whatever is in the hand: one order
+    // of the press for every tool, and what is already drawn answers before a new mark is begun.
     private AnnotationItem? FindLeaderAnchor(Point point)
     {
-        if (Annotations is null || Image is null || Tool is not (EditorTool.Select or EditorTool.Comment)) return null;
+        if (Annotations is null || Image is null) return null;
         return Annotations.Reverse().FirstOrDefault(item =>
             item.Kind == EditorTool.Comment && !string.IsNullOrEmpty(item.Label) && item.Points.Count > 0 &&
             (point - ToDisplay(item.Points[0])).Length <= AnchorHoverRadius);
@@ -866,9 +865,6 @@ public sealed class AnnotationCanvas : FrameworkElement
     private bool IsMoveHandle(AnnotationItem item, Point point)
     {
         if (item.Points.Count == 0 || Image is null) return false;
-        // With the comment tool in the hand only a pin answers: the band along the edge of a drawn
-        // frame would otherwise take the press, and a pin could not be put on top of that frame.
-        if (Tool == EditorTool.Comment && item.Kind != EditorTool.Comment) return false;
         var scale = _imageRect.Width / Image.PixelWidth;
         var band = Math.Max(6, item.Thickness * scale);
         switch (item.Kind)
@@ -893,10 +889,10 @@ public sealed class AnnotationCanvas : FrameworkElement
             }
             default:
             {
-                // A mark of the kind the tool in the hand draws is grabbed by a wider band: "a frame
-                // by a frame, an arrow by an arrow" is about hitting the mark itself, and ten pixels
-                // are what a hand hits. The interior of an empty frame stays free to draw into.
-                var reach = item.Kind == Tool ? 10 : 6;
+                // One band for every mark and every tool: eight pixels, which is what a hand hits.
+                // A band that changed width with the tool in the hand made the same press mean two
+                // things on the same pixel. The interior of an empty frame stays free to draw into.
+                const double reach = 8;
                 var bounds = GetDisplayBounds(item);
                 var outer = bounds; outer.Inflate(reach, reach);
                 if (!outer.Contains(point)) return false;
@@ -1203,9 +1199,34 @@ public sealed class AnnotationCanvas : FrameworkElement
         var frame = annotations.Single(item => item.Kind == EditorTool.Rectangle);
         canvas.SelectAnnotation(frame.Id);
         canvas.Tool = EditorTool.Comment;
-        Gesture(canvas.GetDisplayBounds(frame).TopLeft);
+        // Away from everything drawn: the corners of the selected frame answer to every tool now,
+        // and so does the frame itself, so a new pin goes where there is nothing.
+        Gesture(In(.8, .12));
         if (annotations.Count(item => item.Kind == EditorTool.Comment) != 2)
-            throw new InvalidOperationException("A press at the corner of a selected frame with the comment tool must put a pin down.");
+            throw new InvalidOperationException("A press on an empty part of the capture with the comment tool must put a pin down.");
+
+        // Rule 1: a click takes what is already drawn, whatever tool is in the hand. With the frame
+        // armed, a press on an existing frame selects it instead of beginning a second one; a drag
+        // by its outline moves it and writes one entry of the history; and a press that did not
+        // travel writes none at all.
+        annotations.Clear();
+        canvas.SelectAnnotation(null);
+        canvas.Tool = EditorTool.Rectangle;
+        Gesture(In(.1, .1), In(.45, .45));
+        var only = annotations.Single();
+        var entries = 0;
+        void CountEntries(object? sender, EventArgs args) => entries++;
+        canvas.AnnotationChanged += CountEntries;
+        var outline = canvas.GetDisplayBounds(only);
+        var onOutline = new Point(outline.Left, outline.Top + outline.Height / 2);
+        Gesture(onOutline);
+        if (annotations.Count != 1 || !ReferenceEquals(canvas.SelectedAnnotation, only) || entries != 0)
+            throw new InvalidOperationException("A click on a frame with the frame in the hand must select it and write nothing.");
+        var wasAt = only.Points[0];
+        Gesture(onOutline, new Point(onOutline.X + 30, onOutline.Y + 20));
+        if (entries != 1 || only.Points[0] == wasAt)
+            throw new InvalidOperationException($"A drag of a frame by its outline must move it and write one entry of the history: {entries}.");
+        canvas.AnnotationChanged -= CountEntries;
         annotations.Clear();
     }
 
@@ -1309,22 +1330,22 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (canvas.FindMoveHandle(new Point(pin.X + 40, pin.Y)) is not null)
             throw new InvalidOperationException("The empty space next to a comment pin was mistaken for a move handle.");
 
-        // With the comment tool in the hand only pins answer: the edge of a drawn frame lets the
-        // press through, so a pin can be put down on top of that frame, and the badge still grabs.
+        // One order of the press for every tool: with the comment in the hand the edge of a drawn
+        // frame answers as it does to any other, and so do the badge and the anchor of a pin.
         comment.Label = "A1";
         canvas.Tool = EditorTool.Comment;
         var frameBounds = canvas.GetDisplayBounds(rectangle);
-        if (canvas.FindMoveHandle(new Point(frameBounds.Left, frameBounds.Top + frameBounds.Height / 2)) is not null)
-            throw new InvalidOperationException("The edge of a frame must let the comment tool through instead of taking the press.");
+        if (!ReferenceEquals(canvas.FindMoveHandle(new Point(frameBounds.Left, frameBounds.Top + frameBounds.Height / 2)), rectangle))
+            throw new InvalidOperationException("The edge of a frame must answer to the comment tool as it does to every other.");
         if (!ReferenceEquals(canvas.FindMoveHandle(canvas.GetBadgeCenter(comment)), comment))
             throw new InvalidOperationException("The badge of a pin must be grabbable with the comment tool in the hand.");
         var anchor = canvas.ToDisplay(comment.Points[0]);
         if (!ReferenceEquals(canvas.FindLeaderAnchor(new Point(anchor.X + 5, anchor.Y)), comment))
             throw new InvalidOperationException("The anchor of a pin must answer to the comment tool.");
-        // And the other way round: with a frame in the hand a press five pixels from a pin draws.
+        // And with a frame in the hand it answers just the same, instead of being drawn over.
         canvas.Tool = EditorTool.Rectangle;
-        if (canvas.FindLeaderAnchor(new Point(anchor.X + 5, anchor.Y)) is not null)
-            throw new InvalidOperationException("The anchor of a pin must not take the press of a drawing tool.");
+        if (!ReferenceEquals(canvas.FindLeaderAnchor(new Point(anchor.X + 5, anchor.Y)), comment))
+            throw new InvalidOperationException("The anchor of a pin must answer whatever tool is in the hand.");
         canvas.SelectAnnotation(null);
 
         void Verify(AnnotationItem target, EditorTool activeTool, bool interiorGrabs)
@@ -1337,15 +1358,22 @@ public sealed class AnnotationCanvas : FrameworkElement
 
             if (!ReferenceEquals(canvas.FindMoveHandle(edge), target))
                 throw new InvalidOperationException("The edge of a mark is not movable while another drawing tool is active.");
+            // The corners belong to the mark that is selected and to that one alone: they are drawn
+            // on it and nowhere else, so nowhere else may they answer.
+            canvas.SelectAnnotation(null);
+            if (canvas.FindResizeHandle(corner).Annotation is not null)
+                throw new InvalidOperationException("The corner of a mark that is not selected must answer with nothing.");
+            canvas.SelectAnnotation(target.Id);
             var resizeHit = canvas.FindResizeHandle(corner);
             if (!ReferenceEquals(resizeHit.Annotation, target) || resizeHit.Corner != 0)
-                throw new InvalidOperationException("The corner of a mark is not resizable while another drawing tool is active.");
+                throw new InvalidOperationException("The corner of the selected mark is not resizable while another drawing tool is active.");
             if (interiorGrabs != ReferenceEquals(canvas.FindMoveHandle(inside), target))
                 throw new InvalidOperationException("The interior of a mark did not follow the rule for its kind.");
             if (!interiorGrabs && canvas.FindResizeHandle(inside).Annotation is not null)
                 throw new InvalidOperationException("The interior of a mark was mistaken for a resize handle.");
             if (canvas.Tool != activeTool)
                 throw new InvalidOperationException("Hover manipulation changed the selected drawing tool.");
+            canvas.SelectAnnotation(null);
         }
     }
 }
