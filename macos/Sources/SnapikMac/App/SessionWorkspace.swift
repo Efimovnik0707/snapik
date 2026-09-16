@@ -142,16 +142,30 @@ final class SessionWorkspace {
         }
     }
 
-    /// Port of `PrepareAsync` (`:126-131`): bump revision unconditionally, save, then export
+    /// Port of `PrepareAsync` (`:203-218`): bump revision unconditionally, save, then export
     /// (SPEC §3.6: "каждая подготовка пакета увеличивает ревизию и пишет session.json").
-    func prepareExport(renderer: ExportImageRendering) async throws -> PreparedExport {
+    ///
+    /// T-5: the whole strip is what gets persisted, and only the captures that have not been sent
+    /// yet go into the package — a capture that has already left keeps its place in `session.json`
+    /// and stays out of the next package (`SentCaptureRules.forPackage`). The letters of the package
+    /// then start at A again, which is the pair of `stripLabels` handing the letters of the strip to
+    /// the captures still waiting.
+    /// `includingSent` is the by-hand pair of commands (`PrepareAsync(Captures, Captures, …)`,
+    /// `:1121, 1151`): copying and saving a package are about the strip as a whole and take every
+    /// capture, sent ones included.
+    func prepareExport(renderer: ExportImageRendering, includingSent: Bool = false) async throws -> PreparedExport {
         session.revision += 1
         session.modifiedAtUtc = timeProvider.utcNow()
         try await save()
 
+        var exported = session
+        if !includingSent { exported.captures = pendingCaptures }
         let service = FileExportService(renderer: renderer, timeProvider: timeProvider)
-        return try await service.prepare(session: session, sessionDirectory: sessionDirectory)
+        return try await service.prepare(session: exported, sessionDirectory: sessionDirectory)
     }
+
+    /// The captures a package would be built from right now (`PendingCaptures`).
+    var pendingCaptures: [CaptureItem] { SentCaptureRules.forPackage(session.captures) { $0.sent } }
 
     /// Port of `AddImageAsync`/`SaveDerivedImageAsync`: persists `pngData` as a new capture's
     /// source image and appends it to the session.

@@ -11,15 +11,32 @@ extension AppCoordinator {
     /// Port of `SaveAndCopyCommittedPackageAsync` (`:386-404`). SPEC-DELTA-2A §4: runs under
     /// `clipboardPublicationGate` and cancels any in-flight receiver-echo watch first — this
     /// publishes a brand-new package, so any watch still chasing the *previous* one is obsolete.
+    ///
+    /// `includingSent` is the "Копировать пакет" command (`CopyPackageAsync`, `:1113-1135`): copying
+    /// by hand is about the strip as a whole and takes the sent captures with it, and it becomes the
+    /// current package because an intercepted Cmd+V pastes exactly that.
     @discardableResult
-    func saveAndCopyCommittedPackage() async -> Bool {
+    func saveAndCopyCommittedPackage(includingSent: Bool = false) async -> Bool {
         await clipboardPublicationGate.wait()
         defer { clipboardPublicationGate.release() }
         cancelReceiverEchoWatch()
 
         do {
+            // T-5, port of `SaveAndCopyCommittedPackageAsync`'s first branch (`:868-880`): everything
+            // in the strip was already pasted, so the clipboard is left as the user has it instead of
+            // publishing a package that repeats what the receiver already has.
+            let packageCaptures = includingSent ? workspace.session.captures : workspace.pendingCaptures
+            guard !packageCaptures.isEmpty else {
+                _ = await save()
+                prepared = nil
+                ownedClipboardReceipt = nil
+                ownedClipboardPromptText = nil
+                stackWindow?.setStatus("", isError: false)
+                return true
+            }
+
             let renderer = ExportImageRenderer()
-            let export = try await workspace.prepareExport(renderer: renderer)
+            let export = try await workspace.prepareExport(renderer: renderer, includingSent: includingSent)
             prepared = export
             let current = await withCheckedContinuation { (continuation: CheckedContinuation<ClipboardSnapshot, Never>) in
                 clipboard.capture { continuation.resume(returning: $0) }
@@ -73,7 +90,12 @@ extension AppCoordinator {
         }
 
         do {
-            if workspace.session.captures.isEmpty {
+            // T-5, port of `:1605-1618`: nothing is waiting. A strip that holds only sent captures
+            // keeps the package that was pasted from it — the clipboard, the package and the receipt
+            // all still describe it, so the same set can go somewhere else; only a strip that is
+            // really empty gives the clipboard back.
+            if workspace.pendingCaptures.isEmpty {
+                guard workspace.session.captures.isEmpty else { return }
                 let newReceipt = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ClipboardSnapshot, Error>) in
                     clipboard.setTextGuarded(text: "", expectedSequence: receipt.sequence) { result in continuation.resume(with: result) }
                 }
@@ -102,7 +124,8 @@ extension AppCoordinator {
     }
 
     func copyPackage() async {
-        if await saveAndCopyCommittedPackage() {
+        // T-5 (`:1110-1112`): copying by hand takes the strip as a whole, sent captures included.
+        if await saveAndCopyCommittedPackage(includingSent: true) {
             // G-10: the third sound of the round. It belongs to "Копировать пакет" and not to a
             // capture — a capture already has the shutter, and Windows takes the note off that path
             // for the same reason (`EdgeStackWindow.xaml.cs:1127`).
@@ -235,7 +258,8 @@ extension AppCoordinator {
         // never actually printed.
         stackWindow?.setStatus(StatusStrings.preparingPngAndText, isError: false)
         do {
-            let export = try await workspace.prepareExport(renderer: ExportImageRenderer())
+            // T-5 (`:1151`): saving by hand takes every capture of the strip, sent ones included.
+            let export = try await workspace.prepareExport(renderer: ExportImageRenderer(), includingSent: true)
             prepared = export
             stackWindow?.setStatus(
                 StatusStrings.prepared(imageCount: export.imagePathsInOrder().count, noteCount: export.manifest.noteCount),
