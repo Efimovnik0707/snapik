@@ -1,166 +1,269 @@
-// Port of the three `HotkeySettingsWindow` tabs ("Общие", "Клавиши", "Сохранение"), SPEC §6.5.
+// Port of the four `HotkeySettingsWindow` tabs ("Общие", "Клавиши", "Сохранение", "Вид"),
+// SPEC §6.5, SPEC-DELTA-3 §1.5 G-3, G-7, G-8, G-9, G-10, G-13.
 import AppKit
 import SnapikCore
+
+/// `{0}`/`{1}` are the Windows-style placeholders of the shared string table (`StatusStrings.swift`
+/// fills the same ones by hand); `String(format:)` cannot read them, and a translated line carrying
+/// a per-cent sign would break it anyway.
+enum UiFormat {
+    static func text(_ template: String, _ values: String...) -> String {
+        var result = template
+        for (index, value) in values.enumerated() {
+            result = result.replacingOccurrences(of: "{\(index)}", with: value)
+        }
+        return result
+    }
+}
 
 private func checkbox(_ title: String) -> NSButton {
     let button = NSButton(checkboxWithTitle: title, target: nil, action: nil)
     button.font = NSFont.systemFont(ofSize: 13)
-    button.contentTintColor = DarkPalette.primaryText
     return button
 }
 
 private func sectionLabel(_ title: String) -> NSTextField {
     let field = NSTextField(labelWithString: title)
-    field.textColor = DarkPalette.secondaryTextBF
     field.font = NSFont.systemFont(ofSize: 13)
     return field
 }
 
-/// "Общие": notifications / remember-region / capture-cursor checkboxes + language popup.
-final class GeneralTabView: NSView {
+/// What every tab answers to: the pair in force repaints it, the language relabels it.
+class SettingsTabView: NSView {
+    func applyLocalization(_ language: String) {}
+    func applyTheme(_ palette: ThemePalette) {}
+}
+
+/// "Общие": the startup switch, the notifications / clear-the-strip / sounds boxes with the volume
+/// under them, the language segment and the link back into the wizard.
+final class GeneralTabView: SettingsTabView {
+    let startupSwitch = NSSwitch(frame: .zero)
+    let startupLabel = sectionLabel("")
+    let startupUnavailableLabel = NSTextField(labelWithString: "")
     let notificationsBox = checkbox("")
-    let rememberRegionBox = checkbox("")
-    let captureCursorBox = checkbox("")
-    /// SPEC-DELTA-2.md §1.8, SPEC-DELTA-2B.md §E4: "Звуки захвата и стопки", placed after
-    /// `captureCursorBox` (matches `HotkeySettingsWindow.xaml:19`'s "Общие" tab order).
+    /// SPEC-DELTA-3 §2.2 `ClearStackAfterPaste`.
+    let clearStackBox = checkbox("")
     let soundsBox = checkbox("")
+    /// The volume belongs to the sounds: with them off there is nothing to make quieter (G-10).
+    let volumeLabel = sectionLabel("")
+    let volumeSlider = NSSlider(value: 40, minValue: 0, maxValue: 100, target: nil, action: nil)
     let languageLabel = sectionLabel("")
-    let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let languageSegment = NSSegmentedControl(labels: ["Русский", "English"], trackingMode: .selectOne, target: nil, action: nil)
+    /// [ТЗ№4 E2] The link at the bottom of the tab; it opens the whole wizard with the values in
+    /// force and throws away what the dialog was holding.
+    let runOnboardingLink = LinkLabel()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        for view in [notificationsBox, rememberRegionBox, captureCursorBox, soundsBox, languageLabel, languagePopup] {
+        startupUnavailableLabel.font = NSFont.systemFont(ofSize: 12)
+        startupUnavailableLabel.isHidden = true
+        volumeSlider.numberOfTickMarks = 101
+        volumeSlider.allowsTickMarkValuesOnly = true
+        for view in [
+            startupSwitch, startupLabel, startupUnavailableLabel, notificationsBox, clearStackBox,
+            soundsBox, volumeLabel, volumeSlider, languageLabel, languageSegment, runOnboardingLink,
+        ] as [NSView] {
             addSubview(view)
         }
-        languagePopup.addItems(withTitles: ["Русский", "English"])
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func applyLocalization(_ language: String) {
-        notificationsBox.title = MacUiText.text("Уведомления о копировании и сохранении", language: language)
-        rememberRegionBox.title = MacUiText.text("Запоминать последнюю область", language: language)
-        captureCursorBox.title = MacUiText.text("Захватывать курсор", language: language)
-        soundsBox.title = MacUiText.text("Звуки захвата и стопки", language: language)
+    /// With the sounds off there is nothing to make quieter, and the row goes with them.
+    func updateVolumeRow() {
+        let visible = soundsBox.state == .on
+        volumeLabel.isHidden = !visible
+        volumeSlider.isHidden = !visible
+    }
+
+    override func applyLocalization(_ language: String) {
+        startupLabel.stringValue = MacUiText.text("Открывать при включении компьютера", language: language)
+        startupUnavailableLabel.stringValue = MacUiText.text("Автозапуск недоступен", language: language)
+        notificationsBox.title = MacUiText.text("Показывать уведомления", language: language)
+        notificationsBox.toolTip = MacUiText.text(
+            "Всплывающее окно у часов: «Скопировано», «Сохранено»", language: language)
+        clearStackBox.title = MacUiText.text("Очищать ленту после вставки", language: language)
+        clearStackBox.toolTip = MacUiText.text(
+            "После Ctrl+V лента очищается сама, снимки удаляются", language: language)
+        soundsBox.title = MacUiText.text("Звуки", language: language)
+        soundsBox.toolTip = MacUiText.text(
+            "Щелчок затвора при снимке и тихие тики ленты", language: language)
+        volumeLabel.stringValue = MacUiText.text("Громкость", language: language)
+        volumeSlider.toolTip = MacUiText.text("Насколько громко звучит интерфейс", language: language)
         languageLabel.stringValue = MacUiText.text("Язык", language: language)
+        // [ТЗ№4 E2] The one string of this window that Windows has not written yet: it is localized
+        // here rather than through the shared table, the way the Q7 caption of the hotkeys tab is.
+        runOnboardingLink.stringValue = language == "en" ? "Take the tour again" : "Пройти знакомство заново"
+        needsLayout = true
+    }
+
+    override func applyTheme(_ palette: ThemePalette) {
+        for label in [startupLabel, volumeLabel, languageLabel] { label.textColor = palette.text }
+        startupUnavailableLabel.textColor = palette.textMuted
+        for box in [notificationsBox, clearStackBox, soundsBox] { box.contentTintColor = palette.text }
+        runOnboardingLink.textColor = palette.textFaint
     }
 
     override func layout() {
         super.layout()
-        var y = bounds.height - 10 - 20
-        notificationsBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
-        y -= 36
-        rememberRegionBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
-        y -= 36
-        captureCursorBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
-        y -= 36
-        soundsBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
+        var y = bounds.height - 24
+        startupSwitch.frame = NSRect(x: 0, y: y - 2, width: 40, height: 22)
+        startupLabel.frame = NSRect(x: 50, y: y, width: bounds.width - 50, height: 18)
+        if !startupUnavailableLabel.isHidden {
+            y -= 20
+            startupUnavailableLabel.frame = NSRect(x: 50, y: y, width: bounds.width - 50, height: 16)
+        }
         y -= 32
+        notificationsBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
+        y -= 30
+        clearStackBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
+        y -= 30
+        soundsBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
+        y -= 24
+        volumeLabel.frame = NSRect(x: 22, y: y, width: bounds.width - 22, height: 16)
+        y -= 26
+        volumeSlider.frame = NSRect(x: 22, y: y, width: 200, height: 20)
+        y -= 30
         languageLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: 16)
-        y -= 27
-        languagePopup.frame = NSRect(x: 0, y: y, width: 180, height: 26)
+        y -= 32
+        languageSegment.frame = NSRect(x: 0, y: y, width: 200, height: 26)
+        y -= 34
+        runOnboardingLink.frame = NSRect(x: 0, y: y, width: bounds.width, height: 18)
     }
 }
 
-/// "Клавиши": capture/fullscreen-save toggles + recorder fields, plus the Q7 limitation caption.
-final class HotkeysTabView: NSView {
+/// "Клавиши": the two shortcuts with their switches, and the chip that offers a free combination for
+/// the one that is off (G-7).
+final class HotkeysTabView: SettingsTabView {
     let captureEnabledBox = checkbox("")
     let captureField = HotkeyRecorderField(frame: .zero)
     let fullscreenEnabledBox = checkbox("")
     let fullscreenField = HotkeyRecorderField(frame: .zero)
+    let suggestChip = ChipButton(frame: .zero)
     let limitationCaption = NSTextField(wrappingLabelWithString: "")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        for view in [captureEnabledBox, captureField, fullscreenEnabledBox, fullscreenField, limitationCaption] {
+        limitationCaption.font = NSFont.systemFont(ofSize: 11)
+        suggestChip.isHidden = true
+        for view in [
+            captureEnabledBox, captureField, fullscreenEnabledBox, fullscreenField, suggestChip,
+            limitationCaption,
+        ] as [NSView] {
             addSubview(view)
         }
-        limitationCaption.textColor = DarkPalette.secondaryText9A
-        limitationCaption.font = NSFont.systemFont(ofSize: 11)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func applyLocalization(_ language: String) {
-        captureEnabledBox.title = MacUiText.text("Захват области", language: language)
-        fullscreenEnabledBox.title = MacUiText.text("Быстро сохранить весь экран", language: language)
+    override func applyLocalization(_ language: String) {
+        captureEnabledBox.title = MacUiText.text("Сделать скриншот", language: language)
+        // [ТЗ№4 C8/E1] "Скриншот всего экрана в папку" of 1.4.0 is "Снимок всего экрана" here.
+        fullscreenEnabledBox.title = MacUiText.text("Снимок всего экрана", language: language)
         captureField.language = language
         fullscreenField.language = language
-        // Port of SPEC §7.6 Q7: not part of the Windows string table (macOS-only limitation
-        // notice), so localized inline rather than through `MacUiText`.
+        // Port of SPEC §7.6 Q7: not part of the Windows string table (macOS-only limitation notice),
+        // so localized inline rather than through the shared dictionary.
         limitationCaption.stringValue =
             language == "en"
             ? "A single modifier key (e.g. just ⌘) cannot be used as a shortcut on macOS — press a full combination."
             : "Одиночный модификатор (например, только ⌘) нельзя назначить сочетанием на macOS — нажмите полную комбинацию."
+        needsLayout = true
+    }
+
+    override func applyTheme(_ palette: ThemePalette) {
+        for box in [captureEnabledBox, fullscreenEnabledBox] { box.contentTintColor = palette.text }
+        captureField.palette = palette
+        fullscreenField.palette = palette
+        suggestChip.palette = palette
+        limitationCaption.textColor = palette.textMuted
     }
 
     override func layout() {
         super.layout()
-        var y = bounds.height - 10 - 20
+        var y = bounds.height - 20
         captureEnabledBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
-        y -= 27
-        captureField.frame = NSRect(x: 0, y: y - 34, width: bounds.width, height: 34)
-        y -= 34 + 20
+        y -= 7 + 48
+        captureField.frame = NSRect(x: 0, y: y, width: bounds.width, height: 48)
+        y -= 20 + 20
         fullscreenEnabledBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
-        y -= 27
-        fullscreenField.frame = NSRect(x: 0, y: y - 34, width: bounds.width, height: 34)
-        y -= 34 + 16
-        limitationCaption.frame = NSRect(x: 0, y: max(0, y - 30), width: bounds.width, height: 30)
+        y -= 7 + 48
+        fullscreenField.frame = NSRect(x: 0, y: y, width: bounds.width, height: 48)
+        y -= 10 + 28
+        suggestChip.frame = NSRect(x: 0, y: y, width: suggestChip.fittingWidth, height: 28)
+        y -= 16 + 32
+        limitationCaption.frame = NSRect(x: 0, y: max(0, y), width: bounds.width, height: 32)
     }
 }
 
-/// "Сохранение": format popup, JPEG-quality slider, save-directory field + browse button.
-final class SavingTabView: NSView {
-    /// SPEC-DELTA-2.md §1.8, SPEC-DELTA-2B.md §E4: "Автоматически сохранять готовые снимки", first
-    /// control on "Сохранение" (matches `HotkeySettingsWindow.xaml:30`'s tab order).
+/// "Сохранение": auto-save, format, the JPEG quality (shown for JPEG alone) and the save folder.
+final class SavingTabView: SettingsTabView {
     let autoSaveBox = checkbox("")
     let formatLabel = sectionLabel("")
     let formatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let qualityLabel = sectionLabel("")
-    let qualityValueLabel = NSTextField(labelWithString: "90")
-    let qualitySlider = NSSlider(value: 90, minValue: 1, maxValue: 100, target: nil, action: nil)
+    let qualitySlider = NSSlider(value: 92, minValue: 1, maxValue: 100, target: nil, action: nil)
     let directoryLabel = sectionLabel("")
-    let directoryField = NSTextField()
+    let directoryField = NSTextField(frame: .zero)
     let browseButton = NSButton(title: "…", target: nil, action: nil)
+    private var language = "ru"
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         formatPopup.addItems(withTitles: ["PNG", "JPEG"])
         qualitySlider.numberOfTickMarks = 100
         qualitySlider.allowsTickMarkValuesOnly = true
-        qualityValueLabel.alignment = .right
         directoryField.font = NSFont.systemFont(ofSize: 13)
-        browseButton.toolTip = "Выбрать папку"
-
         for view in [
-            autoSaveBox, formatLabel, formatPopup, qualityLabel, qualityValueLabel, qualitySlider,
-            directoryLabel, directoryField, browseButton,
-        ] {
+            autoSaveBox, formatLabel, formatPopup, qualityLabel, qualitySlider, directoryLabel,
+            directoryField, browseButton,
+        ] as [NSView] {
             addSubview(view)
         }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func applyLocalization(_ language: String) {
+    /// The quality caption is built in code, so it is rebuilt every time the window is translated or
+    /// the slider moves; PNG has no quality to set and the row goes away with it.
+    func updateQuality() {
+        let jpeg = formatPopup.indexOfSelectedItem == 1
+        qualityLabel.isHidden = !jpeg
+        qualitySlider.isHidden = !jpeg
+        qualityLabel.stringValue = UiFormat.text(
+            MacUiText.text("Качество JPEG: {0} % (меньше, легче файл)", language: language),
+            "\(qualitySlider.integerValue)")
+    }
+
+    override func applyLocalization(_ language: String) {
+        self.language = language
         autoSaveBox.title = MacUiText.text("Автоматически сохранять готовые снимки", language: language)
+        autoSaveBox.toolTip = MacUiText.text(
+            "Каждый готовый снимок сразу ложится в папку сохранения", language: language)
         formatLabel.stringValue = MacUiText.text("Формат", language: language)
-        qualityLabel.stringValue = MacUiText.text("Качество JPEG", language: language)
+        formatPopup.toolTip = MacUiText.text("JPEG легче, PNG точнее", language: language)
         directoryLabel.stringValue = MacUiText.text("Папка сохранения", language: language)
+        directoryField.toolTip = MacUiText.text("Куда падают снимки и пакеты", language: language)
         browseButton.toolTip = MacUiText.text("Выбрать папку", language: language)
+        updateQuality()
+        needsLayout = true
+    }
+
+    override func applyTheme(_ palette: ThemePalette) {
+        autoSaveBox.contentTintColor = palette.text
+        for label in [formatLabel, qualityLabel, directoryLabel] { label.textColor = palette.text }
     }
 
     override func layout() {
         super.layout()
-        var y = bounds.height - 10 - 20
+        var y = bounds.height - 20
         autoSaveBox.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
         y -= 36
         formatLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: 16)
         y -= 27
         formatPopup.frame = NSRect(x: 0, y: y, width: 140, height: 26)
         y -= 40
-        qualityLabel.frame = NSRect(x: 0, y: y, width: bounds.width - 40, height: 16)
-        qualityValueLabel.frame = NSRect(x: bounds.width - 40, y: y, width: 40, height: 16)
+        qualityLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: 16)
         y -= 30
         qualitySlider.frame = NSRect(x: 0, y: y, width: bounds.width, height: 20)
         y -= 32
@@ -168,5 +271,114 @@ final class SavingTabView: NSView {
         y -= 27
         directoryField.frame = NSRect(x: 0, y: y, width: bounds.width - 48, height: 26)
         browseButton.frame = NSRect(x: bounds.width - 40, y: y, width: 40, height: 26)
+    }
+}
+
+/// "Вид": the same control the wizard shows on its fourth step, with the row of annotation palettes
+/// the wizard does not show (G-3, G-4). It scrolls, because the tab is 338 px tall and the control
+/// with the palette row is taller than that.
+final class AppearanceTabView: SettingsTabView {
+    let picker = AppearancePickerView(frame: .zero)
+    private let scrollView = NSScrollView(frame: .zero)
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        picker.showPaletteRow = true
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.documentView = picker
+        addSubview(scrollView)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func applyLocalization(_ language: String) { picker.applyLanguage(language) }
+
+    override func applyTheme(_ palette: ThemePalette) { picker.refreshTheme() }
+
+    override func layout() {
+        super.layout()
+        scrollView.frame = bounds
+        let height = max(picker.fittingHeight, bounds.height)
+        picker.frame = NSRect(x: 0, y: 0, width: bounds.width, height: height)
+        picker.needsLayout = true
+    }
+}
+
+// MARK: - Small controls
+
+/// A line of text that reads as a way out rather than as a button: the "Пропустить настройку" of the
+/// wizard and the "Пройти знакомство заново" of the settings are the same thing.
+final class LinkLabel: NSTextField {
+    var onClick: (() -> Void)?
+
+    init() {
+        super.init(frame: .zero)
+        isEditable = false
+        isSelectable = false
+        isBordered = false
+        drawsBackground = false
+        font = NSFont.systemFont(ofSize: 12)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func mouseDown(with event: NSEvent) { onClick?() }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
+}
+
+/// The chip beside a shortcut that is switched off: it carries the first free combination and
+/// switches the shortcut on with it (G-7, and the same chip on step 2 of the wizard).
+final class ChipButton: NSView {
+    var onClick: (() -> Void)?
+    var palette: ThemePalette = ThemeService.palette(nil) { didSet { refresh() } }
+    /// Whether the chip is drawn in the accent (the wizard) or in the elevated tone (the settings).
+    var wearsAccent = false { didSet { refresh() } }
+
+    private let label = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.borderWidth = 1
+        label.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        addSubview(label)
+        refresh()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    var title: String {
+        get { label.stringValue }
+        set {
+            label.stringValue = newValue
+            label.sizeToFit()
+            needsLayout = true
+        }
+    }
+
+    var fittingWidth: CGFloat { label.frame.width + 24 }
+
+    override func layout() {
+        super.layout()
+        label.frame = NSRect(
+            x: 12, y: (bounds.height - label.frame.height) / 2, width: label.frame.width,
+            height: label.frame.height)
+    }
+
+    override func mouseDown(with event: NSEvent) { onClick?() }
+
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+
+    private func refresh() {
+        let accent = ThemeService.accent(ThemeService.currentAccent)
+        layer?.backgroundColor = (wearsAccent ? accent.soft : palette.elevated).cgColor
+        layer?.borderColor = (wearsAccent ? accent.flat : palette.elevatedLine).cgColor
+        label.textColor = palette.text
     }
 }

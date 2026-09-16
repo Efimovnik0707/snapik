@@ -447,18 +447,19 @@ public enum UiLanguage {
         // owned the first of them is gone (W0-6); the rest are still read by the
         // settings, the editor and the strip, and leave with the code of wave 1.
         ("Уведомления о копировании и сохранении", "Notify on copy and save"),
-        ("Запоминать последнюю область", "Remember the last region"),
-        ("Захватывать курсор", "Capture the cursor"),
-        ("Звуки захвата и стопки", "Capture and stack sounds"),
-        ("Захват области", "Capture region"),
-        ("Быстро сохранить весь экран", "Instantly save the full screen"),
-        ("Качество JPEG", "JPEG quality"),
-        ("Нажмите клавишу…", "Press a key…"),
         ("Сохранить на компьютер (Ctrl+S)", "Save to computer (Ctrl+S)"),
         ("Показать стопку", "Show stack"),
         (
             "Вставлено: {0} изображений · {1} заметок. Пакет остаётся в буфере, следующий снимок начнёт новую стопку",
             "Pasted: {0} images · {1} notes. The package stays on the clipboard, the next capture will start a new stack"
+        ),
+        // macOS only: the two lines whose Windows wording names Windows itself. The keys stay as the
+        // shared table wrote them; these are the pairs the Mac interface reads instead
+        // (SPEC-DELTA-3 §4, the settings and the save-package window of portion C).
+        ("Запускать при входе", "Start at login"),
+        (
+            "Укажите полный путь к папке, например /Users/Shared/Pictures.",
+            "Enter a full path to the folder, for example /Users/Shared/Pictures."
         ),
     ]
 
