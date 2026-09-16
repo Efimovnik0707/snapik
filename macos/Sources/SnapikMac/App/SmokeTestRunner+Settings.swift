@@ -160,6 +160,33 @@ extension SmokeTestRunner {
                 && !slidesOnly.smokeShowsSteps)
         slidesOnly.window?.close()
 
+        // [SPEC-DELTA-4 A-4] The appearance the wizard collects is written to settings.json along with
+        // everything else it owns: the theme picked on the fourth step used to be applied at once
+        // and forgotten by the next start, because the write carried three fields and neither of
+        // these two. The rule the wizard writes with is the one run here, not a copy of it.
+        let appearancePath = dataDirectory.appendingPathComponent("onboarding-appearance.json")
+        var storedLook = HotkeySettings.default
+        storedLook.theme = "dark"
+        storedLook.accentId = "blue"
+        storedLook.language = "ru"
+        storedLook.soundVolume = 55
+        try? storedLook.save(path: appearancePath)
+        var collected = storedLook
+        collected.theme = "sea"
+        collected.accentId = "rose-violet"
+        collected.language = "en"
+        collected.onboardingVersion = OnboardingWindowController.currentVersion
+        try? OnboardingWindowController.mergeOnboarding(
+            stored: HotkeySettings.loadAndMigrate(path: appearancePath), candidate: collected
+        ).save(path: appearancePath)
+        let writtenLook = HotkeySettings.loadAndMigrate(path: appearancePath)
+        check(
+            "the wizard keeps the look it collected and leaves the rest alone",
+            writtenLook.theme == "sea" && writtenLook.accentId == "rose-violet"
+                && writtenLook.language == "en"
+                && writtenLook.onboardingVersion == OnboardingWindowController.currentVersion
+                && writtenLook.soundVolume == 55)
+
         // 4. The rules the strip asks before it opens the wizard at all (O-2).
         var seen = HotkeySettings.default
         seen.onboardingVersion = OnboardingWindowController.currentVersion
