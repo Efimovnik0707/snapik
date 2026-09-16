@@ -17,30 +17,59 @@ namespace Snapik.App;
 public sealed class WpfExportImageRenderer : IExportImageRenderer
 {
     private const int HeaderHeight = 48;
+    // The field the picture stands on when a badge was carried off it: the same dark the editor
+    // shows beside the capture, so a badge on the field reads as a badge and not as a cut-off one.
+    private static readonly Brush FieldBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x31, 0x40));
+
+    /// <summary>
+    /// The field the badges of a capture ask for around it, in the pixels of the capture. Every
+    /// badge that was never dragged asks for nothing, and a picture whose badges all stand inside
+    /// it is exported byte for byte as it was before the field existed.
+    /// </summary>
+    internal static ExportMargin MarginsOf(CoreCaptureItem capture, string displayLabel, int width, int height) =>
+        NoteBadgeGeometry.ExportMargins(
+            CaptureLabels.ForNotedAnnotations(displayLabel, capture)
+                .Where(noted => !noted.Annotation.Points.IsDefaultOrEmpty)
+                .Select(noted => (noted.Annotation.Points[0], noted.Annotation.NoteOffset, noted.DisplayLabel)),
+            width, height);
+
+    /// <summary>
+    /// Where the capture itself begins inside the exported picture: the header stands above it and
+    /// the field the badges asked for is around it. Everything measured in the pixels of the
+    /// capture — a mark, a badge, the leader between them — is counted from this one point.
+    /// </summary>
+    internal static Point CaptureOrigin(ExportMargin margin) => new(margin.Left, HeaderHeight + margin.Top);
 
     public Task RenderAsync(CoreCaptureItem capture, ExportImageContext context, Stream destination, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var image = LoadBitmap(context.SourceImagePath);
+        var margin = MarginsOf(capture, context.DisplayLabel, image.PixelWidth, image.PixelHeight);
+        var origin = CaptureOrigin(margin);
+        var sheet = new Size(margin.Left + image.PixelWidth + margin.Right,
+                             HeaderHeight + margin.Top + image.PixelHeight + margin.Bottom);
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
-            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, image.PixelWidth, HeaderHeight));
-            var bounds = new Rect(0, HeaderHeight, image.PixelWidth, image.PixelHeight);
+            // The field first, under everything: with no field at all it is covered whole by the
+            // header and the picture, and the exported bytes are the ones of the round before.
+            dc.DrawRectangle(FieldBrush, null, new Rect(0, 0, sheet.Width, sheet.Height));
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, sheet.Width, HeaderHeight));
+            var bounds = new Rect(origin.X, origin.Y, image.PixelWidth, image.PixelHeight);
             dc.DrawImage(ApplyBlurAnnotations(image, capture), bounds);
             DrawCaptureBadge(dc, context.DisplayLabel);
 
             var labels = CaptureLabels.ForNotedAnnotations(context.DisplayLabel, capture)
                 .ToDictionary(x => x.Annotation.Id, x => x.DisplayLabel);
             foreach (var annotation in capture.Annotations.Where(a => a.Kind != AnnotationKind.Blur && !HasOpaqueFill(a)))
-                DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, null, HeaderHeight, drawShape: true);
+                DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, null, origin, drawShape: true);
             foreach (var annotation in capture.Annotations.Where(HasOpaqueFill))
-                DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, null, HeaderHeight, drawShape: true);
+                DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, null, origin, drawShape: true);
             foreach (var annotation in capture.Annotations)
-                DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, labels.GetValueOrDefault(annotation.Id), HeaderHeight, drawShape: false);
+                DrawAnnotation(dc, annotation, image.PixelWidth, image.PixelHeight, labels.GetValueOrDefault(annotation.Id), origin, drawShape: false);
         }
 
-        var rendered = new RenderTargetBitmap(image.PixelWidth, image.PixelHeight + HeaderHeight, 96, 96, PixelFormats.Pbgra32);
+        var rendered = new RenderTargetBitmap((int)sheet.Width, (int)sheet.Height, 96, 96, PixelFormats.Pbgra32);
         rendered.Render(visual);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(rendered));
@@ -91,10 +120,10 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
         return result;
     }
 
-    private static void DrawAnnotation(DrawingContext dc, Snapik.Core.Models.AnnotationItem item, int width, int height, string? displayLabel, int offsetY, bool drawShape)
+    private static void DrawAnnotation(DrawingContext dc, Snapik.Core.Models.AnnotationItem item, int width, int height, string? displayLabel, Point origin, bool drawShape)
     {
         if (item.Points.IsDefaultOrEmpty) return;
-        Point P(NormalizedPoint p) => new(p.X * width, p.Y * height + offsetY);
+        Point P(NormalizedPoint p) => new(origin.X + p.X * width, origin.Y + p.Y * height);
         var color = (Color)ColorConverter.ConvertFromString(item.StrokeColor);
         var brush = new SolidColorBrush(color);
         // The same pattern the editor draws with, and the same units: the dashes of a DashStyle are
@@ -145,15 +174,15 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
         if (!string.IsNullOrEmpty(displayLabel))
         {
             var badgeBrush = AccentPalette.Brush;
-            var badge = ExportBadge(item, displayLabel, width, height, offsetY);
+            var badge = ExportBadge(item, displayLabel, width, height, origin);
             // The pill the user dragged moved this badge: the picture the agent receives shows the
             // same place, with one hair line back to the mark.
             if (item.NoteOffset is not null)
             {
                 var points = item.GetPathSegments().SelectMany(segment => segment).Concat(item.Points).ToArray();
                 var outline = new Rect(
-                    new Point(points.Min(point => point.X) * width, points.Min(point => point.Y) * height + offsetY),
-                    new Point(points.Max(point => point.X) * width, points.Max(point => point.Y) * height + offsetY));
+                    new Point(origin.X + points.Min(point => point.X) * width, origin.Y + points.Min(point => point.Y) * height),
+                    new Point(origin.X + points.Max(point => point.X) * width, origin.Y + points.Max(point => point.Y) * height));
                 if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to))
                     dc.DrawLine(new Pen(badgeBrush, NoteBadgeGeometry.ExportLeaderThickness(displayLabel)), from, to);
             }
@@ -173,12 +202,13 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
     }
 
     // The same circle the editor canvas shows, in the pixels of the exported picture.
-    internal static NoteBadge ExportBadge(Snapik.Core.Models.AnnotationItem item, string displayLabel, int width, int height, int offsetY)
+    internal static NoteBadge ExportBadge(Snapik.Core.Models.AnnotationItem item, string displayLabel, int width, int height, Point origin)
     {
-        var anchor = new Point(item.Points[0].X * width, item.Points[0].Y * height + offsetY);
+        var anchor = new Point(origin.X + item.Points[0].X * width, origin.Y + item.Points[0].Y * height);
         var offset = item.NoteOffset is { } shift ? new Vector(shift.X * width, shift.Y * height) : default;
-        // The badge stops below the white header instead of climbing into it.
-        return NoteBadgeGeometry.Export(anchor, displayLabel, offset, HeaderHeight + 2);
+        // Nothing holds the badge under the header any more: the field between the two is exactly
+        // where a badge carried off the top of the capture is meant to go.
+        return NoteBadgeGeometry.Export(anchor, displayLabel, offset, double.NegativeInfinity);
     }
 
     private static void DrawText(DrawingContext dc, string text, double size, FontWeight weight, Brush brush, Point point, string family = "Segoe UI")

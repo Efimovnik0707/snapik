@@ -84,22 +84,21 @@ public static class SmokeTestRunner
         if (OverlayEditorWindow.ParseAnnotationPalette(restoredSettings.AnnotationPalette).Id != "custom" ||
             OverlayEditorWindow.ParseAnnotationPalette("rainbow").Id != "standard" ||
             OverlayEditorWindow.ParseAnnotationPalette("1").Id != "standard" ||
-            // A file that was written by 1.3.2 on the palette that no longer exists reads as the
-            // standard set, the way any other name nobody knows does.
-            OverlayEditorWindow.ParseAnnotationPalette("neon").Id != "standard" ||
+            // The neon set is back as the fourth one; a name nobody knows still reads as the
+            // standard set, the way it always did.
+            OverlayEditorWindow.ParseAnnotationPalette("neon").Id != "neon" ||
             OverlayEditorWindow.ParseAnnotationPalette(null).Id != "standard" ||
             HotkeySettings.Default.AnnotationPalette != "standard" ||
-            OverlayEditorWindow.Palettes.Length != 3 ||
-            OverlayEditorWindow.Palettes.Any(palette => palette.Id != "custom" && (palette.Colors.Length != 12 || palette.Quick.Length != 5)) ||
+            OverlayEditorWindow.Palettes.Length != 4 ||
+            OverlayEditorWindow.Palettes.Any(palette => palette.Id != "custom" && palette.Colors.Length != 12) ||
             !OverlayEditorWindow.Palettes[0].Colors.Contains(HotkeySettings.Default.AnnotationColor) ||
             OverlayEditorWindow.ParseAnnotationColor(HotkeySettings.Default.AnnotationColor) != OverlayEditorWindow.DefaultAnnotationColor)
             throw new InvalidOperationException("The stored palette must be read back, and the default colour must belong to the standard palette.");
-        // The own palette carries the colours of the file, newest first, and the five newest of them
-        // are the quick row; a hand-written file longer than the row is cut to it.
+        // The own palette carries the colours of the file, newest first; a hand-written file longer
+        // than the row is cut to it.
         var ownColours = new[] { "#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#AF81FF", "#FF79B7" };
         var ownPalette = OverlayEditorWindow.PaletteFor(HotkeySettings.Default with { AnnotationPalette = "custom", CustomPaletteColors = ownColours });
         if (ownPalette.Id != "custom" || !ownPalette.Colors.SequenceEqual(ownColours) ||
-            !ownPalette.Quick.SequenceEqual(ownColours.Take(5)) ||
             OverlayEditorWindow.CustomPalette(Enumerable.Repeat("#2F8CFF", 20)).Colors.Length != HotkeySettings.MaxCustomPaletteColors)
             throw new InvalidOperationException("The own palette must be built out of the colours the settings carry.");
         // The size a caption is typed in is remembered next to the colour and the widths.
@@ -460,7 +459,8 @@ public static class SmokeTestRunner
         WithoutBindingErrors("The markup panel", () => OverlayEditorWindow.RunShortcutHintProbe(captures[0]));
         WithoutBindingErrors("The colour and thickness panel", () => OverlayEditorWindow.RunPanelProbe(captures[0]));
         WithoutBindingErrors("The comments panel", () => OverlayEditorWindow.RunCommentsPanelProbe(captures[0]));
-        WithoutBindingErrors("The scale of the editor", () => OverlayEditorWindow.RunEditorScaleProbe(workspace, captures[0]));
+        WithoutBindingErrors("The memory of each tool", () => OverlayEditorWindow.RunToolMemoryProbe(captures[0]));
+        WithoutBindingErrors("The view of the editor", () => OverlayEditorWindow.RunEditorViewProbe(workspace, captures[0]));
         WithoutBindingErrors("The click beside the capture", () => OverlayEditorWindow.RunOutsideClickProbe(captures[0]));
         WithoutBindingErrors("The text tool", () => OverlayEditorWindow.RunTextMarkProbe(captures[0]));
         var noteProbe = OverlayEditorWindow.RunNoteAffordanceProbe(captures[0]);
@@ -472,8 +472,17 @@ public static class SmokeTestRunner
             noteProbePng, default);
         // The badge of the dragged note has to be in the exported PNG where the editor showed it.
         var movedNote = noteProbe.Annotations.Single(a => a.Kind == EditorTool.Comment);
+        // The badge is placed from where the capture begins inside the export: a badge carried off
+        // the picture gave it a field of its own, and the header alone is no longer the offset.
+        var noteProbeMargin = WpfExportImageRenderer.MarginsOf(noteProbeCore, "A", noteProbe.Image.PixelWidth, noteProbe.Image.PixelHeight);
         var movedBadge = WpfExportImageRenderer.ExportBadge(noteProbeCore.Annotations.Single(a => a.Id == movedNote.Id),
-            noteProbeLabel.DisplayLabel, noteProbe.Image.PixelWidth, noteProbe.Image.PixelHeight, 48);
+            noteProbeLabel.DisplayLabel, noteProbe.Image.PixelWidth, noteProbe.Image.PixelHeight,
+            WpfExportImageRenderer.CaptureOrigin(noteProbeMargin));
+        if (noteProbeMargin.IsEmpty)
+            throw new InvalidOperationException("A badge carried off the capture must give the exported picture a field to stand on.");
+        if (noteProbeExportWidth(noteProbeMargin, noteProbe.Image.PixelWidth) <= noteProbe.Image.PixelWidth)
+            throw new InvalidOperationException("The exported picture must be wider than the capture when a badge stands beside it.");
+        static int noteProbeExportWidth(Snapik.App.Imaging.ExportMargin margin, int width) => margin.Left + width + margin.Right;
         noteProbePng.Position = 0;
         var noteProbeExport = System.Windows.Media.Imaging.BitmapFrame.Create(noteProbePng,
             System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
