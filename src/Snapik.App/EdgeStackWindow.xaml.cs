@@ -30,6 +30,10 @@ public partial class EdgeStackWindow : Window
     private readonly ICodexDesktopPasteCompletionService _codexPasteCompletion;
     private readonly DispatcherTimer _saveTimer;
     private readonly DispatcherTimer _toastTimer;
+    // The bar of the strip is an overlay: it shows itself while the list moves and goes out a second
+    // after it stops. This is that second, and the bar it fades is found once, in the template.
+    private readonly DispatcherTimer _scrollBarTimer;
+    private System.Windows.Controls.Primitives.ScrollBar? _stripScrollBar;
     private readonly string _settingsPath;
     private readonly WinForms.NotifyIcon _trayIcon;
     private readonly IPasteIntentObserver _pasteIntentObserver;
@@ -60,6 +64,7 @@ public partial class EdgeStackWindow : Window
     private static readonly TimeSpan ReceiverEchoWatchWindow = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan ReceiverEchoPollInterval = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan ToastLifetime = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ScrollBarLifetime = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan ToastFade = TimeSpan.FromMilliseconds(150);
     private Action? _toastAction;
     private int _toastGeneration;
@@ -79,6 +84,7 @@ public partial class EdgeStackWindow : Window
     private bool _capsuleMode;
     private double _expandedWidth;
     private double _expandedListHeight;
+    private double _expandedLeft;
     private double _expandedTop;
     private double _expandedMinHeight;
     private CaptureItem? _draggedCapture;
@@ -106,6 +112,8 @@ public partial class EdgeStackWindow : Window
         _saveTimer.Tick += OnSaveTimerTick;
         _toastTimer = new DispatcherTimer { Interval = ToastLifetime };
         _toastTimer.Tick += OnToastTimerTick;
+        _scrollBarTimer = new DispatcherTimer { Interval = ScrollBarLifetime };
+        _scrollBarTimer.Tick += OnScrollBarTimerTick;
         _pasteIntentObserver = new WindowsPasteIntentObserver(intent =>
         {
             var receiptSeq = _ownedClipboardReceipt?.SequenceNumber;
@@ -206,12 +214,8 @@ public partial class EdgeStackWindow : Window
         catch (Exception ex) { StartupTrace.Write(_options, $"Hotkeys in Loaded: {ex}"); }
         // Before the session is restored: on the very first run there is nothing to restore, and the
         // wizard writes the language and the shortcut the rest of the startup reads.
-        var wizardShown = false;
         if (OnboardingWindow.ShouldShowOnboarding(File.Exists(_settingsPath), _settings, _options.Demo || _options.SmokeTest))
-        {
             ShowOnboarding();
-            wizardShown = true;
-        }
         _loading = true;
         try
         {
@@ -224,12 +228,14 @@ public partial class EdgeStackWindow : Window
                 await _workspace.PurgePreviousSessionsAsync(message => StartupTrace.Write(_options, message));
             }
             Renumber();
-            PositionAtEdge();
-            // The first run ends with the strip on the screen, empty and compact: the wizard closes
-            // on "Start" and on "Skip" alike, and a run that began with it has nothing else to show.
-            // Here and not straight after the dialog: the session is restored in between, and the
-            // strip would flash empty first and be placed twice.
-            if (wizardShown) ShowStackWithoutActivation();
+            PlaceStripInitially();
+            // Every run ends with the strip on the screen, empty and compact and without taking the
+            // focus: the strip is a window on the taskbar now, and the line under the icon has to be
+            // there from the first second rather than from the first capture. Here and not earlier:
+            // the wizard is modal and has already closed by this point (with Topmost the strip would
+            // otherwise stand over it), and the session is restored in between, so a strip shown
+            // before that would flash empty and be placed twice.
+            ShowStackWithoutActivation();
             StartupTrace.Write(_options, $"EdgeStack.Loaded completed with {Captures.Count} captures");
         }
         catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось восстановить сессию")}: {ex.Message}", true); StartupTrace.Write(_options, ex.ToString()); }
@@ -271,6 +277,55 @@ public partial class EdgeStackWindow : Window
             _pasteIntentObserver.Start();
         }
         catch (Exception ex) { SetStatus($"{UiLanguage.Text("Отслеживание вставки недоступно")}: {ex.Message}", true); }
+        // Every way the list moves ends in this event: the wheel, the grip, the track and the keys.
+        CaptureList.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(OnStripScrolled));
+    }
+
+    // The bar of the strip lives while the list moves: it comes up on the first pixel of scrolling
+    // and goes out a second after the last one. The pointer over the field of the bar holds it
+    // there, and the width of six is a trigger in the template — a setter and an animation on one
+    // property would fight, and the animation would win for good.
+    private void OnStripScrolled(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.VerticalChange == 0) return;
+        FadeStripScrollBar(1, 90);
+        _scrollBarTimer.Stop();
+        _scrollBarTimer.Start();
+    }
+
+    private void OnScrollBarTimerTick(object? sender, EventArgs e)
+    {
+        _scrollBarTimer.Stop();
+        FadeStripScrollBar(0, 160);
+    }
+
+    private void OnBarFieldEnter(object sender, MouseEventArgs e)
+    {
+        _scrollBarTimer.Stop();
+        FadeStripScrollBar(1, 90);
+    }
+
+    private void OnBarFieldLeave(object sender, MouseEventArgs e)
+    {
+        _scrollBarTimer.Stop();
+        _scrollBarTimer.Start();
+    }
+
+    private void FadeStripScrollBar(double to, int milliseconds)
+    {
+        if (StripScrollBar() is not { } bar) return;
+        bar.BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds)));
+    }
+
+    // The bar is part of the template of the viewer, which is part of the template of the list, so
+    // it is looked up once and kept: the two templates outlive every capture the strip holds.
+    private System.Windows.Controls.Primitives.ScrollBar? StripScrollBar()
+    {
+        if (_stripScrollBar is not null) return _stripScrollBar;
+        if (CaptureList is null || VisualTreeHelper.GetChildrenCount(CaptureList) == 0) return null;
+        if (VisualTreeHelper.GetChild(CaptureList, 0) is not ScrollViewer viewer) return null;
+        _stripScrollBar = viewer.Template.FindName("PART_VerticalScrollBar", viewer) as System.Windows.Controls.Primitives.ScrollBar;
+        return _stripScrollBar;
     }
 
     private bool RegisterHotkeys()
@@ -629,9 +684,15 @@ public partial class EdgeStackWindow : Window
     {
         Renumber();
         // A capture taken while the strip is collapsed must not unfold it: the capsule stays where it
-        // is and only its counter grows. PositionAtEdge is the placement of the strip, and it would
-        // give the window the width and the height of the strip back.
-        if (_capsuleMode) PositionCapsuleAtEdge(); else PositionAtEdge();
+        // is and only its counter grows. It is already standing where it belongs, so there is
+        // nothing to place — the placement of the strip would give the window the width and the
+        // height of the strip back.
+        if (!_capsuleMode) EnsureStripPlaced();
+        // Show() does not bring a minimised window back, and WindowState = Normal would activate it
+        // and take the focus away from the application the user is about to paste into.
+        // SW_SHOWNOACTIVATE restores the window and leaves the focus where it was.
+        if (WindowState == WindowState.Minimized)
+            _ = ShowWindow(new WindowInteropHelper(this).EnsureHandle(), SwShowNoActivate);
         Show();
         _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0053);
         UiLanguage.Apply(this);
@@ -642,13 +703,15 @@ public partial class EdgeStackWindow : Window
 
     public void RevealStack() => ShowStackWithoutActivation();
 
-    private void HideStack()
+    // The fourth button of the header minimises the strip the way every window is minimised: it
+    // keeps its button on the taskbar and the line under the icon, and a click on that button brings
+    // it back. Hiding to the tray took the line with it, and the strip was gone from the taskbar
+    // while the application was still running.
+    private void OnHideClick(object sender, RoutedEventArgs e)
     {
         HideToastNow();
-        Hide();
+        WindowState = WindowState.Minimized;
     }
-
-    private void OnHideClick(object sender, RoutedEventArgs e) => HideStack();
 
     // The strip collapsed into the capsule, and back. It is a mode of this window: the hotkeys, the
     // topmost, the tray icon and the drag of the header all hang on this window and on its handle.
@@ -664,6 +727,9 @@ public partial class EdgeStackWindow : Window
         _capsuleMode = true;
         _expandedWidth = Width;
         _expandedListHeight = CaptureList.Height;
+        // The left edge is remembered with the rest of the rectangle: without it the strip came back
+        // to the edge of the monitor whatever corner the user had dragged it to.
+        _expandedLeft = Left;
         _expandedTop = Top;
         _expandedMinHeight = MinHeight;
         HideToastNow();
@@ -676,7 +742,7 @@ public partial class EdgeStackWindow : Window
         MinHeight = 0;
         Width = double.NaN;
         SizeToContent = SizeToContent.WidthAndHeight;
-        PositionCapsuleAtEdge();
+        PositionCapsuleAtStrip();
     }
 
     private void ExpandFromCapsule()
@@ -688,22 +754,41 @@ public partial class EdgeStackWindow : Window
         WidthGrip.Visibility = Visibility.Visible;
         // The list, the hint and the corner grip belong to the state of the strip, not to the mode:
         // an empty strip unfolds back into an empty strip, without a grip that has nothing to pull.
+        // The order below is fixed: the height of the list is settled before the window is placed,
+        // or ActualHeight is measured from the list the strip had before the capsule; and
+        // SizeToContent goes off before Width is assigned, or WPF runs a pass of its own in between
+        // and moves the window.
         UpdateEmptyState();
-        SizeToContent = SizeToContent.Height;
+        SizeToContent = SizeToContent.Manual;
         MinHeight = _expandedMinHeight;
         Width = _expandedWidth;
-        CaptureList.Height = _expandedListHeight;
+        CaptureList.Height = Controls.StripResizeGeometry.ListHeightForCount(Captures.Count, _expandedListHeight);
         UpdateLayout();
-        Left = StackWorkArea().Right - Width - Controls.StripResizeGeometry.EdgeGap;
-        Top = _expandedTop;
+        // The working area is the one of the monitor the capsule stands on, and it is a frame to
+        // clamp against, not a place to move to: a strip dragged away from the edge comes back where
+        // it was left.
+        PlaceWindow(Controls.StripResizeGeometry.RestoreRect(
+            new Rect(_expandedLeft, _expandedTop, Width, ActualHeight), StackWorkArea()));
+        SizeToContent = SizeToContent.Height;
     }
 
-    // The capsule keeps the edge and the height the strip was at: the same right edge with the same
-    // gap, and a Top that is not touched at all.
-    private void PositionCapsuleAtEdge()
+    // The capsule keeps the corner of the strip it came from: the same right edge, because both
+    // windows carry the same 20 px field under their shadow, and a Top that is not touched at all.
+    private void PositionCapsuleAtStrip()
     {
         UpdateLayout();
-        Left = StackWorkArea().Right - ActualWidth - Controls.StripResizeGeometry.EdgeGap;
+        Left = Controls.StripResizeGeometry.CapsuleLeft(_expandedLeft, _expandedWidth, ActualWidth);
+    }
+
+    // The window moved and sized in one call: assignments of Left, Top and Width are three layout
+    // passes, and the strip is seen travelling through all of them.
+    private void PlaceWindow(Rect target)
+    {
+        var dpi = VisualTreeHelper.GetDpi(this);
+        _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero,
+            (int)Math.Round(target.X * dpi.DpiScaleX), (int)Math.Round(target.Y * dpi.DpiScaleY),
+            (int)Math.Round(target.Width * dpi.DpiScaleX), (int)Math.Round(target.Height * dpi.DpiScaleY),
+            0x0014);   // SWP_NOZORDER | SWP_NOACTIVATE
     }
 
     private void AnimateStackIn()
@@ -735,17 +820,30 @@ public partial class EdgeStackWindow : Window
         return double.IsFinite(measured) && measured > 0 ? measured : Controls.StripResizeGeometry.EstimatedChromeHeight;
     }
 
-    private void PositionAtEdge()
+    // The height of the list is the height of what it holds, and the number the corner grip dragged
+    // into the settings is the ceiling it stops at. It is written here and nowhere else: every path
+    // that changes the strip goes through Renumber and UpdateEmptyState, so a capture added, removed,
+    // restored or reordered brings the window with it.
+    private void ApplyListHeight()
+    {
+        if (CaptureList is null) return;
+        var cap = Controls.StripResizeGeometry.ClampListHeight(
+            _settings.StackHeight, StackWorkArea().Height, StackChromeHeight());
+        CaptureList.Height = Controls.StripResizeGeometry.ListHeightForCount(Captures.Count, cap);
+    }
+
+    // The first placement of the strip: the edge of the monitor, the width from the settings and the
+    // middle of the working area. It happens once, from Loaded; every showing after that is
+    // EnsureStripPlaced, which leaves the strip where the user dragged it.
+    private void PlaceStripInitially()
     {
         var work = StackWorkArea();
         // The width the user dragged the strip to. The only ceiling is the working area of this
         // monitor: a width dragged out on a large screen is pulled back in when the strip opens on
         // a small one, and a settings file written by hand cannot produce a strip nobody can use.
         Width = Controls.StripResizeGeometry.ClampWidth(_settings.StackWidth, work.Width);
-        // The height is remembered the same way, and it is the height of the list: the window is on
-        // SizeToContent and follows it. The clamp takes the chrome into account, so a height stored
-        // on a tall monitor cannot open a window whose lower half is below the screen.
-        CaptureList.Height = Controls.StripResizeGeometry.ClampListHeight(_settings.StackHeight, work.Height, StackChromeHeight());
+        // The height belongs to the list and to what it holds; the stored number is its ceiling.
+        ApplyListHeight();
         // The height above was just assigned and ActualHeight still holds the one before it; the
         // placement below is built on the height the window is about to have.
         UpdateLayout();
@@ -753,6 +851,19 @@ public partial class EdgeStackWindow : Window
         var height = Math.Max(ActualHeight, 160);
         var centred = Math.Max(work.Top + 24, work.Top + (work.Height - height) / 2);
         Top = Math.Max(work.Top, Math.Min(centred, work.Bottom - height));
+    }
+
+    // A showing of a strip that has already been placed: the height for what it holds, and the
+    // rectangle it stands in only if that rectangle has left the screen. A strip dragged away from
+    // the edge used to jump back to it after every capture.
+    private void EnsureStripPlaced()
+    {
+        ApplyListHeight();
+        UpdateLayout();
+        var target = Controls.StripResizeGeometry.RestoreRect(
+            new Rect(Left, Top, Width, ActualHeight), StackWorkArea());
+        Left = target.X;
+        Top = target.Y;
     }
 
     // Where the pointer is, in the units the window is placed in. The delta of a Thumb cannot be used
@@ -834,6 +945,10 @@ public partial class EdgeStackWindow : Window
         SizeToContent = SizeToContent.Height;
         MinHeight = _resizeStartMinHeight;
         MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.Height });
+        // The height dragged out is the ceiling, and the list sits back down on what it holds: the
+        // strip follows the pointer while the drag lasts, because a short list that does not move
+        // reads as a grip that does not work, and it settles the moment the grip is let go.
+        ApplyListHeight();
     }
 
     private async Task<bool> PrepareAsync()
@@ -1392,12 +1507,13 @@ public partial class EdgeStackWindow : Window
     }
 
     // An empty strip shows a hint instead of an empty list, and it is the window that shrinks: the
-    // list carries its height outright (PositionAtEdge), so hiding it takes those pixels out of the
+    // list carries its height outright (ApplyListHeight), so hiding it takes those pixels out of the
     // layout and the first capture brings them back. The corner grip is hidden with the list, there
     // being nothing to stretch, and it stays hidden in the capsule, where the mode owns it.
     private void UpdateEmptyState()
     {
         if (CaptureList is null) return;
+        ApplyListHeight();
         var empty = Captures.Count == 0;
         CaptureList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
         EmptyHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
@@ -1888,10 +2004,93 @@ public partial class EdgeStackWindow : Window
         finally { _clipboardPublicationGate.Release(); }
     }
 
+    // The strip itself, not a copy of its markup: the height of the list, the template of the list
+    // and the bar over the cards are the work of this file, and a window built by XamlReader.Parse
+    // runs none of it. Five cards fit under the ceiling of 372, so the list is 220 tall and has
+    // nothing to scroll, and the last card is whole — that is what the overhang of 48 handed to the
+    // items panel is for. Twelve cards run into the ceiling, and the bar that appears has to be the
+    // bar of three pixels: the minimum of 17 the default theme gives every ScrollBar is what laid
+    // nine pixels of the thumb over the cards and read as a second, dimmer bar.
+    internal static void RunStripGrowthProbe()
+    {
+        // A strip of its own is the only window of the probe, and the application ends with the last
+        // window by default: the checks that come after this one would never run.
+        var application = Application.Current;
+        var shutdown = application?.ShutdownMode ?? ShutdownMode.OnLastWindowClose;
+        if (application is not null) application.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        var language = UiLanguage.Current;
+        try
+        {
+            ProbeStrip(5, (window, viewer) =>
+            {
+                if (Math.Abs(window.CaptureList.Height - 220) > 0.5)
+                    throw new InvalidOperationException($"Five cards under a ceiling of 372 make a list of 220, not {window.CaptureList.Height}.");
+                if (viewer.ScrollableHeight > 0)
+                    throw new InvalidOperationException($"A list that fits must not scroll: {viewer.ScrollableHeight} px of it are out of sight.");
+                var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
+                var last = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(window.Captures.Count - 1);
+                var cardBottom = last.TranslatePoint(new Point(0, 0), presenter).Y + Controls.StripResizeGeometry.CardHeight;
+                if (cardBottom > presenter.ActualHeight + 0.5)
+                    throw new InvalidOperationException($"The last card ends at {cardBottom} and the list at {presenter.ActualHeight}: the bottom of it is cut off.");
+            });
+            ProbeStrip(12, (window, viewer) =>
+            {
+                if (Math.Abs(window.CaptureList.Height - Controls.StripResizeGeometry.DefaultListHeight) > 0.5)
+                    throw new InvalidOperationException($"Twelve cards stop at the ceiling of 372, not at {window.CaptureList.Height}.");
+                if (viewer.ScrollableHeight <= 0)
+                    throw new InvalidOperationException("Twelve cards do not fit into 372 and the list has to scroll.");
+                var bar = window.StripScrollBar() ?? throw new InvalidOperationException("The template of the list must keep a PART_VerticalScrollBar.");
+                if (bar.Visibility != Visibility.Visible || bar.ActualWidth > 6)
+                    throw new InvalidOperationException($"The bar of an overflowing strip is {bar.ActualWidth} px wide and {bar.Visibility}.");
+            });
+        }
+        finally
+        {
+            if (application is not null) application.ShutdownMode = shutdown;
+            UiLanguage.Current = language;
+        }
+    }
+
+    // A strip of its own for every case: a list refilled in place keeps the extent of the list it
+    // held before, and the probe would be measuring the state it has already left.
+    private static void ProbeStrip(int count, Action<EdgeStackWindow, ScrollViewer> checks)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Snapik", $"strip-probe-{Guid.NewGuid():N}");
+        var window = new EdgeStackWindow(new LaunchOptions(false, true, root));
+        try
+        {
+            for (var i = 0; i < count; i++)
+                window.Captures.Add(new CaptureItem { Image = SessionWorkspace.CreateDemoBitmap(i, 320, 200), SourcePath = $"strip-probe-{i}.png" });
+            // The path every capture takes: the renumbering carries the empty state, and that one
+            // carries the height of the list.
+            window.Renumber();
+            // The list is laid out the way the shell lays it out — the window without the field under
+            // the shadow and without the padding of the panel, 184 px at a window of 244. The window
+            // itself has no handle here and would measure to nothing.
+            var width = window.Width - 2 * Controls.StripResizeGeometry.ShadowMargin - 2 * Controls.StripResizeGeometry.ShellPadding;
+            window.CaptureList.Measure(new Size(width, window.CaptureList.Height));
+            window.CaptureList.Arrange(new Rect(0, 0, width, window.CaptureList.Height));
+            window.CaptureList.UpdateLayout();
+            checks(window, (ScrollViewer)VisualTreeHelper.GetChild(window.CaptureList, 0));
+        }
+        finally
+        {
+            window._allowClose = true;
+            window.Close();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
     // Raise the strip without activating it; whether it stays above other applications is the StackTopmost setting.
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+
+    private const int SwShowNoActivate = 4;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(IntPtr window, int command);
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmFlush();

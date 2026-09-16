@@ -2,10 +2,17 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Snapik.App"
+        xmlns:controls="clr-namespace:Snapik.App.Controls"
         Title="{local:UiText Snapik — Лента снимков}" AutomationProperties.Name="{local:UiText Snapik — Лента снимков}"
         Width="244" MinHeight="128" SizeToContent="Height"
-        WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
-        BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="False" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">
+        WindowStyle="None" ResizeMode="CanMinimize" AllowsTransparency="True" Background="Transparent"
+        BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="True" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">
+    <!-- The strip is a window of the application on the taskbar, so it has a button of its own and a
+         line under the icon while it runs. CanMinimize is there for the button alone: without
+         WS_MINIMIZEBOX the shell does not minimise an active window on a click, and it adds no
+         WS_THICKFRAME, so the strip is still resized only by the grips of its own. Neither of these
+         two may ever be assigned at run time: WPF rebuilds the handle, and the global shortcuts, the
+         paste observer and the display affinity all hang on the handle this window was given. -->
     <Window.Resources>
         <Style x:Key="StackButton" TargetType="Button">
             <Setter Property="Height" Value="36" /><Setter Property="Padding" Value="10,0" />
@@ -99,9 +106,14 @@
         <!-- The bar carries neither width nor margin of its own any more: both of them belong to the
              template of the ScrollViewer below, which lays the bar over the cards instead of beside
              them. A bar that lives in a column of its own takes its width away from the cards the
-             moment the strip overflows, and the cards visibly narrow. -->
+             moment the strip overflows, and the cards visibly narrow.
+             MinWidth of zero is the whole of the "second, dimmer bar" the tester saw: the default
+             theme gives a ScrollBar a minimum of 17 px, a width of 3 loses to it, and the nine
+             pixels of the thumb that ended up over the cards read as a bar of their own. -->
         <Style x:Key="StackScrollBar" TargetType="ScrollBar">
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ScrollBar">
@@ -128,6 +140,47 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- The viewer of the capture list, named and not implicit: an implicit style inside the
+             template of somebody else's control is a rule nobody sees, and the default template of
+             the ListBox wrapped this one into a Border with a hardcoded Padding="1" that
+             BorderThickness="0" does not take away. Those two pixels made a list that fits scroll by
+             two pixels — a bar where there is nothing to scroll.
+             The bar lies over the cards, not beside them: the presenter and the bar share one cell of
+             the Grid, so the width the cards are given never changes when the strip starts to
+             overflow. The room for the bar is the right padding of the list, twelve pixels the card
+             never reaches, whether the bar is there or not.
+             The name PART_VerticalScrollBar is what makes the wheel and the drag of the grip work
+             without a line of code: ScrollViewer looks the bar up by that name and subscribes to its
+             Scroll itself. -->
+        <ControlTemplate x:Key="StackScrollViewer" TargetType="ScrollViewer">
+            <Grid Background="Transparent">
+                <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
+                                        CanContentScroll="{TemplateBinding CanContentScroll}"
+                                        ContentTemplate="{TemplateBinding ContentTemplate}" />
+                <!-- The field of the bar is the twelve pixels of the right padding: the bar is three
+                     wide and stands in the middle of nothing, and the field around it is what the
+                     pointer has to find to widen it. Both of them lie inside the padding, so a card
+                     never loses a pixel to either. -->
+                <Grid x:Name="BarField" Width="12" HorizontalAlignment="Right" Background="Transparent"
+                      MouseEnter="OnBarFieldEnter" MouseLeave="OnBarFieldLeave">
+                    <ScrollBar x:Name="PART_VerticalScrollBar" Style="{StaticResource StackScrollBar}"
+                               Orientation="Vertical" HorizontalAlignment="Right"
+                               Width="3" MinWidth="0" Margin="0,2,2,2" Opacity="0"
+                               Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
+                               ViewportSize="{TemplateBinding ViewportHeight}"
+                               Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                </Grid>
+            </Grid>
+            <ControlTemplate.Triggers>
+                <!-- Six pixels under the pointer, and the width is a setter while the appearing and
+                     the fading are animations: the two never meet on one property, so neither wins
+                     over the other for good. Opacity of zero keeps the hit test, so the track can
+                     still be clicked and the thumb dragged while the bar is out of sight. -->
+                <Trigger SourceName="BarField" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="PART_VerticalScrollBar" Property="Width" Value="6" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
     </Window.Resources>
     <Grid>
     <!-- The margin is the field the shadow of the window needs: a blur of 24 and a depth of 5 want
@@ -158,59 +211,45 @@
                 <Button Grid.Column="3" Style="{StaticResource IconButton}" Click="OnCollapseToCapsuleClick" ToolTip="Свернуть в капсулу" AutomationProperties.Name="Свернуть в капсулу">
                     <TextBlock FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Text="&#xE921;" />
                 </Button>
-                <Button Grid.Column="4" Style="{StaticResource IconButton}" Click="OnHideClick" ToolTip="Свернуть в трей" AutomationProperties.Name="Свернуть в трей">
+                <Button Grid.Column="4" Style="{StaticResource IconButton}" Click="OnHideClick" ToolTip="Свернуть" AutomationProperties.Name="Свернуть">
                     <TextBlock FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Text="&#xE8BB;" />
                 </Button>
             </Grid>
 
-            <!-- The height is the one the corner grip drags and the settings remember, and it is a
-                 height, not a maximum: the window is on SizeToContent and has to follow the grip
-                 even when the list holds one card. PositionAtEdge sets it for every showing. -->
-            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" Height="372" Margin="0,7,0,8" Padding="8,14,8,52"
+            <!-- The height is the one the list needs for what it holds, and the number the corner
+                 grip drags is the ceiling it stops at: ApplyListHeight writes both of them, and the
+                 window follows on SizeToContent. The paddings are not the same on both sides — the
+                 right one is the field the scroll bar lies in. -->
+            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" Height="372" Margin="0,7,0,8" Padding="4,14,12,8"
                      Background="Transparent" BorderThickness="0" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False"
                      VirtualizingPanel.IsVirtualizing="False"
                      PreviewMouseLeftButtonDown="OnCaptureListMouseDown" PreviewMouseMove="OnCaptureListMouseMove"
                      PreviewMouseWheel="OnCaptureListMouseWheel" Drop="OnCaptureListDrop">
-                <ListBox.Resources>
-                    <Style TargetType="ScrollBar" BasedOn="{StaticResource StackScrollBar}" />
-                    <!-- The bar lies over the cards, not beside them: the presenter and the bar share one
-                         cell of the Grid, so the width the cards are given never changes when the strip
-                         starts to overflow. The room for the bar is the right padding of the list,
-                         eight pixels the card never reaches, whether the bar is there or not.
-                         The name PART_VerticalScrollBar is what makes the wheel and the drag of the grip
-                         work without a line of code: ScrollViewer looks the bar up by that name and
-                         subscribes to its Scroll itself. -->
-                    <Style TargetType="ScrollViewer">
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ScrollViewer">
-                                    <Grid Background="Transparent">
-                                        <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
-                                                                CanContentScroll="{TemplateBinding CanContentScroll}"
-                                                                ContentTemplate="{TemplateBinding ContentTemplate}" />
-                                        <!-- Four pixels, and four whatever the pointer is over: the bar used to
-                                             breathe out to six on any hover of the list, and a bar that changes
-                                             width under the pointer reads as the list moving. The grip fills the
-                                             bar, so the width of the bar is the width of the grip; the hover of
-                                             the grip itself is a colour, and it lives in the thumb above. -->
-                                        <ScrollBar x:Name="PART_VerticalScrollBar" Orientation="Vertical" HorizontalAlignment="Right"
-                                                   Width="4" Margin="0,2,1,2"
-                                                   Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
-                                                   ViewportSize="{TemplateBinding ViewportHeight}"
-                                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
-                                    </Grid>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ListBox.Resources>
+                <!-- The template of the list is a bare viewer: everything the ListBox used to pass to it
+                     implicitly is passed by hand here, because a property that stops arriving does so
+                     silently — the padding above is the one the height of the list is counted from. -->
+                <ListBox.Template>
+                    <ControlTemplate TargetType="ListBox">
+                        <ScrollViewer Focusable="False" IsTabStop="False" Padding="{TemplateBinding Padding}"
+                                      CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}"
+                                      VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Template="{StaticResource StackScrollViewer}">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ListBox.Template>
                 <!-- A plain StackPanel, and the list is not virtualized: twenty-six cards are nothing to
                      save on, while recycling containers handed a card the index and the animated margin
                      of the card before it. The order of the children is the order of the captures, and
                      the last child is drawn over the ones before it: the newest capture lies on top,
-                     with no depth to compute and no converter to keep in step. -->
-                <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                     with no depth to compute and no converter to keep in step.
+                     The margin of 48 is the overhang of the last card: a card carries a negative margin
+                     of that size, so the panel measures itself 48 px shorter than what it draws and the
+                     presenter cut the bottom of the last card off. Given to the panel, those pixels are
+                     part of the extent and the card is whole. -->
+                <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Margin="0,0,0,48" /></ItemsPanelTemplate></ListBox.ItemsPanel>
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
                         <Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" />
@@ -222,19 +261,28 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Border x:Name="ThumbCard" Margin="0,0,0,-48" Height="78" CornerRadius="11" Background="#242A33"
-                                    BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True" MouseEnter="OnCaptureThumbMouseEnter">
+                                    BorderBrush="#46505E" BorderThickness="1" MouseEnter="OnCaptureThumbMouseEnter">
                                 <!-- The shadow goes up (Direction 90 in WPF), onto the card above: the cards
                                      overlap by 48 px and the newer one is drawn over the older one, so the
-                                     visible seam is the top edge of the card and the shadow falls into it. -->
-                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="16" ShadowDepth="6" Opacity="0.35" Direction="90" /></Border.Effect>
-                                <Grid>
+                                     visible seam is the top edge of the card and the shadow falls into it.
+                                     A blur of twelve rather than sixteen: half of the blur is how far the
+                                     shadow reaches sideways, and sixteen of it ran into the field the bar
+                                     stands in. Upwards, where the shadow is for, twelve is enough — the
+                                     seam between two cards is thirty. -->
+                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="6" Opacity="0.35" Direction="90" /></Border.Effect>
+                                <!-- The radius of the clip is ten: the card is drawn with eleven and the
+                                     border is one pixel wide, so the picture is cut along the inner edge
+                                     of the border instead of climbing onto it. ClipToBounds of the card
+                                     did neither, and a rectangular clip is no clip at all under a
+                                     CornerRadius. -->
+                                <Grid controls:RoundedClip.Radius="10">
                                     <Button x:Name="ThumbContent" Padding="0" Background="Transparent" BorderThickness="0" Click="OnOpenCaptureClick" Tag="{Binding}" ToolTip="Открыть снимок">
                                         <Grid>
                                             <Image x:Name="ThumbImage" Source="{Binding Image}" Stretch="UniformToFill" Opacity="0.86" />
                                             <!-- The letter and the notes stand at the top of the card: the card
                                                  below shows its upper 30 px and nothing else, and that strip has
                                                  to be the one that says which capture it is. The corners are cut
-                                                 by ClipToBounds of the card itself. -->
+                                                 by the rounded clip of the grid above. -->
                                             <Border VerticalAlignment="Top" Height="26" Background="#E6171A20">
                                                 <Grid Margin="7,0">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -298,23 +346,18 @@
                                 <DataTrigger Binding="{Binding Kind}" Value="Import">
                                     <Setter TargetName="ImportChip" Property="Visibility" Value="Visible" />
                                 </DataTrigger>
-                                <!-- The three triggers below move the card by a setter and not by an animation
-                                     on purpose: an animation holds its value above every setter of every
-                                     trigger for good (FillBehavior.HoldEnd), so after the first hover neither
-                                     the keyboard focus nor the selection could move the card any more. Four
-                                     pixels without an animation are not worth a second level of priority. -->
+                                <!-- Neither the pointer nor the keyboard moves the card any more: the margin
+                                     they used to unfold it with is part of Measure, so the strip grew by
+                                     four pixels under the pointer and the height the list is given stopped
+                                     matching what it holds. What is left is a lighter border and the close
+                                     button, and the selection shows nothing at all: a card that came back
+                                     from the editor has to look like every other card. -->
                                 <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True">
                                     <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#718096" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=ThumbCard}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="Margin" Value="0,4,0,4" />
-                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
@@ -324,9 +367,9 @@
             <!-- An empty strip is a small strip: the list reserves its 372 px even with nothing in
                  it, and a window that tall with a hint in the middle of it reads as a window that
                  failed to restore the session. The two swap places, so the height of the window is
-                 the height of its content; the first capture unfolds the list to the height the
-                 settings remember, because PositionAtEdge writes it whether the list is shown or
-                 not. The corner grip goes with the list: an empty strip has nothing to stretch. -->
+                 the height of its content; the first capture unfolds the list to the height that one
+                 card needs, because ApplyListHeight writes it whether the list is shown or not.
+                 The corner grip goes with the list: an empty strip has nothing to stretch. -->
             <Border x:Name="EmptyHint" Grid.Row="1" Height="92" Margin="0,7,0,8" Visibility="Collapsed">
                 <TextBlock x:Name="EmptyHintText" HorizontalAlignment="Center" VerticalAlignment="Center"
                            TextAlignment="Center" TextWrapping="Wrap" Margin="10,0"
