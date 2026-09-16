@@ -30,6 +30,10 @@ public partial class EdgeStackWindow : Window
     private readonly ICodexDesktopPasteCompletionService _codexPasteCompletion;
     private readonly DispatcherTimer _saveTimer;
     private readonly DispatcherTimer _toastTimer;
+    // The bar of the strip is an overlay: it shows itself while the list moves and goes out a second
+    // after it stops. This is that second, and the bar it fades is found once, in the template.
+    private readonly DispatcherTimer _scrollBarTimer;
+    private System.Windows.Controls.Primitives.ScrollBar? _stripScrollBar;
     private readonly string _settingsPath;
     private readonly WinForms.NotifyIcon _trayIcon;
     private readonly IPasteIntentObserver _pasteIntentObserver;
@@ -60,6 +64,7 @@ public partial class EdgeStackWindow : Window
     private static readonly TimeSpan ReceiverEchoWatchWindow = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan ReceiverEchoPollInterval = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan ToastLifetime = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ScrollBarLifetime = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan ToastFade = TimeSpan.FromMilliseconds(150);
     private Action? _toastAction;
     private int _toastGeneration;
@@ -106,6 +111,8 @@ public partial class EdgeStackWindow : Window
         _saveTimer.Tick += OnSaveTimerTick;
         _toastTimer = new DispatcherTimer { Interval = ToastLifetime };
         _toastTimer.Tick += OnToastTimerTick;
+        _scrollBarTimer = new DispatcherTimer { Interval = ScrollBarLifetime };
+        _scrollBarTimer.Tick += OnScrollBarTimerTick;
         _pasteIntentObserver = new WindowsPasteIntentObserver(intent =>
         {
             var receiptSeq = _ownedClipboardReceipt?.SequenceNumber;
@@ -271,6 +278,55 @@ public partial class EdgeStackWindow : Window
             _pasteIntentObserver.Start();
         }
         catch (Exception ex) { SetStatus($"{UiLanguage.Text("Отслеживание вставки недоступно")}: {ex.Message}", true); }
+        // Every way the list moves ends in this event: the wheel, the grip, the track and the keys.
+        CaptureList.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(OnStripScrolled));
+    }
+
+    // The bar of the strip lives while the list moves: it comes up on the first pixel of scrolling
+    // and goes out a second after the last one. The pointer over the field of the bar holds it
+    // there, and the width of six is a trigger in the template — a setter and an animation on one
+    // property would fight, and the animation would win for good.
+    private void OnStripScrolled(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.VerticalChange == 0) return;
+        FadeStripScrollBar(1, 90);
+        _scrollBarTimer.Stop();
+        _scrollBarTimer.Start();
+    }
+
+    private void OnScrollBarTimerTick(object? sender, EventArgs e)
+    {
+        _scrollBarTimer.Stop();
+        FadeStripScrollBar(0, 160);
+    }
+
+    private void OnBarFieldEnter(object sender, MouseEventArgs e)
+    {
+        _scrollBarTimer.Stop();
+        FadeStripScrollBar(1, 90);
+    }
+
+    private void OnBarFieldLeave(object sender, MouseEventArgs e)
+    {
+        _scrollBarTimer.Stop();
+        _scrollBarTimer.Start();
+    }
+
+    private void FadeStripScrollBar(double to, int milliseconds)
+    {
+        if (StripScrollBar() is not { } bar) return;
+        bar.BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds)));
+    }
+
+    // The bar is part of the template of the viewer, which is part of the template of the list, so
+    // it is looked up once and kept: the two templates outlive every capture the strip holds.
+    private System.Windows.Controls.Primitives.ScrollBar? StripScrollBar()
+    {
+        if (_stripScrollBar is not null) return _stripScrollBar;
+        if (CaptureList is null || VisualTreeHelper.GetChildrenCount(CaptureList) == 0) return null;
+        if (VisualTreeHelper.GetChild(CaptureList, 0) is not ScrollViewer viewer) return null;
+        _stripScrollBar = viewer.Template.FindName("PART_VerticalScrollBar", viewer) as System.Windows.Controls.Primitives.ScrollBar;
+        return _stripScrollBar;
     }
 
     private bool RegisterHotkeys()
@@ -1921,48 +1977,79 @@ public partial class EdgeStackWindow : Window
 
     // The strip itself, not a copy of its markup: the height of the list, the template of the list
     // and the bar over the cards are the work of this file, and a window built by XamlReader.Parse
-    // runs none of it. Five cards fit into the ceiling of 372, so the list is 220 tall and has
-    // nothing to scroll; the last card must be whole, which is what the overhang of 48 given to the
-    // items panel is for.
+    // runs none of it. Five cards fit under the ceiling of 372, so the list is 220 tall and has
+    // nothing to scroll, and the last card is whole — that is what the overhang of 48 handed to the
+    // items panel is for. Twelve cards run into the ceiling, and the bar that appears has to be the
+    // bar of three pixels: the minimum of 17 the default theme gives every ScrollBar is what laid
+    // nine pixels of the thumb over the cards and read as a second, dimmer bar.
     internal static void RunStripGrowthProbe()
     {
-        var root = Path.Combine(Path.GetTempPath(), "Snapik", $"strip-probe-{Guid.NewGuid():N}");
+        // A strip of its own is the only window of the probe, and the application ends with the last
+        // window by default: the checks that come after this one would never run.
+        var application = Application.Current;
+        var shutdown = application?.ShutdownMode ?? ShutdownMode.OnLastWindowClose;
+        if (application is not null) application.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         var language = UiLanguage.Current;
+        try
+        {
+            ProbeStrip(5, (window, viewer) =>
+            {
+                if (Math.Abs(window.CaptureList.Height - 220) > 0.5)
+                    throw new InvalidOperationException($"Five cards under a ceiling of 372 make a list of 220, not {window.CaptureList.Height}.");
+                if (viewer.ScrollableHeight > 0)
+                    throw new InvalidOperationException($"A list that fits must not scroll: {viewer.ScrollableHeight} px of it are out of sight.");
+                var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
+                var last = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(window.Captures.Count - 1);
+                var cardBottom = last.TranslatePoint(new Point(0, 0), presenter).Y + Controls.StripResizeGeometry.CardHeight;
+                if (cardBottom > presenter.ActualHeight + 0.5)
+                    throw new InvalidOperationException($"The last card ends at {cardBottom} and the list at {presenter.ActualHeight}: the bottom of it is cut off.");
+            });
+            ProbeStrip(12, (window, viewer) =>
+            {
+                if (Math.Abs(window.CaptureList.Height - Controls.StripResizeGeometry.DefaultListHeight) > 0.5)
+                    throw new InvalidOperationException($"Twelve cards stop at the ceiling of 372, not at {window.CaptureList.Height}.");
+                if (viewer.ScrollableHeight <= 0)
+                    throw new InvalidOperationException("Twelve cards do not fit into 372 and the list has to scroll.");
+                var bar = window.StripScrollBar() ?? throw new InvalidOperationException("The template of the list must keep a PART_VerticalScrollBar.");
+                if (bar.Visibility != Visibility.Visible || bar.ActualWidth > 6)
+                    throw new InvalidOperationException($"The bar of an overflowing strip is {bar.ActualWidth} px wide and {bar.Visibility}.");
+            });
+        }
+        finally
+        {
+            if (application is not null) application.ShutdownMode = shutdown;
+            UiLanguage.Current = language;
+        }
+    }
+
+    // A strip of its own for every case: a list refilled in place keeps the extent of the list it
+    // held before, and the probe would be measuring the state it has already left.
+    private static void ProbeStrip(int count, Action<EdgeStackWindow, ScrollViewer> checks)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Snapik", $"strip-probe-{Guid.NewGuid():N}");
         var window = new EdgeStackWindow(new LaunchOptions(false, true, root));
         try
         {
-            FillProbeStrip(window, 5);
-            if (Math.Abs(window.CaptureList.Height - 220) > 0.5)
-                throw new InvalidOperationException($"Five cards under a ceiling of 372 make a list of 220, not {window.CaptureList.Height}.");
-            var viewer = (ScrollViewer)VisualTreeHelper.GetChild(window.CaptureList, 0);
-            if (viewer.ScrollableHeight > 0)
-                throw new InvalidOperationException($"A list that fits must not scroll: {viewer.ScrollableHeight} px of it are out of sight.");
-            var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
-            var last = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(window.Captures.Count - 1);
-            var cardBottom = last.TranslatePoint(new Point(0, 0), presenter).Y + Controls.StripResizeGeometry.CardHeight;
-            if (cardBottom > presenter.ActualHeight + 0.5)
-                throw new InvalidOperationException($"The last card ends at {cardBottom} and the list at {presenter.ActualHeight}: the bottom of it is cut off.");
+            for (var i = 0; i < count; i++)
+                window.Captures.Add(new CaptureItem { Image = SessionWorkspace.CreateDemoBitmap(i, 320, 200), SourcePath = $"strip-probe-{i}.png" });
+            // The path every capture takes: the renumbering carries the empty state, and that one
+            // carries the height of the list.
+            window.Renumber();
+            // The list is laid out the way the shell lays it out — the window without the field under
+            // the shadow and without the padding of the panel, 184 px at a window of 244. The window
+            // itself has no handle here and would measure to nothing.
+            var width = window.Width - 2 * Controls.StripResizeGeometry.ShadowMargin - 2 * Controls.StripResizeGeometry.ShellPadding;
+            window.CaptureList.Measure(new Size(width, window.CaptureList.Height));
+            window.CaptureList.Arrange(new Rect(0, 0, width, window.CaptureList.Height));
+            window.CaptureList.UpdateLayout();
+            checks(window, (ScrollViewer)VisualTreeHelper.GetChild(window.CaptureList, 0));
         }
         finally
         {
             window._allowClose = true;
             window.Close();
-            UiLanguage.Current = language;
             if (Directory.Exists(root)) Directory.Delete(root, true);
         }
-    }
-
-    private static void FillProbeStrip(EdgeStackWindow window, int count)
-    {
-        window.Captures.Clear();
-        for (var i = 0; i < count; i++)
-            window.Captures.Add(new CaptureItem { Image = SessionWorkspace.CreateDemoBitmap(i, 320, 200), SourcePath = $"strip-probe-{i}.png" });
-        // The path every capture takes: the renumbering carries the empty state, and that one carries
-        // the height of the list.
-        window.Renumber();
-        window.Measure(new Size(window.Width, 1200));
-        window.Arrange(new Rect(0, 0, window.Width, 1200));
-        window.UpdateLayout();
     }
 
     // Raise the strip without activating it; whether it stays above other applications is the StackTopmost setting.

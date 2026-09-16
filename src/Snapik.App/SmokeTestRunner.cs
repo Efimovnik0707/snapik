@@ -1386,6 +1386,11 @@ public static class SmokeTestRunner
             Top = top,
             Content = new System.Windows.Controls.Border { Height = 240, Background = Brushes.Transparent }
         };
+        // The probe is the only window of the run, and closing the last window ends the application
+        // by default: the checks after this one would never be reached.
+        var application = Application.Current;
+        var shutdown = application?.ShutdownMode ?? ShutdownMode.OnLastWindowClose;
+        if (application is not null) application.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         try
         {
             window.Show();
@@ -1408,7 +1413,11 @@ public static class SmokeTestRunner
                     $"A minimised strip has to come back where it was: state {window.WindowState}, " +
                     $"{window.Left}×{window.Top} instead of {left}×{top}, height {window.ActualHeight} instead of {height}.");
         }
-        finally { window.Close(); }
+        finally
+        {
+            window.Close();
+            if (application is not null) application.ShutdownMode = shutdown;
+        }
     }
 
     private const int GwlStyle = -16;

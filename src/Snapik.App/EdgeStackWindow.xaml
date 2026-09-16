@@ -99,9 +99,14 @@
         <!-- The bar carries neither width nor margin of its own any more: both of them belong to the
              template of the ScrollViewer below, which lays the bar over the cards instead of beside
              them. A bar that lives in a column of its own takes its width away from the cards the
-             moment the strip overflows, and the cards visibly narrow. -->
+             moment the strip overflows, and the cards visibly narrow.
+             MinWidth of zero is the whole of the "second, dimmer bar" the tester saw: the default
+             theme gives a ScrollBar a minimum of 17 px, a width of 3 loses to it, and the nine
+             pixels of the thumb that ended up over the cards read as a bar of their own. -->
         <Style x:Key="StackScrollBar" TargetType="ScrollBar">
             <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ScrollBar">
@@ -145,13 +150,29 @@
                 <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
                                         CanContentScroll="{TemplateBinding CanContentScroll}"
                                         ContentTemplate="{TemplateBinding ContentTemplate}" />
-                <ScrollBar x:Name="PART_VerticalScrollBar" Style="{StaticResource StackScrollBar}"
-                           Orientation="Vertical" HorizontalAlignment="Right"
-                           Width="4" Margin="0,2,1,2"
-                           Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
-                           ViewportSize="{TemplateBinding ViewportHeight}"
-                           Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                <!-- The field of the bar is the twelve pixels of the right padding: the bar is three
+                     wide and stands in the middle of nothing, and the field around it is what the
+                     pointer has to find to widen it. Both of them lie inside the padding, so a card
+                     never loses a pixel to either. -->
+                <Grid x:Name="BarField" Width="12" HorizontalAlignment="Right" Background="Transparent"
+                      MouseEnter="OnBarFieldEnter" MouseLeave="OnBarFieldLeave">
+                    <ScrollBar x:Name="PART_VerticalScrollBar" Style="{StaticResource StackScrollBar}"
+                               Orientation="Vertical" HorizontalAlignment="Right"
+                               Width="3" MinWidth="0" Margin="0,2,2,2" Opacity="0"
+                               Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
+                               ViewportSize="{TemplateBinding ViewportHeight}"
+                               Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                </Grid>
             </Grid>
+            <ControlTemplate.Triggers>
+                <!-- Six pixels under the pointer, and the width is a setter while the appearing and
+                     the fading are animations: the two never meet on one property, so neither wins
+                     over the other for good. Opacity of zero keeps the hit test, so the track can
+                     still be clicked and the thumb dragged while the bar is out of sight. -->
+                <Trigger SourceName="BarField" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="PART_VerticalScrollBar" Property="Width" Value="6" />
+                </Trigger>
+            </ControlTemplate.Triggers>
         </ControlTemplate>
     </Window.Resources>
     <Grid>
@@ -236,8 +257,12 @@
                                     BorderBrush="#46505E" BorderThickness="1" ClipToBounds="True" MouseEnter="OnCaptureThumbMouseEnter">
                                 <!-- The shadow goes up (Direction 90 in WPF), onto the card above: the cards
                                      overlap by 48 px and the newer one is drawn over the older one, so the
-                                     visible seam is the top edge of the card and the shadow falls into it. -->
-                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="16" ShadowDepth="6" Opacity="0.35" Direction="90" /></Border.Effect>
+                                     visible seam is the top edge of the card and the shadow falls into it.
+                                     A blur of twelve rather than sixteen: half of the blur is how far the
+                                     shadow reaches sideways, and sixteen of it ran into the field the bar
+                                     stands in. Upwards, where the shadow is for, twelve is enough — the
+                                     seam between two cards is thirty. -->
+                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="6" Opacity="0.35" Direction="90" /></Border.Effect>
                                 <Grid>
                                     <Button x:Name="ThumbContent" Padding="0" Background="Transparent" BorderThickness="0" Click="OnOpenCaptureClick" Tag="{Binding}" ToolTip="Открыть снимок">
                                         <Grid>
