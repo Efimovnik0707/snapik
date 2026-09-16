@@ -24,8 +24,9 @@ targets += [
         dependencies: ["SnapikCore"],
         path: "Sources/SnapikMac",
         resources: [
-            .copy("Resources/Audio/camera-shutter.wav"),
-            .copy("Resources/Audio/camera-dial-click.wav"),
+            .copy("Resources/Audio/shutter-1-039s.mp3"),
+            .copy("Resources/Audio/click-tiny-005s.mp3"),
+            .copy("Resources/Audio/notify-soft-040.mp3"),
         ],
         linkerSettings: [
             .linkedFramework("AppKit"),

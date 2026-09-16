@@ -1,14 +1,15 @@
-// Port of `CaptureFeedbackSound.VerifyWaveHeaders` + `HotkeySettings` back-compat decode,
-// SPEC-DELTA-2B.md §F.
+// Port of `UiSoundService.VerifyAssets` + `HotkeySettings` back-compat decode, SPEC-DELTA-2B.md §F,
+// SPEC-DELTA-3 §1.5 G-10 (the file it came from was `CaptureFeedbackSoundTests`, and the two WAVs it
+// checked left with `CaptureFeedbackSound`).
 import Foundation
 import XCTest
 import SnapikCore
 
 @testable import SnapikMac
 
-final class CaptureFeedbackSoundTests: XCTestCase {
-    func test_verifyWaveHeaders_does_not_throw() {
-        XCTAssertNoThrow(try CaptureFeedbackSound.verifyWaveHeaders())
+final class UiSoundServiceTests: XCTestCase {
+    func test_verifyAssets_does_not_throw() {
+        XCTAssertNoThrow(try UiSoundService.verifyAssets())
     }
 
     /// "Риски компиляции" #2 (SPEC-DELTA-2B.md): a `settings.json` written before sync 2 (no

@@ -1,28 +1,33 @@
-# Bundled camera feedback recordings
+# Bundled interface sounds
 
-Copied as-is from `src/Snapik.App/Assets/Audio/` (SPEC-DELTA-2.md §6, SPEC-DELTA-2B.md §E2).
-Both files are edits of real camera recordings published under the Creative Commons Zero 1.0
-Universal dedication. CC0 permits copying, modification, commercial use, and redistribution
-without attribution. Attribution is retained here so the source and edit remain auditable. Full
-provenance: `src/Snapik.App/Assets/Audio/README.md`.
+Copied byte for byte from `src/Snapik.App/Assets/Audio/` (SPEC-DELTA-3 §1.5 G-11). Nothing was
+re-encoded or edited here, and none of them was auditioned by the agent. Full provenance, the
+measurements behind the gains and the story of what they replaced:
+`src/Snapik.App/Assets/Audio/README.md`.
 
-## `camera-shutter.wav`
+The set comes from Pixabay and Freesound under the Pixabay Content License / CC0 1.0, both of which
+permit copying, modification, commercial use and redistribution without attribution. Attribution is
+kept here so the source stays auditable.
 
-- Source: [Nice Camera click.wav](https://freesound.org/people/mmaruska/sounds/167556/) by Freesound user `mmaruska`, sound ID 167556. License: CC0 1.0 Universal.
-- Edit: 44.1 kHz, 16-bit PCM, mono; ~340 ms.
-- Bundled file SHA-256: `57C7D8AAEA24E1350A72C76BE3D26937600DDEBD1FB6F559A70D9A2E51D1B0E5`.
-
-## `camera-dial-click.wav`
-
-- Source: [INSTAX CAMERA - Mechanical wheel, ratchet.WAV](https://freesound.org/people/Headphaze/sounds/696760/) by Freesound user `Headphaze`, sound ID 696760. License: CC0 1.0 Universal.
-- Edit: 44.1 kHz, 16-bit PCM, mono; ~150 ms.
-- Bundled file SHA-256: `9A5D6C9019548C410048C5EAC3BDE1E314B31F43D6A1A6E9F13419C203B66666`.
+| File | Where it plays | Gain | Author | Pixabay id | Size |
+|---|---|---|---|---|---|
+| `shutter-1-039s.mp3` | the moment of capture | 0.6 | kauasilbershlachparodes | 494024 | 12 538 B |
+| `click-tiny-005s.mp3` | pointing at a capture in the strip | 0.25 | denielcz | 463065 | 1 536 B |
+| `notify-soft-040.mp3` | the package went to the clipboard ("Копировать пакет") | 0.7 | Universfield | 493469 | 34 272 B |
 
 ## Usage on macOS
 
-`CaptureFeedbackSound.capture(enabled:)` plays `camera-shutter.wav` right after a capture is
-committed to the stack; `CaptureFeedbackSound.tick(enabled:)` plays `camera-dial-click.wav` on
-stack-card hover/scroll, throttled to 170 ms between ticks and suppressed for 400 ms after a
-shutter sound. Both are gated by the `PlaySounds` setting (default on). This file is excluded from
-the app bundle (`project.yml`'s `excludes: ["Resources/**/*.md"]`); only the two `.wav` files are
-copied into `Contents/Resources`.
+`App/UiSoundService.swift` plays all three, each at the gain above on top of the `SoundVolume`
+preference (0…100, default 40) and gated by `PlaySounds` (default on). The tick is throttled to
+170 ms between ticks and suppressed for 400 ms after a shutter. The files live in
+`Sources/SnapikMac/Resources/Audio/`, are listed in `Package.swift` and are picked up by the Xcode
+target through `project.yml`'s `Sources/SnapikMac` path. This note lives outside that path, in
+`macos/Resources/`, so it ships with neither build.
+
+The smoke run checks that all three are shipped, are not empty and start as an MP3 stream
+(`UiSoundService.verifyAssets`), and `scripts/ci-smoke.sh` checks that the two camera WAVs they
+replaced are gone from the bundle.
+
+The camera recordings this replaced (`camera-shutter.wav`, `camera-dial-click.wav`, CC0 from
+Freesound, users `mmaruska` 167556 and `Headphaze` 696760) left together with
+`CaptureFeedbackSound`; their provenance stays in the git history of this file.

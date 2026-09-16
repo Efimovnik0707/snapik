@@ -443,12 +443,10 @@ public enum UiLanguage {
             "Лишний снимок — крестик. Всё сразу — «Очистить».",
             "One capture too many: the cross. All of them: \"Clear\"."
         ),
-        // SPEC-DELTA-3 §3.3: the pairs Windows no longer has. The preview window that
-        // owned the first of them is gone (W0-6); the rest are still read by the
-        // settings, the editor and the strip, and leave with the code of wave 1.
-        ("Уведомления о копировании и сохранении", "Notify on copy and save"),
-        ("Сохранить на компьютер (Ctrl+S)", "Save to computer (Ctrl+S)"),
-        ("Показать стопку", "Show stack"),
+        // SPEC-DELTA-3 §3.3: the last pair Windows no longer has. The strip still says this after a
+        // paste, because the package really does stay on the clipboard here: the Windows wording
+        // ("снимки помечены как отправленные") belongs to T-5, which this sync did not carry over,
+        // and the row leaves with the code that will.
         (
             "Вставлено: {0} изображений · {1} заметок. Пакет остаётся в буфере, следующий снимок начнёт новую стопку",
             "Pasted: {0} images · {1} notes. The package stays on the clipboard, the next capture will start a new stack"

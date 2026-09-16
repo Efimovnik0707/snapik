@@ -120,7 +120,15 @@ extension AppCoordinator {
 
         switch result.status {
         case .completedUnverified:
-            await republishPackageForReuse(paths: pathsAtIntent, prompt: promptAtIntent)
+            // S-12, port of `MarkCapturesSentAsync`'s first line (`EdgeStackWindow.xaml.cs:1567`):
+            // with "После Ctrl+V лента очищается сама" on, the paste that went through empties the
+            // strip instead of republishing a package that points at the captures it takes away.
+            // The gate this method holds is the one `clearStack` would otherwise take.
+            if settings.clearStackAfterPaste {
+                await clearStack(clipboardGateHeld: true)
+            } else {
+                await republishPackageForReuse(paths: pathsAtIntent, prompt: promptAtIntent)
+            }
         case .notApplicable where !intent.intercepted:
             // Pasted our package somewhere other than Codex Desktop, and Codex's own text
             // catch-up declined (wrong app/gesture) — still rotate, as long as our package is

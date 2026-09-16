@@ -327,35 +327,6 @@ enum ThemeService {
     ]
 }
 
-/// Dark palette used by the edge stack and overlay editor surfaces (not a named XAML resource
-/// dictionary on Windows — collected here from the literal colors in the markup, SPEC §6.0).
-enum DarkPalette {
-    static let floatingPanelBackground = NSColor(hex: "#F2171A20")
-    static let hintBackground = NSColor(hex: "#E8171A20")
-    static let thumbnailStripBackground = NSColor(hex: "#D9171A20")
-    static let cardBackground = NSColor(hex: "#242A33")
-    static let cardBorder = NSColor(hex: "#39424E")
-    static let fieldBorder = NSColor(hex: "#3A424E")
-    static let buttonBorder = NSColor(hex: "#333C49")
-    static let panelHover = NSColor(hex: "#29303A")
-    static let stackHover = NSColor(hex: "#303845")
-    static let accent = NSColor(hex: "#2F8CFF")
-    static let toolEnabledBackground = NSColor(hex: "#253B58")
-    static let toolEnabledBorder = NSColor(hex: "#2F8CFF")
-    static let focusRing = NSColor(hex: "#7AB8FF")
-    static let primaryText = NSColor(hex: "#EEF2F8")
-    static let secondaryTextD9 = NSColor(hex: "#D9DEE8")
-    static let secondaryTextBF = NSColor(hex: "#BFC8D6")
-    static let secondaryText9A = NSColor(hex: "#9AA7B8")
-    static let secondaryTextAE = NSColor(hex: "#AEB8C7")
-    static let errorText = NSColor(hex: "#FF9B95")
-    static let chipFieldBackground = NSColor(hex: "#262B34")
-    static let settingsFieldBackground = NSColor(hex: "#252B35")
-    static let settingsWindowBackground = NSColor(hex: "#171B22")
-    static let settingsWindowBorder = NSColor(hex: "#354052")
-    static let restoreLinkText = NSColor(hex: "#7AB8FF")
-}
-
 enum ThemeMetrics {
     static let stackWidth: CGFloat = 196
     static let stackMinHeight: CGFloat = 128

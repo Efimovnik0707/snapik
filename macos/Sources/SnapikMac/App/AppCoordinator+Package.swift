@@ -32,7 +32,7 @@ extension AppCoordinator {
             }
             ownedClipboardReceipt = receipt
             ownedClipboardPromptText = export.manifest.promptText
-            // Finding 4: gate on "Уведомления о копировании и сохранении".
+            // Finding 4: gate on "Показывать уведомления".
             if settings.showNotifications { notificationService.notify("Снимки скопированы", language: language) }
             // Finding 24: two §1.20 dictionary strings otherwise unused anywhere in the port —
             // a VoiceOver announcement for the copy, independent of the notification toggle above
@@ -94,7 +94,7 @@ extension AppCoordinator {
             }
             ownedClipboardReceipt = newReceipt
             ownedClipboardPromptText = export.manifest.promptText
-            // Finding 4: gate on "Уведомления о копировании и сохранении".
+            // Finding 4: gate on "Показывать уведомления".
             if settings.showNotifications { notificationService.notify("Снимки скопированы", language: language) }
         } catch {
             stackWindow?.setStatus(StatusStrings.sessionSavedButClipboardNotUpdated("\(error)"), isError: true)
@@ -103,6 +103,10 @@ extension AppCoordinator {
 
     func copyPackage() async {
         if await saveAndCopyCommittedPackage() {
+            // G-10: the third sound of the round. It belongs to "Копировать пакет" and not to a
+            // capture — a capture already has the shutter, and Windows takes the note off that path
+            // for the same reason (`EdgeStackWindow.xaml.cs:1127`).
+            UiSoundService.copied(settings)
             stackWindow?.setStatus(StatusStrings.packageCopied, isError: false)
         }
     }
@@ -116,27 +120,110 @@ extension AppCoordinator {
         }
         guard let export = resolvedExport else { return }
 
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.prompt = MacUiText.text("Выбрать папку", language: language)
-        guard panel.runModal() == .OK, let destinationRoot = panel.url else { return }
+        // G-12: one window instead of the system folder picker — the folder, the name and the
+        // subfolder switch are on screen at once, and the choice is remembered.
+        let now = Date()
+        guard let choice = await askWherePackageGoes(now: now) else { return }
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        let destination = destinationRoot.appendingPathComponent("Snapik-\(formatter.string(from: Date()))")
-
+        // Port of `SavePackageAsAsync`'s `MutateSettings` (`EdgeStackWindow.xaml.cs:1148`): saving
+        // into the same place a second time is one click. A settings file that cannot be written
+        // leaves its own error on screen and must not stop the package from being saved.
+        var stored = workspace.preferences
+        stored.packageSaveDirectory = choice.directory
+        stored.packageCreateSubfolder = choice.createSubfolder
         do {
-            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-            let files = try FileManager.default.contentsOfDirectory(at: export.rootDirectory, includingPropertiesForKeys: nil)
-            for file in files {
-                try FileManager.default.copyItem(at: file, to: destination.appendingPathComponent(file.lastPathComponent))
-            }
-            stackWindow?.setStatus(StatusStrings.packageSaved, isError: false)
+            try stored.save(path: workspace.settingsPath)
         } catch {
             stackWindow?.setStatus(StatusStrings.couldNotSave("\(error)"), isError: true)
         }
+        applySettings(stored)
+
+        // Only what the user opened the folder for: the images and the text. `manifest.json`
+        // describes the package for the application itself and stays in the working directory.
+        let promptFileName = export.manifest.promptFileName
+        let sources =
+            ((try? FileManager.default.contentsOfDirectory(
+                at: export.rootDirectory, includingPropertiesForKeys: nil)) ?? [])
+            .filter { url in
+                url.pathExtension.lowercased() == "png"
+                    || (!promptFileName.isEmpty && url.lastPathComponent == promptFileName)
+            }
+        let destinationRoot = URL(fileURLWithPath: choice.directory)
+
+        // The whole set of destinations is checked before the first copy: a package saved twice into
+        // the same place becomes "…-2" as a whole, never half of one and half of another.
+        let destination: URL
+        let prefix: String
+        if choice.createSubfolder {
+            let folder = SaveNaming.freeName(choice.folderName) { candidate in
+                sources.contains { source in
+                    FileManager.default.fileExists(
+                        atPath: destinationRoot.appendingPathComponent(candidate)
+                            .appendingPathComponent(source.lastPathComponent).path)
+                }
+            }
+            guard let folder else {
+                stackWindow?.setStatus(
+                    MacUiText.text(
+                        "В этой папке нет свободного имени для пакета. Выберите другую папку.",
+                        language: language), isError: true)
+                return
+            }
+            destination = destinationRoot.appendingPathComponent(folder)
+            prefix = ""
+        } else {
+            // Without a subfolder the files share the folder with whatever is already there, so the
+            // date of the package goes into every name; with one, the folder name already carries it.
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            let stamp = SaveNaming.freeName(formatter.string(from: now)) { candidate in
+                sources.contains { source in
+                    FileManager.default.fileExists(
+                        atPath: destinationRoot.appendingPathComponent(
+                            "\(candidate)-\(source.lastPathComponent)"
+                        ).path)
+                }
+            }
+            guard let stamp else {
+                stackWindow?.setStatus(
+                    MacUiText.text(
+                        "В этой папке нет свободного имени для пакета. Выберите другую папку.",
+                        language: language), isError: true)
+                return
+            }
+            destination = destinationRoot
+            prefix = "\(stamp)-"
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+            for source in sources {
+                try FileManager.default.copyItem(
+                    at: source, to: destination.appendingPathComponent(prefix + source.lastPathComponent))
+            }
+            stackWindow?.setStatus(StatusStrings.packageSaved, isError: false)
+        } catch {
+            stackWindow?.setStatus(
+                "\(MacUiText.text("Не удалось сохранить пакет", language: language)): \(error)", isError: true)
+        }
+    }
+
+    /// The save-package window, awaited: the choice it was closed with, or nil on every other way
+    /// out. Held in a property while it is up — a window controller nothing references goes away
+    /// with the run-loop turn that opened it.
+    private func askWherePackageGoes(now: Date) async -> SavePackageChoice? {
+        let sheet = SavePackageSheetController(settings: settings, now: now)
+        savePackageSheet = sheet
+        stackWindow?.beginTopmostSuspension()
+        let choice = await withCheckedContinuation { (continuation: CheckedContinuation<SavePackageChoice?, Never>) in
+            sheet.onClosed = { choice in continuation.resume(returning: choice) }
+            sheet.showWindow(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        stackWindow?.endTopmostSuspension()
+        savePackageSheet = nil
+        return choice
     }
 
     private func prepareExportForMenu() async -> PreparedExport? {
@@ -168,9 +255,14 @@ extension AppCoordinator {
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.png, .jpeg]
         guard panel.runModal() == .OK else { return }
+        // S-2, port of `ImportFileAsync` (`EdgeStackWindow.xaml.cs:1060-1063`): the strip is asked
+        // after the dialog and before the first file, and a selection larger than the free places
+        // takes the first of them — the toast about the limit replaces the one about what was added.
+        guard stackWindow?.stripIsFull() != true else { return }
+        let free = SentCaptureRules.maxStripCaptures - workspace.session.captures.count
 
         var imported = 0
-        for url in panel.urls {
+        for url in panel.urls.prefix(free) {
             do {
                 guard let image = ImageCodec.loadImage(at: url) else {
                     throw SnapikError.invalidData("Unsupported image file.")
@@ -191,6 +283,8 @@ extension AppCoordinator {
     }
 
     func importFromClipboard() async {
+        // S-2: the fourth way of adding a capture asks the strip like the other three.
+        guard stackWindow?.stripIsFull() != true else { return }
         let pasteboard = NSPasteboard.general
         guard
             let objects = pasteboard.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage],
@@ -234,7 +328,7 @@ extension AppCoordinator {
                 throw SnapikError.invalidData("no screen frame")
             }
             try FastSaveService.save(frame.image, settings: settings)
-            // Finding 4: gate on "Уведомления о копировании и сохранении".
+            // Finding 4: gate on "Показывать уведомления".
             if settings.showNotifications { notificationService.notify("Снимок сохранён", language: language) }
         } catch {
             stackWindow?.setStatus(StatusStrings.couldNotSaveScreen("\(error)"), isError: true)

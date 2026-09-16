@@ -35,13 +35,13 @@ enum SmokeTestRunner {
             overallSuccess = overallSuccess && condition
         }
 
-        // 0a. Bundled capture-feedback WAV headers (SPEC-DELTA-2.md §1.6, checked first per the
-        // Windows `SmokeTestRunner.cs`'s "VerifyWaveHeaders() first").
+        // 0a. The three bundled sounds (G-11), checked first per the Windows `SmokeTestRunner.cs`'s
+        // "VerifyAssets() first".
         do {
-            try CaptureFeedbackSound.verifyWaveHeaders()
-            check("wav headers", true)
+            try UiSoundService.verifyAssets()
+            check("mp3 sounds shipped", true)
         } catch {
-            check("wav headers", false)
+            check("mp3 sounds shipped", false)
         }
 
         let usedExplicitRoot = options.dataDirectory != nil

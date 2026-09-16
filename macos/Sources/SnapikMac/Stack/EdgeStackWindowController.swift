@@ -431,7 +431,8 @@ final class EdgeStackWindowController: NSWindowController {
     private func clearStackFromUser() {
         guard confirmSessionDiscard(), let coordinator else { return }
         Task { @MainActor [weak self] in
-            guard await coordinator.startNewSession() else { return }
+            // Clearing gives the clipboard back; a rotation does not (S-12, `ClearStackAsync`).
+            guard await coordinator.clearStack() else { return }
             guard let self else { return }
             self.softLimitWarned = false
             self.reveal()
@@ -505,9 +506,9 @@ extension EdgeStackWindowController: EdgeStackContentViewDelegate {
     }
 
     /// Port of `OnCaptureThumbMouseEnter`/`OnCaptureListMouseWheel` (SPEC-DELTA-2 §1.6): the
-    /// hover/scroll tick, throttled and suppressed after the shutter by `CaptureFeedbackSound` itself.
+    /// hover/scroll tick, throttled and suppressed after the shutter by `UiSoundService` itself.
     func edgeStackContentDidRequestTickSound(_ view: EdgeStackContentView) {
-        CaptureFeedbackSound.tick(enabled: coordinator?.settings.playSounds ?? true)
+        UiSoundService.tick(coordinator?.settings ?? .default)
     }
 
     func edgeStackContentDidChangeContentHeight(_ view: EdgeStackContentView) {

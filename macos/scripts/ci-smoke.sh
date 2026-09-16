@@ -20,6 +20,16 @@ echo "== 1. --smoke-test =="
 "$BIN" --smoke-test --data-dir "$DATA" > "$OUT/smoke-test.log" 2>&1; RC=$?
 cat "$OUT/smoke-test.log"; echo "smoke-test exit code: $RC"
 
+echo "== 1b. bundled sounds (G-11) =="
+# The three mp3 are checked from inside the app by `UiSoundService.verifyAssets`; what only the
+# bundle can answer is that the two camera WAVs they replaced are really gone from it.
+for sound in shutter-1-039s.mp3 click-tiny-005s.mp3 notify-soft-040.mp3; do
+  if [ -f "$APP/Contents/Resources/$sound" ]; then echo "shipped $sound"; else echo "missing $sound"; RC=1; fi
+done
+for gone in camera-shutter.wav camera-dial-click.wav; do
+  if [ -f "$APP/Contents/Resources/$gone" ]; then echo "still shipped $gone"; RC=1; else echo "gone $gone"; fi
+done
+
 echo "== 2. TCC grants (best effort) =="
 grant() { # db service client
   local db="$1" svc="$2" cli="$3"

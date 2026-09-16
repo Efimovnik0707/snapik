@@ -110,7 +110,11 @@ extension SmokeTestRunner {
         // lines that stayed Russian are named in the report instead.
         check(
             "the English wizard shows no Russian"
-                + (cyrillic.isEmpty ? "" : ": \(cyrillic.joined(separator: " · "))"),
+                + (cyrillic.isEmpty
+                    ? ""
+                    : ": "
+                        + cyrillic.map { "\($0) → \(MacUiText.text($0, language: "en"))" }
+                        .joined(separator: " · ")),
             cyrillic.isEmpty)
         wizard.applyLanguage("ru")
 

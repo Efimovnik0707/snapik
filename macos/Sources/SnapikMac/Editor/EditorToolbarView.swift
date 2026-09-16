@@ -347,11 +347,12 @@ final class EditorToolbarView: NSView {
         fontSizeButton = ToolbarValueButtonView(width: 64, tooltip: EditorStrings.fontSize(language))
         commentButton = toggle(.comment, EditorIcon.comment)
         shortcutSheetButton = ToolbarActionButtonView(symbolName: EditorIcon.shortcutSheet, tooltip: EditorStrings.shortcutSheet(language), width: 30)
-        // Undo/redo/save show the Mac keyboard mapping (§7.6: Cmd+Z / Shift+Cmd+Z); Save's
-        // "(Cmd+S)" already comes from `MacUiText`'s override of `saveToComputer`.
+        // Undo/redo/save show the Mac keyboard mapping (§7.6: Cmd+Z / Shift+Cmd+Z / Cmd+S), appended
+        // here to the pair Windows carries without keys in it.
         undoButton = ToolbarActionButtonView(symbolName: EditorIcon.undo, tooltip: "\(EditorStrings.undo(language)) (Cmd+Z)")
         redoButton = ToolbarActionButtonView(symbolName: EditorIcon.redo, tooltip: "\(EditorStrings.redo(language)) (Shift+Cmd+Z)")
-        saveButton = ToolbarActionButtonView(symbolName: EditorIcon.save, tooltip: EditorStrings.saveToComputer(language))
+        saveButton = ToolbarActionButtonView(
+            symbolName: EditorIcon.save, tooltip: "\(EditorStrings.saveToComputer(language)) (Cmd+S)")
         doneButton = ToolbarActionButtonView(text: EditorStrings.done(language), filledBackground: EditorTheme.accent, bold: true)
 
         super.init(frame: .zero)

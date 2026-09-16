@@ -4,7 +4,7 @@ import SnapikCore
 import UserNotifications
 
 /// Shows a transient system notification for "Снимок сохранён" / "Снимки скопированы" when the
-/// "Уведомления о копировании и сохранении" setting is on. Permission is requested lazily, on the
+/// "Показывать уведомления" setting is on. Permission is requested lazily, on the
 /// first notification, not at startup (SPEC §9.9). Denial is not an error: the setting stays on,
 /// notifications simply do not appear.
 final class NotificationService {

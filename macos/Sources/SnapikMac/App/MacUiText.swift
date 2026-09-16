@@ -1,13 +1,14 @@
-// macOS-adapted overrides for the 3 UI strings that need a different wording than Windows,
+// macOS-adapted overrides for the UI strings whose Windows wording names Windows itself,
 // SPEC §1.20 "Три строки требуют адаптации на macOS".
 import Foundation
 import SnapikCore
 
-/// Wraps `UiLanguage.text(_:language:)`, substituting the three macOS-specific strings before
-/// delegating everything else to Core's dictionary verbatim.
+/// Wraps `UiLanguage.text(_:language:)`, substituting the macOS-specific strings before delegating
+/// everything else to Core's dictionary verbatim. The row that carried "(Ctrl+S)" left with the pair
+/// behind it (SPEC-DELTA-3 §3.3): the shortcut is appended where the tooltip is built, so the shared
+/// table holds "Сохранить на компьютер" alone, as Windows does.
 enum MacUiText {
     private static let overrides: [String: (ru: String, en: String)] = [
-        "Сохранить на компьютер (Ctrl+S)": ("Сохранить на компьютер (Cmd+S)", "Save to computer (Cmd+S)"),
         "Свернуть в трей": ("Свернуть в меню-бар", "Hide to menu bar"),
         "Запускать с Windows": ("Запускать при входе", "Start at login"),
     ]

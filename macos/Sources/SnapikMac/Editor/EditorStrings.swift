@@ -53,7 +53,9 @@ enum EditorStrings {
     static func removeComment(_ language: String) -> String { text("Удалить комментарий", language: language) }
     static func undo(_ language: String) -> String { text("Отменить", language: language) }
     static func redo(_ language: String) -> String { text("Повторить", language: language) }
-    static func saveToComputer(_ language: String) -> String { text("Сохранить на компьютер (Ctrl+S)", language: language) }
+    /// The pair Windows carries, without the keys in it: the shortcut is appended by whoever shows a
+    /// tooltip, the way "Отменить (Cmd+Z)" is built (`EditorToolbarView`).
+    static func saveToComputer(_ language: String) -> String { text("Сохранить на компьютер", language: language) }
     static func done(_ language: String) -> String { text("Готово", language: language) }
 
     // Key cheat sheet (SPEC-DELTA-3 §1.4 E-19)

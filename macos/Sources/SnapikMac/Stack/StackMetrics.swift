@@ -116,8 +116,8 @@ enum StackMetrics {
     }
 }
 
-/// The palette and the accent as the strip reads them: through `ThemeService`, never through the
-/// hard-coded `DarkPalette` this zone used before (SPEC-DELTA-3 §1.5, wave 0 notes).
+/// The palette and the accent as the strip reads them: through `ThemeService` and the pair the user
+/// picked, never through colours written into this zone (SPEC-DELTA-3 §1.5 G-1, G-2).
 enum StackTheme {
     static var palette: ThemePalette { ThemeService.palette(ThemeService.currentTheme) }
     static var accent: AccentTokens { ThemeService.accent(ThemeService.currentAccent) }

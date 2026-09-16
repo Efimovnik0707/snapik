@@ -65,7 +65,7 @@ extension AppCoordinator: OverlayEditorDelegate {
                 // brand-new capture (not a re-edit of an existing one), right after the package is
                 // copied to the clipboard.
                 if isNewCapture {
-                    CaptureFeedbackSound.capture(enabled: self.settings.playSounds)
+                    UiSoundService.capture(self.settings)
                     await self.autoSave(committed)
                 }
                 self.stackWindow?.reveal()
@@ -112,7 +112,7 @@ extension AppCoordinator: OverlayEditorDelegate {
 
     /// Port of the "Сохранить на компьютер" notification (SPEC §1.15).
     func overlayEditor(_ editor: OverlayEditorController, didSaveFileAt url: URL) {
-        // Finding 4: the "Уведомления о копировании и сохранении" setting was only read by the
+        // Finding 4: the "Показывать уведомления" setting was only read by the
         // settings UI, never actually gating a notification.
         guard settings.showNotifications else { return }
         notificationService.notify("Снимок сохранён", language: language)

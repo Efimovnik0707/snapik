@@ -96,6 +96,9 @@ final class AppCoordinator {
     /// The wizard while it is on screen: an `NSWindowController` nothing holds goes away with the
     /// run-loop turn that opened it.
     private var onboarding: OnboardingWindowController?
+    /// The save-package window while it is on screen, held for the same reason. `internal` (not
+    /// `private`): set from `AppCoordinator+Package.swift`.
+    var savePackageSheet: SavePackageSheetController?
 
     init(options: CommandLineOptions) {
         self.options = options
@@ -324,6 +327,16 @@ final class AppCoordinator {
         // can never stand up a second overlay while one is already up.
         guard overlay == nil else { return }
 
+        // S-2, port of `CaptureLoopAsync`'s first line (`EdgeStackWindow.xaml.cs:558`): asked before
+        // anything is hidden, so a twenty-seventh press never opens the editor over a capture that
+        // has nowhere to go. The toast is the strip's, and the strip is left on the screen to carry
+        // it, which is what the Windows `finally` does for the same branch.
+        guard stackWindow?.stripIsFull() != true else {
+            captureSeriesPreviousApp = nil
+            stackWindow?.reveal()
+            return
+        }
+
         // R8 fix: remember the pre-chain frontmost app once, at the very start of a "+ Снимок"
         // series; every controller in the chain gets the same value (see
         // `previousFrontmostApplicationOverride`'s doc comment).
@@ -356,6 +369,11 @@ final class AppCoordinator {
 
     // `internal` (not `private`): called from `AppCoordinator+Package.swift`'s `saveFullscreen`.
     func captureDesktopFrame() async -> DesktopFrame? {
+        // [ТЗ№4 C7] The other end of `hideAllOwnWindows`: whichever way this call leaves, our
+        // windows go back to being seen by every screenshot but ours. Harmless where no capture of
+        // ours was ever begun — `endOwnCapture` answers to nothing then.
+        defer { WindowCaptureExclusion.endOwnCapture() }
+
         // Port of SPEC §9.1's permission check, moved here (the single gate every real capture
         // path — hotkey capture, thumbnail re-open, fullscreen save — goes through) so it never
         // fires at app startup or during `--demo` (CONTRACTS.md "Shell").
@@ -384,6 +402,11 @@ final class AppCoordinator {
     /// visible window out and let the run loop flush before the delayed capture.
     // `internal` (not `private`): called from `AppCoordinator+Package.swift`'s `saveFullscreen`.
     func hideAllOwnWindows() {
+        // [ТЗ№4 C7] Our own frame is about to be taken: every window of ours drops out of it for the
+        // length of the capture and comes back into every other capture in the world straight after
+        // (`captureDesktopFrame`). Put on before the windows are ordered out, because a window that
+        // is already gone cannot be given a sharing type.
+        WindowCaptureExclusion.beginOwnCapture()
         for window in NSApplication.shared.windows where window.isVisible {
             window.orderOut(nil)
         }
@@ -452,6 +475,9 @@ final class AppCoordinator {
     }
 
     func restoreRemoved() async {
+        // S-2: bringing a capture back is a way of adding one, and the strip is asked before the
+        // capture leaves the undo stack — a refused restore must stay restorable.
+        guard stackWindow?.stripIsFull() != true else { return }
         guard let removed = removedStack.popLast() else { return }
         do {
             try workspace.insertCapture(removed.capture, at: removed.index)
@@ -505,6 +531,54 @@ final class AppCoordinator {
         } catch {
             stackWindow?.setStatus(StatusStrings.couldNotStartNewSession("\(error)"), isError: true)
             return false
+        }
+    }
+
+    /// Port of `ClearStackAsync` (`EdgeStackWindow.xaml.cs:1466-1515`), S-12/C-15: the strip is
+    /// emptied and the clipboard is given back first — the package published from it is a list of
+    /// paths into the session that is being left behind, and nothing is waiting to rebuild it.
+    /// A rotation (`startNewSession`) is the other thing entirely: it keeps the package on the
+    /// clipboard so the same set can be pasted again elsewhere.
+    ///
+    /// `clipboardGateHeld` is the "очищать ленту после вставки" path, which runs inside
+    /// `completePasteIntent`'s critical section and already holds the gate.
+    @discardableResult
+    func clearStack(clipboardGateHeld: Bool = false) async -> Bool {
+        if clipboardGateHeld { return await clearStackCore() }
+        await clipboardPublicationGate.wait()
+        defer { clipboardPublicationGate.release() }
+        return await clearStackCore()
+    }
+
+    private func clearStackCore() async -> Bool {
+        guard !isSessionResetting else { return false }
+        await releaseOwnedClipboard()
+        return await startNewSession()
+    }
+
+    /// Port of `ReleaseOwnedClipboardCoreAsync` (`:1520-1533`): the package lives on the clipboard
+    /// until the next capture or until the strip is cleared, and only while the clipboard still
+    /// holds our own write — a package another application has already replaced is not ours to
+    /// erase.
+    private func releaseOwnedClipboard() async {
+        defer {
+            ownedClipboardReceipt = nil
+            ownedClipboardPromptText = nil
+        }
+        guard let receipt = ownedClipboardReceipt else { return }
+        let stillOurs = await withCheckedContinuation { continuation in
+            clipboard.capture { continuation.resume(returning: $0.sequence == receipt.sequence) }
+        }
+        guard stillOurs else { return }
+        do {
+            _ = try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<ClipboardSnapshot, Error>) in
+                clipboard.setTextGuarded(text: "", expectedSequence: receipt.sequence) { result in
+                    continuation.resume(with: result)
+                }
+            }
+        } catch {
+            logPasteIntent("Clear strip: the clipboard was not released: \(error)")
         }
     }
 
