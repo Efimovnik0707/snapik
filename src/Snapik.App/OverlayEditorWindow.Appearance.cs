@@ -702,9 +702,11 @@ public partial class OverlayEditorWindow
     }
 
     // The editor window is created again for every capture, so what the panel remembers lives in the
-    // settings file: the colour, the thickness, the size of the letters, the palette and the pencil.
-    // The frame, its fill and the colour of that fill are not remembered; every capture starts with
-    // a rectangle, an outline and nothing inside it.
+    // settings file. Rule 6: every tool remembers a set of its own, the frame its fill and the
+    // colour of that fill among them — ToolAppearanceStore writes the six of them and the mirror
+    // 1.5.0 reads. The palette, the own row of colours and the mode of the pencil are not by tool:
+    // they are the state of the panel, and this is the one place that writes them, so they have to
+    // go into the same record on their way out.
     private void SaveAppearanceDefaults()
     {
         try
@@ -712,13 +714,8 @@ public partial class OverlayEditorWindow
             var path = _workspace.SettingsPath;
             // Load-modify-write over a file that exists but cannot be read would drop every other setting.
             if (!HotkeySettings.TryLoad(path, out var stored)) return;
-            var frame = AppearanceOf(EditorTool.Rectangle);
-            var settings = stored with
+            var settings = ToolAppearanceStore.Write(stored, _tools) with
             {
-                AnnotationColor = $"#{frame.Color.R:X2}{frame.Color.G:X2}{frame.Color.B:X2}",
-                AnnotationThickness = Math.Clamp(frame.Thickness, 1, 16),
-                AnnotationHighlightThickness = Math.Clamp(AppearanceOf(EditorTool.Highlight).Thickness, MinimumHighlightThickness, MaximumHighlightThickness),
-                AnnotationFontSize = TextMarkMetrics.Clamp(AppearanceOf(EditorTool.Text).FontSize),
                 AnnotationPalette = _activePalette.Id,
                 CustomPaletteColors = [.. _customColors],
                 AnnotationPencil = _activePencil == EditorTool.Highlight ? "highlight" : "pen"

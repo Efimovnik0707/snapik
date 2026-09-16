@@ -513,6 +513,124 @@ public partial class OverlayEditorWindow : Window
     }
 
     /// <summary>
+    /// Rule 6, the test the specification asks for by name. The seven steps are Катя's, word for
+    /// word: a green frame with a translucent red fill, a blue dashed arrow, white letters of 20, a
+    /// yellow highlighter — and the frame again, giving back its own green outline and its own
+    /// translucent red fill, in the model, on the panel and in the mark it draws. Then the editor is
+    /// closed and a second one is opened on a new capture over the same workspace, and it all holds.
+    /// </summary>
+    internal static void RunToolMemoryProbe(CaptureItem source)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Snapik", $"tool-memory-probe-{Guid.NewGuid():N}");
+        var workspace = new SessionWorkspace(root);
+        Color Parse(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+        var green = Parse("#34C759");
+        var red = Parse("#FF3B30");
+        var blue = Parse("#007AFF");
+        var yellow = Parse("#FFCC00");
+        var translucentRed = Color.FromArgb(0x40, red.R, red.G, red.B);
+
+        OverlayEditorWindow Open()
+        {
+            var capture = source.DeepClone();
+            var frame = new DesktopFrame(capture.Image, 0, 0, capture.Image.PixelWidth, capture.Image.PixelHeight);
+            var window = new OverlayEditorWindow(workspace, frame, 0, capture) { Width = 1280, Height = 720 };
+            window.Measure(new Size(1280, 720));
+            window.Arrange(new Rect(0, 0, 1280, 720));
+            window._cropRect = new Rect(120, 90, 900, 506);
+            window.SetupEditor();
+            // The canvas is laid out by hand: a window that was never shown does not give its
+            // Canvas layer an arrange pass, and a gesture is measured against the picture inside it.
+            window.Surface.Measure(new Size(window._cropRect.Width, window._cropRect.Height));
+            window.Surface.Arrange(new Rect(0, 0, window._cropRect.Width, window._cropRect.Height));
+            return window;
+        }
+
+        // Step 5, and step 7 is the same one after a restart: the frame gives back everything it was
+        // given, and the panel shows what the model holds.
+        void FrameGivesItBack(OverlayEditorWindow window, string when)
+        {
+            window.SelectToolMode(EditorTool.Rectangle);
+            var kept = window.AppearanceOf(EditorTool.Rectangle);
+            if (kept.Color != green || kept.Fill != Snapik.Core.Models.AnnotationFill.Translucent ||
+                kept.FillColor != red || kept.Thickness != 4)
+                throw new InvalidOperationException($"The frame must remember its own outline, fill and width {when}: {kept}.");
+            if (((SolidColorBrush)window.StrokeDot.Fill).Color != green)
+                throw new InvalidOperationException($"The circle of the panel must show the green outline {when}.");
+            if (window.FillSquare.Background is not SolidColorBrush swatch || swatch.Color != translucentRed)
+                throw new InvalidOperationException($"The square of the panel must show the translucent red fill {when}: {window.FillSquare.Background}.");
+            if (window.LineCapsuleValue.Text != "4 px")
+                throw new InvalidOperationException($"The line capsule must show the four pixels of the frame {when}: \"{window.LineCapsuleValue.Text}\".");
+            if (window.Surface.ActiveColor != green || window.Surface.ActiveFill != Snapik.Core.Models.AnnotationFill.Translucent ||
+                window.Surface.ActiveFillColor != red || window.Surface.ActiveThickness != 4)
+                throw new InvalidOperationException($"The next frame must be drawn with what the frame remembers {when}.");
+        }
+
+        try
+        {
+            var first = Open();
+            try
+            {
+                first.SelectToolMode(EditorTool.Rectangle);
+                first.ApplyAppearance(green, 4, fill: Snapik.Core.Models.AnnotationFill.Translucent, fillColor: red);
+                first.SelectToolMode(EditorTool.Arrow);
+                first.ApplyAppearance(blue, null, lineStyle: Snapik.Core.Models.AnnotationLineStyle.Dashed);
+                first.SelectToolMode(EditorTool.Text);
+                first.ApplyAppearance(Colors.White, null, fontSize: 20);
+                first.SelectToolMode(EditorTool.Highlight);
+                first.ApplyAppearance(yellow, null);
+                FrameGivesItBack(first, "while the editor is open");
+                // And the other three kept theirs, side by side instead of over each other.
+                if (first.AppearanceOf(EditorTool.Arrow) is not { LineStyle: Snapik.Core.Models.AnnotationLineStyle.Dashed } arrow || arrow.Color != blue ||
+                    first.AppearanceOf(EditorTool.Text).Color != Colors.White || first.AppearanceOf(EditorTool.Text).FontSize != 20 ||
+                    first.AppearanceOf(EditorTool.Highlight).Color != yellow)
+                    throw new InvalidOperationException("The arrow, the caption and the highlighter must each keep a set of their own.");
+
+                // Step 6: the mark a gesture draws carries the set of the tool that drew it.
+                var box = new Size(first.Surface.ActualWidth, first.Surface.ActualHeight);
+                if (box.Width < 100 || box.Height < 100)
+                    throw new InvalidOperationException($"The canvas of the probe was never laid out: {box}.");
+                // The picture is placed inside OnRender, and a gesture is measured against it.
+                new System.Windows.Media.Imaging.RenderTargetBitmap((int)box.Width, (int)box.Height, 96, 96, PixelFormats.Pbgra32).Render(first.Surface);
+                first.Surface.BeginGesture(new Point(box.Width * 0.2, box.Height * 0.2));
+                first.Surface.UpdateGesture(new Point(box.Width * 0.6, box.Height * 0.7), pressed: true);
+                first.Surface.EndGesture();
+                if (first._capture!.Annotations.LastOrDefault(mark => mark.Kind == EditorTool.Rectangle) is not { } drawn)
+                    throw new InvalidOperationException($"The gesture of the probe drew no frame at all on a canvas of {box}.");
+                if (drawn.Color != green || drawn.Fill != Snapik.Core.Models.AnnotationFill.Translucent ||
+                    drawn.FillColor != red || drawn.Thickness != 4)
+                    throw new InvalidOperationException($"A frame drawn by hand must carry what the frame remembers: {drawn.Color}, {drawn.Fill}, {drawn.FillColor}, {drawn.Thickness}.");
+
+                // The palette, the own row of colours and the mode of the pencil are not by tool, and
+                // this is the one place that writes them: they must survive the new key beside them.
+                first.SelectPalette(ParseAnnotationPalette("neon"));
+                first.RememberCustomColor(green);
+                first.SetPencilMode(EditorTool.Highlight);
+                first.FlushAppearanceDefaults();
+            }
+            finally { first.Close(); }
+
+            var settings = HotkeySettings.Load(workspace.SettingsPath);
+            if (settings.AnnotationPalette != "neon" || settings.CustomPaletteColors.FirstOrDefault() != "#34C759" ||
+                settings.AnnotationPencil != "highlight")
+                throw new InvalidOperationException("The palette, the own row and the mode of the pencil must be written beside the tools.");
+            // The mirror 1.5.0 reads: a build that knows nothing of the new key still opens the file
+            // with the colour and the width of the frame, the width of the highlighter and the size.
+            if (settings.AnnotationColor != "#34C759" || settings.AnnotationThickness != 4 || settings.AnnotationFontSize != 20)
+                throw new InvalidOperationException($"The old common keys must go on mirroring the frame and the caption: {settings.AnnotationColor}, {settings.AnnotationThickness}, {settings.AnnotationFontSize}.");
+
+            // Step 7: a new capture, a new window, the same workspace.
+            var second = Open();
+            try { FrameGivesItBack(second, "after the editor was closed and opened again"); }
+            finally { second.Close(); }
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
     /// How a capture is shown: one that holds the working area together with the panel stands at
     /// its own size, one of two monitors is fitted into it, Ctrl and the wheel take the fitted one
     /// into a scale of its own, and there the pill of a mark scrolled off the capture is put away.
