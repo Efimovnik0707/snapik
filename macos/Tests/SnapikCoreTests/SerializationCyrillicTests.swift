@@ -89,8 +89,17 @@ final class SerializationCyrillicTests: XCTestCase {
     func test_the_table_carries_the_rows_this_round_took_in_their_target_shape() {
         // SPEC-DELTA-3 §3.4: the pairs the Mac port takes as ТЗ №4 leaves them, not as 1.4.0 had them.
         XCTAssertEqual("Light · Dawn", UiLanguage.text("Светлая · Рассвет", language: "en"))
-        XCTAssertEqual("Dawn", UiLanguage.text("Рассвет", language: "en"))
-        XCTAssertEqual("Whole-screen capture", UiLanguage.text("Снимок всего экрана", language: "en"))
+        // The name of the theme travels in the pair above and nowhere else now (SPEC-DELTA-4 §3.4).
+        XCTAssertEqual("Рассвет", UiLanguage.text("Рассвет", language: "en"))
+        XCTAssertEqual("Capture the whole screen", UiLanguage.text("Снимок всего экрана", language: "en"))
+        // The eleven rows of the 1.5.0 round, first and last of them.
+        XCTAssertEqual("Take the tour again", UiLanguage.text("Пройти знакомство заново", language: "en"))
+        XCTAssertEqual("whole screen", UiLanguage.text("весь экран", language: "en"))
+        XCTAssertEqual(
+            "Add the colour to my palette",
+            UiLanguage.text("Добавить цвет в свою палитру", language: "en"))
+        // The frame row left with the switch it named (§3.4).
+        XCTAssertEqual("Рамка", UiLanguage.text("Рамка", language: "en"))
         XCTAssertEqual(
             "The system keeps this shortcut",
             UiLanguage.text("Это сочетание занято системой", language: "en"))

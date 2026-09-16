@@ -69,13 +69,12 @@ public enum UiLanguage {
         ("бирюзово-синий", "cyan to blue"),
         ("Тёмная", "Dark"),
         // [ТЗ№4 B1] There is no light theme of its own any more: the card that carried it is the
-        // dawn one, and `Рассвет` below stays the name of that theme.
+        // dawn one, and the name of the theme lives in this pair alone (SPEC-DELTA-4 §3.4).
         ("Светлая · Рассвет", "Light · Dawn"),
         ("Стекло", "Glass"),
         ("Ночь", "Night"),
         ("Закат", "Sunset"),
         ("Море", "Sea"),
-        ("Рассвет", "Dawn"),
         ("Тема: {0}", "Theme: {0}"),
         ("Предыдущая тема", "Previous theme"),
         ("Следующая тема", "Next theme"),
@@ -86,7 +85,7 @@ public enum UiLanguage {
         ("Сделать скриншот", "Take a screenshot"),
         // [ТЗ№4 C8, E1] The shortcut saves the whole screen wherever the captures go, and the row
         // says what it takes rather than where it puts it (`tasks/tz-005-plan.md` §3).
-        ("Снимок всего экрана", "Whole-screen capture"),
+        ("Снимок всего экрана", "Capture the whole screen"),
         ("Формат", "Format"),
         ("Папка сохранения", "Save folder"),
         ("Выбрать папку", "Choose folder"),
@@ -175,7 +174,6 @@ public enum UiLanguage {
         ("Сплошная заливка", "Solid fill"),
         ("Полупрозрачная заливка", "Translucent fill"),
         ("Заливка размытием", "Blurred fill"),
-        ("Рамка", "Frame"),
         ("Цвет заливки", "Fill color"),
         ("Сохранить на компьютер", "Save to computer"),
         ("Свернуть в трей", "Hide to tray"),
@@ -443,6 +441,19 @@ public enum UiLanguage {
             "Лишний снимок — крестик. Всё сразу — «Очистить».",
             "One capture too many: the cross. All of them: \"Clear\"."
         ),
+        // The strings of the 1.5.0 round: the wizard link in the settings, the empty strip, the chip
+        // of a card and the caption of the editor, the scale switch and the button of the palette.
+        ("Пройти знакомство заново", "Take the tour again"),
+        ("Нажми {0} или «Новый снимок»", "Press {0} or \"New capture\""),
+        ("Нажми «Новый снимок»", "Press \"New capture\""),
+        ("экран", "screen"),
+        ("импорт", "import"),
+        ("Не удалось снять экран", "The screen could not be captured"),
+        ("весь экран", "whole screen"),
+        ("мониторов: {0}", "monitors: {0}"),
+        ("По ширине · {0} %", "Fit width · {0} %"),
+        ("По высоте · {0} %", "Fit height · {0} %"),
+        ("Добавить цвет в свою палитру", "Add the colour to my palette"),
         // SPEC-DELTA-3 §3.3: the last pair Windows no longer has. The strip still says this after a
         // paste, because the package really does stay on the clipboard here: the Windows wording
         // ("снимки помечены как отправленные") belongs to T-5, which this sync did not carry over,
