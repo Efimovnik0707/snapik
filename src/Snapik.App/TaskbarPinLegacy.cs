@@ -19,9 +19,10 @@ internal static class TaskbarPinLegacy
     internal const string LegacyShortcutName = "SnapBrief.lnk";
 
     /// <summary>
-    /// The identity of the application. The same string <c>TaskbarPinService.AppUserModelId</c> and
-    /// the shortcuts of the installer carry; it is written out here because this file is read by the
-    /// tests, and the service beside it cannot be.
+    /// The identity of the application, and the only place it is written out. The shortcuts of the
+    /// installer carry the same value; <c>TaskbarPinService.AppUserModelId</c> is this constant
+    /// under its own name. It lives here and not there because this file is read by the tests, and
+    /// the service beside it cannot be.
     /// </summary>
     internal const string AppUserModelId = "YesWorkflow.Snapik";
 

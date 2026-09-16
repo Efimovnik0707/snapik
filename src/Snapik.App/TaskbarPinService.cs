@@ -19,11 +19,13 @@ namespace Snapik.App;
 internal static class TaskbarPinService
 {
     /// <summary>
-    /// The identity of the application, the one string this is written in. The shortcuts of the
+    /// The identity of the application, one string for the whole application. The shortcuts of the
     /// installer carry the same value in <c>System.AppUserModel.ID</c>; without that, the pinned
-    /// icon and the running window are two different applications to the taskbar.
+    /// icon and the running window are two different applications to the taskbar. The string itself
+    /// is written out in <see cref="TaskbarPinLegacy"/>, the file the tests can read; this is the
+    /// same constant under the name the rest of the service already uses.
     /// </summary>
-    internal const string AppUserModelId = "YesWorkflow.Snapik";
+    internal const string AppUserModelId = TaskbarPinLegacy.AppUserModelId;
 
     /// <summary>Set this to "off" to walk the branch where pinning fails, without breaking anything.</summary>
     private const string OverrideVariable = "SNAPIK_TASKBAR_PIN";
