@@ -122,9 +122,9 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
             {
                 case AnnotationKind.Rectangle:
                     var ownFill = ParseFillColor(item.FillColor);
-                    // The same rule as on the canvas: the outline of a filled box takes the colour of
-                    // the fill, a blurred one has none, and the pen only lends its thickness and pattern.
-                    var outline = Controls.AnnotationRules.OutlineColorOf(item.Fill, color, ownFill);
+                    // The same rule as on the canvas: the outline keeps the colour of the mark, a
+                    // blurred one has none, and the pen only lends its thickness and its pattern.
+                    var outline = Controls.AnnotationRules.OutlineColorOf(item.Fill, color);
                     var outlinePen = outline is { } oc ? new Pen(new SolidColorBrush(oc), pen.Thickness) { DashStyle = pen.DashStyle } : null;
                     Controls.AnnotationCanvas.DrawBoxShape(dc, Controls.AnnotationCanvas.ShapeFillBrush(ownFill ?? color, item.Fill),
                         outlinePen, item.Shape, rect, 1);

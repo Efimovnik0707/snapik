@@ -813,7 +813,7 @@ public sealed class AnnotationCanvas : FrameworkElement
     {
         // The pen arrives painted with the colour of the mark, so the outline of a filled box is
         // rebuilt here; the thickness and the pattern of the stroke come from that pen unchanged.
-        var outline = AnnotationRules.OutlineColorOf(item.Fill, item.Color, item.FillColor);
+        var outline = AnnotationRules.OutlineColorOf(item.Fill, item.Color);
         var outlinePen = outline is { } oc ? new Pen(new SolidColorBrush(oc), pen.Thickness) { DashStyle = pen.DashStyle } : null;
         DrawBoxShape(dc, ShapeFillBrush(item.FillColor ?? item.Color, item.Fill), outlinePen, item.Shape, rect, scale);
     }

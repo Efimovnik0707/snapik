@@ -11,15 +11,11 @@ namespace Snapik.App.Controls;
 /// </summary>
 internal static class AnnotationRules
 {
-    // The colour of the outline follows the fill: a solid or a translucent box outlines itself in
-    // the colour of its fill, so no separate frame is seen; a blurred one has no outline at all; an
-    // empty box keeps the colour of the mark. Null means "draw no outline".
-    internal static Color? OutlineColorOf(AnnotationFill fill, Color color, Color? fillColor) => fill switch
-    {
-        AnnotationFill.Blur => null,
-        AnnotationFill.Solid or AnnotationFill.Translucent => fillColor ?? color,
-        _ => color
-    };
+    // The outline is always drawn in the colour of the mark, whatever stands inside it: the stroke
+    // and the fill are two properties of their own, and a blurred region has no outline at all.
+    // Null means "draw no outline".
+    internal static Color? OutlineColorOf(AnnotationFill fill, Color color) =>
+        fill == AnnotationFill.Blur ? null : color;
 
     /// <summary>What a press of the mouse has landed on, before the canvas acts on it.</summary>
     internal enum PressTarget { Pan, Erase, CropDraft, Activate, CommentAnchor, ResizeHandle, Object, Empty }
