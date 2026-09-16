@@ -181,11 +181,43 @@ extension AppCoordinator {   // поля добавляет transport в AppCoor
 struct StackCaptureRow { let id: SBGuid; let label: String; let thumbnail: NSImage?; let noteCount: Int }
 extension EdgeStackWindowController { func setSelectedCapture(_ id: SBGuid?) }
 // Shell (core-shell), вызывается из Stack/ и App/
-enum CaptureFeedbackSound { static func capture(enabled: Bool); static func tick(enabled: Bool); static func verifyWaveHeaders() throws }
 enum AutoSaveService { static func save(capture: CaptureItem, displayLabel: String, sessionDirectory: URL, settings: HotkeySettings) throws -> URL }
 // Editor → Shell (smoke)
 extension AnnotationCanvasView { static func smokeVerifyHoverManipulation(image: CGImage) -> Bool }
 extension OverlayEditorController { func smokeRunNoteAffordanceProbe() -> Bool /* one-shot comment */; @discardableResult func smokeCreateComment(at point: CGPoint, note: String?) -> SBGuid? }
 // Imaging (editor), используется автосохранением
 enum ArrowDrawing { static func draw(in ctx: CGContext, from: CGPoint, to: CGPoint, color: CGColor, thickness: CGFloat, style: String); static func sampleImage(style: String, size: NSSize) -> NSImage }
+```
+
+## Дополнение sync 3 (2026-09-16): что перестало быть правдой выше
+
+Спека дельты: `SPEC-DELTA-3.md`. Заметки волны 0: `WAVE0-NOTES-3.md`.
+
+- **Предпросмотра нет.** `Sources/SnapikMac/Preview/**` удалён (S-1): клик по карточке ведёт в разметку через `AppCoordinator.openCapture`, `persistPreviewChanges` и проба `preview probe` не существуют.
+- **Тем шесть, светлой нет.** Цвета берутся у `ThemeService` (`App/Theme.swift`): шесть палитр, двенадцать акцентов, `light` нормализуется в `dark`. `DarkPalette` удалён; зоны `Stack/**`, `Settings/**`, `Onboarding/**` читают `ThemeService.palette`/`StackTheme`.
+- **Мастер — новая подсистема.** `Sources/SnapikMac/Onboarding/**`. Открывает его оболочка: `AppCoordinator.showOnboarding(howToOnly:)`, по правилу `OnboardingWindowController.shouldShowOnboarding(settingsFileExists:settings:demo:)` (`OnboardingVersion` в настройках, текущая версия 3). `onFinished` → `EdgeStackWindowController.reveal()`, кроме режима «Как пользоваться».
+- **Лента держит 26.** `EdgeStackWindowController.stripIsFull(adding:)` спрашивают все четыре точки добавления; координатор зовёт её через окно ленты.
+- **Настройки читаются на старте через миграцию.** `AppCoordinator.init` → `HotkeySettings.loadAndMigrate(path:)` (лечит битый id и версию **в файле**); `workspace.preferences` остаётся обычным чтением для всех остальных обращений.
+
+```swift
+// Shell (core-shell), вызывается из Stack/ и App/. Заменил CaptureFeedbackSound (G-10, G-11).
+enum UiSoundService {
+    static func capture(_ settings: HotkeySettings); static func tick(_ settings: HotkeySettings)
+    static func copied(_ settings: HotkeySettings); static func verifyAssets() throws
+}
+// Shell → Stack
+struct StackCaptureRow { …; let isSent: Bool }
+extension EdgeStackWindowController { @discardableResult func stripIsFull(adding: Int = 1) -> Bool; func workArea() -> NSRect; func collapseToCapsule(); func expandFromCapsule(); func beginTopmostSuspension(); func endTopmostSuspension() }
+// Shell → Onboarding / Settings
+extension AppCoordinator { let settingsFileExisted: Bool; func showOnboarding(howToOnly: Bool = false); @discardableResult func clearStack(clipboardGateHeld: Bool = false) async -> Bool }
+extension HotkeySettingsWindowController { var onOnboardingFinished: (() -> Void)? }
+final class SavePackageSheetController { init(settings: HotkeySettings, now: Date); var onClosed: ((SavePackageChoice?) -> Void)?; func validate() -> SavePackageChoice? }
+struct SavePackageChoice { let directory: String; let createSubfolder: Bool; let folderName: String }
+// Все пробы smoke сведены в SmokeTestRunner.run одним кодом выхода (W2-1)
+extension SmokeTestRunner {
+    static func stackProbes(options: CommandLineOptions) -> [(String, Bool)]
+    static func editorProbes(on controller: OverlayEditorController) -> [EditorSyncProbeResult]
+    static func editorProbesWithoutController(probeImage: CGImage) -> [EditorSyncProbeResult]
+    static func runSettingsAndOnboardingProbes(dataDirectory: URL) -> [(name: String, ok: Bool)]
+}
 ```
