@@ -23,6 +23,8 @@ extension SmokeTestRunner {
         let settings = HotkeySettingsWindowController(coordinator: coordinator)
         settings.window?.contentView?.layoutSubtreeIfNeeded()
         check("settings tabs", settings.smokeTabCount == 4)
+        // The frame Windows gives the same dialog (`HotkeySettingsWindow.xaml:3`).
+        check("settings window 620x520", settings.window?.frame.size == NSSize(width: 620, height: 520))
 
         settings.smokeSelectTab(3)
         settings.window?.contentView?.layoutSubtreeIfNeeded()

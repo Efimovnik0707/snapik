@@ -107,24 +107,36 @@ enum SmokeTestRunner {
             printScreen.windowsVirtualKey == 0x2C && pause.windowsVirtualKey == 0x13
                 && pause.label == "Pause / Break" && fallback.id == HotkeyIdentifier.fallback.id)
 
-        // 3. Settings window sizing/translation (point 3) and editor-internal probes for blur
-        // preview, resize handles, and the comment-chip affordance (points 6, 9, 10) — the only
-        // things that need `OverlayEditorController`'s `@MainActor` test hooks, run over an
-        // isolated workspace so they never interact with the fixture created in step 5 below.
+        // 2b. The settings window and the wizard (SPEC-DELTA-3 §1.7 K-3, K-4), each over a data
+        // directory of its own so neither meets the session of another step.
+        let settingsProbeRoot = root.appendingPathComponent("settings-probe", isDirectory: true)
+        for probe in await MainActor.run({ runSettingsAndOnboardingProbes(dataDirectory: settingsProbeRoot) }) {
+            check(probe.name, probe.ok)
+        }
+
+        // 2c. The strip (SPEC-DELTA-3 §1.7 K-1).
+        let stackProbeRoot = root.appendingPathComponent("stack-probe", isDirectory: true)
+        let stackProbeOptions = CommandLineOptions.parse(arguments: ["--data-dir", stackProbeRoot.path], environment: [:])
+        for probe in await MainActor.run({ stackProbes(options: stackProbeOptions) }) {
+            check(probe.0, probe.1)
+        }
+
+        // 3. Settings translation (point 3) and editor-internal probes for blur preview, resize
+        // handles, and the comment-chip affordance (points 6, 9, 10) — the only things that need
+        // `OverlayEditorController`'s `@MainActor` test hooks, run over an isolated workspace so
+        // they never interact with the fixture created in step 5 below.
         let editorProbeRoot = root.appendingPathComponent("editor-probe", isDirectory: true)
         let editorProbeOptions = CommandLineOptions.parse(arguments: ["--data-dir", editorProbeRoot.path], environment: [:])
-        let editorProbe = await MainActor.run { () -> EditorProbeResult in
+        let (editorProbe, editorSyncProbes) = await MainActor.run { () -> (EditorProbeResult, [EditorSyncProbeResult]) in
             var result = EditorProbeResult()
+            var syncProbes: [EditorSyncProbeResult] = []
 
             let probeCoordinator = AppCoordinator(options: editorProbeOptions)
-            let settingsController = HotkeySettingsWindowController(coordinator: probeCoordinator)
-            // SPEC-DELTA-2B.md §E4: the "Общие"/"Сохранение" tabs grew by one checkbox each, height 480 -> 520.
-            result.settingsSizeOk = settingsController.window?.frame.size == NSSize(width: 530, height: 520)
             result.translationOk =
                 MacUiText.text("Настройки", language: "en") == "Settings"
                 && MacUiText.text("Settings", language: "ru") == "Настройки"
 
-            guard let frame = try? DemoSessionFactory.syntheticDesktopFrame() else { return result }
+            guard let frame = try? DemoSessionFactory.syntheticDesktopFrame() else { return (result, syncProbes) }
             let context = EditorWorkspaceContext(
                 session: probeCoordinator.workspace.session, sessionDirectory: probeCoordinator.workspace.sessionDirectory,
                 assetStore: probeCoordinator.workspace.assetStore, nextCaptureIndex: 0,
@@ -163,11 +175,14 @@ enum SmokeTestRunner {
                     let restoredAnnotation = controller.smokeCurrentState()?.annotations.first(where: { $0.id.description == idString })
                     result.appearanceUndoOk = restoredAnnotation?.strokeColor == before.color && restoredAnnotation?.thickness == before.thickness
                 }
+
+                // The probes sync 3 added to the editor (SPEC-DELTA-3 §1.7 K-2): they want the same
+                // controller, already in markup, and report a row each.
+                syncProbes = editorProbes(on: controller)
             }
             controller.close()
-            return result
+            return (result, syncProbes)
         }
-        check("settings window 530x520", editorProbe.settingsSizeOk)
         check("settings translation round-trip", editorProbe.translationOk)
         check("editor region selection probe", editorProbe.regionSelectionOk)
         check("editor blur preview differs (point 6)", editorProbe.blurPreviewOk)
@@ -176,6 +191,7 @@ enum SmokeTestRunner {
         check("editor rectangle creation", editorProbe.rectangleCreationOk)
         check("editor appearance edit updates selected annotation (color+thickness)", editorProbe.appearanceEditOk)
         check("editor appearance undo restores pre-edit state in one step", editorProbe.appearanceUndoOk)
+        for probe in editorSyncProbes { check(probe.name, probe.passed) }
         // `editorProbeRoot` lives under `root` and is swept up by the final cleanup below.
 
         // 4. Three captures 1920x1080 (SPEC §8.4 point 5): A — demo image at 144 DPI with an arrow,
@@ -340,14 +356,16 @@ enum SmokeTestRunner {
             check("session rotation", false)
         }
 
-        // 7b. Editor hover-manipulation probe (SPEC-DELTA-2B.md §F). The preview probe left with
-        // the window it drove (SPEC-DELTA-3 §7 W0-6, S-1).
+        // 7b. The editor probes that need no controller behind them: hover manipulation
+        // (SPEC-DELTA-2B.md §F) and the spectrum (SPEC-DELTA-3 §1.4 E-9). The preview probe left
+        // with the window it drove (SPEC-DELTA-3 §7 W0-6, S-1).
         do {
             let probeImage = try makeCheckerboardImage(width: 480, height: 300)
-            let hoverOk = await MainActor.run { AnnotationCanvasView.smokeVerifyHoverManipulation(image: probeImage) }
-            check("hover manipulation", hoverOk)
+            for probe in await MainActor.run({ editorProbesWithoutController(probeImage: probeImage) }) {
+                check(probe.name, probe.passed)
+            }
         } catch {
-            check("hover manipulation", false)
+            check("editor probes without a controller", false)
         }
 
         // 8. Result file (SPEC §8.4 point 14).
@@ -378,7 +396,6 @@ enum SmokeTestRunner {
     // MARK: - Editor probe (SPEC §8.4 points 3, 6, 9, 10)
 
     private struct EditorProbeResult {
-        var settingsSizeOk = false
         var translationOk = false
         var regionSelectionOk = false
         var blurPreviewOk = false

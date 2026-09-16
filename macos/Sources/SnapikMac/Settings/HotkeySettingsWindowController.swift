@@ -78,9 +78,10 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
 
         let window = NSWindow(
             // SPEC-DELTA-2B.md §E4: height grows from 480 to 520 to fit the two new checkboxes.
-            // The fourth tab of SPEC-DELTA-3 G-3 does not change the frame: the "Вид" control scrolls
-            // inside its tab instead (`AppearanceTabView`).
-            contentRect: NSRect(x: 0, y: 0, width: 530, height: 520),
+            // The width is the one Windows gives the same dialog (`HotkeySettingsWindow.xaml:3`,
+            // 620x520): the "Вид" tab of SPEC-DELTA-3 G-3 fits in it whole, and its gallery pages by
+            // the chevrons on both builds alike, so nothing has to scroll here.
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 520),
             styleMask: [.borderless], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
