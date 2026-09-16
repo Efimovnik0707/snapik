@@ -340,10 +340,10 @@ public static class SmokeTestRunner
                 "The captures of this session will be deleted. To keep them, use \"Save package…\" in the ••• menu."),
             ("Snapik — Лента снимков", "Snapik — Capture strip"),
             // The strings of the 1.5.0 round that travel both ways: the wizard link of the settings,
-            // the chip of a card, the caption of the editor and the scale switch.
+            // the chip of a card and the caption of the editor. The two of the scale switch left
+            // with the switch itself.
             ("Пройти знакомство заново", "Take the tour again"), ("Светлая · Рассвет", "Light · Dawn"),
-            ("экран", "screen"), ("импорт", "import"), ("весь экран", "whole screen"),
-            ("По ширине · {0} %", "Fit width · {0} %"), ("По высоте · {0} %", "Fit height · {0} %")
+            ("экран", "screen"), ("импорт", "import"), ("весь экран", "whole screen")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");

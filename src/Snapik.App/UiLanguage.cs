@@ -193,8 +193,16 @@ internal static class UiLanguage
         ["экран"] = "screen", ["импорт"] = "import",
         ["Не удалось снять экран"] = "The screen could not be captured",
         ["весь экран"] = "whole screen", ["мониторов: {0}"] = "monitors: {0}",
-        ["По ширине · {0} %"] = "Fit width · {0} %", ["По высоте · {0} %"] = "Fit height · {0} %",
-        ["Добавить цвет в свою палитру"] = "Add the colour to my palette"
+        ["Добавить цвет в свою палитру"] = "Add the colour to my palette",
+        // The strings of the 1.6.0 round: the taskbar pin carried over from SnapBrief, the drag
+        // handle of the markup panel and the words of the properties block beside it.
+        ["На панели задач остался старый значок SnapBrief. Нажми на него правой кнопкой и выбери «Открепить от панели задач»"] =
+            "An old SnapBrief icon is still on the taskbar. Right-click it and choose \"Unpin from taskbar\"",
+        ["Старый значок SnapBrief теперь открывает Snapik"] = "The old SnapBrief icon opens Snapik now",
+        ["Подпись на панели задач обновится после перезахода в Windows"] = "The taskbar label will update after you sign out and back in",
+        ["Панель разметки"] = "Markup panel",
+        ["Обводка"] = "Stroke", ["Цвет обводки"] = "Stroke color", ["Скруглённый"] = "Rounded",
+        ["Нет"] = "None", ["Полупрозрачно"] = "Translucent", ["Неон"] = "Neon"
     };
     /// <summary>Every English value, for the smoke check that no two Russian keys share one: the way
     /// back (English to Russian) is a search by value, and a duplicate would answer with the wrong key.</summary>
