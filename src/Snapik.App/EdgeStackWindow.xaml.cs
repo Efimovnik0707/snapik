@@ -214,12 +214,8 @@ public partial class EdgeStackWindow : Window
         catch (Exception ex) { StartupTrace.Write(_options, $"Hotkeys in Loaded: {ex}"); }
         // Before the session is restored: on the very first run there is nothing to restore, and the
         // wizard writes the language and the shortcut the rest of the startup reads.
-        var wizardShown = false;
         if (OnboardingWindow.ShouldShowOnboarding(File.Exists(_settingsPath), _settings, _options.Demo || _options.SmokeTest))
-        {
             ShowOnboarding();
-            wizardShown = true;
-        }
         _loading = true;
         try
         {
@@ -233,11 +229,13 @@ public partial class EdgeStackWindow : Window
             }
             Renumber();
             PlaceStripInitially();
-            // The first run ends with the strip on the screen, empty and compact: the wizard closes
-            // on "Start" and on "Skip" alike, and a run that began with it has nothing else to show.
-            // Here and not straight after the dialog: the session is restored in between, and the
-            // strip would flash empty first and be placed twice.
-            if (wizardShown) ShowStackWithoutActivation();
+            // Every run ends with the strip on the screen, empty and compact and without taking the
+            // focus: the strip is a window on the taskbar now, and the line under the icon has to be
+            // there from the first second rather than from the first capture. Here and not earlier:
+            // the wizard is modal and has already closed by this point (with Topmost the strip would
+            // otherwise stand over it), and the session is restored in between, so a strip shown
+            // before that would flash empty and be placed twice.
+            ShowStackWithoutActivation();
             StartupTrace.Write(_options, $"EdgeStack.Loaded completed with {Captures.Count} captures");
         }
         catch (Exception ex) { SetStatus($"{UiLanguage.Text("Не удалось восстановить сессию")}: {ex.Message}", true); StartupTrace.Write(_options, ex.ToString()); }
@@ -690,6 +688,11 @@ public partial class EdgeStackWindow : Window
         // nothing to place — the placement of the strip would give the window the width and the
         // height of the strip back.
         if (!_capsuleMode) EnsureStripPlaced();
+        // Show() does not bring a minimised window back, and WindowState = Normal would activate it
+        // and take the focus away from the application the user is about to paste into.
+        // SW_SHOWNOACTIVATE restores the window and leaves the focus where it was.
+        if (WindowState == WindowState.Minimized)
+            _ = ShowWindow(new WindowInteropHelper(this).EnsureHandle(), SwShowNoActivate);
         Show();
         _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0053);
         UiLanguage.Apply(this);
@@ -700,13 +703,15 @@ public partial class EdgeStackWindow : Window
 
     public void RevealStack() => ShowStackWithoutActivation();
 
-    private void HideStack()
+    // The fourth button of the header minimises the strip the way every window is minimised: it
+    // keeps its button on the taskbar and the line under the icon, and a click on that button brings
+    // it back. Hiding to the tray took the line with it, and the strip was gone from the taskbar
+    // while the application was still running.
+    private void OnHideClick(object sender, RoutedEventArgs e)
     {
         HideToastNow();
-        Hide();
+        WindowState = WindowState.Minimized;
     }
-
-    private void OnHideClick(object sender, RoutedEventArgs e) => HideStack();
 
     // The strip collapsed into the capsule, and back. It is a mode of this window: the hotkeys, the
     // topmost, the tray icon and the drag of the header all hang on this window and on its handle.
@@ -2080,6 +2085,12 @@ public partial class EdgeStackWindow : Window
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+
+    private const int SwShowNoActivate = 4;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(IntPtr window, int command);
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmFlush();

@@ -5,8 +5,14 @@
         xmlns:controls="clr-namespace:Snapik.App.Controls"
         Title="{local:UiText Snapik — Лента снимков}" AutomationProperties.Name="{local:UiText Snapik — Лента снимков}"
         Width="244" MinHeight="128" SizeToContent="Height"
-        WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
-        BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="False" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">
+        WindowStyle="None" ResizeMode="CanMinimize" AllowsTransparency="True" Background="Transparent"
+        BorderThickness="0" BorderBrush="Transparent" ShowInTaskbar="True" ShowActivated="False" Topmost="False" WindowStartupLocation="Manual">
+    <!-- The strip is a window of the application on the taskbar, so it has a button of its own and a
+         line under the icon while it runs. CanMinimize is there for the button alone: without
+         WS_MINIMIZEBOX the shell does not minimise an active window on a click, and it adds no
+         WS_THICKFRAME, so the strip is still resized only by the grips of its own. Neither of these
+         two may ever be assigned at run time: WPF rebuilds the handle, and the global shortcuts, the
+         paste observer and the display affinity all hang on the handle this window was given. -->
     <Window.Resources>
         <Style x:Key="StackButton" TargetType="Button">
             <Setter Property="Height" Value="36" /><Setter Property="Padding" Value="10,0" />
@@ -205,7 +211,7 @@
                 <Button Grid.Column="3" Style="{StaticResource IconButton}" Click="OnCollapseToCapsuleClick" ToolTip="Свернуть в капсулу" AutomationProperties.Name="Свернуть в капсулу">
                     <TextBlock FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Text="&#xE921;" />
                 </Button>
-                <Button Grid.Column="4" Style="{StaticResource IconButton}" Click="OnHideClick" ToolTip="Свернуть в трей" AutomationProperties.Name="Свернуть в трей">
+                <Button Grid.Column="4" Style="{StaticResource IconButton}" Click="OnHideClick" ToolTip="Свернуть" AutomationProperties.Name="Свернуть">
                     <TextBlock FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Text="&#xE8BB;" />
                 </Button>
             </Grid>
