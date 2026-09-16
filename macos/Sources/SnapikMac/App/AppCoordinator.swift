@@ -161,6 +161,11 @@ final class AppCoordinator {
     func start() {
         StartupLog.write(options, "AppCoordinator start entered")
 
+        // Port of `UiSoundService.Preload()` (`EdgeStackWindow.OnLoaded:199`): the three files are
+        // opened while the strip starts, so the shutter of the first capture is not the sound that
+        // waits for the disk.
+        UiSoundService.preload()
+
         // Screen Recording is checked/requested lazily, at the first *real* capture
         // (`captureDesktopFrame()`) instead of here — SPEC §9.1 as scoped by CONTRACTS.md
         // "Shell": startup (including `--demo`) must never trigger the TCC prompt.
