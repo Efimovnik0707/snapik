@@ -221,3 +221,35 @@ extension SmokeTestRunner {
     static func runSettingsAndOnboardingProbes(dataDirectory: URL) -> [(name: String, ok: Bool)]
 }
 ```
+
+## Дополнение sync 4 (2026-09-16): что перестало быть правдой выше
+
+Спека дельты: `SPEC-DELTA-4.md`. Заметки волны 0: `WAVE0-NOTES-4.md`.
+
+- **У снимка есть вид, и ставит его лента.** `CaptureItem.kind`/`monitorCount`/`title` заполняются в
+  зоне Stack (`SessionWorkspace.addCapture(…kind:monitorCount:)`, `AppCoordinator+Package`), потому
+  что `CaptureItem` на Swift — значение и правка «по факту» на возвращённом объекте до сессии не
+  доходит. Editor их только читает (`EditorCapture.kind`/`monitorCount`, подпись и переключатель) и
+  возвращает через `toCore()` нетронутыми.
+- **Клавиша «Снимок всего экрана» идёт через ленту.** `FastSaveService.save` удалён; на диск пишет
+  `AutoSaveService`, а `FastSaveService.newPath` остался именем файла для него.
+- **Геометрия ленты — одна цепочка.** `StripResizeGeometry.minimumWidth = defaultWidth = 244`,
+  `edgeGap = 0`; поле тени `StackMetrics.shadowMargin = 20`, панель 204, карточка 168.
+- **Настройки читает и мастер.** `HotkeySettings.loadAndMigrate(path:)` зовут старт приложения и
+  `OnboardingWindowController` (`mergeOnboarding`/`markPassed`): мастер кладёт свои поля на файл
+  как он есть, а не на снимок, с которым открылся.
+
+```swift
+// Core
+enum CaptureKind: String, Codable { case region, fullscreen, `import` }
+extension CaptureItem { var kind: CaptureKind; var monitorCount: Int; var title: String }
+// Stack → Shell
+extension SessionWorkspace {
+    @discardableResult func addCapture(pngData: Data, pixelWidth: Int, pixelHeight: Int, dpiX: Double, dpiY: Double,
+                                       title: String?, note: String?, kind: CaptureKind, monitorCount: Int) async throws -> CaptureItem
+}
+struct StackCaptureRow { …; let kind: CaptureKind }
+// Editor (масштаб): чистая геометрия отдельно от канвы
+enum EditorGeometry { static func fit(…); static func clampOffset(…); static func zoomAround(…); static func reopenFitBox(windowSize:); static func reopenCropRect(imageSize:windowSize:) }
+final class EditorScaleSwitchView: NSView { }
+```

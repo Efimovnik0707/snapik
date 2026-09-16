@@ -1,6 +1,10 @@
 name: macos-build
 on:
   push:
+    branches:
+      - "**"
+    tags:
+      - "macos-v*"
     paths:
       - "macos/**"
       - ".github/workflows/macos-build.yml"
@@ -79,11 +83,11 @@ jobs:
             macos/*.log
             macos/smoke-out
           if-no-files-found: warn
-      - name: Release (master only)
-        if: github.ref == 'refs/heads/master' && success()
+      - name: Release (master or a macos-v tag)
+        if: (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/macos-v')) && success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="macos-v${VER}-${GITHUB_RUN_NUMBER}"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then TAG="$GITHUB_REF_NAME"; else TAG="macos-v${VER}-${GITHUB_RUN_NUMBER}"; fi
           gh release create "$TAG" *.dmg *.zip --title "Snapik macOS $VER (build $GITHUB_RUN_NUMBER)" \
             --notes "Автосборка macOS-версии с коммита ${GITHUB_SHA}. Не подписана Developer ID: при первом запуске правый клик → Открыть." || true

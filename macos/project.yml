@@ -27,7 +27,7 @@ targets:
         CFBundleName: Snapik
         CFBundleDisplayName: Snapik
         CFBundleIdentifier: live.yesworkflow.snapik
-        CFBundleShortVersionString: "0.1.0"
+        CFBundleShortVersionString: "1.5.0"
         CFBundleVersion: "1"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
