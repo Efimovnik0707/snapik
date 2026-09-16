@@ -581,6 +581,7 @@ public static class SmokeTestRunner
         await VerifyAWholeScreenCaptureNamesItselfAsync(Path.Combine(root, "fullscreen-probe"));
         await VerifyAFileFromDiskReachesTheStripAsync(Path.Combine(root, "import-probe"));
         VerifyTheWizardKeepsItsAppearance(root);
+        WithoutBindingErrors("The strip list", EdgeStackWindow.RunStripGrowthProbe);
         var success = paths.Count == 3
             && preparedFilesOnDisk
             && decoded.All(bitmap => bitmap.PixelWidth == 1920 && bitmap.PixelHeight == 1128)

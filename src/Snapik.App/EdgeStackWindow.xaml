@@ -128,6 +128,31 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- The viewer of the capture list, named and not implicit: an implicit style inside the
+             template of somebody else's control is a rule nobody sees, and the default template of
+             the ListBox wrapped this one into a Border with a hardcoded Padding="1" that
+             BorderThickness="0" does not take away. Those two pixels made a list that fits scroll by
+             two pixels — a bar where there is nothing to scroll.
+             The bar lies over the cards, not beside them: the presenter and the bar share one cell of
+             the Grid, so the width the cards are given never changes when the strip starts to
+             overflow. The room for the bar is the right padding of the list, twelve pixels the card
+             never reaches, whether the bar is there or not.
+             The name PART_VerticalScrollBar is what makes the wheel and the drag of the grip work
+             without a line of code: ScrollViewer looks the bar up by that name and subscribes to its
+             Scroll itself. -->
+        <ControlTemplate x:Key="StackScrollViewer" TargetType="ScrollViewer">
+            <Grid Background="Transparent">
+                <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
+                                        CanContentScroll="{TemplateBinding CanContentScroll}"
+                                        ContentTemplate="{TemplateBinding ContentTemplate}" />
+                <ScrollBar x:Name="PART_VerticalScrollBar" Style="{StaticResource StackScrollBar}"
+                           Orientation="Vertical" HorizontalAlignment="Right"
+                           Width="4" Margin="0,2,1,2"
+                           Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
+                           ViewportSize="{TemplateBinding ViewportHeight}"
+                           Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+            </Grid>
+        </ControlTemplate>
     </Window.Resources>
     <Grid>
     <!-- The margin is the field the shadow of the window needs: a blur of 24 and a depth of 5 want
@@ -163,54 +188,40 @@
                 </Button>
             </Grid>
 
-            <!-- The height is the one the corner grip drags and the settings remember, and it is a
-                 height, not a maximum: the window is on SizeToContent and has to follow the grip
-                 even when the list holds one card. PositionAtEdge sets it for every showing. -->
-            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" Height="372" Margin="0,7,0,8" Padding="8,14,8,52"
+            <!-- The height is the one the list needs for what it holds, and the number the corner
+                 grip drags is the ceiling it stops at: ApplyListHeight writes both of them, and the
+                 window follows on SizeToContent. The paddings are not the same on both sides — the
+                 right one is the field the scroll bar lies in. -->
+            <ListBox x:Name="CaptureList" Grid.Row="1" ItemsSource="{Binding Captures}" AllowDrop="True" Height="372" Margin="0,7,0,8" Padding="4,14,12,8"
                      Background="Transparent" BorderThickness="0" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False"
                      VirtualizingPanel.IsVirtualizing="False"
                      PreviewMouseLeftButtonDown="OnCaptureListMouseDown" PreviewMouseMove="OnCaptureListMouseMove"
                      PreviewMouseWheel="OnCaptureListMouseWheel" Drop="OnCaptureListDrop">
-                <ListBox.Resources>
-                    <Style TargetType="ScrollBar" BasedOn="{StaticResource StackScrollBar}" />
-                    <!-- The bar lies over the cards, not beside them: the presenter and the bar share one
-                         cell of the Grid, so the width the cards are given never changes when the strip
-                         starts to overflow. The room for the bar is the right padding of the list,
-                         eight pixels the card never reaches, whether the bar is there or not.
-                         The name PART_VerticalScrollBar is what makes the wheel and the drag of the grip
-                         work without a line of code: ScrollViewer looks the bar up by that name and
-                         subscribes to its Scroll itself. -->
-                    <Style TargetType="ScrollViewer">
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ScrollViewer">
-                                    <Grid Background="Transparent">
-                                        <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
-                                                                CanContentScroll="{TemplateBinding CanContentScroll}"
-                                                                ContentTemplate="{TemplateBinding ContentTemplate}" />
-                                        <!-- Four pixels, and four whatever the pointer is over: the bar used to
-                                             breathe out to six on any hover of the list, and a bar that changes
-                                             width under the pointer reads as the list moving. The grip fills the
-                                             bar, so the width of the bar is the width of the grip; the hover of
-                                             the grip itself is a colour, and it lives in the thumb above. -->
-                                        <ScrollBar x:Name="PART_VerticalScrollBar" Orientation="Vertical" HorizontalAlignment="Right"
-                                                   Width="4" Margin="0,2,1,2"
-                                                   Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
-                                                   ViewportSize="{TemplateBinding ViewportHeight}"
-                                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
-                                    </Grid>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ListBox.Resources>
+                <!-- The template of the list is a bare viewer: everything the ListBox used to pass to it
+                     implicitly is passed by hand here, because a property that stops arriving does so
+                     silently — the padding above is the one the height of the list is counted from. -->
+                <ListBox.Template>
+                    <ControlTemplate TargetType="ListBox">
+                        <ScrollViewer Focusable="False" IsTabStop="False" Padding="{TemplateBinding Padding}"
+                                      CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}"
+                                      VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Template="{StaticResource StackScrollViewer}">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ListBox.Template>
                 <!-- A plain StackPanel, and the list is not virtualized: twenty-six cards are nothing to
                      save on, while recycling containers handed a card the index and the animated margin
                      of the card before it. The order of the children is the order of the captures, and
                      the last child is drawn over the ones before it: the newest capture lies on top,
-                     with no depth to compute and no converter to keep in step. -->
-                <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                     with no depth to compute and no converter to keep in step.
+                     The margin of 48 is the overhang of the last card: a card carries a negative margin
+                     of that size, so the panel measures itself 48 px shorter than what it draws and the
+                     presenter cut the bottom of the last card off. Given to the panel, those pixels are
+                     part of the extent and the card is whole. -->
+                <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Margin="0,0,0,48" /></ItemsPanelTemplate></ListBox.ItemsPanel>
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
                         <Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" />
@@ -319,9 +330,9 @@
             <!-- An empty strip is a small strip: the list reserves its 372 px even with nothing in
                  it, and a window that tall with a hint in the middle of it reads as a window that
                  failed to restore the session. The two swap places, so the height of the window is
-                 the height of its content; the first capture unfolds the list to the height the
-                 settings remember, because PositionAtEdge writes it whether the list is shown or
-                 not. The corner grip goes with the list: an empty strip has nothing to stretch. -->
+                 the height of its content; the first capture unfolds the list to the height that one
+                 card needs, because ApplyListHeight writes it whether the list is shown or not.
+                 The corner grip goes with the list: an empty strip has nothing to stretch. -->
             <Border x:Name="EmptyHint" Grid.Row="1" Height="92" Margin="0,7,0,8" Visibility="Collapsed">
                 <TextBlock x:Name="EmptyHintText" HorizontalAlignment="Center" VerticalAlignment="Center"
                            TextAlignment="Center" TextWrapping="Wrap" Margin="10,0"
