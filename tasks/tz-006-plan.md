@@ -1,0 +1,419 @@
+# План по ТЗ №5 Кати (тест 1.5.0, 16.09.2026)
+
+## 0. Статус и входы
+
+Работа не начата. База: `master` = `3a44e96`, код Windows на уровне `d84fbb0` (1.5.0), сверху только документы раунда (`802343d` передача ТЗ, `3a44e96` разборы A, B, C1, C2). `git diff d84fbb0 HEAD -- src tests installer` пуст, поэтому все `file:line` из ТЗ и разборов действительны и на HEAD. Цель раунда: установщик 1.6.0.
+
+Нумерация: ТЗ называется «№5» (пятый документ от Кати), в репозитории это шестой раунд работ, поэтому план, разборы и заметки носят префикс `tz-006`.
+
+Входы:
+
+- ТЗ: `tasks/handoff-006/TZ-005-v150-test.md`, эталоны `tasks/handoff-006/reference-png/01…04` и `reference-html/*.html`, свидетельства `tasks/handoff-006/evidence/`.
+- Разборы кода: `tasks/tz-006-details/A-wizard-install.md` (A1, A2), `B-strip.md` (B1–B6), `C1-editor-layout.md` (C1, C2, C6), `C2-editor-model.md` (C3, C4, C5).
+- Формат плана по образцу `tasks/tz-005-plan.md`, заметки прошлого раунда `tasks/tz-005-notes.md`.
+
+План держит решения, порядок и границы. Числа, координаты, полные списки мест правки и тела методов остаются в разборах; ссылки вида `B §B2.4` ведут туда. Исполнителю читать свой раздел §4, весь §3, §5 и названные параграфы своего разбора; разборы целиком читать не нужно.
+
+Правила `AGENTS.md` действуют: коммиты в `master` этого репозитория, сообщение по-английски с префиксом `windows:`, один коммит на законченную правку, `macos/` и `.github/workflows/macos-build.yml` не трогать, новые строки интерфейса только парой RU/EN в `UiLanguage.cs`, любое изменение формата данных отдельным абзацем «Изменение формата», `MainWindow.xaml` не возвращать.
+
+Правило `CLAUDE.md` про граф связей действует для каждой задачи: перед правкой метода, свойства или ресурса — `trace_call_path` inbound, все callers в список задачи; перед пушем дорожки — `detect_changes` по ветке и сверка blast radius с тем, что тестировалось. Субагент зовёт граф из Bash:
+
+```
+"C:/Users/tomat/.local/bin/codebase-memory-mcp.exe" cli trace_call_path '{"function_name": "PositionAtEdge", "direction": "inbound", "depth": 3}'
+"C:/Users/tomat/.local/bin/codebase-memory-mcp.exe" cli detect_changes '{"scope": "branch", "base_branch": "master", "depth": 3}'
+```
+
+## 1. Что показал разбор кода
+
+Одиннадцать мест, где картина шире диагноза ТЗ или причина другая. Здесь только то, что меняет объём.
+
+1. **C6 уже сделан.** Уголки ▾ стоят у рамки, стрелки и карандаша одним стилем `OverlayToolChevron` (`OverlayEditorWindow.xaml:212, 216, 222`), появились до переименования. Работы нет, есть проверка, что перекладка панели их не потеряет (`C1 §0.1`, `§3`).
+2. **Ctrl+колесо из вписанного состояния сегодня не работает вообще.** `AnnotationCanvas.OnMouseWheel` (`Controls/AnnotationCanvas.cs:1039-1042`) выходит, пока `ViewScale is null`; единственный вход в 1:1 в 1.5.0 — правый сегмент переключателя. Уберём переключатель и не тронем колесо — пункт приёмки F.9 станет невыполнимым. Это главный скрытый пункт C1 (`C1 §0.4`, `§1.4`).
+3. **Второй полосы прокрутки не существует.** Полоса одна и она 17 DIP вместо 4: `Width="4"` у `PART_VerticalScrollBar` (`EdgeStackWindow.xaml:198`) проигрывает `MinWidth = 17` из дефолтной темы `ScrollBar`. Последние ~9 DIP ползунка лежат на карточках (правый паддинг списка 8) — это и прочиталось как «тусклая вторая полоса». Разбор подтверждён прогоном `XamlReader.Parse` + `UpdateLayout`; помогает только `MinWidth="0"`, живой прогон для причины не нужен (`B §0.1, §0.2`).
+4. **Бейдж комментария не двигается по холсту вообще.** Единственный путь правки `NoteOffset` — перетаскивание пилюли в слое чипов (`OverlayEditorWindow.xaml.cs:1341-1362`), и клампа там нет. Задача C5.3 не «снять `ClampToImage`», а «завести перетаскивание бейджа за сам бейдж» с нуля (`C2 §0.9`, `§3.1`).
+5. **`ParentAnnotationId` держит не только `MoveLinkedComments`.** На него смотрят подпись строки в панели комментариев (`OverlayEditorWindow.Comments.cs:73-82`) и `prompt.md` (`src/Snapik.Core/Exporting/PromptGenerator.cs:53-58`). В ТЗ этого нет; поле остаётся в формате (`C2 §0.11`, `§3.5`).
+6. **B5 шире, чем написано: к краю прыгает не только капсула.** `Left` ленты вообще нигде не сохраняется (`CollapseToCapsule` кладёт `_expandedWidth`, `_expandedListHeight`, `_expandedTop`, `_expandedMinHeight`, `EdgeStackWindow.xaml.cs:665-668`), а `PositionAtEdge` переписывает `Left`/`Top`/`Width`/`Height` списка на **каждом** показе (`:738-752`, семь входов). Без разделения «поставить в первый раз» / «просто показать» не закрыть и B2 (`B §0.5, §0.6`).
+7. **Нижний паддинг списка 52 — не «пустые 52 px», а неработающая попытка дать место выступу.** Карточка несёт `Margin="0,0,0,-48"`, `StackPanel` считает высоту как `30·n`, последняя карточка рисуется на 48 px ниже и обрезается презентером. Лечится `<StackPanel Margin="0,0,0,48"/>` в `ItemsPanel`, а не паддингом. Плюс дефолтный шаблон `ListBox` заворачивает `ScrollViewer` в `Border x:Name="Bd"` с захардкоженным `Padding="1"`: эти 2 px дают полосу там, где прокручивать нечего, и формула эталона без перешаблонивания не сходится (`B §0.3, §0.4`).
+8. **Табуляция в установщике.** `installer/Snapik.iss:112-113`: в `ExpandConstant('{sys}\taskkill.exe')` `\t` записан настоящим символом табуляции (проверено `cat -A`: `{sys}^Iaskkill.exe`). `PrepareToInstall` не убивает ни `SnapBrief.exe`, ни `Snapik.exe`, `Exec` молча возвращает False (`A §0.6`).
+9. **A1: стрелки не «не попадают», они выключены, и выключенность залипает.** `MarkChevrons` ставит `IsEnabled` из `_firstCard`/`LastPage`, `OnGalleryScrolled` пишет состояние и в проходах, где галерея измерена нулём; при смене DPI такой проход гарантирован (окно успевает получить разметку со старым физическим размером и новым масштабом). Выхода из состояния в коде нет. Версия про смещение хит-теста арифметикой не подтверждается: стрелки на 248 DIP, `CaptionHeight` накрывает 0..48 DIP (`A §A1`).
+10. **`IPinnedList3.LegacyModify` на машине Кати недоступен**: путь включается только при `Build < 26052` (`TaskbarPinService.cs:119`), у неё 26200. И «либо установщиком при апдейте» делать нельзя: `PrivilegesRequiredOverridesAllowed=dialog` (`Snapik.iss:35`) даёт чужой `%APPDATA%` (`A §0.4, §0.5`).
+11. **Эталон 03 спорит сам с собой по правому полю.** Подпись говорит «поле под неё 12 px», а разметка рисует карточку 168 при левом и правом поле по 8 (панель 204, паддинг 10, внутри 184 = 8 + 168 + 8). Одновременно 8 + 168 + 12 = 188 не помещается. Решение 3 в §2.
+
+Дополнительно: `Toolbar.MaxWidth` — `:1735` (совпадает), но `SyncScaleSwitch` `:1677-1688`, `OnFitScaleClick` `:1691-1696`, `OnOneToOneScaleClick` `:1698-1708`, учёт переключателя в `PositionToolbar` `:1741-1746` — строки в ТЗ сдвинуты на два-три (`C1 §0.3`). Свободная ширина при открытой панели комментариев 797, а не 829 из эталона (`C1 §0.6`). `_activeColor`/`_activeFillColor` живут в `OverlayEditorWindow.xaml.cs:45, 57`, а не в `Appearance.cs:364-372` (`C2 §0.1`). `SaveAppearanceDefaults` — `:650-670` (`C2 §0.3`).
+
+## 2. Решения по развилкам
+
+Приняты оркестратором 16.09.2026, Никита может развернуть любое.
+
+| # | Развилка | Решение |
+|---|---|---|
+| 1 | Палитра «неон»: три сегмента в коде против четырёх на эталоне 01 | **Возвращается четвёртой.** `PaletteRow Columns="4"`, порядок `Стандартная \| Пастель \| Неон \| Своя`. Двенадцать цветов берутся из истории (`7846075^`), список в §3. Поле `PaletteSet.Quick` при этом уходит вместе с рядом точек (`C2 §1.3`). Четвёртый сегмент шире поповер — учесть в измерении блока свойств (§3, `ToolbarPropertiesWidth` фиксирована, ширина поповера на укладку панели не влияет, но проверяется на 1366×768) |
+| 2 | B2: что делает ручка угла, если список растёт по содержимому | **Ручка задаёт потолок `StackHeight`.** Во время перетаскивания список идёт за указателем (иначе короткая лента не тянется вовсе), на отпускании `OnCornerDragCompleted` зовёт `ApplyListHeight()` и список садится на `min(содержимое, потолок)`. Видимый доводчик — так и задумано, отдельной строкой в `verification.md` (`B §B2.6`) |
+| 3 | B3: правое поле 12 против карточки 168 (§1 п. 11) | **Карточка остаётся 168, окно 244, поле 12.** Паддинг списка становится асимметричным: слева 4, справа 12 (4 + 168 + 12 = 184). Это единственная укладка, при которой оба числа эталона живы; расплата — левое поле 4 вместо 8, на экране неразличимо. Записать Кате отдельной строкой (§9) |
+| 4 | B3: как сделать полосу 3 px | **`MinWidth="0"`** сеттером в `StackScrollBar` и на самой полосе в шаблоне. Диагноз `B §0.2`, вторая полоса при этом исчезает как явление. Overlay-поведение (появление, гашение через 1 с, 6 px по наведению) по ТЗ |
+| 5 | B6: что значит «свернуть» и когда появляется линия | «Закрыть» из контекстного меню панели задач = **нынешнее поведение `OnClosing`** (в трей, приложение работает). При старте лента показывается **пустой и компактной без активации** (как после «Начать»), чтобы линия под иконкой была сразу — то есть вариант (б) `B §B6.5`. «Свернуть совсем» = `WindowState.Minimized`. **Первой задачей дорожки B** — smoke-проба `Minimized`/`Normal` на layered-окне с `SizeToContent`; при провале запасной вариант (`SetWindowPos` из сохранённого прямоугольника) описать прямо в дорожке, окно без `AllowsTransparency` для ленты — только по решению Никиты (§9) |
+| 6 | C1: вводить ли режим 1:1 | **Не вводить.** `PlaceCapture` (`C1 §1.2`) делает `_cropRect` размером с картинку, если она влезает вместе с панелью; `ViewScale` остаётся `null`, ручки границ, пилюли, обрезка и жесты работают как у обычного снимка области. Ctrl+колесо из вписанного состояния чинится отдельно (§1 п. 2), иначе F.9 невыполним. Переключатель, `SyncScaleSwitch`, оба обработчика и учёт в `PositionToolbar` удаляются целиком, вместе с `_fitBox` в **обеих** точках (`C1 §0.2`) |
+| 7 | C3: где живут настройки инструментов | **Новый ключ `toolAppearance` в `settings.json`** по контракту `C2 §1.8`; старые общие ключи остаются зеркалом (файл читается 1.5.0 в обе стороны). `session.json` не меняется. `ParentAnnotationId` читается, не пишется. Правило 6 закрывается **обязательной smoke-пробой по сценарию Кати дословно** (`C2 §1.12`), а не «проверено глазами» |
+| 8 | A2: как заменить закреп | **Перенацеливание `SnapBrief.lnk` на месте** (`SetPath` + `SetIconLocation` + AUMID + `SHChangeNotify`), имя файла не меняется; `IsOurShortcut` начинает считать своим ярлык по содержимому (цель или AUMID), а не только по имени; запасная строка в мастере на случай, когда перенацелить не вышло или закрепов уже два. `LegacyModify` зовётся строго под `Build < 26052`. Установщиком не делаем (§1 п. 10). Побочный баг табуляции `Snapik.iss:112-113` чинится в волне 0 |
+| 9 | A1: чинить залипание или хит-тест | **По разбору A**: стрелка никогда не выключается (конец ряда — `Tag="end"` и `Opacity 0.42`), `PageBy` синхронизирует счётчик с живым `ScrollViewer`, `OnGalleryScrolled` игнорирует проходы с нулевой галереей, конструктор подписывается на `Gallery.SizeChanged`. Плюс **три строки трассы** в `startup.log` (`Onboarding DPI:`, `Gallery after DPI:`, `Chevron hit:`), которые за один живой прогон скажут, какая версия была. Приёмка живьём на двух мониторах в обе стороны |
+| 10 | B2: формула высоты списка | `14 + (n − 1)·30 + 78 + 8` с потолком `StackHeight` (по умолчанию 372): 2 → 130, 5 → 220, 12 → 372. Нижний паддинг 8 плюс выступ 48, отданный в `ItemsPanel.Margin`. `ListBox` перешаблонивается в голый `ScrollViewer` (§1 п. 7) |
+| 11 | C5: экспорт с полем | **Поле `#2A3140` по самому дальнему бейджу**, `ExportMargins` — чистая функция с тестами (`C2 §3.4`). Перетаскивание бейджа по холсту заводится с нуля (`_badgeDrag`), `ClampToImage` остаётся только для точки. Жест «нажал — потянул» при постановке правит `NoteOffset` черновика, а не `Points[1]` |
+
+Отступления от разборов, зафиксированные здесь же:
+
+- `C1 §2.2` называет контейнер блока свойств `ToolbarProperties` и просит у него `MinWidth`; `C2 §1.3` называет тот же контейнер `PropertiesBlock` и просит `Width="176"`. Контракт §3 фиксирует **одно** имя `ToolbarProperties` и **фиксированную** `Width="176"` из ресурса `ToolbarPropertiesWidth`: «блок одной ширины у всех инструментов» из ТЗ это ширина, а не минимум.
+- `B §2.1` называет константу шага карточек `CardStep`. Имя занято другим числом в соседнем файле (`AppearancePicker.xaml.cs:52`, `CardStep = 142`), и грепу от этого плохо. В контракте §3 константа называется `CardPitch`.
+- `B §3` предлагает пару `["Свернуть"] = "Minimise"`. Пара `["Свернуть"] = "Minimize"` уже есть (`UiLanguage.cs:144`), новая дала бы дубль ключа и конфликт английских значений. Переиспользуем существующую.
+- `C1 §5` предлагает вынести `PlaceToolbar` в `Controls/ToolbarLayout.cs`, чтобы он проверялся тестом. Принято; `OverlayEditorWindow.Toolbar.cs` (32 строки, кроме `PlaceToolbar` там ничего нет) удаляется целиком в волне 0.
+- `A §Общий фундамент` оставляет `TaskbarPinLegacy.cs` внутри дорожки A. Файл уходит в волну 0 целиком: это лист без зависимостей с двумя чистыми функциями и тестами, ровно то, для чего волна 0 существует.
+
+## 3. Контракт волны 0
+
+Всё, что дорожки A, B и C получают готовым. Имена типов, методов, ключей ресурсов, констант и ключей настроек после волны 0 не меняются. Занятость проверена (`cli search_code` и grep по `src` и `tests`): свободны все перечисленные ниже новые имена.
+
+**Геометрия ленты.** `src/Snapik.App/Controls/StripResizeGeometry.cs`, рядом с существующими константами:
+
+```csharp
+internal const double EmptyListHeight = 92;    // подсказка вместо списка
+internal const double ListTopPadding = 14;
+internal const double ListBottomPadding = 8;
+internal const double ListPaddingLeft = 4;     // было ListPadding = 8 на обе стороны
+internal const double ListPaddingRight = 12;   // поле под полосу прокрутки (решение 3)
+internal const double CardHeight = 78;
+internal const double CardOverlap = 48;
+internal const double CardPitch = CardHeight - CardOverlap;   // 30
+
+internal static double ListHeightForCount(int count, double cap);
+internal static double CapsuleLeft(double stripLeft, double stripWidth, double capsuleWidth);
+internal static Rect RestoreRect(Rect stored, Rect work);
+```
+
+Тела — `B §B2.1`, `§B5.2`, `§B5.4`. `ListPadding` удаляется (единственный потребитель — `CardWidth`), `CardWidth(double)` сигнатуру не меняет, тело становится `windowWidth - 2*ShadowMargin - 2*ShellPadding - ListPaddingLeft - ListPaddingRight` и при 244 по-прежнему даёт **168**. `MinimumListHeight = 180` остаётся полом только для сохранённого значения в `ClampListHeight`; к росту по содержимому не применяется. `ClampListHeight`, `WidthFromStart`, `ListHeightFromStart`, `ToDeviceIndependent` сигнатур не меняют, смысл `ClampListHeight` — теперь потолок.
+
+**Клип по радиусу.** Новый `src/Snapik.App/Controls/RoundedClip.cs`, прикреплённое свойство (`B §B4`):
+
+```csharp
+internal static class RoundedClip   // RoundedClip.Radius="10" на внутреннем Grid
+{ public static readonly DependencyProperty RadiusProperty; /* GetRadius/SetRadius, Clip по SizeChanged */ }
+```
+
+**Геометрия редактора.** `src/Snapik.App/Controls/EditorGeometry.cs`:
+
+```csharp
+internal static double Fit(double imageWidth, double imageHeight, double boxWidth, double boxHeight);
+internal static Rect PlaceCapture(Size image, Rect work, Size panel, double gap = 10, double margin = 8);
+```
+
+`Fit` теряет `FitResult`/`FitBound` (оба типа удаляются: существовали ради подписи «По ширине · N %», подписи больше нет) и возвращает `double`. Тело `PlaceCapture` — `C1 §1.2`.
+
+**Укладка панели.** Новый `src/Snapik.App/Controls/ToolbarLayout.cs`:
+
+```csharp
+internal enum ToolbarRows { One, Two }
+internal readonly record struct ToolbarShape(ToolbarRows Rows, Size Size);
+internal static ToolbarShape Measure(Size tools, Size properties, Size actions, double freeWidth,
+                                     double padding = 14, double gap = 12, double rowGap = 7);
+internal static Rect PlaceToolbar(Rect crop, Rect work, Size size, Rect[] notes, bool mayOverlap);
+```
+
+`PlaceToolbar` переезжает сюда из `OverlayEditorWindow.Toolbar.cs` (файл удаляется) и получает пятый параметр: при `mayOverlap == false` и неподошедших кандидатах возвращается прямоугольник, прижатый к низу рабочей области (`work.Bottom - size.Height - 8`), **не** внутрь снимка. Порядок кандидатов (под → над → справа → слева) и обход пилюль не меняются (`C1 §2.4`). Оба файла линкуются в `tests/Snapik.App.Imaging.Tests/Snapik.App.Imaging.Tests.csproj` строкой `<Compile Include … Link=…>` рядом с `EditorGeometry.cs`.
+
+**Настройки инструментов.** Новый `src/Snapik.App/ToolAppearance.cs` (`C2 §1.2`, `§1.4`, `§1.8`):
+
+```csharp
+internal sealed record ToolAppearance
+{ Color Color; double Thickness; AnnotationLineStyle LineStyle; AnnotationFill Fill;
+  Color? FillColor;            // null = «как обводка», семантика AnnotationItem.FillColor
+  double FontSize; string ArrowStyle; AnnotationShape Shape; }
+
+internal static class ToolAppearanceStore
+{ internal static Dictionary<EditorTool, ToolAppearance> Read(HotkeySettings settings);
+  internal static HotkeySettings Write(HotkeySettings settings, IReadOnlyDictionary<EditorTool, ToolAppearance> tools); }
+
+internal enum SecondCapsule { None, Line, FontSize, Shape }
+internal readonly record struct InspectorView(bool Stroke, bool FillSwatch, SecondCapsule Second, bool Enabled);
+
+internal static class EditorInspector
+{ internal static InspectorView InspectorViewOf(EditorTool tool);          // таблица C2 §1.4
+  internal static EditorTool InspectedTool(AnnotationItem? selected, EditorTool armed); }
+```
+
+Ключи словаря `_tools`: `Rectangle`, `Arrow`, `Pen`, `Highlight`, `Text`, `Blur`. `Select`, `Eraser`, `Crop`, `Comment` ключей не имеют. Форма общая у рамки и размытия: `Blur` читает и пишет `_tools[Rectangle].Shape`. `HasLineStyle` сводится к `Imaging.StrokePattern.Participates` **внутри** `InspectorViewOf`, чтобы правило «маркер без пунктира» жило в одном месте.
+
+**Ключ настроек.** `HotkeySettings` получает `ToolAppearance` (словарь, в JSON `toolAppearance`, имена инструментов camelCase). Старые общие ключи `AnnotationColor`, `AnnotationThickness`, `AnnotationHighlightThickness`, `AnnotationFontSize` **остаются и продолжают писаться** как зеркало рамки, маркера и текста. При чтении: нет ключа или он пуст — каждый инструмент получает старые общие значения. `SettingsVersion` не поднимается, `Migrate` не трогаем (иначе `LoadAndMigrate` начнёт переписывать файл на каждом старте). Полный абзац — §7 п. 1.
+
+**Правило контура.** `Controls/AnnotationCanvas.cs:810-815`, сигнатура **меняется** (это контракт волны 0 прошлого раунда, `tasks/tz-005-plan.md` §3 — перед правкой прогнать `trace_call_path` inbound):
+
+```csharp
+internal static Color? OutlineColorOf(AnnotationFill fill, Color color) =>
+    fill == AnnotationFill.Blur ? null : color;
+```
+
+Две точки применения: `AnnotationCanvas.cs:826-828`, `WpfExportImageRenderer.cs:127-130`. Кисть внутренности по-прежнему `ShapeFillBrush(item.FillColor ?? item.Color, item.Fill)`. `AnnotationItem` ни в App-, ни в Core-версии не меняется.
+
+**Поле экспорта.** `src/Snapik.App/Imaging/NoteBadgeGeometry.cs` (`C2 §3.4`):
+
+```csharp
+internal readonly record struct ExportMargin(int Left, int Top, int Right, int Bottom)
+{ internal static readonly ExportMargin None = default; internal bool IsEmpty { get; } }
+
+internal static ExportMargin ExportMargins(
+    IEnumerable<(NormalizedPoint Anchor, NormalizedPoint? Offset, string Label)> badges, int width, int height);
+```
+
+Считает в координатах снимка, без `HeaderHeight`; `Padding = 8` с каждой стороны; комментарии без номера в расчёт не входят.
+
+**Порядок нажатия.** `Controls/AnnotationCanvas.cs`, рядом с `BeginGesture` (`C2 §2.2`), в волне 0 только объявляется и покрывается тестом, подключается дорожкой C:
+
+```csharp
+internal enum PressTarget { Pan, Erase, CropDraft, Activate, CommentAnchor, ResizeHandle, Object, Empty }
+internal static PressTarget PressTargetOf(EditorTool tool, bool panning, int clickCount,
+    bool onAnchor, bool onSelectedHandle, bool onObject, bool activatable);
+```
+
+**Закреп панели задач.** Новый `src/Snapik.App/TaskbarPinLegacy.cs` (`A §A2`):
+
+```csharp
+internal static class TaskbarPinLegacy
+{ internal static string? ChooseLegacyPin(IReadOnlyList<string> pinned, string currentName, string legacyName);
+  internal static bool IsOurs(string fileName, string? target, string? appId, string? processPath);
+  internal static (string? Target, string? AppId) ReadShortcut(string path);
+  internal static bool Retarget(string path, string exePath, string appId);
+  internal static void CarryOverPin(); }
+```
+
+Обёртки `IShellLink`, `IPropertyStore`, `IPersistFile`, `SHChangeNotify` — там же. `CarryOverPin` зовётся из `App.xaml.cs` сразу после `AppDataPaths.CarryOverLegacyData()` (`:24`) и до `TaskbarPinService.NameThisProcess`, под тем же гейтом `TurnedOff()`, что и остальной пиннинг.
+
+**Палитра «неон», двенадцать цветов** (из `7846075^:src/SnapBrief.App/OverlayEditorWindow.Appearance.cs`, набор `new("neon", "Неон", …)`). Подключает дорожка C (задача C-3), сюда контракт положен как данные:
+
+```
+#FF1744  #FF6D00  #FFEA00  #C6FF00  #00E676  #1DE9B6
+#00E5FF  #2979FF  #651FFF  #D500F9  #FF4081  #FFFFFF
+```
+
+Поле `PaletteSet.Quick` удаляется у всех четырёх наборов вместе с рядом точек (`BuildColorDots`); в `settings.json` оно не писалось, формата это не меняет.
+
+**Контейнерный контракт панели редактора.** Обе половины C теперь в одной дорожке, но контракт остаётся порядком работы: задача C-2 кладёт контейнеры, C-3 наполняет блок свойств. Имена в `OverlayEditorWindow.xaml` (`C1 §2.2`, `C2 §1.3`):
+
+| Имя | Кто ставит | Что это |
+|---|---|---|
+| `Toolbar` | C-2 | `Border` панели, `MaxWidth`, `Margin`, перетаскивание |
+| `ToolbarBody` | C-2 | `Grid` 2×4, `Background="Transparent"` — ручка перетаскивания, `AutomationProperties.Name="Панель разметки"` |
+| `ToolbarTools` | C-2 | строка 0, колонка 0: `SelectTool`…`CropTool`, `CommentToolButton`, `ShortcutSheetButton`, уголки `ShapeMenuButton`/`ArrowMenuButton`/`PenMenuButton` |
+| `ToolbarProperties` | C-2 ставит, C-3 наполняет | строка 0, колонка 1; **`Width="{StaticResource ToolbarPropertiesWidth}"` = 176**, фиксированная. В двух строках переезжает в строку 1 с `Grid.ColumnSpan` и `Margin="0,7,0,0"` |
+| `ToolbarActions` | C-2 | строка 0, колонка 3: разделитель, `UndoButton`, `RedoButton`, `SaveImageButton`, `DoneButton` |
+| `ColorCapsule`, `StrokeDot`, `FillSquare`, `FillSquareNone`, `FillSquareBlur` | C-3 | первая капсула: круг обводки, квадрат заливки |
+| `LineCapsule`, `LineCapsuleGlyph`, `LineCapsuleValue`, `LineCapsuleSample`, `LineCapsuleChevron` | C-3 | вторая капсула: толщина/линия, размер, форма |
+
+Колонка 2 — `Width="*"`, свободное место и оно же ручка. Ни один существующий элемент не переименовывается, только меняет родителя; поповеры привязаны по `ElementName` и переезд их не трогает. Уходят из разметки: `ColorDots`, `AppearanceButton`+`ColorSwatch`, `ThicknessButton`, `LineStyleButton`+`LineStyleGlyph`, `FillButton`+`FillButtonPreview`+`FillButtonLabel`, `FontSizeButton`, `LineStylePopup` (сливается в `AppearancePopup`), `ScaleSwitch` со всем содержимым.
+
+**Имена дорожки B, объявленные здесь ради грепа после слияния** (тела пишет B): `ApplyListHeight()`, `PlaceStripInitially()`, `EnsureStripPlaced()`, `PositionCapsuleAtStrip()`, `PlaceWindow(Rect)`, `OnStripScrolled`, поле `_expandedLeft`, ресурсы `StackScrollViewer` (именованный `ControlTemplate`) и `BarField` (`Grid` зоны наведения).
+
+**Строки.** Все новые пары RU/EN кладёт волна 0, полный список §6. В волне 1 `UiLanguage.cs` не трогает никто.
+
+## 4. Задачи по волнам
+
+**Режим проверок (требование Никиты, действует на весь раунд).**
+
+- `scripts/build.ps1` и `--smoke-test` гоняются **один раз на пачку задач дорожки, перед пушем и слиянием**, а не перед каждым коммитом. Красный прогон чинится до пуша; коммиты внутри пачки не переделываются ради «зелёного на каждом».
+- Код-ревью **одно, в конце**, отдельным субагентом по всему диапазону — в волне 2. Ревью после каждой задачи или каждой дорожки не делается.
+- Тесты пишутся **только на новую чистую логику** (функции без WPF-окна). UI-тестов нет. Существующее ожидание, записанное числом, правит та задача, которая это число меняет.
+- Executor'ам запрещено «заодно»: рефакторинг соседнего кода, переименования вне своего списка, чужие файлы, `git checkout`/`restore`/`reset`, `next`-подобные сборки помимо `scripts/build.ps1`. Нашёл лишнее — строка в свои заметки, не правка.
+- Каждая задача обязана: `trace_call_path` inbound по каждому правящемуся методу/свойству/ресурсу **до** правки; `detect_changes` по ветке **до пуша**.
+- `TreatWarningsAsErrors` включён на весь репозиторий (`Directory.Build.props:6`): осиротевшее приватное поле или метод роняют сборку. Задача, снявшая последнего потребителя поля, удаляет поле **в том же коммите**.
+
+Размер: S — правка в одном файле, M — файл целиком или два связанных, L — новая подсистема или рискованная переделка. Оценок времени нет.
+
+### Волна 0: фундамент (один executor, в worktree от `master`, последовательно)
+
+Критический путь: пока волна 0 не в `master`, дорожки не стартуют. Здесь только то, что служит контрактом двум и более дорожкам, либо физически неделимо, либо является чистой функцией с тестом.
+
+| # | Что сделать | Размер | Файлы | Тесты | Что не должно сломаться | Критерий готовности | Коммит |
+|---|---|---|---|---|---|---|---|
+| W0-1 | Все новые пары RU/EN по §6; удаление двух пар переключателя масштаба и их же из языковой таблицы smoke (`SmokeTestRunner.cs:346`) | S | `UiLanguage.cs`, `SmokeTestRunner.cs:336-352` | смоук-инвариант «две русские строки не делят один английский перевод» зелёный | 290 существующих пар; `["Свернуть"] = "Minimize"` (`:144`) переиспользуется, не дублируется; `["Свернуть в трей"]` остаётся, пока её читает пункт трея | `grep -o '\["[^"]*"\]' src/Snapik.App/UiLanguage.cs \| sort \| uniq -d` пуст | `windows: the strings of the 1.6.0 round` |
+| W0-2 | Константы и три функции `StripResizeGeometry` по §3, асимметричные паддинги, новое тело `CardWidth` | M | `Controls/StripResizeGeometry.cs`, `tests/…/StripResizeGeometryTests.cs` | `ListHeightForCount`: `(0,372)→92`, `(1,372)→100`, `(2,372)→130`, `(5,372)→220`, `(12,372)→372`, `(12,500)→430`, `(5,130)→130`, `cap=NaN→372`. `CapsuleLeft(1600,244,180)→1664`. `RestoreRect`: внутри области — как есть; ушедший вправо прижимается к `work.Right-Width`; шире области — не левее `work.Left`. `CardWidth(244)==168` (существующий тест `:158` обязан остаться зелёным) | существующие тесты `ClampWidth`/`ClampListHeight`/`WidthFromStart`; `EstimatedChromeHeight` и его тест `:117` | новые тесты зелёные, старый `CardWidth` не тронут | `windows: the strip list knows the height of its content` |
+| W0-3 | `Controls/RoundedClip.cs` — прикреплённое свойство `Radius`, клип по `SizeChanged` | S | `Controls/RoundedClip.cs` (новый) | нет (WPF-примитив, проверяется в B-5 глазами) | ничего: файл ни от чего не зависит и пока никем не читается | сборка зелёная, `RoundedClip.Radius` резолвится из XAML | `windows: a rounded clip that follows the size` |
+| W0-4 | `EditorGeometry.Fit` теряет `FitResult`/`FitBound`, появляется `PlaceCapture`; новый `Controls/ToolbarLayout.cs` (`Measure` + переехавший `PlaceToolbar` с `mayOverlap`), `OverlayEditorWindow.Toolbar.cs` удаляется, вызовы перенацелены; оба файла линкуются в тест-проект | M | `Controls/EditorGeometry.cs`, `Controls/ToolbarLayout.cs` (новый), `OverlayEditorWindow.Toolbar.cs` (удаляется), `OverlayEditorWindow.xaml.cs` (вызовы `PlaceToolbar`), `tests/…/Snapik.App.Imaging.Tests.csproj`, `tests/…/EditorGeometryTests.cs` | `PlaceCapture` шесть случаев `C1 §5`; `ToolbarLayout.Measure` четыре случая `C1 §5`; `PlaceToolbar` при `mayOverlap:false` не пересекает `crop`, при `true` может. Три существующих теста `Fit` переписаны на число: `…fitted_by_its_width` → `0.312`, `…by_its_height` → `0.247`, `A_capture_that_fits…` → `A_capture_smaller_than_the_box_is_not_scaled`, `Assert.Equal(1, …)` | три теста `ClampOffset`/`ZoomAround` не трогать: это механика Ctrl+колеса; `RunPanelProbe` (`xaml.cs:482`) зовёт `PlaceToolbar` и обязан быть перенацелен в этом же коммите | `grep -rn "FitResult\|FitBound\|OverlayEditorWindow.Toolbar.cs" src tests` пуст, новые тесты зелёные | `windows: the capture and the panel get their own geometry` |
+| W0-5 | `ToolAppearance.cs` целиком по §3: запись, `ToolAppearanceStore.Read/Write`, `InspectorView`/`EditorInspector`; ключ `toolAppearance` в `HotkeySettings` (`TryRead`/`Save`) | M | `ToolAppearance.cs` (новый), `HotkeySettingsWindow.xaml.cs:141-212`, `tests/…/ToolAppearanceTests.cs` (новый) | `C2 §1.11` п. 1-5: таблица `InspectorViewOf` по семи кадрам эталона; `InspectedTool`; `Read` файла без ключа (старые общие значения разъезжаются по инструментам); `Read` файла с ключом (старые ключи игнорируются, неизвестный инструмент пропускается); `Write`→`Read` по сценарию Кати плюс зеркало `AnnotationColor`/`AnnotationThickness` | чтение `settings.json` 1.5.0 без нового ключа; `SettingsVersion` не растёт; `Migrate` не трогается; `LoadAndMigrate` не переписывает файл на каждом старте | пять тестов зелёные, файл 1.5.0 открывается с теми же настройками | `windows: every tool remembers its own appearance` |
+| W0-6 | `OutlineColorOf` теряет `fillColor`, обе точки применения переписаны | S | `Controls/AnnotationCanvas.cs:810-815, 826-828`, `WpfExportImageRenderer.cs:127-130`, `tests/` | `C2 §1.11` п. 6: `None`→`color`, `Solid`→`color`, `Translucent`→`color`, `Blur`→`null` | размытие без обводки; порядок слоёв (непрозрачная заливка последней); экспорт PNG всех четырёх заливок; чтение `LegacyHasOutline` не трогается | `trace_call_path` inbound по `OutlineColorOf` пуст, кроме двух точек; тест зелёный | `windows: the outline keeps its own colour` |
+| W0-7 | `ExportMargin` и `ExportMargins` в `NoteBadgeGeometry.cs` (рендер подключает C-7) | S | `Imaging/NoteBadgeGeometry.cs`, `tests/…/NoteBadgeGeometryTests.cs` | `C2 §3.4`: пустой список → `None`; бейдж без `Offset` → `None`; бейдж внутри снимка → `None`; `Offset.X=-0.1` при `width=1000` → только `Left`; `+0.1` справа → только `Right`; отрицательный `Offset.Y` → только `Top`; два бейджа врозь → оба поля; бейдж без номера не влияет; длинная подпись даёт больший радиус | `NoteBadgeGeometry.Screen`/`Export`/`TryLeader` и их существующие потребители | восемь тестов зелёные, рендерер ещё не тронут | `windows: the export measures the room its badges need` |
+| W0-8 | `PressTarget`/`PressTargetOf` объявлены и покрыты тестом, `BeginGesture` пока не тронут | S | `Controls/AnnotationCanvas.cs` (рядом с `BeginGesture`), `tests/…/PressTargetTests.cs` (новый) | таблица восьми входов `C2 §2.2`, без канвы | `BeginGesture` и все существующие пробы жестов | тест зелёный, `PressTargetOf` пока без вызывающих (файл `internal static`, предупреждения нет) | `windows: the press of the mouse has a name` |
+| W0-9 | `TaskbarPinLegacy.cs` целиком по §3 (COM-обёртки плюс две чистые функции); фикс табуляции `installer/Snapik.iss:112-113` | M | `TaskbarPinLegacy.cs` (новый), `installer/Snapik.iss:112-113`, `tests/…/TaskbarPinLegacyTests.cs` (новый) | `A §Тесты`: `ChooseLegacyPin` на пяти наборах (пусто; только старый; только новый; оба; старый под чужим именем), `IsOurs` на четырёх (имя совпало; имя чужое и цель наша; имя чужое и AUMID наш; всё чужое). COM не нужен | `TaskbarPinService` целиком: в этой задаче он не правится, только читается; `CarryOverPin` ещё нигде не зовётся | девять тестов зелёные; `cat -A installer/Snapik.iss` на `:112-113` больше не показывает `^I` | `windows: the legacy taskbar pin can be retargeted` |
+| W0-10 | Заметки волны: `tasks/tz-006-notes-0.md`, включая абзацы «Изменение формата» §7 п. 1-2 дословно | S | `tasks/tz-006-notes-0.md` (новый) | нет | нет | оба абзаца написаны, их переносит волна 2 | `windows: the notes of wave 0 for TZ-005` |
+
+### Волна 1: три executor'а параллельно, каждый в своём worktree и своей ветке от коммита волны 0
+
+Деление по файловым зонам. Между дорожками синхронизации нет, чужие ветки не мержатся. `UiLanguage.cs` не трогает никто. Первый шаг каждого исполнителя: пересчитать `file:line` своих правок по коммиту волны 0 (`cli search_code` по имени, потом grep), а не идти по номерам вслепую.
+
+#### Дорожка A: мастер и установка
+
+Зона: `Controls/AppearancePicker.xaml(.cs)`, `OnboardingWindow.xaml(.cs)`, `TaskbarPinService.cs`, `App.xaml.cs` (одна строка), `installer/Snapik.iss` (`[InstallDelete]`). Порядок коммитов: A-1, A-2, A-3, A-4.
+
+| # | ТЗ | Что сделать | Размер | Файлы | Тесты и smoke | Что не должно сломаться | Критерий готовности | Коммит |
+|---|---|---|---|---|---|---|---|---|
+| A-1 | A1 | Стрелка не выключается никогда (`A §Решение`, пять пунктов): триггер `IsEnabled=False` в стиле `Chevron` → триггер по `Tag="end"` на `Opacity 0.42` и `Cursor="Arrow"`; `MarkChevrons` ставит `Tag`; `PageBy` первой строкой синхронизирует `_firstCard` с `Gallery.HorizontalOffset / CardStep`; `OnGalleryScrolled` первой строкой выходит при `ViewportWidth <= 0 \|\| ExtentWidth <= 0`; конструктор подписывается на `Gallery.SizeChanged` → `MarkChevrons()`. `AutomationProperties.HelpText` на обеих стрелках вместо потерянного `IsEnabled` | M | `Controls/AppearancePicker.xaml:8-29, 79-90`, `.xaml.cs:62-80, 287-330` | `RunProbe`: после `PageBy` до конца ряда `NextTheme.IsEnabled` остаётся `true`, признак конца лежит в `Tag`; повторный `PageBy(1)` в конце не двигает `HorizontalOffset`; искусственный рассинхрон `_firstCard = 5` (новый `internal` сеттер только для пробы) после `PageBy(1)` возвращается к реальному положению — это автотест на сам дефект | галерея в настройках (контрол один); шаг колеса и жест тачпада из прошлого раунда (`tz-005-notes.md:29, 161`); открытие галереи всегда на первой карточке (`BringSelectedCardIntoView` не возвращать); гашение на концах визуально то же (0.42) | пробы зелёные, `grep -n "IsEnabled" Controls/AppearancePicker.xaml` не даёт триггера на шевронах | `windows: the gallery chevrons stop switching themselves off` |
+| A-2 | A1 | Обязательная диагностическая трасса (`A §Трасса`): в `OnDpiChanged` **до** `if (_placed) return` строка `Onboarding DPI:`; там же отложенно через `Dispatcher.BeginInvoke(DispatcherPriority.Loaded, …)` — `AppearancePicker.DescribeGallery()` (`Gallery after DPI:`) и `DescribeChevronHit()` (`Chevron hit:` с `InputHitTest` центров обеих стрелок). Пишется через существующий `Trace` мастера, только когда открыт шаг 4 | S | `OnboardingWindow.xaml.cs:128-138`, `Controls/AppearancePicker.xaml.cs` (два новых `internal string`) | нет (лог, не логика); в приёмку — три строки на каждый перенос | `_placed` и однократное довыравнивание из прошлого раунда; `RunOnboardingProbe` на окне без handle | `startup.log` после переноса мастера несёт три строки подряд | `windows: the wizard logs what the DPI change did to its gallery` |
+| A-3 | A2 | Подключение `TaskbarPinLegacy` (волна 0): вызов `CarryOverPin()` из `App.xaml.cs` после `AppDataPaths.CarryOverLegacyData()` под гейтом `TurnedOff()`; `IsOurShortcut` (`TaskbarPinService.cs:231-235`) переделан на `IsOurs(fileName, target, appId, processPath)` с `try/catch` и падением обратно на сравнение по имени; `LegacyModify(oldPidl, newPidl)` (`:257`) зовётся строго под `SupportsPinnedList()` (`:119`, `Build < 26052`) | M | `App.xaml.cs:24`, `TaskbarPinService.cs:63, 114-119, 231-236, 257` | smoke, **отдельным методом в конце файла**: создать `.lnk` во временной папке прогона тем же кодом, перенацелить, прочитать обратно, сверить цель и AUMID. Гейт `TurnedOff()` обязан остаться включённым и для `TryPinAsync`, и для старта | перенос данных (`AppDataPaths.cs:25`) и автозапуска (`WindowsStartupService.cs:26`) идут раньше и не трогаются; `CanTry`/`TryPinAsync` на чистой машине без SnapBrief; ярлыки установщика и их AUMID; demo и smoke не касаются COM панели задач | smoke-проба зелёная, `IsPinned()` считает своим перенацеленный ярлык | `windows: an old SnapBrief pin starts Snapik instead` |
+| A-4 | A2 | Запасная строка мастера: шаг 3 под `PinSubtitle` (`OnboardingWindow.xaml:193`) показывает одну из трёх новых строк (§6) — перенацелить не вышло, или рядом со старым уже лежит наш `Snapik.lnk`, или подпись обновится после перезахода. Место то же, где живут три строки ручного закрепления (`:196-209`); `LoadPinState` (`:389-395`) выбирает строку | S | `OnboardingWindow.xaml:185-222`, `.xaml.cs:389-421` | smoke: при двух закрепах `LoadPinState` показывает строку «открепи вручную», при одном перенацеленном — «Закреплено» и второй `.lnk` не создаётся | три существующих строки ручного закрепления; кнопка «Закрепить» на чистой машине; высота шага 3 (блок не должен выдавить содержимое за 620) | строка видна на шаге 3, `TryPinAsync` второй ярлык не создаёт | `windows: the wizard says what to do with the leftover pin` |
+
+#### Дорожка B: лента
+
+Зона: `EdgeStackWindow.xaml`, `EdgeStackWindow.xaml.cs`, `Controls/StripResizeGeometry.cs` (только чтение — константы из волны 0). Порядок коммитов: B-1 … B-7 строго по таблице. `App.xaml.cs` и `SingleInstanceActivation.cs` не трогаются (`App.ShowExistingMainWindow` уже поднимает из `Minimized`, `B §B6.6`).
+
+| # | ТЗ | Что сделать | Размер | Файлы | Тесты и smoke | Что не должно сломаться | Критерий готовности | Коммит |
+|---|---|---|---|---|---|---|---|---|
+| B-1 | B6 (риск) | **Первой, до всего остального.** Smoke-проба: скрытое окно с `AllowsTransparency="True"`, `WindowStyle="None"`, `SizeToContent="Height"` уходит в `WindowState.Minimized` и возвращается `ShowWindow(SW_SHOWNOACTIVATE)` без потери `Left`/`Top` и без лишнего прохода `SizeToContent`. Проба зелёная — дорожка идёт по плану; красная — исполнитель пишет в заметки, что именно поехало, и делает B-7 через `SetWindowPos` из прямоугольника, записанного перед сворачиванием (`B §B6.4`) | S | `SmokeTestRunner.cs` (новый метод в конце файла) | сама проба и есть проверка | ничего: проба на своём окне | проба в `RunAsync` зовётся ровно один раз, результат записан в заметки дорожки | `windows: a layered window is asked whether it can minimise` |
+| B-2 | B1 | Из триггера `IsMouseOver` (`:306-310`) и `IsKeyboardFocusWithin` (`:311-314`) убрать сеттеры `Margin`; триггер `IsSelected` (`:315-318`) убрать целиком вместе с `BorderBrush={DynamicResource FocusBrush}`. Сдвиг на 4 px не возвращается ни в каком виде. Комментарий `:301-305` переписать. `capture.IsSelected` в `OnOpenCaptureClick` оставить | S | `EdgeStackWindow.xaml:301-318` | нет (UI) | рамка `#718096` и крестик по наведению; крестик по клавиатурному фокусу; `SelectionMode="Single"`; `CaptureItem.IsSelected` в `DeepClone` (`EditorModels.cs:265`) | после возврата из редактора карточка выглядит как все | `windows: hovering a card no longer unfolds it` |
+| B-3 | B2 | `ApplyListHeight()` рядом с `PositionAtEdge`, зовётся из `UpdateEmptyState()` (`:1398`, он висит на `Renumber()` и через него на всех двенадцати входах); `PositionAtEdge` делится на `PlaceStripInitially()` (нынешнее тело `:738-752` минус строка высоты) и `EnsureStripPlaced()` (`ApplyListHeight()` плюс `RestoreRect` текущего прямоугольника); `ListBox` перешаблонивается в голый `ScrollViewer` (шаблон переезжает в именованный `StackScrollViewer` в `Window.Resources`, неявные стили `ScrollViewer` и `ScrollBar` из `ListBox.Resources` уходят); `Padding="8,14,8,52"` → `"4,14,12,8"`; `ItemsPanel` → `<StackPanel Margin="0,0,0,48"/>`; `OnCornerDragCompleted` (`:830-836`) после сохранения `StackHeight` зовёт `ApplyListHeight()` (доводчик, решение 2) | L | `EdgeStackWindow.xaml:169, 176-213`, `.xaml.cs:738-752, 830-836, 1398` | smoke, отдельным методом (`B §4`, приём `XamlReader.Parse` из проверки палитр `:855-885`): при `n=5` и высоте 220 `ScrollViewer.ScrollableHeight == 0`, а низ последней карточки не ниже низа `PART_ScrollContentPresenter` | имя `PART_VerticalScrollBar` обязано сохраниться в новом шаблоне (на нём держится колесо и грип без строки кода, комментарий `:181-183`); прокрутка колесом; перетаскивание порядка (`OnCaptureListMouseDown/MouseMove/Drop`, `:1776-1790`, считают точку относительно `CaptureList`); удаление и `RestoreRemoved` (идут через `Renumber` → теперь и через `ApplyListHeight`); `StripIsFull` и лимит 26; `MinHeight="128"` | 2 → 130, 5 → 220, 12 → 372; окно следует за списком; `PositionAtEdge` больше не пишет высоту | `windows: the strip list grows with what it holds` |
+| B-4 | B3 | `MinWidth="0"` и `MinHeight="0"` сеттерами в `StackScrollBar` **и** атрибутом на полосе в шаблоне; ширина 3 в покое, 6 по наведению; полоса завёрнута в `<Grid x:Name="BarField" Width="12" HorizontalAlignment="Right" Background="Transparent">`; `Opacity="0"` в покое, `CaptureList.AddHandler(ScrollViewer.ScrollChangedEvent, …)` в `OnSourceInitialized`, `OnStripScrolled` зажигает полосу и перезапускает `_scrollBarTimer` на 1 с, по тику гасит; наведение на `BarField` останавливает таймер и даёт 6 px сеттером триггера (гашение — только `BeginAnimation`, чтобы не спорить с сеттером, урок C1 прошлого раунда); `BlurRadius` тени карточки 16 → 12 | M | `EdgeStackWindow.xaml:103-131, 184-206, 229`, `.xaml.cs` (обработчик и таймер) | smoke, тем же методом, что B-3: `PART_VerticalScrollBar.ActualWidth <= 6` на пяти карточках | кисти `ScrollThumbBrush`/`ScrollThumbHoverBrush`/`FocusBrush` из палитр — литералов в новый код не заносить; перетаскивание грипа и листание кликом по дорожке (`Opacity` хит-тест не убирает); PgUp/PgDn через штатную навигацию `ListBox`; тень окна (`Shell`, blur 24 / depth 5) не трогается | в покое полосы нет, при колесе 3 px, гаснет, по наведению 6 px и тянется | `windows: the strip scrollbar shows up only while it scrolls` |
+| B-5 | B4 | Снять `ClipToBounds="True"` (`:225`); повесить `RoundedClip.Radius="10"` на внутренний `Grid` карточки (`:230`) — радиус 11 минус `BorderThickness="1"`, клип идёт по внутренней кромке рамки. `Border` с `CornerRadius="11"` остаётся как рамка и фон | S | `EdgeStackWindow.xaml:224-230` | нет (визуальная правка, `RoundedClip` покрыт волной 0) | полоса с буквой сверху карточки; `Stretch="UniformToFill"` и `Uniform` у чипа «экран»; тень карточки | углы миниатюры скруглены, картинка не наползает на штрих | `windows: the thumbnail is clipped by the radius it is drawn with` |
+| B-6 | B5 | Новое поле `_expandedLeft` рядом с `_expandedTop` (`:82`), пишется в `CollapseToCapsule` (`:661`); `PositionCapsuleAtEdge` → `PositionCapsuleAtStrip` (`CapsuleLeft` из волны 0); `ExpandFromCapsule` (`:682-699`) переписан по `B §B5.3`: `SizeToContent.Manual` **до** присваивания `Width`, один `PlaceWindow(RestoreRect(...))` вместо «ширина, потом `Left`», монитор при развороте не пересчитывается; `ShowStackWithoutActivation` (`:634`) при `_capsuleMode` капсулу больше не двигает | M | `EdgeStackWindow.xaml.cs:82, 634, 661-707` | тесты `CapsuleLeft`/`RestoreRect` закрыла волна 0; своего теста нет | капсула на `SizeToContent="WidthAndHeight"` (`:677-678`); `StackWorkArea` берёт монитор по окну и используется только как рамка клампа; `HideForCapture` (`:620`) по-прежнему прячет окно | капсула встаёт на правый верхний угол ленты, разворот возвращает ленту в те же `Left`/`Top`, монитор не меняется | `windows: the capsule stands where the strip stood` |
+| B-7 | B6 | `ShowInTaskbar="True"` статикой в разметке (`:8`) — **в рантайме это свойство не переключать ни при каких условиях**: WPF пересоздаёт HWND, а на нём висят глобальные клавиши (`:251`), наблюдатель вставки и `SetWindowDisplayAffinity`. `OnHideClick` → `WindowState = Minimized` (тултип и `AutomationProperties.Name` — существующая пара `Свернуть`); `OnClosing` (`:1851`) **остаётся `Hide()`** по решению 5; в `ShowStackWithoutActivation` перед `Show()` — `ShowWindow(handle, SW_SHOWNOACTIVATE)` при `WindowState.Minimized`; `OnLoaded` зовёт `ShowStackWithoutActivation()` всегда, а не только после мастера (`:232`), чтобы линия была с первой секунды. `HideStack()` остаётся только для `HideForCapture` | M | `EdgeStackWindow.xaml:8, 161-163`, `.xaml.cs:200, 232, 628-647, 1851` | результат пробы B-1; smoke: после `Minimized` и `ShowWindow` окно вернулось на те же `Left`/`Top` | горячие клавиши и наблюдатель вставки (HWND не пересоздаётся); пункт трея «Показать ленту» и `RevealStack`; второй экземпляр (`App.xaml.cs:84-92`, не трогается); редактор, диалоги и `ScreenColorPicker` остаются `ShowInTaskbar="False"`, мастер `True`; `Topmost` при `StackTopmost = true` | под иконкой линия с первого запуска; клик показывает, второй сворачивает, снимок возвращает | `windows: the strip is a window on the taskbar` |
+
+#### Дорожка C: редактор
+
+Зона: `OverlayEditorWindow.xaml(.cs)`, `.Appearance.cs`, `.Comments.cs`, `.Resize.cs`, `Controls/AnnotationCanvas.cs`, `WpfExportImageRenderer.cs`, `Imaging/NoteBadgeGeometry.cs` (рендер-часть). Порядок коммитов строгий: C-1 … C-7. Контейнеры панели (C-2) ложатся **до** содержимого блока свойств (C-3).
+
+| # | ТЗ | Что сделать | Размер | Файлы | Тесты и smoke | Что не должно сломаться | Критерий готовности | Коммит |
+|---|---|---|---|---|---|---|---|---|
+| C-1 | C1 | Удалить `ScaleSwitch` (`xaml:291-300`), `SyncScaleSwitch` (`:1677-1688`), `OnFitScaleClick` (`:1691-1696`), `OnOneToOneScaleClick` (`:1698-1708`), учёт переключателя в `PositionToolbar` (`:1741-1746`) и `_fitBox` в **обеих** точках (`:968`, `:1105-1108`); `OnLoaded` (`:959-974`) кладёт `_cropRect = EditorGeometry.PlaceCapture(imageSize, work, panelSize)`; Ctrl+колесо из вписанного состояния (`AnnotationCanvas.cs:1039-1058`, затравка `ViewScale ?? FitScale`, комментарий про `ImagePadding=0` прибить на месте). `OnSurfaceViewChanged` (`:1712-1717`) остаётся, перестаёт звать `SyncScaleSwitch` | L | `OverlayEditorWindow.xaml:291-300`, `.xaml.cs:70, 500-566, 959-974, 1104-1111, 1677-1746`, `Controls/AnnotationCanvas.cs:1039-1058` | `RunEditorScaleProbe` → `RunEditorViewProbe`: снять `:519`, `:523-526`, `:546`, `:553-554`; оставить подпись вида снимка (`:528-533`), ручки (`:555-557`) и пилюлю за краем (`:558-561`); добавить — из вписанного состояния Ctrl+колесо даёт `ViewScale is not null` и `≤ 1`, а `PlaceCapture` для 1420×700 в области 1536×824 даёт прямоугольник ровно 1420×700 | подпись вида снимка (`ShotKindChip`, `SyncShotKind`, `PositionShotKind`, `:1640-1672`); свежий снимок после захвата (`OnLoaded` выходит на `:958`); `SegmentButton` (`xaml:94-108`) **не удалять** — на нём палитры, толщина, стиль; ручки границ снимка (`Resize.cs:103-124`); обрезка → `SetupEditor` → `PositionToolbar` | `grep -rn "_fitBox\|ScaleSwitch\|SyncScaleSwitch" src` пуст; снимок 1420 px открывается 1:1; Ctrl+колесо на 3840×1125 даёт 1:1 | `windows: a capture from the strip opens at its own size` |
+| C-2 | C2, C6 | `WrapPanel` (`xaml:205`) → `Grid` 2×4 по контракту §3; `PositionToolbar` переписан по `C1 §2.3` (обнулить `Margin` перед измерением и вернуть после — это уже существующий баг, `C1 §7.2`); `OnLoaded` меряет панель **до** расчёта `_cropRect` и для этого поднимает `Toolbar.Visibility` раньше; `PlaceToolbar(..., mayOverlap)` зовётся с `mayOverlap = _capture?.Kind == CaptureKind.Fullscreen \|\| _isNew`; перетаскивание за `ToolbarBody` (`_toolbarUserPosition` — абсолютная точка, не смещение; захват мыши отпускается и в `MouseLeftButtonUp`, и в `LostMouseCapture`) | L | `OverlayEditorWindow.xaml:198-232`, `.xaml.cs:959-974, 1100-1111, 1725-1750` | `RunPanelProbe` (`:410-492`): блок `:445-460` переписать — при свободной ширине 781 `Grid.GetRow(ToolbarProperties) == 1`, при 1077 — `0`, ширина панели одинакова при пяти инструментах; блок `:466-484` оставить, добавив `!placement.IntersectsWith(window._cropRect)` при `mayOverlap: false`; добавить перетаскивание (нажатие в свободной колонке → `MouseMove` → отпускание меняет `Toolbar.Margin`, следующий `PositionToolbar()` его не сбрасывает); одна строка на C6 — все три уголка ▾ на месте и меню открываются у своей кнопки | поповеры (`AppearancePopup`, `ThicknessPopup`, `LineStylePopup`, `ShortcutSheetPopup`) привязаны по `ElementName` и переезд их не трогает; `BuildShapeMenu`/`BuildArrowMenu`/`BuildPencilMenu` и `AttachLongPress` (`Shapes.cs:46-121`, `Arrows.cs:14-34`); `RepositionChips` (`:1482`) и `LayoutWorkArea` как единственный источник свободной ширины; семь проб редактора идут через `SetupEditor` → `PositionToolbar` | панель под снимком; при открытой панели комментариев — две строки; на снимок не падает; тянется за фон | `windows: the markup panel stands under the capture and wraps in two rows` |
+| C-3 | C3 | Блок свойств: две капсулы по контракту §3 вместо `ColorDots` и шести кнопок; `_tools` вместо восьми активных полей (`xaml.cs:45-58`), чтение через `ToolAppearanceStore.Read` (`:82-87`), `Surface.Active*` из `_tools[Surface.Tool]` (`:1087-1093`); `SyncAppearance` (`Appearance.cs:231-357`) и `ApplyAppearance` (`:359-391`) переписаны по `C2 §1.4-1.5`; предикаты `HasStroke`/`HasShape`/`HasFill`/`HasFontSize`/`HasLineStyle` (`:39-49`) и `BuildColorDots` (`:209-229`) удалены; `LineStylePopup` (`xaml:374-395`) слит в `AppearancePopup`; палитра «неон» четвёртой (§3, `PaletteRow Columns="4"`, поле `Quick` удалено у всех наборов) | L | `OverlayEditorWindow.xaml:235-261, 302-345, 374-395`, `.xaml.cs:45-58, 82-87, 1087-1093`, `.Appearance.cs:24-26, 36, 39-49, 56-67, 98-117, 209-229, 231-391` | тесты `InspectorViewOf`/`InspectedTool` закрыла волна 0; `PanelChecks` (`xaml.cs:292-…`) правится под новые имена: `ThicknessButton.Content` → `LineCapsuleValue.Text`, проверка палитры уходит с `ColorDots` на двенадцать образцов `ColorPalette`, добавляется четвёртый сегмент | `ParseAnnotationPalette` падает на стандартную при неизвестном id (`:683-684`), то есть откат «неона» безопасен в обе стороны; `_activePalette`, `_customColors`, `_activePencil` остаются общими (состояние панели, не свойство отметки); шкала маркера `8/12/16/24` и диапазон `4…48`; спектр, HEX, пипетка, «+» | блок свойств одной ширины 176 у всех инструментов, панель не прыгает; заливка не красит обводку | `windows: the panel shows the properties of what is selected` |
+| C-4 | C3 правило 6 | `SaveAppearanceDefaults` (`Appearance.cs:650-670`) сводится к `TryLoad` → `ToolAppearanceStore.Write` → `Save`, комментарий `:646-649` переписан; `FlushAppearanceDefaults` пишет файл при закрытии окна | S | `OverlayEditorWindow.Appearance.cs:646-670` | **Обязательная smoke-проба `RunToolMemoryProbe(CaptureItem)`** рядом с `RunPanelProbe`, вызов из `SmokeTestRunner.cs` около `:458`, сценарий Кати дословно (`C2 §1.12`, семь шагов, включая закрытие окна и второй снимок над тем же `SessionWorkspace`). Проба держит свой временный workspace и удаляет его в `finally` | остальные настройки файла (громкость, клавиша, тема, акцент, язык) при записи не теряются; `SettingsVersion` не растёт | проба зелёная целиком, включая шаг 7 (новое окно на новом снимке) | `windows: the tools keep their appearance between captures` |
+| C-5 | C4 | Подключить `PressTargetOf` (волна 0) в `BeginGesture` (`AnnotationCanvas.cs:221-319`); `FindLeaderAnchor` (`:857-863`) теряет условие по инструменту; `FindResizeHandle` (`:610-630`) теряет исключение `Comment` и цикл по всем отметкам — углы только у выделенной; `IsMoveHandle` (`:876-920`) теряет `Tool == Comment` и правило «того же вида», `const double Reach = 8`; порог перетаскивания `_manipulationMoved` по `GestureThreshold = 4` (сбрасывать в `BeginGesture` и `OnLostMouseCapture`); `HitTestAnnotation` (`:631-646`) для `Text` инфлирует на 4 px без вклада `Thickness` | L | `Controls/AnnotationCanvas.cs:221-319, 377, 501-519, 610-646, 833-925` | таблицу `PressTargetOf` закрыла волна 0. `VerifyGestureRules` (`:1080-…`): добавить — с «Рамкой» в руке клик по существующей рамке выделяет её и не создаёт вторую, перетаскивание за контур пишет **одну** запись истории, клик без движения не пишет ничего; блок про «Комментарий» (`:1176-…`) переписать, точку для новой булавки брать вдали от выделенного. `VerifyHoverManipulation` (`:1244-1341`): арифметика `interiorGrabs` (`:1328-1335`) пересчитана под единый `Reach = 8`, проверки «стрелка за линию» (`:1278-1280`) и «булавка за бейдж» (`:1297-1299`) остаются | рисование новых отметок жестом в пустоте (`GestureHasSize`, `:839-847`) и одиночный клик для `Comment`/`Text`; ластик (`:427-428`); `Blur` черновиком и `_blurCache` при переносе (`:990-992`); обрезка вынесена явно (`CropDraft`); число записей undo на жест; панорама пробелом (`:224-230`); `HasResizeHandles` уже исключает `Text`/`Comment` | клик любым инструментом выделяет; двойной клик по тексту правит; рисовать внутри залитой рамки больше нельзя (осознанно, §9) | `windows: a click selects what is already drawn, whatever tool is in hand` |
+| C-6 | C5 п. 1-5, 7 | Третья ветка жеста `_badgeDrag` рядом с `_anchorDrag` (`C2 §3.1`): нажали на бейдж — двигается `NoteOffset` **без** `ClampToImage`, порог 4 px, одна запись истории на жест; постановка жестом «нажал — потянул» правит `NoteOffset` черновика, а не `Points[1]` (`C2 §3.2`), смещение короче порога → `NoteOffset = null`; наведение над бейджем разворачивает пилюлю (обратный вызов из `UpdateCursor`, `:417`); Esc получает шаг `ExpandedNote` в `NextEscapeStep` (`Appearance.cs:602-608`); снятие привязки — удалить `MoveLinkedComments` (`Comments.cs:179-197`), её вызов (`xaml.cs:1576`), поле `_commentParentId` (`:60`), присвоение (`:1245-1246`), запоминание в `OnCommentClick` (`:1763`) и пробу `:875` | L | `Controls/AnnotationCanvas.cs:258-268, 340-390, 417, 447-459`, `OverlayEditorWindow.xaml.cs:60, 875, 1245-1246, 1341-1362, 1576, 1763`, `.Comments.cs:179-197`, `.Appearance.cs:602-608` | нового юнит-теста нет (состояние жеста). `RunNoteAffordanceProbe` (`xaml.cs:808`) дополняется бейджем, вынесенным за границу снимка | `ClampToImage` остаётся в **двух** местах для комментария — `:342` и `:346` (якорь тянет точку); в `UpdateGesture` их четыре, перепутать легко; `FindLeaderAnchor` спрашивается раньше бейджа, поэтому при `NoteOffset == null` уезжает всё вместе; `_outsideClickConsumed` (`:997`); нумерация `CaptureLabels.ForNotedAnnotations`; бейдж акцентом всегда; `CaptureCropper.cs:81-85` и `Resize.cs:174` пересчитывают `NoteOffset`; `SessionValidation.cs:73` проверяет наличие, не диапазон | бейдж уезжает за границу снимка, точка стоит, линия ведёт внутрь; рамку подвинул — бейдж стоит | `windows: the comment badge moves on its own` |
+| C-7 | C5 п. 6 | Экспорт с полем: `WpfExportImageRenderer` (`:28-43`) берёт `ExportMargins` (волна 0), холст `HeaderHeight + Top + height + Bottom` × `Left + width + Right`, поле залито `#2A3140` одним прямоугольником, заголовок белый во всю новую ширину, снимок в `new Rect(Left, HeaderHeight + Top, width, height)`, все `P(…)` получают `offsetX = Left`, `offsetY = HeaderHeight + Top`; кламп `HeaderHeight + 2` в `ExportBadge` (`:181`) снимается; `HeaderHeight = 48` не трогается. Ввести одно свойство «где начинается снимок в экспорте» и считать от него | M | `WpfExportImageRenderer.cs:28-43, 127-130, 145, 181` | тесты `ExportMargins` закрыла волна 0. `SmokeTestRunner.cs:471-477`: пиксель бейджа считается уже с учётом полей, а не от `48` напрямую (`:473`) | без вынесенных бейджей картинка **байт в байт** как сегодня (`ExportMargins` даёт `None`); один рендерер обслуживает и «в чат», и `FileExportService.cs:55`, отдельной ветки не заводить; `VerifyCaptionIsTheSameSizeOnScreenAndInExport` (`:664`) | Ctrl+V даёт картинку с полем и бейджем на нём; без выносов — прежний PNG | `windows: the export leaves room for the badges outside the capture` |
+
+### Волна 2: сведение (один executor, на `master`, после слияния A, B и C по одному)
+
+| # | Что сделать | Размер | Файлы | Критерий готовности |
+|---|---|---|---|---|
+| W2-1 | Сводный раздел в `tasks/verification.md`: оба абзаца «Изменение формата» из §7, строка про смену смысла `StackHeight` (высота → потолок), строка про доводчик ручки угла, строка про приём «тянем за свободное место» (второе применение после ленты), строка «живьём не проверено» там, где проверка была только глазами | S | `tasks/verification.md` | ни один абзац §7 не потерян |
+| W2-2 | Сводные заметки раунда `tasks/tz-006-notes.md` (по образцу `tz-005-notes.md`: волна 0 ссылкой, дорожки по задачам, отступления, «живьём не проверено», передаточная записка Кате) и переиндексация графа: `cli index_repository '{"repo_path": "<корень репо>"}'` | M | `tasks/tz-006-notes.md`, индекс графа | `search_code` находит `ListHeightForCount`, `PlaceCapture`, `ToolAppearanceStore`, `ExportMargins`, `PressTargetOf` |
+| W2-3 | Версия 1.5.0 → 1.6.0 и сборка установщика | S | `src/Snapik.App/Snapik.App.csproj:18`, `installer/` | `artifacts/installer/Snapik-Setup-1.6.0.exe` собран |
+| W2-4 | **Одно** код-ревью по всему диапазону `802343d..HEAD` отдельным субагентом со свежим контекстом против ТЗ и этого плана, с проверкой inbound-callers по графу; затем один фикс-коммит с обязательными находками | M | по результату | `scripts/build.ps1` зелёный после фикс-коммита |
+
+W2-1…W2-3 идут параллельно с ревью, фикс-коммит ложится сверху. Установщик собирается **после** фикс-коммита.
+
+## 5. Общие файлы и правила слияния
+
+Порядок слияния: **A → B → C**, по одному, после каждого `scripts/build.ps1 -OutputDirectory $env:LOCALAPPDATA\Temp\snapik-candidate-tz006` зелёный. Обоснование: A самая маленькая и единственная, кто заходит в `App.xaml.cs`, `TaskbarPinService.cs` и `installer/` — её слияние ничего не задевает; B несёт самую крупную структурную переделку (`EdgeStackWindow.xaml` целиком), и чем раньше она в `master`, тем больше прогонов идёт поверх неё; C замкнута в файлах редактора и по построению ни с кем не пересекается, поэтому ложится последней. Зависимостей по коду между дорожками нет: всё общее объявлено волной 0.
+
+| Файл | Кто пишет | Правило |
+|---|---|---|
+| `UiLanguage.cs` | только волна 0 | В волне 1 закрыт. Пропущенная пара дописывается **в конец таблицы** и называется в заметках дорожки |
+| `SmokeTestRunner.cs` | все | Новые проверки только **отдельными методами в конце файла**. Зоны: волна 0 правит `:336-352` (языковая таблица); A владеет новой пробой ярлыка; B — двумя новыми методами (проба Minimized, проба списка и полосы); C — блоком проб редактора `:455-477` и `RunToolMemoryProbe`. Единственная общая точка — список вызовов в `RunAsync`: соседние строки, конфликт разводится глазами |
+| `Controls/StripResizeGeometry.cs` | только волна 0 | B читает константы, но не правит |
+| `Controls/EditorGeometry.cs`, `Controls/ToolbarLayout.cs`, `ToolAppearance.cs`, `Imaging/NoteBadgeGeometry.cs`, `Controls/RoundedClip.cs`, `TaskbarPinLegacy.cs` | только волна 0 | В волне 1 не правит никто; C вызывает, B вызывает |
+| `Controls/AppearancePicker.xaml(.cs)`, `OnboardingWindow.xaml(.cs)`, `TaskbarPinService.cs`, `App.xaml.cs`, `installer/` | только A | B и C в эти файлы не заходят |
+| `EdgeStackWindow.xaml(.cs)` | только B | A и C не заходят; `SingleInstanceActivation.cs` не трогает никто |
+| `OverlayEditorWindow.*`, `Controls/AnnotationCanvas.cs`, `WpfExportImageRenderer.cs` | волна 0, затем только C | Волна 0 правит `OutlineColorOf`, `PressTargetOf`, вызовы `PlaceToolbar` и удаляет `Toolbar.cs`; дальше файлы у C целиком, обе половины |
+| `EditorModels.cs`, Core (`AnnotationItem.cs`, `SessionValidation.cs`, `CaptureCropper.cs`, `PromptGenerator.cs`) | никто | В этом раунде только читаются. Новых полей ни в одной модели не заводится |
+| `HotkeySettingsWindow.xaml(.cs)` | только волна 0 | Ключ `toolAppearance`, `TryRead`/`Save`. Дорожки только читают |
+| `tests/` | все | Новые тесты только отдельными файлами или отдельными методами в конце существующего класса. Существующие ожидания, записанные числами, правит волна 0 (W0-2, W0-4) |
+| `tasks/verification.md` | никто из дорожек | Каждая пишет в свой `tasks/tz-006-notes-<A\|B\|C>.md`. Волна 0 — `tz-006-notes-0.md`. Сводит волна 2 |
+
+Что грепать после каждого слияния (опасны дубли, которые компилятор пропускает молча):
+
+1. `grep -o '\["[^"]*"\]' src/Snapik.App/UiLanguage.cs | sort | uniq -d` — пусто; смоук-инвариант уникальности английских значений прогнать первым.
+2. По координированным символам ровно одно определение: `grep -rc "internal static double ListHeightForCount" src` = 1; то же для `PlaceCapture`, `ToolbarLayout.Measure`, `PlaceToolbar`, `PressTargetOf`, `ExportMargins`, `OutlineColorOf`, `InspectorViewOf`, `ChooseLegacyPin`, `CarryOverPin`.
+3. Удалённое не вернулось: `grep -rn "_fitBox\|ScaleSwitch\|SyncScaleSwitch\|FitResult\|FitBound\|MoveLinkedComments\|_commentParentId\|BuildColorDots\|ColorDots\|LineStylePopup\|OverlayEditorWindow.Toolbar.cs" src tests` пуст. `ParentAnnotationId` остаётся — но только в чтении (`Comments.cs`, `PromptGenerator.cs`, модели), ни одного присвоения.
+4. Одноимённые методы в partial-классах: `grep -rhoP 'private (static )?(async )?[\w<>?\[\], ]+ \K\w+(?=\()' src/Snapik.App/OverlayEditorWindow*.cs | sort | uniq -d` — два обработчика одного жеста в разных файлах собираются молча.
+5. Дубли `x:Key` внутри одного словаря: `grep -rho 'x:Key="[^"]*"' src/Snapik.App/EdgeStackWindow.xaml | sort | uniq -d` и то же по `OverlayEditorWindow.xaml`; после слияния B прочитать `ListBox.Template`/`StackScrollViewer`/`StackScrollBar` целиком глазами — двойной `Setter` на одно свойство выигрывает молча.
+6. `grep -rn "ShowInTaskbar" src/Snapik.App` — лента `True`, мастер `True`, редактор и диалоги `False`, и ни одного присвоения в рантайме.
+7. `grep -rn "ClampToImage" src/Snapik.App/Controls/AnnotationCanvas.cs` — четыре места, для комментария остаются два (`:342`, `:346`).
+
+Ожидаемые места ручного разрешения конфликтов ровно два: список вызовов в `SmokeTestRunner.RunAsync` и соседние файлы в `tests/`.
+
+## 6. Строки RU/EN
+
+Все пары кладёт волна 0 (W0-1). Ключ русский, значение английское, значения уникальны. Сверено с существующей таблицей (290 пар).
+
+**Добавить (11 пар):**
+
+| RU | EN | Кому |
+|---|---|---|
+| `На панели задач остался старый значок SnapBrief. Нажми на него правой кнопкой и выбери «Открепить от панели задач»` | `An old SnapBrief icon is still on the taskbar. Right-click it and choose "Unpin from taskbar"` | A-4 |
+| `Старый значок SnapBrief теперь открывает Snapik` | `The old SnapBrief icon opens Snapik now` | A-4 |
+| `Подпись на панели задач обновится после перезахода в Windows` | `The taskbar label will update after you sign out and back in` | A-4 |
+| `Панель разметки` | `Markup panel` | C-2, `AutomationProperties.Name` ручки |
+| `Обводка` | `Stroke` | C-3, тултип первой капсулы |
+| `Цвет обводки` | `Stroke color` | C-3, поповер |
+| `Скруглённый` | `Rounded` | C-3, форма |
+| `Нет` | `None` | C-3, заливка |
+| `Полупрозрачно` | `Translucent` | C-3, заливка |
+| `Размытие` | `Blur` | C-3, заливка |
+| `Неон` | `Neon` | C-3, четвёртый сегмент палитры |
+
+**Удалить (2 пары):** `По ширине · {0} %` и `По высоте · {0} %` (`UiLanguage.cs:196`) вместе с двумя строками языковой таблицы smoke (`SmokeTestRunner.cs:346`) — единственный потребитель был переключатель масштаба (C-1).
+
+**Переиспользуются, новых пар не заводить:** `Свернуть` = `Minimize` (`:144`) для четвёртой кнопки шапки ленты; `Цвет`, `Цвет заливки`, `Заливка`, `Толщина`, `Линия`, `Сплошная`, `Пунктир`, `Точки`, `Стандартная`, `Пастель`, `Своя`, `Прямоугольник`, `Овал`, `Размер` (`:65-82`) для блока свойств. `Свернуть в трей` (`:83`) **не удалять**: пункт трея её читает; перед любым удалением — греп по `src`.
+
+## 7. Изменения формата
+
+Абзацы пишет волна 0 (`tasks/tz-006-notes-0.md`), волна 2 переносит в `tasks/verification.md`. Mac синхронизирует по ним (`AGENTS.md`, правило 4). Изменений в `session.json`, `manifest.json` и формате ID горячей клавиши в этом раунде нет.
+
+| # | Что | Где | Кто пишет |
+|---|---|---|---|
+| 1 | `settings.json` получает ключ `toolAppearance` — словарь «инструмент → его настройки» (`color`, `thickness`, `lineStyle`, `fill`, `fillColor`, `fontSize`, `arrowStyle`, `shape`; имена инструментов camelCase, `null` в `fillColor` означает «как обводка»). Прежние общие ключи `annotationColor`, `annotationThickness`, `annotationHighlightThickness`, `annotationFontSize` **остаются и продолжают писаться** зеркалом рамки, маркера и текста, поэтому файл, записанный 1.6.0, полностью читается 1.5.0, и установка в обе стороны настроек не теряет. При чтении файла без `toolAppearance` каждый инструмент получает старые общие значения, то есть файл 1.5.0 открывается ровно так, как выглядел. Неизвестный инструмент в словаре пропускается молча. `SettingsVersion` не поднимается: миграция здесь по отсутствию ключа. Поле `PaletteSet.Quick` удалено из кода, в файл оно не писалось. Побочное следствие правила 6: рамка теперь помнит фигуру, заливку и её цвет между снимками, тогда как раньше каждый снимок начинался с контурной рамки | `settings.json` | волна 0 (W0-5), дословно `C2 §1.8` |
+| 2 | `parentAnnotationId` у комментария выведен из обращения: с 1.6.0 **не пишется**, но продолжает читаться. Сессия 1.5.0, открытая заново, сохраняет подпись «К отметке A2» в панели комментариев и пометку «(к области A2)» в `prompt.md`; у новых комментариев подпись всегда «К снимку A», и при переносе рамки комментарий не двигается. `SchemaVersion` не меняется, ключ из старых файлов читается как раньше, в новых файлах его просто нет. Очистка повисшей ссылки при обрезке (`CaptureCropper.cs:75-76`) и валидация остаются: они защищают чужой файл. Тем же приёмом живёт `LegacyHasOutline` с прошлого раунда | `session.json`, `prompt.md` | волна 0 (W0-10), обоснование `C2 §3.5` |
+
+Отдельно, не формат, но меняет смысл сохранённого числа и должно попасть в `verification.md`: **`StackHeight` из «высоты списка» становится «потолком высоты списка»**. Тип и диапазон те же, лента с двумя снимками теперь 130 независимо от того, что записано в настройках, и упирается в записанное число только когда содержимое до него дорастёт. Ручка угла задаёт потолок, на отпускании список садится обратно на высоту содержимого.
+
+Второе: **старый снимок с заливкой перекрасится**. Отметка 1.5.0 с `Fill=Solid`, `FillColor=#0000FF`, `StrokeColor=#FF3B30` рисовалась с синей обводкой, теперь нарисуется с красной (решение Кати «обводка и заливка — два отдельных свойства»). Формат цел, меняется чтение.
+
+## 8. Проверка
+
+**Автоматически:** `scripts/build.ps1` (265 тестов плюс `--smoke-test`) — **один раз на пачку задач дорожки перед пушем**, и ещё раз перед каждым слиянием и после него с `-OutputDirectory $env:LOCALAPPDATA\Temp\snapik-candidate-tz006`. Перед каждым коммитом прогон не требуется.
+
+Чек-лист F ТЗ, на 100 % и на 125 %, отдельно на двух мониторах. «Авто» — пункт покрыт тестом или smoke и на экране только подтверждается; «живьём» — автоматической проверки нет вовсе.
+
+| # | Пункт F | Чем покрыт |
+|---|---|---|
+| 1 | Обновление поверх 1.5.0: одна иконка Snapik, старого закрепа нет (A2) | **Живьём.** Smoke проверяет только перенацеливание `.lnk` во временной папке. Подхватит ли Explorer изменение и за сколько — только глазами; на уже испорченной машине (два закрепа) пункт полностью невыполним, см. §9 |
+| 2 | Мастер на втором мониторе → перетащить на основной → стрелки и колесо листают, и обратно (A1) | **Живьём.** Второго монитора на агенте нет. Авто держит `RunProbe`: стрелка не выключается, рассинхрон счётчика лечится. В логе три строки трассы (A-2) |
+| 3 | «Начать» → пустая компактная лента; под иконкой линия (B6) | **Живьём.** Показ окна в headless не проверяется |
+| 4 | Три снимка → список 190 без прокрутки; редактор и обратно: карточки не развёрнуты, акцентных рамок нет (B1, B2) | **Авто частично.** `ListHeightForCount` тестом, «влезающий список не прокручивается» smoke'ом; вид карточек живьём |
+| 5 | 12 снимков → список 372, полосы в покое нет, колесо даёт 3 px и гасит, наведение 6 px, второй полосы нет (B3) | **Авто частично.** `ActualWidth <= 6` smoke'ом (это и есть «второй полосы нет», `B §0.1`); таймер и наведение живьём |
+| 6 | Углы миниатюр скруглены (B4) | **Живьём** |
+| 7 | Лента у границы мониторов → капсула на том же углу → развернуть → там же; и оттащенная от края (B5) | **Авто частично.** `CapsuleLeft` и `RestoreRect` тестами; два монитора живьём |
+| 8 | Клик по иконке: показать → свернуть совсем → клавиша снимка возвращает ленту (B6) | **Живьём.** Проба B-1 говорит только, переживает ли layered-окно `Minimized` |
+| 9 | Снимок области из ленты 1:1, переключателя нет; весь экран двух мониторов вписан, Ctrl+колесо даёт 1:1 (C1) | **Авто частично.** `PlaceCapture` тестами (в том числе случай Кати 1420×700), вход в масштаб Ctrl+колесом — smoke'ом; шов и прокрутка живьём |
+| 10 | Панель под снимком; панель комментариев → две строки, не на снимке; перетащить за фон. На 1366×768 (C2) | **Авто.** `ToolbarLayout.Measure` тестами (781 → две строки, 1077 → одна), непересечение со снимком и перетаскивание — `RunPanelProbe`. Глазами только вид |
+| 11 | Инспектор: рамка зелёная + красная полупрозрачная → стрелка синяя пунктиром → текст белый 20 → маркер жёлтый → рамка (C3, обязательный тест) | **Авто.** `RunToolMemoryProbe` проходит сценарий дословно, включая закрытие редактора и второй снимок. Живьём — что панель показывает то же, что помнит модель |
+| 12 | Клик по существующей стрелке с рамкой в руке выделяет; тянуть — переехала; двойной клик по тексту — правка (C4) | **Авто частично.** `PressTargetOf` таблицей, `VerifyGestureRules` и `VerifyHoverManipulation` — сценариями; ощущение порога 4 px живьём |
+| 13 | Комментарий: клик — кружок; нажал-потянул — точка и линия; бейдж за границу; тянуть точку; Ctrl+V — картинка с полем (C5) | **Авто частично.** `ExportMargins` тестами, бейдж за границей — в `RunNoteAffordanceProbe` и в пикселе экспорта; жесты живьём |
+| 14 | Комментарий поверх выделенной рамки: не привязан, рамку подвинул — бейдж стоит (C5.7) | **Авто.** `MoveLinkedComments` удалена, греп §5 п. 3 это держит; подтвердить глазами один раз |
+
+Отдельно на 125 %: сам `scripts/build.ps1` при системном масштабе 125 % (с прошлого раунда так и не прогонялся), укладка панели редактора при открытой панели комментариев, растягивание ленты за угол и за левую ручку до упора и обратно (доводчик), поповер обводки с четвёртым сегментом палитры.
+
+Живая приёмка обязательна до передачи сборки. В прошлом раунде весь диапазон прошёл автоматически, и половина пунктов этого ТЗ — то, что видно за первые десять минут живого прогона.
+
+## 9. Открытые вопросы
+
+**Никите:**
+
+1. **Цвета палитры «неон».** Взяты из истории (`7846075^`, набор `neon`), двенадцать штук перечислены в §3. В коде 1.4.0 они были помечены комментарием «до прихода палитр от тестировщика это предложение и ничего больше». Эталон 01 требует четвёртый сегмент, но цвета в ТЗ не заданы: подтвердить старый набор или прислать новый.
+2. **`WindowState.Minimized` на layered-окне с `SizeToContent`** (`B §6.1`). Единственное место, которое не предсказывается по коду. Задача B-1 это выясняет первой. Если окно уезжает по `Top` при восстановлении — лечится `SetWindowPos` из сохранённого прямоугольника. Если не лечится, единственный оставшийся ход — снять `AllowsTransparency` у ленты, а это перетряхивает тени, скругление и всю геометрию `StripResizeGeometry`. Такой ход в раунд не входит и делается только по отдельному решению.
+3. **Правое поле 12 против карточки 168** (решение 3, §1 п. 11). Эталон 03 подписью требует поле 12, а разметкой рисует карточку 168 при полях 8/8. Одновременно они не живут. Взято: карточка 168, правое поле 12, левое 4. Альтернатива — карточка 164 при полях 8/12, тогда ломается число, которое Катя уже приняла в прошлом раунде.
+4. **«Закрыть окно» из контекстного меню панели задач** (решение 5). Оставлено нынешнее поведение `OnClosing` — лента уходит в трей, приложение работает, линия под иконкой гаснет до следующего показа. Альтернатива — `Minimized` и там: тогда «Закрыть» вообще ничего не закрывает, что читается страннее.
+5. **Стрелки галереи теряют `IsEnabled` для UI Automation** (`A §Риски`). Скрипт Кати ловил конец ряда по `enabled=False`; после A-1 признак живёт в `Tag` и в `AutomationProperties.HelpText`. Скрипт придётся поправить, сказать заранее.
+6. **Рисовать поверх залитой рамки и поверх текста станет нельзя** (`C2 §2.6`): нажатие выделит их. Прямое следствие правила 1 ТЗ и стандарт Figma/Preview; внутренность **пустой** рамки остаётся свободной. Проверить на живой приёмке отдельным шагом и решить, достаточно ли «Выбора» с перетаскиванием.
+
+**Кате:**
+
+7. **Надёжность замены закрепа** (`A §Надёжность`). Перенацелить файл и записать AUMID надёжно; чтобы панель задач это **показала** — нет: Explorer кэширует иконку и подпись, иногда до перезахода в Windows. Подпись кнопки останется «SnapBrief» до ручного перезакрепа на всех сборках 26052+ (её машина — 26200). Убрать лишний закреп на машине, где их уже два, программно невозможно вовсе: пункт F1 на её машине выполняется частично — старая кнопка запускает Snapik, вторая не появляется, а мастер говорит, как убрать лишнюю.
+8. **Старые снимки с заливкой перекрасятся** (§7). Залитая рамка 1.5.0 сменит цвет обводки с цвета заливки на свой. Это её же решение «обводка и заливка — два отдельных свойства», а не регресс, но на старых сессиях будет видно.
+9. **Доводчик ручки угла** (решение 2). Пока тянешь — список идёт за рукой; отпустил — сел на высоту содержимого, а натянутое число осталось потолком. Видимое движение на отпускании; если это раздражает, альтернатива — не двигать список во время перетаскивания вовсе, но тогда короткая лента не тянется.
+10. **A1 может не закрыться этим раундом.** Доказать залипание `IsEnabled` только чтением кода нельзя (`A §Диагноз`). Фикс закрывает обе версии сразу, трасса за один прогон скажет, какая была. Если окажется хит-тест — правка будет другая (`InvalidateMeasure` + `UpdateLayout` в `OnDpiChanged` без `_placed`-гейта), и это отдельный заход.
+
+## 10. На потом
+
+- **Настоящее стекло (Acrylic)** — по-прежнему вне раунда, условия зафиксированы в `tasks/tz-005-plan.md` §10 и `reference-html/06-acrylic-later.html` прошлого круга.
+- **Масштаб выше 100 % в редакторе.** Ctrl+колесо по-прежнему зажато сверху 1:1.
+- **Кеш `SolidColorBrush` и `Pen`** в `AnnotationCanvas` и `WpfExportImageRenderer` (на каждый кадр новые замороженные кисти); кеш `ThemeService.IsGradientAccent`; зажим `ViewOffset` из `OnRender` в сеттер; `StackChromeHeight()` при пустой ленте считает высоту скрытого списка — четыре находки ревью прошлого раунда, ни одна не мешает.
+- **Тень карточки градиентом вместо `DropShadowEffect`** (`B §B3.2`): снимает bitmap-эффект с каждой карточки и убирает спор тени с полем под полосу. Сейчас решено дешевле — `BlurRadius` 16 → 12.
+- **Сдвиг карточки на 4 px по наведению**, если он вернётся, — только `RenderTransform`: `Margin` участвует в `Measure` и ломает формулу B2.
+- **Глиф размытия** (`PortraitBlur` `EABE`) и **глиф «стрелка вверх»** ленты — тянутся с прошлого раунда.
+- **Темизация `CaptureOverlay`, `SavePackageWindow`, `DiscardSessionWindow`.**
+- **Синхронизация macOS-порта** по §7 и по абзацам «Изменение формата»: ключ `toolAppearance` в общем `settings.json` (формат обязан совпасть до буквы, включая camelCase и `null`), `outlineColor` без `fillColor`, словарь `[EditorTool: ToolAppearance]`, порядок нажатия `PressTargetOf`, перетаскивание бейджа без клампа и поле экспорта `#2A3140`, `parentAnnotationId` только на чтение, `PlaceCapture` и две строки панели, геометрия ленты (`listPaddingBottom` 8, `listPaddingRight` 12, `listHeight(forCount:cap:)`, `scrollBarWidth` 3/6), клип миниатюры через `layer.cornerRadius`, разделённый `positionAtEdge()`, разрезанный `EditorScaleSwitchView.swift` (переключатель уходит, подпись вида снимка остаётся). A1 и A2 не переносятся вовсе: `WM_DPICHANGED` и AUMID — это Windows. Детали в `A §Перенос`, `B §8`, `C1 §9`, `C2 §4.4`.
