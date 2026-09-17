@@ -34,6 +34,10 @@ final class EdgeStackWindowController: NSWindowController {
     private var placedOnce = false
     private var expandedWidth: CGFloat = CGFloat(StripResizeGeometry.defaultWidth)
     private var expandedTop: CGFloat = 0
+    /// Port of `_expandedLeft` (SPEC-DELTA-5 §1.1 L-6): without it the strip came back to the edge
+    /// of the monitor whatever corner the user had dragged it to, and the capsule stood at that edge
+    /// instead of over the strip it came from.
+    private var expandedLeft: CGFloat = 0
     /// Port of `_topmostSuspensions`: a dialog owned by the strip would open behind a floating one.
     private var topmostSuspensions = 0
     /// Set when a card's delete button was pressed, so the undo toast belongs to that delete and not
@@ -250,8 +254,15 @@ final class EdgeStackWindowController: NSWindowController {
             let work = workArea(for: window)
             let size = contentContainer.capsuleSize()
             let top = expandedTop > 0 ? expandedTop : work.maxY - 24
+            // Port of `PositionCapsuleAtStrip` (`:825-829`), SPEC-DELTA-5 §1.1 L-6: the right edge
+            // of the strip the capsule came from, not the right edge of the monitor. Both windows
+            // carry the same 20-point field under their shadow, so the sides that are seen line up.
+            let left = CGFloat(
+                StripResizeGeometry.capsuleLeft(
+                    stripLeft: Double(expandedLeft), stripWidth: Double(expandedWidth),
+                    capsuleWidth: Double(size.width)))
             window.setFrame(
-                NSRect(x: work.maxX - size.width, y: top - size.height, width: size.width, height: size.height),
+                NSRect(x: left, y: top - size.height, width: size.width, height: size.height),
                 display: true)
             contentContainer.frame = NSRect(origin: .zero, size: size)
             return
@@ -421,24 +432,38 @@ final class EdgeStackWindowController: NSWindowController {
         isCapsuleMode = true
         expandedWidth = window.frame.width
         expandedTop = window.frame.maxY
+        // The whole rectangle is remembered, the left edge included; the height of the list is not,
+        // on purpose — it follows the content, and captures may arrive while the strip stands
+        // collapsed (`_expandedListHeight` was taken off Windows for the same reason).
+        expandedLeft = window.frame.minX
         contentContainer.hideToast()
         contentContainer.setCollapsed(true)
         positionAtEdge()
     }
 
-    /// Port of `ExpandFromCapsule`: the width and the top edge the strip had when it was collapsed,
-    /// and the same right edge of the same working area.
+    /// Port of `ExpandFromCapsule` (`:795-822`), SPEC-DELTA-5 §1.1 L-6: the rectangle the strip had
+    /// when it was collapsed, with the height of the list settled again from what the strip holds
+    /// now. The working area is a frame to clamp against and not a place to move to — a strip
+    /// dragged away from the edge comes back where it was left.
     func expandFromCapsule() {
         guard isCapsuleMode, let window else { return }
         isCapsuleMode = false
         contentContainer.setCollapsed(false)
-        let work = workArea()
+        let work = workArea(for: window)
         let width = CGFloat(StripResizeGeometry.clampWidth(Double(expandedWidth), workWidth: Double(work.width)))
+        applyListHeight()
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: contentContainer.windowHeight())
         contentContainer.layoutSubtreeIfNeeded()
         let height = contentContainer.windowHeight()
+        let placed = StripResizeGeometry.restoreRect(
+            x: Double(expandedLeft), y: Double(expandedTop - height),
+            width: Double(width), height: Double(height),
+            workX: Double(work.minX), workY: Double(work.minY),
+            workWidth: Double(work.width), workHeight: Double(work.height))
+        // One `setFrame`, as `PlaceWindow` is one `SetWindowPos`: the strip must not be seen
+        // travelling through a placement of its own between two assignments.
         window.setFrame(
-            NSRect(x: work.maxX - width, y: expandedTop - height, width: width, height: height), display: true)
+            NSRect(x: CGFloat(placed.x), y: CGFloat(placed.y), width: width, height: height), display: true)
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
     }
 
