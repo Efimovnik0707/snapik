@@ -596,6 +596,9 @@ public static class SmokeTestRunner
         VerifyTheWizardKeepsItsAppearance(root);
         VerifyALegacyPinIsCarriedOver(Path.Combine(root, "pin-probe"));
         WithoutBindingErrors("The strip list", EdgeStackWindow.RunStripGrowthProbe);
+        VerifyTz007Settings();
+        VerifyTz007Strip();
+        VerifyTz007Editor();
         var success = paths.Count == 3
             && preparedFilesOnDisk
             && decoded.All(bitmap => bitmap.PixelWidth == 1920 && bitmap.PixelHeight == 1128)
@@ -1513,4 +1516,24 @@ public static class SmokeTestRunner
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShowWindow(IntPtr window, int command);
+
+    // The three hooks of the 1.7.0 round, one per track, so that three branches written at the same
+    // time meet in this file only at the line of their own call. A track that needs to await turns
+    // its own hook into "private static async Task" and awaits its own call line; everything else
+    // here belongs to somebody else. A check that needs the private members of a window is written
+    // as a probe inside that window and called from here in one line.
+    private static void VerifyTz007Settings()
+    {
+        // The settings track writes here.
+    }
+
+    private static void VerifyTz007Strip()
+    {
+        // The strip track writes here.
+    }
+
+    private static void VerifyTz007Editor()
+    {
+        // The editor track writes here.
+    }
 }
