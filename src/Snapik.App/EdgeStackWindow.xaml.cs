@@ -977,6 +977,18 @@ public partial class EdgeStackWindow : Window
         Height = _resizeStartChrome + listHeight;
     }
 
+    // A double click on the grip is the standard "size to content" gesture, and it gives the strip
+    // back to what it holds. Preview, not the ordinary event: a Thumb captures the mouse in its own
+    // MouseLeftButtonDown and MouseDoubleClick never arrives. It is the way the header skips a double
+    // click as well, see OnShellMouseDown.
+    private void OnCornerGripPress(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2) return;
+        e.Handled = true;
+        MutateSettings(stored => stored with { StackHeightManual = false });
+        ApplyListHeight();
+    }
+
     private void OnCornerDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
     {
         SizeToContent = SizeToContent.Height;

@@ -494,6 +494,7 @@
          The window is not resizable by the system, and the strip has no MaxHeight any more: the
          ceiling comes from the working area of the monitor it is on. -->
     <Thumb x:Name="CornerGrip" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="16" Height="16" Margin="20,0,0,20" Cursor="SizeNESW"
+           PreviewMouseLeftButtonDown="OnCornerGripPress"
            DragStarted="OnCornerDragStarted" DragDelta="OnCornerDragDelta" DragCompleted="OnCornerDragCompleted">
         <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
     </Thumb>
