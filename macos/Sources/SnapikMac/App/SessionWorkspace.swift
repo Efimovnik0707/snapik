@@ -164,6 +164,38 @@ final class SessionWorkspace {
         return try await service.prepare(session: exported, sessionDirectory: sessionDirectory)
     }
 
+    /// Port of `ExportSingleAsync` (`SessionWorkspace.cs:227-236`): a package of one capture, the
+    /// same picture and the same text as a package of many, with three differences that matter.
+    /// The capture is taken as it is handed over and the session is **not** written to disk — it
+    /// may be a draft of the editor the strip has never seen; the revision does not move either,
+    /// only a real save of the session moves it; and `label` is the letter of the card, so the
+    /// picture, the text and the toast all name the same capture.
+    ///
+    /// The renderer comes from the caller, the way `prepareExport(renderer:includingSent:)` takes
+    /// it: on Windows the service builds one of its own.
+    ///
+    /// Windows trims the older exports here (`TrimExports`); there is nothing to trim with on this
+    /// side, because the rotation of `exports/revision-*` was never ported — for a package either.
+    /// Every "Copy capture" therefore leaves one more `revision-*` directory behind until the strip
+    /// is cleared or the application is started again. A debt of its own, written down in
+    /// SPEC-DELTA-5 §2.1, and not this round's.
+    func exportSingle(
+        _ capture: CaptureItem, label: String? = nil, renderer: ExportImageRendering
+    ) async throws -> PreparedExport {
+        let single = SnapikSession(
+            id: session.id,
+            schemaVersion: SnapikSession.currentSchemaVersion,
+            createdAtUtc: session.createdAtUtc,
+            modifiedAtUtc: timeProvider.utcNow(),
+            revision: session.revision,
+            globalNote: "",
+            selectedTargetProfileId: nil,
+            captures: [capture])
+        let service = FileExportService(
+            renderer: renderer, timeProvider: timeProvider, singleCaptureLabel: label)
+        return try await service.prepare(session: single, sessionDirectory: sessionDirectory)
+    }
+
     /// The captures a package would be built from right now (`PendingCaptures`).
     var pendingCaptures: [CaptureItem] { SentCaptureRules.forPackage(session.captures) { $0.sent } }
 
