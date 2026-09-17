@@ -218,8 +218,13 @@ public static class SmokeTestRunner
             window.ApplyLanguage("en");
             if (!window.QualityLabel.Text.StartsWith("JPEG quality", StringComparison.Ordinal))
                 throw new InvalidOperationException("The JPEG quality caption must follow the language applied to the window.");
-            window.Measure(new Size(530, 480));
-            window.Arrange(new Rect(0, 0, 530, 480));
+            // Measured at the size the window declares and not at a size of the probe's own: a window
+            // measured smaller than it opens hides the very cut this round is here to close. The tab of
+            // appearance is realised as well, because a TabControl builds only the tab that is selected.
+            window.Measure(new Size(window.Width, window.Height));
+            window.Arrange(new Rect(0, 0, window.Width, window.Height));
+            window.AppearanceTabItem.IsSelected = true;
+            window.UpdateLayout();
             ResolveTriggerBindings(window);
             window.ApplyLanguage("ru");
             if (!window.QualityLabel.Text.StartsWith("Качество JPEG", StringComparison.Ordinal))
@@ -1522,9 +1527,36 @@ public static class SmokeTestRunner
     // its own hook into "private static async Task" and awaits its own call line; everything else
     // here belongs to somebody else. A check that needs the private members of a window is written
     // as a probe inside that window and called from here in one line.
+    // A1 of the round. The height of the settings window is a number in its XAML and nothing in the
+    // code reads it: the window neither scrolls nor resizes, so a tab that outgrows the number loses
+    // its bottom without a word. Every tab is selected in turn (a TabControl builds only the selected
+    // one) and the root of the window is then measured with the width of the window and no ceiling of
+    // its own; the tallest tab has to fit into the height the window declares. There is no chrome to
+    // subtract: WindowStyle="None" with AllowsTransparency="True" leaves the root border alone.
     private static void VerifyTz007Settings()
     {
-        // The settings track writes here.
+        WithoutBindingErrors("The tabs of the settings window", () =>
+        {
+            var window = new HotkeySettingsWindow(HotkeySettings.Default);
+            window.ApplyLanguage("ru");
+            var root = (FrameworkElement)window.Content;
+            var tallest = 0.0;
+            foreach (var tab in window.Tabs.Items.OfType<System.Windows.Controls.TabItem>())
+            {
+                tab.IsSelected = true;
+                window.Measure(new Size(window.Width, window.Height));
+                window.Arrange(new Rect(0, 0, window.Width, window.Height));
+                window.UpdateLayout();
+                root.Measure(new Size(window.Width, double.PositiveInfinity));
+                tallest = Math.Max(tallest, root.DesiredSize.Height);
+            }
+            // A measurement that comes back as nothing would let any height through, which is how the
+            // cut tab lived through every run before this check: the old one measured 530 by 480.
+            if (tallest < 200)
+                throw new InvalidOperationException($"The tabs of the settings window did not measure: {tallest:0} px is not a height.");
+            if (tallest > window.Height)
+                throw new InvalidOperationException($"The settings window must be as tall as its tallest tab: {tallest:0} px does not fit into {window.Height:0} px.");
+        });
     }
 
     private static void VerifyTz007Strip()
