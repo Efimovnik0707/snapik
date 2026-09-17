@@ -408,9 +408,50 @@ extension OverlayEditorController {
 
         canvasView.beginGesture(canvasView.badgeCenter(of: pin))
         canvasView.endGesture()
-        let ok = capture.annotations.count == before + 1 && canvasView.selectedAnnotation === pin && canvasView.tool == .comment
+        var ok = capture.annotations.count == before + 1 && canvasView.selectedAnnotation === pin && canvasView.tool == .comment
 
-        capture.annotations.removeAll(where: { $0 === pin })
+        // One order of the press for every tool (SPEC-DELTA-5-editor.md §1.2 E-5): with the frame in
+        // the hand a press on a frame that is already there selects it and draws no second one, a
+        // drag of its outline writes one entry of the history, and a press without a drag writes
+        // none at all.
+        let frame = EditorAnnotation(
+            kind: .rectangle,
+            points: [CGPoint(x: w * 0.1, y: h * 0.1), CGPoint(x: w * 0.4, y: h * 0.4)],
+            color: armedAppearance.color, thickness: 4)
+        capture.annotations.append(frame)
+        canvasView.selectAnnotation(id: nil)
+        selectTool(.rectangle)
+        canvasView.recomputeImageRect()
+        let outline = canvasView.toDisplay(CGPoint(x: w * 0.25, y: h * 0.1))
+        let counted = capture.annotations.count
+
+        canvasView.beginGesture(outline)
+        canvasView.endGesture()
+        ok = ok && capture.annotations.count == counted && canvasView.selectedAnnotation === frame
+
+        let entriesBeforeClick = history.undoDepth
+        canvasView.beginGesture(outline)
+        canvasView.updateGesture(outline, pressed: true)
+        canvasView.endGesture()
+        ok = ok && history.undoDepth == entriesBeforeClick
+
+        canvasView.beginGesture(outline)
+        canvasView.updateGesture(CGPoint(x: outline.x + 40, y: outline.y + 30), pressed: true)
+        canvasView.endGesture()
+        ok = ok && history.undoDepth == entriesBeforeClick + 1
+
+        // A drag of the pointer over an empty place leaves no mark behind: a draft of kind `select`
+        // used to reach the session, and the export drew a rectangle where it stood.
+        canvasView.selectAnnotation(id: nil)
+        selectTool(.select)
+        let emptied = capture.annotations.count
+        let empty = canvasView.toDisplay(CGPoint(x: w * 0.8, y: h * 0.8))
+        canvasView.beginGesture(empty)
+        canvasView.updateGesture(CGPoint(x: empty.x + 30, y: empty.y + 20), pressed: true)
+        canvasView.endGesture()
+        ok = ok && capture.annotations.count == emptied
+
+        capture.annotations.removeAll(where: { $0 === pin || $0 === frame })
         canvasView.selectAnnotation(id: nil)
         selectTool(.select)
         return ok

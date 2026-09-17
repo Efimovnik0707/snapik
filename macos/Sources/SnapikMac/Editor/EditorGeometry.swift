@@ -125,13 +125,17 @@ enum EditorGeometry {
 
     // MARK: - Hit testing (SPEC §6.3)
 
-    /// Port of the rectangle hit test (`AnnotationCanvas.cs:562-577`, SPEC-DELTA-3 §1.4 E-13). The
+    /// Port of the rectangle hit test (`AnnotationCanvas.cs:760-773`, SPEC-DELTA-3 §1.4 E-13). The
     /// box is drawn through the middle of the stroke, so it is widened by half of it and a little to
     /// grab by. Twice the whole width was the same thing while the thickness of the highlighter
     /// meant a quarter of its real one; with the real width it reached 96 px, and the eraser took
     /// strokes the hand was nowhere near.
-    static func hitTestInflatedBounds(_ bounds: CGRect, thickness: Double) -> CGRect {
-        let inset = -max(8, thickness / 2 + 4)
+    ///
+    /// A caption is the exception: its thickness has nothing to do with the size of its letters, so
+    /// a caption of twelve pixels would be caught by a band of eight all round it and cover its
+    /// neighbours (SPEC-DELTA-5-editor.md §1.2 E-5).
+    static func hitTestInflatedBounds(_ bounds: CGRect, kind: EditorTool, thickness: Double) -> CGRect {
+        let inset = -(kind == .text ? 4 : max(8, thickness / 2 + 4))
         return bounds.insetBy(dx: inset, dy: inset)
     }
 
