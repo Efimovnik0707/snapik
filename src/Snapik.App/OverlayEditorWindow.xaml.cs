@@ -340,11 +340,41 @@ public partial class OverlayEditorWindow : Window
         // The fill has a square of its own inside the colour capsule, and a popover behind it: the
         // four fills and the twelve swatches of the fill colour. The outline keeps its own colour.
         window.SelectToolMode(EditorTool.Arrow);
-        window.OpenFillFromSquare();
+        // Pressed and let go the way a hand does it. The press alone must open nothing: a popover
+        // opened on the way down takes the mouse, and the button coming up lands outside it and
+        // closes it again — the fill popover used to live only while the button was held. Which of
+        // the two a click opened is read off the swatches it builds, because a window that was never
+        // shown has no surface for a popup to stand on and lets go of it at once.
+        void PressLeft(UIElement element) => element.RaiseEvent(new MouseButtonEventArgs(
+            Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent });
+        void ClickCapsule() => window.ColorCapsule.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        void ClearSwatches() { window.ColorPalette.Children.Clear(); window.FillPalette.Children.Clear(); }
+        ClearSwatches();
+        PressLeft(window.ColorCapsule);
+        PressLeft(window.FillSquare);
+        if (window.ColorPalette.Children.Count != 0 || window.FillPalette.Children.Count != 0 || window.Surface.Tool != EditorTool.Arrow)
+            throw new InvalidOperationException("A press on the capsule must open no popover: the release that follows would close it again.");
+        ClickCapsule();
+        if (window.ColorPalette.Children.Count != 0)
+            throw new InvalidOperationException("A click that began on the square must open the fill popover, not the stroke one.");
         // The swatches of the fill are built as the popover opens, the way the colour popover builds
         // its own: a window that was never shown has no surface for the popup itself to appear on.
         if (window.Surface.Tool != EditorTool.Rectangle || window.FillPalette.Children.Count != 12)
             throw new InvalidOperationException("The fill square must arm the region when the fill has nothing to belong to.");
+        // And a click that began on the capsule beside the square opens the stroke popover: the mark
+        // the press left is spent by the click that reads it, and never outlives it.
+        ClearSwatches();
+        PressLeft(window.ColorCapsule);
+        ClickCapsule();
+        if (window.ColorPalette.Children.Count != 12 || window.FillPalette.Children.Count != 0)
+            throw new InvalidOperationException("A click beside the square must open the stroke popover.");
+        // Back on the fill popover, which everything below stands on.
+        ClearSwatches();
+        PressLeft(window.ColorCapsule);
+        PressLeft(window.FillSquare);
+        ClickCapsule();
+        if (window.FillPalette.Children.Count != 12)
+            throw new InvalidOperationException("The square must open the fill popover again.");
         window.OnFillClick(window.FillBlurSegment, new RoutedEventArgs());
         if (window.Surface.ActiveFill != Snapik.Core.Models.AnnotationFill.Blur || window.FillPalette.IsEnabled ||
             window.FillSquareBlur.Visibility != Visibility.Visible)

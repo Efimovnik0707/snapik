@@ -473,9 +473,18 @@ public partial class OverlayEditorWindow
         if (!_syncingAppearance && FontSizePopup?.IsOpen == true) ApplyAppearance(null, null, fontSize: Math.Round(e.NewValue));
     }
 
-    // The square inside the colour capsule takes the press before the capsule does, and opens the
-    // fill popover instead of the stroke one: two properties of the mark, two ways in.
-    private void OnFillSquareDown(object sender, MouseButtonEventArgs e) => e.Handled = OpenFillFromSquare();
+    // The press that began on the square inside the colour capsule, and nowhere else in it.
+    private bool _fillSquarePressed;
+
+    // The square inside the colour capsule takes the press before the capsule does, and the capsule
+    // opens the fill popover instead of the stroke one on the click that follows: two properties of
+    // the mark, two ways in. The press itself opens nothing. A Popup with StaysOpen="False" takes
+    // the mouse the moment it opens, so a popover opened on the way down sees the button coming up
+    // outside itself and closes again — it lived only while the button was held. Both popovers of
+    // the capsule now open the same way the rest of the panel does: on the click.
+    private void OnColorCapsuleDown(object sender, MouseButtonEventArgs e) => _fillSquarePressed = false;
+
+    private void OnFillSquareDown(object sender, MouseButtonEventArgs e) => _fillSquarePressed = true;
 
     internal bool OpenFillFromSquare()
     {
@@ -491,7 +500,13 @@ public partial class OverlayEditorWindow
     // The two capsules of the block, and the popover each of them opens. The line capsule carries
     // three things by turns, so it opens three: the width and the pattern of a stroke, the size of
     // a caption, or the menu of shapes the frame and the blur share.
-    private void OnColorCapsuleClick(object sender, RoutedEventArgs e) => OpenAppearance();
+    private void OnColorCapsuleClick(object sender, RoutedEventArgs e)
+    {
+        var onSquare = _fillSquarePressed;
+        _fillSquarePressed = false;
+        if (onSquare) OpenFillFromSquare();
+        else OpenAppearance();
+    }
 
     private void OnLineCapsuleClick(object sender, RoutedEventArgs e)
     {

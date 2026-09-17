@@ -274,7 +274,7 @@
                 <!-- The colour of the mark and what stands inside it, in one capsule: the circle is
                      the outline and opens the stroke popover, the square beside it is the fill and
                      opens its own. Two properties, two ways in, and neither paints the other. -->
-                <Button x:Name="ColorCapsule" MinWidth="36" Padding="10,0" Style="{StaticResource OverlayButton}" Click="OnColorCapsuleClick" ToolTip="Обводка" AutomationProperties.Name="{local:UiText Обводка}">
+                <Button x:Name="ColorCapsule" MinWidth="36" Padding="10,0" Style="{StaticResource OverlayButton}" Click="OnColorCapsuleClick" PreviewMouseLeftButtonDown="OnColorCapsuleDown" ToolTip="Обводка" AutomationProperties.Name="{local:UiText Обводка}">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Ellipse x:Name="StrokeDot" Width="18" Height="18" Fill="#FF3B30" Stroke="#D9DEE8" StrokeThickness="1" />
                         <Border x:Name="FillSquare" Width="18" Height="18" Margin="7,0,0,0" CornerRadius="4" Background="Transparent"
