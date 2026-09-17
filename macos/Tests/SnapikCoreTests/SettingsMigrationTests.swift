@@ -218,6 +218,75 @@ final class SettingsMigrationTests: XCTestCase {
         XCTAssertEqual("/tmp/packages", settings.packageDirectory())
     }
 
+    /// SPEC-DELTA-5 §3.1, §3.2: both keys of this round are additive. A file of 1.5.0 has neither,
+    /// and neither is a reason to migrate it — the version stays 2 and the defaults are the
+    /// behaviour every build before this one had.
+    func test_A_file_of_the_previous_sync_defaults_the_manual_height_and_the_tool_settings() throws {
+        let path = try write(
+            """
+            {
+              "CaptureId": "ctrl-alt-s",
+              "PasteId": "ctrl-alt-v",
+              "StackHeight": 310
+            }
+            """)
+
+        let settings = HotkeySettings.load(path: path)
+
+        XCTAssertEqual(310, settings.stackHeight)
+        XCTAssertFalse(settings.stackHeightManual)
+        XCTAssertTrue(settings.toolAppearance.isEmpty)
+        XCTAssertEqual(2, SettingsMigration.currentVersion)
+    }
+
+    /// A tool without a fill colour must leave no `"fillColor"` key behind: Windows drops it with
+    /// `WhenWritingNull`, and a `null` in its place reads the same but differs byte for byte
+    /// (SPEC-DELTA-5 §2.10).
+    func test_The_manual_height_and_the_tool_settings_survive_being_written_and_read_back() throws {
+        var written = HotkeySettings.default
+        written.stackHeight = 310
+        written.stackHeightManual = true
+        written.toolAppearance = [
+            "rectangle": ToolAppearanceEntry(
+                color: "#0A84FF", thickness: 6, lineStyle: "dashed", fill: "translucent",
+                fillColor: "#FFD60A", fontSize: 20, arrowStyle: "straight", shape: "rounded"),
+            "arrow": ToolAppearanceEntry(
+                color: "#FF3B30", thickness: 4, lineStyle: "solid", fill: "none",
+                fontSize: 20, arrowStyle: "curved", shape: "rectangle"),
+        ]
+
+        let path = try write("{}")
+        try written.save(path: path)
+
+        XCTAssertEqual(written, HotkeySettings.load(path: path))
+        let onDisk = try String(contentsOf: path, encoding: .utf8)
+        XCTAssertTrue(onDisk.contains("\"StackHeightManual\""))
+        XCTAssertTrue(onDisk.contains("\"toolAppearance\""))
+        XCTAssertFalse(onDisk.contains("null"))
+        XCTAssertEqual(1, onDisk.components(separatedBy: "\"fillColor\"").count - 1)
+    }
+
+    /// The dictionary compares by its contents in Swift, so a file that already holds settings of
+    /// its own is read back as the very row it was written with: nothing counts it as migrated, and
+    /// the file is not rewritten on every start (the key nothing knows survives, as above).
+    func test_A_file_that_holds_settings_of_its_own_tools_is_not_written_back() throws {
+        var stored = HotkeySettings.default
+        stored.stackHeightManual = true
+        stored.toolAppearance = ["blur": ToolAppearanceEntry(shape: "ellipse")]
+        let path = try write("{}")
+        try stored.save(path: path)
+        var content = try String(contentsOf: path, encoding: .utf8)
+        // Only the opening brace of the file itself: the dictionary of the tools has braces of its
+        // own, and an unknown key inside one of them would be a key of a tool and not of the file.
+        if let opening = content.range(of: "{\n") {
+            content.replaceSubrange(opening, with: "{\n  \"Unknown\" : 1,\n")
+        }
+        try content.write(to: path, atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(stored, HotkeySettings.loadAndMigrate(path: path))
+        XCTAssertTrue(try String(contentsOf: path, encoding: .utf8).contains("\"Unknown\""))
+    }
+
     private func write(_ content: String) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("snapik-settings-\(UUID().uuidString)", isDirectory: true)

@@ -66,6 +66,12 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
     /// The height of the capture list inside the strip, not the height of the window: the window
     /// derives its own height from this one.
     public var stackHeight: Double = StripResizeGeometry.defaultListHeight
+    /// Whether the corner of the strip has been dragged by hand. While it has not, `stackHeight` is
+    /// the ceiling and the list stands as tall as what it holds; after the first drag that same
+    /// number becomes the height of the list, and the empty space under the last card is the space
+    /// the user dragged out for themselves. A file written before this key reads as false, which is
+    /// the behaviour of every build before this one.
+    public var stackHeightManual: Bool = false
     public var clearStackAfterPaste: Bool = false
     /// Whether clearing the strip and leaving the application ask before the captures of the session
     /// are deleted. Written only by the "Do not ask again" box of that dialog: the settings window
@@ -97,6 +103,18 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
     /// back with anything that is not a `#RRGGBB` triple dropped and the row cut to twelve, so a
     /// hand-edited file cannot hand the editor a palette it cannot paint.
     public var customPaletteColors: [String] = []
+    /// What each tool of the markup panel is set to, by the name of the tool in camel case. The four
+    /// common keys above (`annotationColor`, `annotationThickness`, `annotationHighlightThickness`
+    /// and `annotationFontSize`) stay and go on being written as a mirror of the frame, the
+    /// highlighter and the caption, so a file written here is still read whole by 1.5.0; a file
+    /// without this one hands every tool those same common values and opens exactly as it looked.
+    ///
+    /// The key itself is the one camelCase name among the PascalCase ones, and that is deliberate
+    /// (the Windows round chose it): a file written by either build has to open in the other, and
+    /// parity of the format beats tidiness of the names. Unlike Windows, nothing has to normalise an
+    /// empty dictionary to a single instance — Swift compares dictionaries by their contents, so a
+    /// healthy file is not counted as migrated and is not written back on every start.
+    public var toolAppearance: [String: ToolAppearanceEntry] = [:]
 
     public init(captureId: String, pasteId: String) {
         self.captureId = captureId
@@ -329,6 +347,7 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         case stackTopmost = "StackTopmost"
         case stackWidth = "StackWidth"
         case stackHeight = "StackHeight"
+        case stackHeightManual = "StackHeightManual"
         case clearStackAfterPaste = "ClearStackAfterPaste"
         case confirmSessionDiscard = "ConfirmSessionDiscard"
         case annotationColor = "AnnotationColor"
@@ -343,6 +362,7 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         case theme = "Theme"
         case accentId = "AccentId"
         case customPaletteColors = "CustomPaletteColors"
+        case toolAppearance = "toolAppearance"
     }
 
     /// Explicit `init(from:)` (SPEC-DELTA-2B §B, "Риски компиляции" #2): every field is decoded
@@ -375,6 +395,7 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
             try container.decodeIfPresent(Double.self, forKey: .stackWidth) ?? StripResizeGeometry.defaultWidth
         stackHeight =
             try container.decodeIfPresent(Double.self, forKey: .stackHeight) ?? StripResizeGeometry.defaultListHeight
+        stackHeightManual = try container.decodeIfPresent(Bool.self, forKey: .stackHeightManual) ?? false
         clearStackAfterPaste =
             try container.decodeIfPresent(Bool.self, forKey: .clearStackAfterPaste) ?? false
         confirmSessionDiscard =
@@ -394,6 +415,8 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? "dark"
         accentId = try container.decodeIfPresent(String.self, forKey: .accentId) ?? "blue"
         customPaletteColors = try container.decodeIfPresent([String].self, forKey: .customPaletteColors) ?? []
+        toolAppearance =
+            try container.decodeIfPresent([String: ToolAppearanceEntry].self, forKey: .toolAppearance) ?? [:]
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -417,6 +440,7 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         try container.encode(stackTopmost, forKey: .stackTopmost)
         try container.encode(stackWidth, forKey: .stackWidth)
         try container.encode(stackHeight, forKey: .stackHeight)
+        try container.encode(stackHeightManual, forKey: .stackHeightManual)
         try container.encode(clearStackAfterPaste, forKey: .clearStackAfterPaste)
         try container.encode(confirmSessionDiscard, forKey: .confirmSessionDiscard)
         try container.encode(annotationColor, forKey: .annotationColor)
@@ -431,5 +455,6 @@ public struct HotkeySettings: Codable, Equatable, Sendable {
         try container.encode(theme, forKey: .theme)
         try container.encode(accentId, forKey: .accentId)
         try container.encode(customPaletteColors, forKey: .customPaletteColors)
+        try container.encode(toolAppearance, forKey: .toolAppearance)
     }
 }
