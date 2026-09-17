@@ -73,6 +73,14 @@ internal static class StripResizeGeometry
     }
 
     /// <summary>
+    /// The height of the list: dragged by hand it is the stored number itself, automatic it is the
+    /// height of what the list holds. The stored number and the clamps it went through are the same
+    /// in both; what the drag changes is whether that number is a ceiling or the height.
+    /// </summary>
+    internal static double ListHeight(int count, double stored, bool manual) =>
+        manual ? stored : ListHeightForCount(count, stored);
+
+    /// <summary>
     /// The left edge of the capsule, so that it keeps the right edge of the strip it came from
     /// rather than the edge of the monitor: both windows carry the same field under their shadow,
     /// so the sides the user sees line up.

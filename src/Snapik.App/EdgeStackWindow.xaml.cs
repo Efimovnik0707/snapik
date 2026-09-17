@@ -856,16 +856,17 @@ public partial class EdgeStackWindow : Window
         return double.IsFinite(measured) && measured > 0 ? measured : Controls.StripResizeGeometry.EstimatedChromeHeight;
     }
 
-    // The height of the list is the height of what it holds, and the number the corner grip dragged
-    // into the settings is the ceiling it stops at. It is written here and nowhere else: every path
-    // that changes the strip goes through Renumber and UpdateEmptyState, so a capture added, removed,
-    // restored or reordered brings the window with it.
+    // The height of the list is the height of what it holds until the corner grip is dragged, and the
+    // height that was dragged after that; the stored number is the ceiling in the first case and the
+    // height itself in the second. It is written here and nowhere else: every path that changes the
+    // strip goes through Renumber and UpdateEmptyState, so a capture added, removed, restored or
+    // reordered brings the window with it.
     private void ApplyListHeight()
     {
         if (CaptureList is null) return;
-        var cap = Controls.StripResizeGeometry.ClampListHeight(
+        var stored = Controls.StripResizeGeometry.ClampListHeight(
             _settings.StackHeight, StackWorkArea().Height, StackChromeHeight());
-        CaptureList.Height = Controls.StripResizeGeometry.ListHeightForCount(Captures.Count, cap);
+        CaptureList.Height = Controls.StripResizeGeometry.ListHeight(Captures.Count, stored, _settings.StackHeightManual);
     }
 
     // The first placement of the strip: the edge of the monitor, the width from the settings and the
@@ -980,10 +981,10 @@ public partial class EdgeStackWindow : Window
     {
         SizeToContent = SizeToContent.Height;
         MinHeight = _resizeStartMinHeight;
-        MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.Height });
-        // The height dragged out is the ceiling, and the list sits back down on what it holds: the
-        // strip follows the pointer while the drag lasts, because a short list that does not move
-        // reads as a grip that does not work, and it settles the moment the grip is let go.
+        MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.Height, StackHeightManual = true });
+        // The strip stays where it was let go: the height that was dragged is the height of the list
+        // from now on, empty space under the last card included. The call below no longer settles it
+        // on anything — it writes back the same number and applies the clamps of the monitor to it.
         ApplyListHeight();
     }
 
