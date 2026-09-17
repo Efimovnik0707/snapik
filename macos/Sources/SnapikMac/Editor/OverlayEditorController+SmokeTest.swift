@@ -757,18 +757,24 @@ extension OverlayEditorController {
             ok = ok && !placed.intersects(area.crop) && area.work.contains(placed)
         }
 
-        // Dragged by its free place the panel moves, and the next placement leaves it where it was
-        // put instead of taking it back beside the capture.
+        // Dragged by its free place the panel goes where it was taken to, and the next placement
+        // leaves it there instead of putting it back beside the capture. The middle of the working
+        // area is the one target no clamp can move, whatever the capture of the run looks like.
         toolbarView.maximumWidth = 4000
         positionToolbar()
-        let placedByItself = toolbarView.frame.origin
-        beginToolbarDrag(at: CGPoint(x: placedByItself.x + 20, y: placedByItself.y + 20))
-        dragToolbarTo(CGPoint(x: placedByItself.x + 140, y: placedByItself.y + 90))
+        guard let screenIndex = activeScreenIndex else { return false }
+        let work = layoutWorkArea(screenIndex: screenIndex)
+        let size = toolbarView.frame.size
+        let grab = CGPoint(x: 20, y: 20)
+        let target = CGPoint(x: work.midX - grab.x, y: work.midY - grab.y)
+        beginToolbarDrag(at: CGPoint(x: toolbarView.frame.minX + grab.x, y: toolbarView.frame.minY + grab.y))
+        dragToolbarTo(CGPoint(x: target.x + grab.x, y: target.y + grab.y))
         endToolbarDrag()
-        let dragged = toolbarView.frame.origin
-        ok = ok && hypot(dragged.x - placedByItself.x, dragged.y - placedByItself.y) > 1
+        let expected = clampToolbarOrigin(target, size: size, work: work)
+        ok = ok && toolbarUserOrigin != nil
+        ok = ok && hypot(toolbarView.frame.minX - expected.x, toolbarView.frame.minY - expected.y) < 0.5
         positionToolbar()
-        ok = ok && hypot(toolbarView.frame.minX - dragged.x, toolbarView.frame.minY - dragged.y) < 0.5
+        ok = ok && hypot(toolbarView.frame.minX - expected.x, toolbarView.frame.minY - expected.y) < 0.5
 
         toolbarUserOrigin = nil
         toolbarDragGrab = nil
