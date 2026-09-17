@@ -1579,9 +1579,13 @@ public static class SmokeTestRunner
 
     private static void VerifyTz007Editor()
     {
-        // Both checks of the editor track are written where the things they check already live, and
-        // both are run by this same smoke pass: the dot of an exported comment beside the probe that
-        // renders a dragged badge into a PNG, and the empty properties block of the blur inside
-        // OverlayEditorWindow.PanelChecks, which reaches the private members of the window.
+        // The two checks that need what they check are written beside it and run by this same pass:
+        // the dot of an exported comment beside the probe that renders a dragged badge into a PNG,
+        // and the empty properties block of the blur inside OverlayEditorWindow.PanelChecks, which
+        // reaches the private members of the window. What is left is the cheat sheet of the editor:
+        // the capture is copied by a key as well as by a button, and the sheet is where the user
+        // finds out. The pair of the caption travels both ways with the rest, above.
+        if (!EditorShortcuts.Actions.Contains(("Ctrl+Shift+C", "Копировать снимок")))
+            throw new InvalidOperationException("The cheat sheet of the editor must list Ctrl+Shift+C as the way to copy the capture.");
     }
 }

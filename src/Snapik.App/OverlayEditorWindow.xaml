@@ -310,6 +310,9 @@
                 <Button x:Name="SaveImageButton" Style="{StaticResource OverlayButton}" Click="OnSaveImageClick" AutomationProperties.Name="{local:UiText Сохранить на компьютер}">
                     <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE74E;" />
                 </Button>
+                <Button x:Name="CopyImageButton" Style="{StaticResource OverlayButton}" Click="OnCopyImageClick" AutomationProperties.Name="{local:UiText Копировать снимок}">
+                    <TextBlock FontFamily="{StaticResource IconFont}" FontSize="16" Text="&#xE8C8;" />
+                </Button>
                 <Button x:Name="DoneButton" Style="{StaticResource OverlayButton}" Click="OnDoneClick" Background="{DynamicResource AccentBrush}" Foreground="White" FontWeight="SemiBold" Content="Готово" />
             </StackPanel>
             </Grid>

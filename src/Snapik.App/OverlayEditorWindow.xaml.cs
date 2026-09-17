@@ -1371,7 +1371,8 @@ public partial class OverlayEditorWindow : Window
             if (Enum.TryParse<EditorTool>(button.Tag?.ToString(), out var tool) && EditorShortcuts.Find(tool) is { } shortcut)
                 Hint(button, shortcut.Name, shortcut.Caption);
         foreach (var (element, name) in new (FrameworkElement Element, string Name)[]
-                 { (UndoButton, "Отменить"), (RedoButton, "Повторить"), (SaveImageButton, "Сохранить на компьютер"), (DoneButton, "Готово") })
+                 { (UndoButton, "Отменить"), (RedoButton, "Повторить"), (SaveImageButton, "Сохранить на компьютер"),
+                   (CopyImageButton, "Копировать снимок"), (DoneButton, "Готово") })
             // A renamed action leaves the button without a capsule instead of throwing the editor
             // window away in its constructor.
             Hint(element, name, EditorShortcuts.Actions.FirstOrDefault(action => action.Name == name).Caption);
@@ -2233,6 +2234,9 @@ public partial class OverlayEditorWindow : Window
     private void OnWindowKeyDown(object sender, KeyEventArgs e)
     {
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S) { e.Handled = true; OnSaveImageClick(this, e); return; }
+        // Copying the capture reaches the same keys as saving it, from the note being typed as well.
+        // The comparison is strict, so "Done" on Ctrl+C is left alone: it is a different combination.
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.C) { e.Handled = true; OnCopyImageClick(this, e); return; }
         if (Keyboard.FocusedElement is TextBox)
         {
             if (e.Key == Key.Escape) { Surface.Focus(); e.Handled = true; }
@@ -2290,6 +2294,7 @@ public partial class OverlayEditorWindow : Window
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S) { e.Handled = true; OnSaveImageClick(this, e); }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { OnUndoClick(this, e); e.Handled = true; }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y) { OnRedoClick(this, e); e.Handled = true; }
+        else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.C) { e.Handled = true; OnCopyImageClick(this, e); }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C && _capture is not null) { e.Handled = true; Complete(false); }
         else if (Keyboard.Modifiers == ModifierKeys.None)
         {
