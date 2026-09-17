@@ -172,7 +172,7 @@
                                 <Setter.Value><ControlTemplate TargetType="ListBoxItem">
                                     <Border x:Name="ItemBorder" Width="126" Height="92" CornerRadius="8" BorderThickness="1" BorderBrush="{StaticResource LineBrush}" Background="White">
                                         <Grid ClipToBounds="True">
-                                            <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                                            <Image Source="{Binding Image}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
                                             <Border VerticalAlignment="Bottom" Height="25" Background="#DF172033">
                                                 <DockPanel Margin="7,0">
                                                     <TextBlock VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold" Text="{Binding DisplayLabel}" />

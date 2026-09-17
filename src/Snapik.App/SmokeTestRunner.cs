@@ -432,6 +432,7 @@ public static class SmokeTestRunner
         });
 
         VerifyLegacyRedactionReadsAsAFilledRegion();
+        Controls.AnnotationCanvas.VerifyScalingRules(captures[0].Image);
         Controls.AnnotationCanvas.VerifyBlurPreview(captures[0].Image);
         Controls.AnnotationCanvas.VerifyBlurCache(captures[0].Image);
         Controls.AnnotationCanvas.VerifyHoverManipulation(captures[0].Image);

@@ -278,7 +278,7 @@
                                 <Grid controls:RoundedClip.Radius="10">
                                     <Button x:Name="ThumbContent" Padding="0" Background="Transparent" BorderThickness="0" Click="OnOpenCaptureClick" Tag="{Binding}" ToolTip="Открыть снимок">
                                         <Grid>
-                                            <Image x:Name="ThumbImage" Source="{Binding Image}" Stretch="UniformToFill" Opacity="0.86" />
+                                            <Image x:Name="ThumbImage" Source="{Binding Image}" Stretch="UniformToFill" Opacity="0.86" RenderOptions.BitmapScalingMode="HighQuality" />
                                             <!-- The letter and the notes stand at the top of the card: the card
                                                  below shows its upper 30 px and nothing else, and that strip has
                                                  to be the one that says which capture it is. The corners are cut

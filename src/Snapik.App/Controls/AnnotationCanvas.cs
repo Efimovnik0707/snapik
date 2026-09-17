@@ -89,9 +89,8 @@ public sealed class AnnotationCanvas : FrameworkElement
         {
             if (Nullable.Equals(_viewScale, value)) return;
             _viewScale = value;
-            // At its own size the picture must show its own pixels: with smoothing on, the seam
-            // between two monitors is spread over two of them.
-            RenderOptions.SetBitmapScalingMode(this, value is null ? BitmapScalingMode.Unspecified : BitmapScalingMode.NearestNeighbor);
+            // How the picture is filtered follows the size it is actually drawn at, and OnRender is
+            // where that size is known; the scale alone does not say it while the view is fitted.
             InvalidateVisual();
             ViewChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -119,6 +118,43 @@ public sealed class AnnotationCanvas : FrameworkElement
     public event EventHandler<AnnotationItem?>? NoteHovered;
     public event EventHandler? AnnotationChanged;
     public event Action<Rect>? CropRequested;
+
+    /// <summary>
+    /// How a picture is filtered follows the size it is drawn at, and nothing else. Below its own
+    /// size it must be averaged: point sampling a photograph scaled down throws away most of its
+    /// pixels, and a dark fabric comes out in crawling specks. At its own size and above it must
+    /// not be, or the seam between two monitors is smeared over two pixels.
+    /// </summary>
+    internal static void VerifyScalingRules(BitmapSource source)
+    {
+        var canvas = new AnnotationCanvas { Image = source, ImagePadding = 0, Width = 320, Height = 180 };
+        canvas.Measure(new Size(320, 180));
+        canvas.Arrange(new Rect(0, 0, 320, 180));
+        BitmapScalingMode ModeAfterRender()
+        {
+            canvas.InvalidateVisual();
+            // Laid out again before it is drawn again: without this the second RenderTargetBitmap
+            // hands back the picture of the first and OnRender is never asked a second question.
+            canvas.UpdateLayout();
+            new RenderTargetBitmap(320, 180, 96, 96, PixelFormats.Pbgra32).Render(canvas);
+            return RenderOptions.GetBitmapScalingMode(canvas);
+        }
+        // Fitted, and the picture of the probe is wider than the canvas: this is the editor opening
+        // on a photograph from a telephone, which is where the specks were seen.
+        if (canvas.FitScale >= 1 || ModeAfterRender() != BitmapScalingMode.HighQuality)
+            throw new InvalidOperationException($"A picture fitted at {canvas.FitScale} must be filtered, not point sampled.");
+        // A scale of its own below one is still a scale down: Ctrl and the wheel land here on the
+        // way out of a big capture, and this is the state that was point sampled outright.
+        canvas.ViewScale = 0.5;
+        if (ModeAfterRender() != BitmapScalingMode.HighQuality)
+            throw new InvalidOperationException("A picture shown at half its size must be filtered too.");
+        canvas.ViewScale = 1;
+        if (ModeAfterRender() != BitmapScalingMode.NearestNeighbor)
+            throw new InvalidOperationException("At its own size a picture must show its own pixels.");
+        canvas.ViewScale = 2;
+        if (ModeAfterRender() != BitmapScalingMode.NearestNeighbor)
+            throw new InvalidOperationException("Above its own size a picture must show its own pixels doubled, not smeared.");
+    }
 
     internal static void VerifyBlurPreview(BitmapSource source)
     {
@@ -201,6 +237,7 @@ public sealed class AnnotationCanvas : FrameworkElement
         if (Image is null) return;
 
         _imageRect = ViewScale is { } viewScale ? ScaledRect(viewScale) : FitRect(Image.PixelWidth, Image.PixelHeight, ActualWidth, ActualHeight, ImagePadding);
+        ApplyScalingMode();
         dc.DrawRectangle(Brushes.White, null, _imageRect);
         dc.DrawImage(ApplyBlurAnnotations(Image), _imageRect);
 
@@ -219,6 +256,22 @@ public sealed class AnnotationCanvas : FrameworkElement
             DrawBoxShape(dc, Brushes.Black, new Pen(Brushes.DodgerBlue, 1.5), movingBlur.Shape,
                 GetDisplayBounds(movingBlur), _imageRect.Width / Image.PixelWidth);
         if (_draft is not null) DrawAnnotation(dc, _draft, _imageRect);
+    }
+
+    /// <summary>
+    /// How the picture is filtered, decided by the size it is drawn at and by nothing else. At its
+    /// own size and above it must show its own pixels: with smoothing on, the seam between two
+    /// monitors is spread over two of them, and a doubled pixel is a doubled pixel. Below its own
+    /// size it must not: point sampling throws away most of the pixels of a photograph instead of
+    /// averaging them, and a dark fabric comes out in crawling specks. Fant averages what it drops.
+    /// </summary>
+    private void ApplyScalingMode()
+    {
+        if (Image is null || Image.PixelWidth <= 0) return;
+        var mode = _imageRect.Width / Image.PixelWidth >= 0.999
+            ? BitmapScalingMode.NearestNeighbor
+            : BitmapScalingMode.HighQuality;
+        if (RenderOptions.GetBitmapScalingMode(this) != mode) RenderOptions.SetBitmapScalingMode(this, mode);
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
