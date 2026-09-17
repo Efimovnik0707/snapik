@@ -326,6 +326,8 @@ final class AppCoordinator {
             cancelReceiverEchoWatch()
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            // Port of `PrepareAsync`'s `:1052`: the next capture is the end of a single copy.
+            publishedIsSingleCapture = false
             return await startNewSession()
         }
 
@@ -340,6 +342,8 @@ final class AppCoordinator {
 
         ownedClipboardReceipt = nil
         ownedClipboardPromptText = nil
+        // Port of `PrepareAsync`'s `:1061`, the other half of the same rule.
+        publishedIsSingleCapture = false
         return await startNewSession()
     }
 
@@ -565,6 +569,7 @@ final class AppCoordinator {
             prepared = nil
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            publishedIsSingleCapture = false
             stackWindow?.refresh()
             stackWindow?.hide()
             stackWindow?.setStatus("", isError: false)
@@ -610,8 +615,15 @@ final class AppCoordinator {
         defer {
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            publishedIsSingleCapture = false
         }
         guard let receipt = ownedClipboardReceipt else { return }
+        // SPEC-DELTA-5 §2.4 rule 3, port of `:1710`: a capture copied on its own outlives the strip
+        // it came from. Clearing the strip or leaving the application gives a *package* back,
+        // because a package is a list of paths into a session that is about to go; the single copy
+        // was asked for by hand, and the picture and the text of it stay on the clipboard. The price
+        // is that the paths in that copy stop leading anywhere, which is the price Windows pays too.
+        guard !publishedIsSingleCapture else { return }
         let stillOurs = await withCheckedContinuation { continuation in
             clipboard.capture { continuation.resume(returning: $0.sequence == receipt.sequence) }
         }

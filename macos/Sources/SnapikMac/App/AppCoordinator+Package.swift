@@ -31,6 +31,7 @@ extension AppCoordinator {
                 prepared = nil
                 ownedClipboardReceipt = nil
                 ownedClipboardPromptText = nil
+                publishedIsSingleCapture = false
                 stackWindow?.setStatus("", isError: false)
                 return true
             }
@@ -49,6 +50,9 @@ extension AppCoordinator {
             }
             ownedClipboardReceipt = receipt
             ownedClipboardPromptText = export.manifest.promptText
+            // Port of `CopyPackageAsync`'s `:1307`: a package published by hand or by a capture ends
+            // the life of a single copy that was on the clipboard before it.
+            publishedIsSingleCapture = false
             // Finding 4: gate on "Показывать уведомления".
             if settings.showNotifications { notificationService.notify("Снимки скопированы", language: language) }
             // Finding 24: two §1.20 dictionary strings otherwise unused anywhere in the port —
@@ -80,12 +84,17 @@ extension AppCoordinator {
         cancelReceiverEchoWatch()
 
         guard let receipt = ownedClipboardReceipt else { return }
+        // SPEC-DELTA-5 §2.4 rule 1, port of `:1806`: what lies on the clipboard is one capture the
+        // user copied on purpose. Rebuilding the package out of everything that waits would take it
+        // away between the copy and the paste.
+        guard !publishedIsSingleCapture else { return }
         let stillOurs = await withCheckedContinuation { continuation in
             clipboard.capture { continuation.resume(returning: $0.sequence == receipt.sequence) }
         }
         guard stillOurs else {
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            publishedIsSingleCapture = false
             return
         }
 
@@ -116,6 +125,8 @@ extension AppCoordinator {
             }
             ownedClipboardReceipt = newReceipt
             ownedClipboardPromptText = export.manifest.promptText
+            // What is published now is a package again, whatever was published before it.
+            publishedIsSingleCapture = false
             // Finding 4: gate on "Показывать уведомления".
             if settings.showNotifications { notificationService.notify("Снимки скопированы", language: language) }
         } catch {

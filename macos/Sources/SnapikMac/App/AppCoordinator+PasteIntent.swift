@@ -119,6 +119,12 @@ extension AppCoordinator {
         // A newer capture may have replaced the package while completion was waiting: never act
         // on that newer session in response to this older paste intent (`:204-205`).
         guard ownedClipboardReceipt?.sequence == receiptAtIntent.sequence else { return }
+        // Port of `:444`, SPEC-DELTA-5 §2.4: what was published has been pasted, a single capture
+        // included, so from here the strip behaves the way it does after a package. The question
+        // below is asked of the value the paste **found**, not of the one left after it: Windows
+        // reads it off `publishedAtIntent`, the package it captured when the intent arrived.
+        let wasSingleCapture = publishedIsSingleCapture
+        publishedIsSingleCapture = false
 
         if let receipt = result.currentClipboardReceipt {
             ownedClipboardReceipt = receipt
@@ -130,7 +136,14 @@ extension AppCoordinator {
             // with "После Ctrl+V лента очищается сама" on, the paste that went through empties the
             // strip instead of republishing a package that points at the captures it takes away.
             // The gate this method holds is the one `clearStack` would otherwise take.
-            if settings.clearStackAfterPaste {
+            //
+            // SPEC-DELTA-5 §2.2/§2.4 rule 2: "очищать ленту после вставки" is about a package. A
+            // capture copied on its own sent one card out of many, nobody pasted the rest, and
+            // clearing here would take away captures the user never sent, together with the session
+            // on disk and the undo stack.
+            if SentCaptureRules.clearsTheStrip(
+                isSingleCapture: wasSingleCapture, clearStackAfterPaste: settings.clearStackAfterPaste)
+            {
                 await clearStack(clipboardGateHeld: true)
             } else {
                 // T-5, port of the rest of `MarkCapturesSentAsync` (`:1568-1573`): the captures that
@@ -206,6 +219,7 @@ extension AppCoordinator {
             cancelReceiverEchoWatch()
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            publishedIsSingleCapture = false
             stackWindow?.setStatus(StatusStrings.packageDisplaced(language: language), isError: true)
         }
     }
