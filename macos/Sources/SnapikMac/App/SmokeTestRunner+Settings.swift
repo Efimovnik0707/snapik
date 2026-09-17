@@ -23,8 +23,22 @@ extension SmokeTestRunner {
         let settings = HotkeySettingsWindowController(coordinator: coordinator)
         settings.window?.contentView?.layoutSubtreeIfNeeded()
         check("settings tabs", settings.smokeTabCount == 4)
-        // The frame Windows gives the same dialog (`HotkeySettingsWindow.xaml:3`).
-        check("settings window 620x520", settings.window?.frame.size == NSSize(width: 620, height: 520))
+        // [A5-1] The window neither scrolls nor resizes, so the height it declares has to hold the
+        // tallest of its four tabs. A measurement that comes back as nothing would let any height
+        // through, which is how a cut tab lived through every run of the old check: it compared the
+        // declared 620x520 with the literal 620x520 and could not fail.
+        let tallestTab = settings.smokeTallestTabHeight()
+        let tabArea = settings.smokeTabAreaHeight
+        let tabsFit = tallestTab >= 200 && tallestTab <= tabArea
+        check(
+            "the settings window is as tall as its tallest tab"
+                + (tabsFit ? "" : ": \(Int(tallestTab)) px against \(Int(tabArea)) px"),
+            tabsFit)
+        // [A5-1, S5-2] The number beside the volume, in both languages, and the row that goes with
+        // the sounds.
+        check(
+            "the volume says its number and goes away with the sounds",
+            settings.smokeRunVolumeCaptionProbe())
 
         settings.smokeSelectTab(3)
         settings.window?.contentView?.layoutSubtreeIfNeeded()
@@ -46,6 +60,17 @@ extension SmokeTestRunner {
                 + (paletteTranslated ? "" : ": \(paletteTitles.joined(separator: " · "))"),
             paletteTranslated)
         picker.applyLanguage(coordinator.language)
+
+        // [A5-1] The row of the settings is written by hand and the popover of the editor builds
+        // itself out of `EditorAppearance.palettes`: two lists of one preference, compared as
+        // sequences, because a row offering the same names in another order already disagrees.
+        let offeredPalettes = picker.smokePaletteIds
+        let editorPalettes = EditorAppearance.palettes.map { $0.id }
+        let paletteOrderOk = offeredPalettes == editorPalettes
+        check(
+            "the settings offer the palettes of the editor in its order"
+                + (paletteOrderOk ? "" : ": \(offeredPalettes.joined(separator: ", "))"),
+            paletteOrderOk)
 
         // The gallery opens on the first card, pages by one, and stops where the last card is whole.
         var galleryOk = picker.firstCard == 0

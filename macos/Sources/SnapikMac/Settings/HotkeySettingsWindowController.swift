@@ -574,6 +574,54 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
 
     func smokeSelectTab(_ index: Int) { showTab(index) }
 
+    /// [A5-1] The tallest of the four tabs. Every tab is brought forward and laid out in turn: a tab
+    /// on a Mac is built whether or not it is showing, but only the one on screen is laid out, and a
+    /// tab that was never laid out measures as nothing.
+    func smokeTallestTabHeight() -> CGFloat {
+        let opened = selectedTabIndex
+        var tallest: CGFloat = 0
+        for (index, tab) in tabs.enumerated() {
+            showTab(index)
+            window?.contentView?.layoutSubtreeIfNeeded()
+            tallest = max(tallest, tab.smokeContentHeight)
+        }
+        showTab(opened)
+        return tallest
+    }
+
+    /// [A5-1] The height a tab is given between the row of tab buttons and the row of the two
+    /// buttons at the bottom: the number the tallest tab has to fit into.
+    var smokeTabAreaHeight: CGFloat { tabContainer.bounds.height }
+
+    /// [A5-1, S5-2] The number beside the slider follows it, survives a change of language — the walk
+    /// that relabels the window rewrites unbound captions, and this one is put back after it — and
+    /// goes away with the sounds it belongs to, taking the tick it owed with it.
+    func smokeRunVolumeCaptionProbe() -> Bool {
+        let openedLanguage = language
+        let openedSounds = generalTab.soundsBox.state
+        generalTab.soundsBox.state = .on
+        soundsChanged()
+        generalTab.volumeSlider.integerValue = 60
+        volumeChanged()
+        let saysTheNumber = generalTab.volumeValueLabel.stringValue == "60 %"
+
+        language = "en"
+        applyLocalization()
+        let survivesTheLanguage = generalTab.volumeValueLabel.stringValue == "60 %"
+        language = openedLanguage
+        applyLocalization()
+
+        generalTab.soundsBox.state = .off
+        soundsChanged()
+        let rowIsGone =
+            generalTab.volumeLabel.isHidden && generalTab.volumeSlider.isHidden
+            && generalTab.volumeValueLabel.isHidden && volumePreview == nil
+
+        generalTab.soundsBox.state = openedSounds
+        soundsChanged()
+        return saysTheNumber && survivesTheLanguage && rowIsGone
+    }
+
     /// One combination written into both fields is refused, both of them go red and nothing is saved.
     /// The keys are given as a preset and as a custom id of the same gesture, so the check also proves
     /// the comparison is by gesture and not by text.

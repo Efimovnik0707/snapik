@@ -32,6 +32,18 @@ private func sectionLabel(_ title: String) -> NSTextField {
 class SettingsTabView: NSView {
     func applyLocalization(_ language: String) {}
     func applyTheme(_ palette: ThemePalette) {}
+
+    /// [A5-1] What the tab lays out, from its top down to the lowest thing it puts on screen. The
+    /// window neither scrolls nor resizes, so a tab that asks for more than the area it is given
+    /// loses its bottom without a word, and the probe measures all four instead of comparing one
+    /// declared number with another. A row that is switched off is not part of the measurement, the
+    /// way a collapsed row is not part of a WPF stack.
+    var smokeContentHeight: CGFloat {
+        guard let lowest = subviews.filter({ !$0.isHidden }).map({ $0.frame.minY }).min() else {
+            return 0
+        }
+        return bounds.height - lowest
+    }
 }
 
 /// "Общие": the startup switch, the notifications / clear-the-strip / sounds boxes with the volume
@@ -315,6 +327,10 @@ final class AppearanceTabView: SettingsTabView {
     override func applyLocalization(_ language: String) { picker.applyLanguage(language) }
 
     override func applyTheme(_ palette: ThemePalette) { picker.refreshTheme() }
+
+    /// [A5-1] The only subview of this tab is the scroller, which always fills it: what the tab is
+    /// really worth is what the control inside asks for.
+    override var smokeContentHeight: CGFloat { picker.fittingHeight }
 
     override func layout() {
         super.layout()

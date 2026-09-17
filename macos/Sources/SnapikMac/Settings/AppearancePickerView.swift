@@ -474,6 +474,13 @@ final class AppearancePickerView: NSView {
         previousThemeButton.isEnabled && nextThemeButton.isEnabled
     }
 
+    /// [A5-1] The identifiers the row offers, in the order it offers them. The row of the settings is
+    /// written by hand here and the popover of the editor builds itself out of
+    /// `EditorAppearance.palettes`: two lists of the same preference, and the file keeps one name for
+    /// both. The probe compares them as sequences and not as sets, because a row that offers the same
+    /// four in another order is already a row that disagrees with the editor.
+    var smokePaletteIds: [String] { Self.paletteIds }
+
     /// The three captions of the palette row, in the language the control was last given. The wizard
     /// switches this row off (O-6), so the settings window is the one place it is on screen and the
     /// one place its translation is worth checking.
