@@ -167,10 +167,6 @@ final class OverlayEditorController {
     /// the full screen; created lazily in `setupEditor()`.
     var chipLayerView: ChipLayerView?
     var chipViews: [SBGuid: CommentChipView] = [:]
-    /// Port of `_commentParentId` (SPEC-DELTA-2.md §1.3 "One-shot"): captured by
-    /// `commentButtonClicked()`/the `N` hotkey right before arming `.comment`, consumed by
-    /// `annotationCreated` the moment the pin is placed. `nil` means "attach to the whole capture".
-    var commentParentId: SBGuid?
     /// The single chip currently shown expanded (270pt wide), if any (SPEC-DELTA-2B.md §C7).
     var expandedChipId: SBGuid?
 

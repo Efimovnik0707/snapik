@@ -531,6 +531,10 @@ extension OverlayEditorController {
     /// the canvas before the window is asked at all.
     enum EscapeStep {
         case popover
+        /// A pill the pointer unfolded, folded back before the tool is put down: a new pin unfolds
+        /// its own pill at once, so this step stands above the comment
+        /// (`.Appearance.cs:691-698`, SPEC-DELTA-5-editor.md §1.2 E-6).
+        case expandedNote
         case comment
         case selection
         case capture
@@ -538,6 +542,7 @@ extension OverlayEditorController {
 
     func nextEscapeStep() -> EscapeStep {
         if activePopover?.isShown == true { return .popover }
+        if expandedChipId != nil { return .expandedNote }
         if canvasView?.tool == .comment { return .comment }
         if canvasView?.selectedAnnotation != nil { return .selection }
         return .capture

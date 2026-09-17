@@ -14,8 +14,9 @@ extension OverlayEditorController {
         guard capture != nil else { return }
 
         if annotation.kind == .comment {
-            annotation.parentAnnotationId = commentParentId
-            commentParentId = nil
+            // The link to a mark is not made any more (SPEC-DELTA-5-editor.md §1.2 E-6, §2.2): a new
+            // comment belongs to the capture, and `parentAnnotationId` goes on being **read** out of
+            // a session written before this round, so an old one still says "к отметке A2".
             if let capture, let first = annotation.points.first {
                 let width = CGFloat(capture.image.width)
                 let height = CGFloat(capture.image.height)
@@ -48,7 +49,6 @@ extension OverlayEditorController {
 
     /// Port of `OnAnnotationChanged` (`:1287-1296`).
     func annotationChanged() {
-        moveLinkedComments()
         pushHistory()
         refreshLabels()
         guard let screenIndex = activeScreenIndex else { return }
@@ -95,12 +95,12 @@ extension OverlayEditorController {
 
     // MARK: - The Comment tool (SPEC-DELTA-3 §1.4 E-9)
 
-    /// Port of `OnCommentClick` (`:513-531`): captures which annotation (if any) the new comment
-    /// should link to, then arms the Comment tool. [ТЗ№4 D3] the tool stays armed after the pin.
+    /// Port of `OnCommentClick` (`:513-531`): arms the Comment tool. [ТЗ№4 D3] the tool stays armed
+    /// after the pin. Nothing is remembered to link the pin to any more: a comment is an object of
+    /// its own, and moving a frame leaves the comments beside it where they stand
+    /// (SPEC-DELTA-5-editor.md §1.2 E-6).
     func commentButtonClicked() {
         guard capture != nil else { return }
-        let selected = canvasView?.selectedAnnotation
-        commentParentId = selected?.kind == .comment ? selected?.parentAnnotationId : selected?.id
         selectTool(.comment)
     }
 
@@ -403,31 +403,14 @@ extension OverlayEditorController {
             width: size.width, height: size.height)
     }
 
-    // MARK: - Linked comment movement (SPEC-DELTA-2.md §1.3 `MoveLinkedComments`)
-
-    func moveLinkedComments() {
-        guard let capture else { return }
-        let before = lastSnapshot?.capture.annotations ?? []
-        let beforeById = Dictionary(uniqueKeysWithValues: before.map { ($0.id, $0) })
-
-        for annotation in capture.annotations {
-            guard let parentId = annotation.parentAnnotationId else { continue }
-            guard let parent = capture.annotations.first(where: { $0.id == parentId }) else {
-                annotation.parentAnnotationId = nil
-                continue
-            }
-            guard let beforeParent = beforeById[parentId] else { continue }
-            let oldBounds = EditorGeometry.boundsOf(points: beforeParent.points, additionalSegments: beforeParent.additionalPathSegments)
-            let newBounds = EditorGeometry.boundsOf(points: parent.points, additionalSegments: parent.additionalPathSegments)
-            guard oldBounds != newBounds else { continue }
-
-            let oldAnchor = beforeParent.points.first ?? .zero
-            let newAnchor = parent.points.first ?? .zero
-            let delta = CGPoint(x: newAnchor.x - oldAnchor.x, y: newAnchor.y - oldAnchor.y)
-            let imageSize = CGSize(width: capture.image.width, height: capture.image.height)
-            annotation.points = EditorGeometry.linkedCommentPoints(
-                annotation.points, oldParent: oldBounds, newParent: newBounds, parentDelta: delta, imageSize: imageSize)
-        }
+    /// Port of the `NoteHovered` handler (`xaml.cs:1896-1901`): pointing at the badge of a comment
+    /// unfolds its pill, so a note is read without a click. Pointing away leaves it standing — it is
+    /// Escape, a click outside or another badge that folds it back.
+    func noteHovered(_ annotation: EditorAnnotation?) {
+        guard let annotation, annotation.kind == .comment else { return }
+        guard visibleChipIds.contains(annotation.id) || chipViews[annotation.id] != nil else { return }
+        guard expandedChipId != annotation.id else { return }
+        expandChip(annotation.id, expanded: true)
     }
 
     // MARK: - Click-outside dismissal

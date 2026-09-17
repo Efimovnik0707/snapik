@@ -217,20 +217,6 @@ enum EditorGeometry {
         return !inner.contains(point)
     }
 
-    /// Port of `MoveLinkedComments`'s point remap (SPEC-DELTA-2.md §1.3): when the parent's bounds
-    /// actually changed, each point is carried through `ResizeGeometry.map` from `oldParent` to
-    /// `newParent`; when the parent had zero size before (never resized, only moved), a plain
-    /// `parentDelta` shift is used instead. Result is clamped into `[0, imageSize]`.
-    static func linkedCommentPoints(_ points: [CGPoint], oldParent: CGRect, newParent: CGRect, parentDelta: CGPoint, imageSize: CGSize) -> [CGPoint] {
-        func clampToImage(_ p: CGPoint) -> CGPoint {
-            CGPoint(x: clamp(p.x, 0, imageSize.width), y: clamp(p.y, 0, imageSize.height))
-        }
-        guard oldParent.width > 0, oldParent.height > 0 else {
-            return points.map { clampToImage(CGPoint(x: $0.x + parentDelta.x, y: $0.y + parentDelta.y)) }
-        }
-        return points.map { clampToImage(ResizeGeometry.map($0, original: oldParent, resized: newParent)) }
-    }
-
     // MARK: - Toolbar positioning (SPEC §6.2 `PositionToolbar`, "Дополнение 2026-09-09")
 
     /// Port of `OverlayEditorWindow.Toolbar.cs::PlaceToolbar` (new in the 2026-09-09 Windows

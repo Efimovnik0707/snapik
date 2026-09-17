@@ -173,7 +173,11 @@ final class EditorAnnotation {
             text: text,
             note: note,
             pathSegments: pathSegments,
-            parentAnnotationId: parentAnnotationId,
+            // Read and not written since 1.6.0 (SPEC-DELTA-5-editor.md §2.2, the same treatment
+            // `legacyHasOutline` had): a comment is an object of its own and belongs to the capture,
+            // while a session written before this round still says "к отметке A2" as long as it is
+            // only opened. The field itself stays, and `fromCore` goes on reading it.
+            parentAnnotationId: nil,
             arrowStyle: arrowStyle,
             // A shift, not a coordinate: it is divided by the size of the image and never clamped
             // into `[0,1]` (SPEC-DELTA-3 §2.1).

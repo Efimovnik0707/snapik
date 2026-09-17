@@ -120,9 +120,9 @@ extension OverlayEditorController {
         return changed
     }
 
-    /// Creates a Comment pin at `at` (capture pixel space), mirroring the real flow: the pin picks up
-    /// whatever `commentParentId` is armed, its second point is offset `(8,8)` and clamped, and its
-    /// pill opens focused. [ТЗ№4 D3] the Comment tool stays in the hand afterwards.
+    /// Creates a Comment pin at `at` (capture pixel space), mirroring the real flow: its second point
+    /// is offset `(8,8)` and clamped, and its pill opens focused. [ТЗ№4 D3] the Comment tool stays in
+    /// the hand afterwards, and since 1.6.0 the pin is linked to no mark at all.
     @discardableResult
     func smokeCreateComment(at point: CGPoint, note: String?) -> SBGuid? {
         guard let capture, activeScreenIndex != nil, !busyCrop, captureResizeCorner < 0 else { return nil }
@@ -141,11 +141,13 @@ extension OverlayEditorController {
     }
 
     /// Port of `RunNoteAffordanceProbe` (`OverlayEditorWindow.xaml.cs:107-202`), updated for
-    /// SPEC-DELTA-3 §1.4 E-6, E-7 and [ТЗ№4 D3]: arming Comment on a selected arrow links the pin to
-    /// it; the tool **stays** Comment afterwards; a second, unrelated comment collapses the first and
-    /// neither pill overlaps the other; the pill carries no number of its own; deleting a comment's
-    /// note removes the pin entirely; finishing an empty rectangle's pill removes only the pill; a
-    /// caption is typed on the capture and not in a pill.
+    /// SPEC-DELTA-3 §1.4 E-6, E-7, [ТЗ№4 D3] and SPEC-DELTA-5-editor.md §1.2 E-6: a pin is linked to
+    /// no mark, whatever was selected when the tool was armed; the tool **stays** Comment afterwards;
+    /// a second, unrelated comment collapses the first and neither pill overlaps the other; the pill
+    /// carries no number of its own; a badge dragged off the capture keeps its point where it was and
+    /// Escape folds the pill the pin unfolded before it puts the tool down; deleting a comment's note
+    /// removes the pin entirely; finishing an empty rectangle's pill removes only the pill; a caption
+    /// is typed on the capture and not in a pill.
     @discardableResult
     func smokeRunNoteAffordanceProbe() -> Bool {
         guard let capture, activeScreenIndex != nil else { return false }
@@ -157,13 +159,34 @@ extension OverlayEditorController {
         capture.annotations.append(arrow)
         canvasView?.selectAnnotation(id: arrow.id)
         commentButtonClicked()
-        guard canvasView?.tool == .comment, commentParentId == arrow.id else { return false }
+        guard canvasView?.tool == .comment else { return false }
 
         guard let firstId = smokeCreateComment(at: CGPoint(x: w * 0.5, y: h * 0.5), note: nil) else { return false }
         // [ТЗ№4 D3] the tool is not put down by the pin it just placed.
         guard canvasView?.tool == .comment else { return false }
         guard visibleChipIds.contains(firstId), let firstAnnotation = capture.annotations.first(where: { $0.id == firstId }) else { return false }
-        guard firstAnnotation.parentAnnotationId == arrow.id else { return false }
+        // A pin is its own object: the arrow that was selected when the tool was armed is not its
+        // parent, and moving that arrow leaves the pin where it stands.
+        guard firstAnnotation.parentAnnotationId == nil else { return false }
+
+        // The pill the pin unfolded is the first thing Escape folds, above putting the tool down.
+        guard expandedChipId == firstId, nextEscapeStep() == .expandedNote else { return false }
+        expandChip(firstId, expanded: false)
+        guard nextEscapeStep() == .comment else { return false }
+
+        // The badge travels alone and off the capture if the hand takes it there: the point it is
+        // pinned to stays, and the offset is not clamped into the picture.
+        if let canvasView {
+            canvasView.recomputeImageRect()
+            let pinnedTo = firstAnnotation.points.first ?? .zero
+            canvasView.beginGesture(canvasView.badgeCenter(of: firstAnnotation))
+            canvasView.updateGesture(canvasView.toDisplay(CGPoint(x: -w * 0.4, y: h * 0.1)), pressed: true)
+            canvasView.endGesture()
+            guard let carried = firstAnnotation.noteOffset, carried.x < 0 else { return false }
+            guard firstAnnotation.points.first == pinnedTo else { return false }
+            firstAnnotation.noteOffset = nil
+        }
+        expandChip(firstId, expanded: true)
 
         let commentProbeText = "smoke-comment-probe"
         guard let firstChip = chipViews[firstId] else { return false }

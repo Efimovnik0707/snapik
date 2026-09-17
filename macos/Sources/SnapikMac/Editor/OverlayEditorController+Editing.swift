@@ -152,6 +152,7 @@ extension OverlayEditorController {
         canvas.onCropRequested = { [weak self] bounds in self?.cropRequested(bounds) }
         canvas.onAnnotationActivated = { [weak self] annotation in self?.annotationActivated(annotation) }
         canvas.onViewChanged = { [weak self] in self?.surfaceViewChanged() }
+        canvas.onNoteHovered = { [weak self] annotation in self?.noteHovered(annotation) }
     }
 
     private func wireToolbarActions(_ toolbar: EditorToolbarView) {

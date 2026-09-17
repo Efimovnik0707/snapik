@@ -89,6 +89,10 @@ final class AnnotationCanvasView: NSView {
     /// Port of `AnnotationActivated` (`:203-208`): a double click opens the note of whatever it
     /// lands on — the text editor for a caption, the note pill for everything else.
     var onAnnotationActivated: ((EditorAnnotation) -> Void)?
+    /// Port of `NoteHovered` (`AnnotationCanvas.cs:527-529`): the badge the pointer stands on, or
+    /// `nil` when it stands on none. Pointing at a number opens its note, and the window is the one
+    /// that knows about pills (SPEC-DELTA-5-editor.md §1.2 E-6).
+    var onNoteHovered: ((EditorAnnotation?) -> Void)?
 
     // Draft gesture state (SPEC §6.3 "Взаимодействие")
     var draft: EditorAnnotation?
@@ -119,6 +123,16 @@ final class AnnotationCanvasView: NSView {
     private var anchorOriginOffset: CGPoint?
     private var anchorDragStart: CGPoint = .zero
     private var anchorMoved = false
+
+    // The badge of a comment travels on its own, and the point it is attached to stays: that is what
+    // the leader is for. Moving the two together is what the anchor does
+    // (`AnnotationCanvas.cs:39-41`, SPEC-DELTA-5-editor.md §1.2 E-6).
+    private var badgeDrag: EditorAnnotation?
+    private var badgeOriginOffset: CGPoint?
+    private var badgeDragStart: CGPoint = .zero
+    private var badgeMoved = false
+    /// The badge the pointer stands on, so that `onNoteHovered` speaks only when it changes.
+    private var badgeHoverId: SBGuid?
 
     /// Five pixels of circle and seven of reach: the circle grows to the reach under the pointer, so
     /// what answers the press is what is seen at that moment (`AnnotationCanvas.cs:780-782`).
@@ -337,6 +351,15 @@ final class AnnotationCanvasView: NSView {
         case .resizeHandle, .object:
             guard let hit = handleHit.annotation ?? grabbed else { return }
             select(hit)
+            // A comment taken by anything but a corner is taken by its badge, and only the badge
+            // travels: the point it is pinned to stays where it was put.
+            if hit.kind == .comment, handleHit.annotation == nil {
+                badgeDrag = hit
+                badgeOriginOffset = hit.noteOffset
+                badgeDragStart = imagePoint
+                badgeMoved = false
+                return
+            }
             gestureStart = imagePoint
             originalPoints = hit.points
             originalAdditionalSegments = hit.additionalPathSegments
@@ -421,6 +444,19 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
+        // The badge travels and the point stays. No clamp: a badge is allowed off the capture, onto
+        // the shade beside it, and the leader runs back inside (SPEC-DELTA-5-editor.md §1.2 E-6).
+        if let badged = badgeDrag, pressed {
+            let current = toImage(displayPoint)
+            let moved = CGPoint(x: current.x - badgeDragStart.x, y: current.y - badgeDragStart.y)
+            if !badgeMoved, hypot(moved.x, moved.y) * displayScale < EditorGeometry.gestureThreshold { return }
+            badgeMoved = true
+            let origin = badgeOriginOffset ?? .zero
+            badged.noteOffset = CGPoint(x: origin.x + moved.x, y: origin.y + moved.y)
+            needsDisplay = true
+            return
+        }
+
         if manipulating, let selected = selectedAnnotation, let gestureStart, pressed {
             let current = clampToImage(toImage(displayPoint))
             if !manipulationMoved,
@@ -464,8 +500,16 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
-        guard let draft, gestureStart != nil, pressed else {
+        guard let draft, let gestureStart, pressed else {
             updateCursor(displayPoint)
+            return
+        }
+        // A comment is put down by "press and drag": the press fixes the point, and what the hand
+        // drags away is the badge, not the second point of the mark. No clamp, as above.
+        if draft.kind == .comment {
+            let carried = toImage(displayPoint)
+            draft.noteOffset = CGPoint(x: carried.x - gestureStart.x, y: carried.y - gestureStart.y)
+            needsDisplay = true
             return
         }
         let point = clampToImage(toImage(displayPoint))
@@ -500,6 +544,17 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
+        if badgeDrag != nil {
+            let carried = badgeMoved
+            badgeDrag = nil
+            badgeOriginOffset = nil
+            badgeMoved = false
+            // One entry of the history for one drag, the way the anchor writes one.
+            if carried { onAnnotationChanged?() }
+            needsDisplay = true
+            return
+        }
+
         if manipulating {
             manipulating = false
             resizing = false
@@ -515,6 +570,12 @@ final class AnnotationCanvasView: NSView {
         guard let draft else { return }
         self.draft = nil
         gestureStart = nil
+        // A press that did not travel is a click, and a click puts the badge on the point it was put
+        // down at: an offset shorter than the threshold is no offset at all.
+        if draft.kind == .comment, let carried = draft.noteOffset,
+            hypot(carried.x, carried.y) * displayScale < EditorGeometry.gestureThreshold {
+            draft.noteOffset = nil
+        }
         if EditorGeometry.gestureHasSize(kind: draft.kind, points: draft.points, scale: displayScale) {
             if draft.kind == .crop {
                 onCropRequested?(EditorGeometry.boundsOf(points: draft.points))
@@ -672,8 +733,16 @@ final class AnnotationCanvasView: NSView {
 
         // [ТЗ№4 D3] The hand over a pin is no longer reserved for the Select tool: with the Comment
         // tool armed a badge is grabbable, so the cursor has to say so (`D-editor.md` §4.2).
+        let grabbedHere = findMoveHandle(displayPoint)
+        // The badge under the pointer is told to the window as well: pointing at a number opens its
+        // note (`AnnotationCanvas.cs:527-529`).
+        let badge = grabbedHere?.kind == .comment ? grabbedHere : nil
+        if badge?.id != badgeHoverId {
+            badgeHoverId = badge?.id
+            onNoteHovered?(badge)
+        }
         let movablePin = hitTestAnnotation(toImage(displayPoint))?.kind == .comment
-        if findMoveHandle(displayPoint) != nil || movablePin {
+        if grabbedHere != nil || movablePin {
             NSCursor.openHand.set()
         } else if tool.isDrawing && imageRect.contains(displayPoint) {
             NSCursor.crosshair.set()
