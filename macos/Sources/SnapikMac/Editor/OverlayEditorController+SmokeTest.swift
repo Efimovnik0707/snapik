@@ -448,9 +448,15 @@ extension OverlayEditorController {
         let w = CGFloat(capture.image.width)
         let h = CGFloat(capture.image.height)
         canvasView.recomputeImageRect()
-        canvasView.beginGesture(canvasView.toDisplay(CGPoint(x: w * 0.1, y: h * 0.1)))
-        canvasView.updateGesture(canvasView.toDisplay(CGPoint(x: w * 0.4, y: h * 0.4)), pressed: true)
+        // The same free quarter the two probes above draw in, and for the same reason: the marks of
+        // the probes before this one stand in the top left, and a press inside one of them selects it
+        // instead of beginning a blur.
+        let born = capture.annotations.count
+        canvasView.beginGesture(canvasView.toDisplay(Self.smokeFreeCorner(width: w, height: h).origin))
+        canvasView.updateGesture(
+            canvasView.toDisplay(Self.smokeFreeCorner(width: w, height: h).corner), pressed: true)
         canvasView.endGesture()
+        ok = ok && capture.annotations.count == born + 1
         if let drawn = capture.annotations.last, drawn.kind == .blur {
             ok = ok && drawn.shape == .ellipse
             capture.annotations.removeAll(where: { $0 === drawn })
