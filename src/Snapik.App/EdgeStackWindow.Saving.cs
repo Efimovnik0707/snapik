@@ -62,7 +62,9 @@ public partial class EdgeStackWindow
             // A strip that changes before this copy is pasted must not rebuild the clipboard out of
             // the captures that are waiting: what lies there is the one capture the user asked for.
             _ownedClipboardIsSingleCapture = true;
-            SetPublished(Published(export));
+            // The published package carries the same fact, because the paste that is noticed later
+            // has to know it: "clear the strip after pasting" is about a package, not about one card.
+            SetPublished(Published(export) with { IsSingleCapture = true });
             UiSoundService.Copied(_settings);
             ShowToast(string.Format(UiLanguage.Text("Снимок {0} скопирован"), label));
             return true;

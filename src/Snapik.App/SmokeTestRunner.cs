@@ -652,7 +652,6 @@ public static class SmokeTestRunner
         VerifyALegacyPinIsCarriedOver(Path.Combine(root, "pin-probe"));
         WithoutBindingErrors("The strip list", EdgeStackWindow.RunStripGrowthProbe);
         VerifyTz007Settings();
-        VerifyTz007Strip();
         VerifyTz007Editor();
         var success = paths.Count == 3
             && preparedFilesOnDisk
@@ -1633,11 +1632,6 @@ public static class SmokeTestRunner
                 throw new InvalidOperationException(
                     $"The settings must offer the palettes of the editor in its order: {string.Join(", ", offered)}.");
         });
-    }
-
-    private static void VerifyTz007Strip()
-    {
-        // The strip track writes here.
     }
 
     private static void VerifyTz007Editor()

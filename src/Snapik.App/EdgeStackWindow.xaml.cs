@@ -462,14 +462,14 @@ public partial class EdgeStackWindow : Window
                 var needsRepublish = completion.NeedsRepublish(
                     await _clipboard.IsCurrentAsync(receiptAtIntent, CancellationToken.None));
                 await RepublishPackageForReuseAsync(publishedAtIntent, needsRepublish);
-                await MarkCapturesSentAsync(publishedAtIntent.CaptureIds);
+                await MarkCapturesSentAsync(publishedAtIntent);
                 return;
             }
 
             if (!e.IsIntercepted && completion.Status == CodexPasteCompletionStatus.NotApplicable)
             {
                 if (await _clipboard.IsCurrentAsync(receiptAtIntent, CancellationToken.None))
-                    await MarkCapturesSentAsync(publishedAtIntent.CaptureIds);
+                    await MarkCapturesSentAsync(publishedAtIntent);
                 return;
             }
 
@@ -691,9 +691,9 @@ public partial class EdgeStackWindow : Window
     private async void OnRemoveCaptureClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: CaptureItem capture }) return;
-        // Before the await: the routed event has gone on its way by the time the removal comes back,
-        // and marking it handled after that reaches nobody — the card under the button would take
-        // the click as a selection.
+        // Before the await, because after it the routed event is long gone and the assignment would
+        // reach nobody. Nothing depends on it today: the button is a sibling of the card content,
+        // not a part of it, and ButtonBase already keeps the click of a button to itself.
         e.Handled = true;
         await RemoveCapture(capture);
     }
@@ -1701,10 +1701,13 @@ public partial class EdgeStackWindow : Window
 
     // The package lives on the clipboard until the next capture or until the strip is cleared, so
     // clearing gives the clipboard back — but only while it still holds our own write; a package
-    // another application has already replaced is not ours to erase.
+    // another application has already replaced is not ours to erase. A capture copied on its own is
+    // not ours to erase either: the user asked for it by hand, and clearing the strip or leaving the
+    // application is no reason to take it out of their clipboard. The picture and the text stay in
+    // it as data; the paths of the file list stop leading anywhere once the session is deleted.
     private async Task ReleaseOwnedClipboardCoreAsync()
     {
-        if (_ownedClipboardReceipt is { } receipt)
+        if (_ownedClipboardReceipt is { } receipt && !_ownedClipboardIsSingleCapture)
         {
             try
             {
@@ -1748,10 +1751,17 @@ public partial class EdgeStackWindow : Window
     // package. Captures that are still waiting rebuild the clipboard, so the next Ctrl+V cannot
     // repeat what was already sent; when nothing is left waiting the just-pasted package stays on
     // the clipboard, and repeating Ctrl+V pastes the same set into another application.
-    private async Task MarkCapturesSentAsync(Guid[] idsAtIntent)
+    private async Task MarkCapturesSentAsync(PublishedPackage publishedAtIntent)
     {
-        if (_settings.ClearStackAfterPaste) { await ClearStackAsync(clipboardGateHeld: true); return; }
-        var ids = idsAtIntent.ToHashSet();
+        // "Clear the strip after pasting" belongs to the package. A capture copied on its own leaves
+        // the others untouched (B4.4): clearing here would delete captures nobody pasted, together
+        // with the session on disk and the undo stack.
+        if (PublishedPackage.ClearsTheStrip(publishedAtIntent, _settings.ClearStackAfterPaste))
+        {
+            await ClearStackAsync(clipboardGateHeld: true);
+            return;
+        }
+        var ids = publishedAtIntent.CaptureIds.ToHashSet();
         var marked = false;
         foreach (var capture in Captures)
             if (ids.Contains(capture.Id) && !capture.IsSent) { capture.IsSent = true; marked = true; }

@@ -28,4 +28,18 @@ public sealed class PublishedPackageTests
     [Fact]
     public void APackageWithoutFilesIsNotOurs() =>
         Assert.False(PublishedPackage.IsOwnPaste(Package() with { Paths = [] }, 17u, 17u));
+
+    [Fact]
+    public void APastedPackageClearsTheStripWhenTheSettingSaysSo() =>
+        Assert.True(PublishedPackage.ClearsTheStrip(Package(), true));
+
+    [Fact]
+    public void NothingIsClearedWhileTheSettingIsOff() =>
+        Assert.False(PublishedPackage.ClearsTheStrip(Package(), false));
+
+    // The capture copied on its own is one card out of many: the rest were never pasted, and
+    // clearing would take them, the session on disk and the undo stack with it.
+    [Fact]
+    public void ASingleCaptureNeverClearsTheStrip() =>
+        Assert.False(PublishedPackage.ClearsTheStrip(Package() with { IsSingleCapture = true }, true));
 }
