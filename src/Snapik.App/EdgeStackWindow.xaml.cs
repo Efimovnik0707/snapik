@@ -1944,6 +1944,24 @@ public partial class EdgeStackWindow : Window
         if (requestNext) await CaptureLoopAsync();
     }
 
+    // The right button takes nothing away from the two drags: the cards are dragged on
+    // PreviewMouseLeftButtonDown, the window on the left button of the panel. The menu is built here
+    // rather than in the markup, the way the menu of "•••" is: a ContextMenu is no part of the visual
+    // tree, and the language pass over the window would never reach it.
+    private void OnCaptureListRightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (FindAncestor<ContentPresenter>((DependencyObject)e.OriginalSource)?.Content is not CaptureItem capture) return;
+        var menu = new ContextMenu();
+        menu.Items.Add(MenuItem("Копировать снимок", async () => await CopySingleCaptureAsync(capture, capture.DisplayLabel)));
+        menu.Items.Add(MenuItem("Сохранить снимок…", async () => await SaveSingleCaptureAsAsync(capture)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuItem("Удалить", async () => await RemoveCapture(capture)));
+        menu.PlacementTarget = CaptureList;
+        UiLanguage.Apply(menu);
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
     private void OnCaptureListMouseDown(object sender, MouseButtonEventArgs e)
     {
         _dragStart = e.GetPosition(CaptureList);

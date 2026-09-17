@@ -225,6 +225,7 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False"
                      VirtualizingPanel.IsVirtualizing="False"
                      PreviewMouseLeftButtonDown="OnCaptureListMouseDown" PreviewMouseMove="OnCaptureListMouseMove"
+                     PreviewMouseRightButtonUp="OnCaptureListRightClick"
                      PreviewMouseWheel="OnCaptureListMouseWheel" Drop="OnCaptureListDrop">
                 <!-- The template of the list is a bare viewer: everything the ListBox used to pass to it
                      implicitly is passed by hand here, because a property that stops arriving does so
