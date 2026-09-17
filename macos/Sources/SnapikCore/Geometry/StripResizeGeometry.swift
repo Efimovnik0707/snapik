@@ -102,4 +102,81 @@ public enum StripResizeGeometry {
         let ceiling = max(minimumListHeight, available)
         return min(max(start + delta, minimumListHeight), ceiling)
     }
+
+    // MARK: - The list by its contents (SPEC-DELTA-5 §1.10, `StripResizeGeometry.cs:37-103`)
+
+    /// The hint that stands where the list is while the strip holds nothing.
+    public static let emptyListHeight: Double = 92
+
+    public static let listTopPadding: Double = 14
+    public static let listBottomPadding: Double = 8
+
+    /// The paddings of the capture list are not the same on both sides: the right one carries the
+    /// scroll bar, which stands over the cards and needs a field of its own, and the left one gives
+    /// those four points back so that the card keeps the 168 of the reference shot. The strip reads
+    /// them through `StackMetrics`, which derives its numbers from these ones.
+    public static let listPaddingLeft: Double = 4
+    public static let listPaddingRight: Double = 12
+
+    /// A card and the part of it the next card lies over; the difference is the pitch.
+    public static let cardHeight: Double = 78
+    public static let cardOverlap: Double = 48
+    public static let cardPitch: Double = cardHeight - cardOverlap
+
+    /// The height the capture list wants for `count` cards, and the ceiling the corner grip has
+    /// written into the settings. The grip sets the ceiling, not the height: a list of two cards is
+    /// 130 tall whatever the settings say, and it stops growing at the ceiling.
+    /// `minimumListHeight` is no floor here — it belongs to the stored number alone, otherwise a
+    /// single capture would open a list of 180 instead of 100.
+    public static func listHeightForCount(_ count: Int, cap: Double) -> Double {
+        if count <= 0 { return emptyListHeight }
+        let content = listTopPadding + Double(count - 1) * cardPitch + cardHeight + listBottomPadding
+        let ceiling = cap.isFinite && cap > 0 ? cap : defaultListHeight
+        return min(content, ceiling)
+    }
+
+    /// The height of the list: dragged by hand it is the stored number itself, automatic it is the
+    /// height of what the list holds. The stored number and the clamps it went through are the same
+    /// in both; what the drag changes is whether that number is a ceiling or the height.
+    public static func listHeight(count: Int, stored: Double, manual: Bool) -> Double {
+        manual ? stored : listHeightForCount(count, cap: stored)
+    }
+
+    /// The left edge of the capsule, so that it keeps the right edge of the strip it came from
+    /// rather than the edge of the monitor: both windows carry the same field under their shadow,
+    /// so the sides the user sees line up.
+    public static func capsuleLeft(stripLeft: Double, stripWidth: Double, capsuleWidth: Double)
+        -> Double
+    {
+        stripLeft + stripWidth - capsuleWidth
+    }
+
+    /// The rectangle the strip had before the capsule, moved back into the working area only when it
+    /// no longer fits: a strip dragged away from the edge stays where the user left it.
+    ///
+    /// Plain numbers and not a `CGRect`, because Core knows Foundation alone (SPEC-DELTA-5 §2.5);
+    /// the caller in the Stack zone takes the two rectangles apart. The width and the height never
+    /// move, so the answer is the point. `work` is read as "from `workX`/`workY`, `workWidth` wide
+    /// and `workHeight` tall", which is the same pair of edges on either axis direction: what
+    /// Windows calls `Top`/`Bottom` is the smaller and the larger edge here too.
+    public static func restoreRect(
+        x: Double, y: Double, width: Double, height: Double,
+        workX: Double, workY: Double, workWidth: Double, workHeight: Double
+    ) -> (x: Double, y: Double) {
+        let workRight = workX + workWidth
+        let workBottom = workY + workHeight
+        // The order of the guards is the one of `!work.IsEmpty && work.Width > 0 &&
+        // work.Height > 0 && !work.Contains(stored)`: an empty working area is exactly the one with
+        // no width or no height here, so the first of the four guards has nothing of its own left
+        // to ask. `Rect.Contains(Rect)` is "every edge of the stored one is inside".
+        let contains =
+            workX <= x && workY <= y && workRight >= x + width && workBottom >= y + height
+        if workWidth > 0 && workHeight > 0 && !contains {
+            return (
+                min(max(x, workX), max(workX, workRight - width)),
+                min(max(y, workY), max(workY, workBottom - height))
+            )
+        }
+        return (x, y)
+    }
 }

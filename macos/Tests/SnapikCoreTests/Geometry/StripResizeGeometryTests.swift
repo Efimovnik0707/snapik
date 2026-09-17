@@ -176,4 +176,73 @@ final class StripResizeGeometryTests: XCTestCase {
                 expected, StripResizeGeometry.clampWidth(stored, workWidth: workWidth), "\(stored) \(workWidth)")
         }
     }
+
+    // MARK: - The list by its contents (SPEC-DELTA-5 §1.10)
+
+    /// The stored number is the ceiling and not the height: an empty strip is the hint alone, one
+    /// card is 100 and every card after it adds the pitch. The minimum of 180 is no floor here — it
+    /// belongs to the stored number, and a single capture opens a list of 100.
+    func test_The_list_is_as_tall_as_what_it_holds_and_stops_at_the_ceiling() {
+        let cases: [(Int, Double, Double)] = [
+            (0, StripResizeGeometry.defaultListHeight, 92),
+            (1, StripResizeGeometry.defaultListHeight, 100),
+            (2, StripResizeGeometry.defaultListHeight, 130),
+            (5, StripResizeGeometry.defaultListHeight, 220),
+            // Twelve cards want 430 and the default ceiling holds them at 372.
+            (12, StripResizeGeometry.defaultListHeight, 372),
+            (12, 500, 430),
+            (12, 130, 130),
+            // A ceiling that is nonsense falls back to the default one.
+            (12, .nan, 372),
+        ]
+        for (count, cap, expected) in cases {
+            XCTAssertEqual(
+                expected, StripResizeGeometry.listHeightForCount(count, cap: cap), "\(count) \(cap)")
+        }
+    }
+
+    /// Dragged by hand the stored number is the height itself, empty strip included; automatic it is
+    /// the height of the contents, and the same number is only the ceiling.
+    func test_A_height_dragged_by_hand_is_the_number_itself_and_an_automatic_one_is_the_contents() {
+        let cases: [(Int, Double, Bool, Double)] = [
+            (3, 310, true, 310),
+            (3, 310, false, 160),
+            (15, 310, true, 310),
+            (0, 310, true, 310),
+            (0, 310, false, 92),
+        ]
+        for (count, stored, manual, expected) in cases {
+            XCTAssertEqual(
+                expected, StripResizeGeometry.listHeight(count: count, stored: stored, manual: manual),
+                "\(count) \(stored) \(manual)")
+        }
+    }
+
+    /// The capsule keeps the right edge of the strip it came out of, not the edge of the monitor.
+    func test_The_capsule_keeps_the_right_edge_of_the_strip() {
+        XCTAssertEqual(
+            1664, StripResizeGeometry.capsuleLeft(stripLeft: 1600, stripWidth: 244, capsuleWidth: 180))
+    }
+
+    /// A strip dragged away from the edge stays where it was left; only one that no longer fits is
+    /// brought back, and a working area of no size at all moves nothing.
+    func test_The_strip_comes_back_into_the_working_area_only_when_it_no_longer_fits() {
+        let inside = StripResizeGeometry.restoreRect(
+            x: 1600, y: 100, width: 244, height: 372,
+            workX: 0, workY: 0, workWidth: 1920, workHeight: 1080)
+        XCTAssertEqual(1600, inside.x)
+        XCTAssertEqual(100, inside.y)
+
+        let outside = StripResizeGeometry.restoreRect(
+            x: 1800, y: 900, width: 244, height: 372,
+            workX: 0, workY: 0, workWidth: 1920, workHeight: 1080)
+        XCTAssertEqual(1676, outside.x)
+        XCTAssertEqual(708, outside.y)
+
+        let noScreen = StripResizeGeometry.restoreRect(
+            x: 1800, y: 900, width: 244, height: 372,
+            workX: 0, workY: 0, workWidth: 0, workHeight: 0)
+        XCTAssertEqual(1800, noScreen.x)
+        XCTAssertEqual(900, noScreen.y)
+    }
 }
