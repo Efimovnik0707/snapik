@@ -133,8 +133,33 @@ public static func clearsTheStrip(isSingleCapture: Bool, clearStackAfterPaste: B
 3. очистка ленты и выход не затирают одиночную копию: `releaseOwnedClipboard()`
    (`AppCoordinator.swift:591-612`) при поднятом флаге в буфер не пишет, `defer` с обнулением receipt
    остаётся как есть;
-4. копия из редактора отвечает плашкой редактора: `copySingleCapture(_:label:) async -> Bool`
-   (`S §5.2`), редактор говорит результат своим `hintView` (`E §1.3 E-12`).
+4. копия из редактора отвечает плашкой редактора: редактор говорит результат своим `hintView`
+   (`E §1.3 E-12`).
+
+**Как редактор дотягивается до ленты (иначе на CI `does not conform to protocol`).** Редактор не видит
+`AppCoordinator` вовсе, он ходит только через `OverlayEditorDelegate`
+(`Editor/OverlayEditorController.swift:6-14`, `delegate` `:32`). Поэтому подписей две, и обе записаны
+здесь дословно, чтобы порции написали одно и то же:
+
+```swift
+// Editor, задача 16: требование протокола рядом с `overlayEditor(_:didSaveFileAt:)`
+protocol OverlayEditorDelegate: AnyObject {
+    func overlayEditorCopiesSingleCapture(_ editor: OverlayEditorController) async -> Bool
+}
+
+// Stack, задача 10: реализация-переходник в `App/AppCoordinator+OverlayEditorDelegate.swift`
+func overlayEditorCopiesSingleCapture(_ editor: OverlayEditorController) async -> Bool
+// тело: координатор берёт снимок, с которым он открыл редактор, и его `displayLabel` (а не букву
+// ленты: у отправленного снимка она `nil`), зовёт `copySingleCapture` и возвращает результат.
+// Редактор буквы ленты не знает и знать не должен.
+
+// Stack, задача 10: сам метод в `AppCoordinator+Package.swift`
+@discardableResult
+func copySingleCapture(_ capture: CaptureItem, label: String) async -> Bool
+```
+
+Реализация протокола живёт в файле порции Stack (`§5.1`), требование в файле порции Editor: без пары
+правок дерево не соберётся, поэтому обе порции обязаны сделать свою половину в один раунд.
 
 Снятие признака: следующим захватом, явным «Копировать пакет», очисткой ленты и замеченной вставкой
 (точки перечислены в `S §1.2 L-14`).
@@ -168,8 +193,8 @@ Windows-овским ради грепа, хотя возвращает оно �
 **2.7. `AppCoordinator*.swift` целиком у порции Stack, включая `AppCoordinator+PasteIntent.swift`.**
 По `CONTRACTS.md` (дополнение sync 2) файл `AppCoordinator+PasteIntent.swift` принадлежит
 `exec-transport`, транспортного аналитика в раунде нет. **Решение:** отклонение от `CONTRACTS.md`,
-записать его в §7 отдельной строкой. Settings отдаёт свою половину координатора колбэком, как в дельте
-№4 (`SPEC-DELTA-4.md` §7). Ни Settings, ни Editor в `App/AppCoordinator*.swift` не заходят.
+записать его в §7 отдельной строкой. Ни Settings, ни Editor в `App/AppCoordinator*.swift` не заходят;
+редактор дотягивается до ленты только через `OverlayEditorDelegate` (§2.4).
 
 **2.8. `ToolAppearanceStore.swift` пишет волна 0, хотя файл лежит в `Editor/`.** `C §5.2` предлагал
 писать его порцией Settings, `E §1.1 W0-2` требовал его в своей волне 0. **Решение:** его пишет **волна
@@ -203,8 +228,9 @@ extension EditorTool {
 (`tz-006-notes-0.md`), паритет формата важнее единообразия имён: файл, записанный одной платформой,
 должен открываться другой. Имя ключа в `CodingKeys` писать буква в букву, поля записи тоже camelCase
 (`color`, `thickness`, `lineStyle`, `fill`, `fillColor`, `fontSize`, `arrowStyle`, `shape`). `fillColor`
-писать через `encodeIfPresent`, иначе в файле появится `"fillColor": null`, который читается так же, но
-расходится с файлом Windows побайтно.
+обязан **исчезать** из файла, когда он `nil`, а не писаться как `"fillColor": null`: читается это
+одинаково, но расходится с файлом Windows побайтно. Даётся это тем, что `encode(to:)` у
+`ToolAppearanceEntry` руками не пишется (§4, чек-лист п. 4).
 
 **2.11. «Прокрутка к концу» на неперевёрнутом `listContainer` это `scroll(to: y = 0)`.** `StackListView`
 намеренно не flipped (`EdgeStackContentView.swift:102-104`), фреймы считаются как
@@ -271,8 +297,15 @@ Windows, который строит его внутри). Сессия соби
 
 Словарь «имя инструмента → запись»; ключ camelCase (§2.10), имена инструментов camelCase, шесть штук.
 Поля записи: `color` (`#RRGGBB`), `thickness`, `lineStyle` (`solid|dashed|dotted`), `fill`
-(`none|solid|translucent|blur`), `fillColor` (отсутствует = «как обводка»), `fontSize`, `arrowStyle`
-(`straight|curved|bold|wide`), `shape` (`rectangle|rounded|ellipse`).
+(`none|solid|translucent|blur`), `fillColor` (отсутствует = «как обводка»), `fontSize`, `arrowStyle`,
+`shape` (`rectangle|rounded|ellipse`).
+
+**`arrowStyle`: формат принимает четыре значения, панель предлагает три.** В файле и в модели живут
+`straight`, `curved`, `bold`, `wide` (`SnapikCore/Models/AnnotationItem.swift:81`, дефолт `straight`), и
+`bold` обязан **читаться**: он стоит в уже сохранённых сессиях. Windows в этом раунде убрал пункт
+«толстая» из поповера стрелки (`OverlayEditorWindow.Arrows.cs:15-17`), поэтому предлагать его больше
+нельзя (задача Editor 8). `C §4.2` перечисляет три значения, имея в виду именно предлагаемые: в файле их
+четыре.
 
 **Чтение старого файла:** у файла без ключа ошибки нет, каждый инструмент берёт старые общие значения
 (`AnnotationColor`, `AnnotationThickness`, у маркера `AnnotationHighlightThickness`, у текста
@@ -320,19 +353,19 @@ Windows, который строит его внутри). Сессия соби
 
 ## 4. Волна 0: Core и контракты
 
-Один исполнитель, ветка `mac-sync-5-wave0` от `master` (`afe27f4`), коммит на задачу, префикс сообщения
+Один исполнитель, ветка `mac-sync-5-wave0` от `master` (`220fe49`), коммит на задачу, префикс сообщения
 `macos:`, CI между коммитами не запускать. Порции ветвятся от последнего коммита волны 0.
 
 | # | Задача | Файлы | Тесты `XCTest` | Объём |
 |---|---|---|---|---|
-| W0-1 | `ToolAppearanceEntry` (`C §4.2`, публичный `init` объявить явно: memberwise у публичной структуры internal) плюс `toolAppearance` и `stackHeightManual` в `HotkeySettings` (поле, `CodingKeys`, `decodeIfPresent`, `encode`, четыре места на ключ) | `SnapikCore/Settings/ToolAppearanceEntry.swift` (новый), `SnapikCore/Settings/HotkeySettings.swift` | `SettingsMigrationTests`: файл 1.5.0 даёт `false` и пустой словарь; круг записи и чтения с обоими ключами; файл с `toolAppearance` не считается мигрированным | S |
+| W0-1 | `ToolAppearanceEntry: Codable, Equatable, **Sendable**` (`HotkeySettings` объявлен `Codable, Equatable, Sendable` на `Settings/HotkeySettings.swift:40`, поэтому без `Sendable` у значения словаря соответствие сломается; строгой конкурентности в пакете нет (`swift-tools-version: 5.9`, `SWIFT_VERSION: "5"`), `@MainActor` и лишних `Sendable` сверх этого не добавлять). Публичный `init` объявить явно: memberwise у публичной структуры internal. Плюс `toolAppearance` и `stackHeightManual` в `HotkeySettings` (поле, `CodingKeys`, `decodeIfPresent`, `encode`, четыре места на ключ) | `SnapikCore/Settings/ToolAppearanceEntry.swift` (новый), `SnapikCore/Settings/HotkeySettings.swift` | `SettingsMigrationTests`: файл 1.5.0 даёт `false` и пустой словарь; круг записи и чтения с обоими ключами; файл с `toolAppearance` не считается мигрированным | S |
 | W0-2 | `StripResizeGeometry`: `emptyListHeight 92`, `listTopPadding 14`, `listBottomPadding 8`, `listPaddingLeft 4`, `listPaddingRight 12`, `cardHeight 78`, `cardOverlap 48`, `cardPitch = cardHeight - cardOverlap`; `listHeightForCount(_:cap:)`, `listHeight(count:stored:manual:)`, `capsuleLeft(stripLeft:stripWidth:capsuleWidth:)`, `restoreRect(...)` по §2.5 | `SnapikCore/Geometry/StripResizeGeometry.swift` | `StripResizeGeometryTests`: восемь случаев `listHeightForCount` (`0→92`, `1→100`, `2→130`, `5→220`, `12→372`, `cap 500→430`, `cap 130→130`, `NaN→372`); пять `listHeight` (`3,310,true→310`; `3,310,false→160`; `15,310,true→310`; `0,310,true→310`; `0,310,false→92`); `capsuleLeft(1600,244,180) == 1664`; три случая `restoreRect` | M |
 | W0-3 | `SoundVolumeCurve.amplitude(volume:gain:)` (`C §4.6`) | `SnapikCore/Settings/SoundVolumeCurve.swift` (новый) | новый `SoundVolumeCurveTests`: `amplitude(100, 0.6) == 0.6`; `50 → 0.15`; `25 → 0.0375`; ноль это тишина на двух гейнах; `−5 → 0`, `250 → gain`; кривая только растёт (101 точка × гейны `0.6`, `0.25`, `0.7`), `accuracy: 1e-6` | S |
 | W0-4 | `PromptGenerator(singleCaptureLabel:)` и `FileExportService(renderer:timeProvider:singleCaptureLabel:)`, развилка «один снимок и есть буква» внутри обоих. Правку и восемь вызывающих в тестах делать **одним коммитом** | `SnapikCore/Exporting/PromptGenerator.swift`, `SnapikCore/Exporting/FileExportService.swift` | `PersistenceAndExportTests`: пакет из одного снимка держит букву (`01-B.png`, «Снимок B», `B1:`, `B2:`); пакет из трёх букву игнорирует (`A`, `B`, `C`); пакет из одного **без** буквы прежний (`01-A.png`) | S |
 | W0-5 | `SentCaptureRules.clearsTheStrip(isSingleCapture:clearStackAfterPaste:)` (§2.2) | `SnapikCore/Exporting/SentCaptureRules.swift` | `SentCaptureRulesTests`: настройка включена чистит, выключена не чистит, одиночная копия не чистит никогда | S |
 | W0-6 | `EditorTool.appearanceKey` и `init?(appearanceKey:)` (§2.9), `struct ToolAppearance`, `enum ToolAppearanceStore` с `tools`, `read(_:)`, `write(_:tools:)` (`C §4.3`) | `SnapikMac/Editor/ToolAppearanceStore.swift` (новый) | новый `SnapikMacTests/Editor/ToolAppearanceStoreTests.swift`: файл без ключа раздаёт всем шести старые общие значения; файл с ключом читается им, инструмент без записи падает на общие, `"telepathy"` пропускается, в словаре остаётся 6; круг `write → read` с проверкой зеркала четырёх старых ключей | M |
 | W0-7 | `SessionWorkspace.exportSingle(_:label:renderer:)` (§2.13), без `trimExports` (§2.1), с комментарием про долг | `SnapikMac/App/SessionWorkspace.swift` | покрыт пробой `A5-2` порции Settings, своего юнита не требует | S |
-| W0-8 | `UiLanguage`: **+5** пар 1.6.0 после `«Добавить цвет в свою палитру»` и до комментария SPEC-DELTA-3 (`«Панель разметки»`, `«Обводка»`, `«Скруглённый»`, `«Нет»`, `«Неон»`); **+4** пары 1.7.0 перед `«Вставить изображение из буфера»` (`«Копировать снимок»`, `«Сохранить снимок…»`, `«Снимок {0} скопирован»`, `«Не удалось скопировать снимок»`); **−3** сразу (`«Цвет отметки»`, `«Тип линии»`, `«+ Снимок»`: проверено грепом, читателей нет, только комментарии кода). Три отложенные и две остающиеся пары описать комментарием на месте | `SnapikCore/Settings/UiLanguage.swift` | `SerializationCyrillicTests` ловят дубли; отдельно прогнать проверку уникальности английских значений скриптом (§2.15) | S |
+| W0-8 | `UiLanguage`: **+5** пар 1.6.0 после `«Добавить цвет в свою палитру»` и до комментария SPEC-DELTA-3 (`«Панель разметки»`, `«Обводка»`, `«Скруглённый»`, `«Нет»`, `«Неон»`); **+4** пары 1.7.0 перед `«Вставить изображение из буфера»` (`«Копировать снимок»`, `«Сохранить снимок…»`, `«Снимок {0} скопирован»`, `«Не удалось скопировать снимок»`); **−3** сразу (`«Цвет отметки»`, `«Тип линии»`, `«+ Снимок»`: проверено грепом, читателей нет, только комментарии кода). Ещё **четыре** пары снимаются в сведении, а не здесь: три после порции Editor (`«Толстая стрелка»`, `«По ширине · {0} %»`, `«По высоте · {0} %»`) и одна после порции Settings (`«Горячие клавиши…»`, `:243`, её последний читатель `Settings/HotkeySettingsWindowController.swift:244` переезжает на уже существующую пару `«Настройки клавиш»`). Все четыре отложенные и две остающиеся пары описать комментарием на месте, чтобы сведение знало, что снимать | `SnapikCore/Settings/UiLanguage.swift` | `SerializationCyrillicTests` ловят дубли; отдельно прогнать проверку уникальности английских значений скриптом (§2.15) | S |
 | W0-9 | Сводный проход: все дописанные наборы лежат в существующих целях, новых тестовых целей не заведено, чек-лист ниже пройден | `Tests/SnapikCoreTests/**`, `Tests/SnapikMacTests/Editor/ToolAppearanceStoreTests.swift` | — | S |
 
 **Порядок жёсткий в двух местах:** W0-4 трогает `PromptGenerator`, который зовут восемь тестов, правка и
@@ -340,13 +373,16 @@ Windows, который строит его внутри). Сессия соби
 
 **Критерий готовности (компилятора нет, поэтому самопроверка по чек-листу):**
 
-1. каждый новый тип и каждая новая функция объявлены ровно один раз: `grep -c` по имени == 1;
+1. каждый новый тип и каждая новая функция объявлены ровно один раз: греп по имени даёт одно
+   объявление, слева якорить (`grep -rn "[^A-Za-z]placeCapture(" Sources/`, §6 пункт 1);
 2. `public` / `internal` расставлены по `CONTRACTS.md`: всё новое в `SnapikCore` публичное, всё новое в
    `SnapikMac` internal;
 3. в подписях Core нет `NSColor`, `CGRect`, `NSRect`, `AppKit` и `CoreGraphics`:
    `grep -rn "import AppKit\|import CoreGraphics" Sources/SnapikCore/` пусто (правило дельты №4);
-4. `CodingKeys`, `init(from:)` и `encode(to:)` перечисляют новые ключи в порядке Windows, `fillColor`
-   пишется через `encodeIfPresent`;
+4. `CodingKeys` перечисляют новые ключи в порядке Windows. У `ToolAppearanceEntry` **`encode(to:)`
+   руками не писать**: синтезированный `Codable` с явными `CodingKeys` (образец
+   `HotkeySettings.swift:312-345`) сам не пишет `null` у `nil`-свойства, и `fillColor` исчезает из файла
+   сам собой. `encodeIfPresent` понадобится только тому, кто всё-таки напишет `encode(to:)` руками;
 5. у `PromptGenerator` объявлен явный `public init(singleCaptureLabel: String? = nil)`, иначе восемь
    вызовов `PromptGenerator()` в тестах перестают компилироваться;
 6. `SettingsMigration.currentVersion` по-прежнему `2`;
@@ -373,7 +409,7 @@ Windows, который строит его внутри). Сессия соби
 | `Sources/SnapikMac/Editor/**` (кроме `ToolAppearanceStore.swift`), `SnapikMac/Imaging/**`, `SnapikMac/App/SmokeTestRunner+Editor.swift`, `Tests/SnapikMacTests/{Editor,Imaging}/**` (кроме файла волны 0) | **Editor** |
 | `Sources/SnapikMac/Settings/**`, `SnapikMac/Onboarding/**`, `SnapikMac/App/UiSoundService.swift`, `SnapikMac/App/SmokeTestRunner+Settings.swift` | **Settings** |
 | `Sources/SnapikCore/Settings/UiLanguage.swift` | волна 0; **одно исключение**: последний коммит порции Editor снимает три пары (§5.3, задача 16) |
-| `Sources/SnapikMac/App/SmokeTestRunner.swift` (реестр), `macos/project.yml`, `macos/SYNC.md`, `macos/README.md`, `macos/CONTRACTS.md` | только сведение |
+| `Sources/SnapikMac/App/SmokeTestRunner.swift` (реестр проб **и** набор `custom.*` round-trip на `:76-89`, §6 пункт 5), `macos/project.yml`, `macos/SYNC.md`, `macos/README.md`, `macos/CONTRACTS.md` | только сведение |
 
 Отклонения от `CONTRACTS.md`, которые надо записать в §7: `AppCoordinator+PasteIntent.swift` уходит от
 `exec-transport` к Stack; `Editor/ToolAppearanceStore.swift` пишет волна 0, а не exec-editor.
@@ -387,13 +423,13 @@ Windows, который строит его внутри). Сессия соби
 | 1 | Числа `StackMetrics` и псевдонимы Core (§2.12): поля `4,14,12,8`, полоса 3 / 6, тень 12, снять `listContentHeight` и `expandedMargin` | `S §1.1 L-3`, `L-5` | S |
 | 2 | `applyListHeight()` и высота по содержимому; звать из `refresh()` до `layoutWindow()`; открыть `rowCount`, массив `rows` оставить приватным | `S §1.1 L-2` | M |
 | 3 | Ручная высота: `persistStackGeometry(manual:)` поднимает флаг только при `kind == .corner`, ранний выход при неизменившейся геометрии, двойной клик по ручке через `clickCount == 2` | `S §1.2 L-12` | M |
-| 4 | `placeStripInitially()` / `ensureStripPlaced()`, флаг `placedOnce`, `reveal()` переводится на второй; `workArea(for:)` по §2.6 | `S §1.1 L-7` | M |
+| 4 | `placeStripInitially()` / `ensureStripPlaced()`, флаг `placedOnce`, `workArea(for:)` по §2.6. **Гард капсулы дословно:** `positionAtEdge()` (`:220-247`) обслуживает две ветки и зовётся из `reveal()` `:79` и из `collapseToCapsule()` `:336`, а у `ensureStripPlaced()` ветки капсулы нет. `reveal()` зовёт `ensureStripPlaced()` **только при `!isCapsuleMode`**, иначе по-прежнему `positionAtEdge()` (аналог Windows-овского `if (!_capsuleMode) EnsureStripPlaced();`); вызов из `collapseToCapsule()` не трогать | `S §1.1 L-7` | M |
 | 5 | Капсула: поле `expandedLeft`, `capsuleLeft`, `expandFromCapsule` через `restoreRect` одним `setFrame` | `S §1.1 L-6` | M |
 | 6 | Снять раскрытие по выбору и фокусу (`isSelected` из условия, `cardSelectedBorder`, крестик по hover) | `S §1.1 L-1` | S |
 | 7 | Раскрытие под курсором: `isUnfolded`, одна отложенная задача на ленту, 150 мс, 0.13 на обе стороны, `.inVisibleRect` у tracking area | `S §1.2 L-11` | M |
 | 8 | Прокрутка к последнему снимку: флаг внутри `layoutCards` (§2.11), вызовы из `reveal()` и двух импортов, остальные точки не трогать | `S §1.2 L-8` | M |
 | 9 | Вид карточки: клип 10 через `cardBorderWidth`, градиентная плашка 30 тремя стопами через `draw(_:)`, белые иконка и счётчик с общей тенью, три рамки из темы | `S §1.2 L-4`, `L-9`, `L-10` | M |
-| 10 | Контекстное меню карточки через `menu(for:)`, три пункта, `NSSavePanel` под `withTopmostSuspended`, `copySingleCapture(_:label:) async -> Bool` | `S §1.2 L-13` | L |
+| 10 | Контекстное меню карточки через `menu(for:)`, три пункта, `NSSavePanel` под `withTopmostSuspended`, `copySingleCapture(_:label:) async -> Bool` в `AppCoordinator+Package.swift` **и реализация-переходник `overlayEditorCopiesSingleCapture(_:)` в `App/AppCoordinator+OverlayEditorDelegate.swift`** (подписи дословно в §2.4; без неё дерево не соберётся, как только Editor добавит требование в протокол) | `S §1.2 L-13`, §2.4 | L |
 | 11 | Четыре правила одиночной копии (§2.3, §2.4) | `S §1.2 L-14` | M |
 | 12 | Тесты и пробы одним куском: семь утверждений в `SmokeTestRunner+Stack.swift`, форматы пастборда в `TransportMacTests` | `S §4` | M |
 
@@ -410,12 +446,12 @@ Windows, который строит его внутри). Сессия соби
 |---|---|---|---|
 | 1 | `AnnotationRules`: `outlineColorOf(fill:color:)`, `enum PressTarget` (девять шагов, включая `deselect`), `pressTargetOf(...)` | `E §1.1 W0-1` | S |
 | 2 | `NoteBadgeGeometry`: `exportScale(_:)`, `anchorRadius = 5`, `leader(..., fromRadius:)`, `ExportMargin`, `exportMargins(badges:width:height:)` | `E §1.1 W0-3` | M |
-| 3 | `EditorGeometry`: `fit` отдаёт `Double` (снять `FitBound`/`FitResult`), `placeCapture(image:work:panel:gap:margin:)`, `placeToolbar(..., mayOverlap:)`, новый `ToolbarLayout.measure(...)` | `E §1.1 W0-4` | M |
+| 3 | `EditorGeometry`: `fit` отдаёт `Double` (снять `FitBound`/`FitResult`), `placeCapture(image:work:panel:gap:margin:)`, `placeToolbar(..., mayOverlap:)`, новый `ToolbarLayout.measure(...)`. Снятый `FitBound` держит `EditorStrings.fitPercent` и три её читателя: они уходят задачей 6, между задачами 3 и 6 порция заведомо не собирается, и это нормально (CI один, после сведения) | `E §1.1 W0-4` | M |
 | 4 | `InspectorView`, `SecondCapsule`, `EditorInspector.inspectorViewOf/inspectedTool` поверх `ToolAppearanceStore` волны 0 (§2.8) | `E §1.1 W0-2` | S |
 | 5 | E-8: обводка не красится заливкой, два вызывающих | `E §1.2 E-8` | S |
-| 6 | E-1: переключателя масштаба нет, снимок 1:1 через `placeCapture`, `zoomByNotches`, разрезание `EditorScaleSwitchView.swift`, переименование `+Scale.swift` | `E §1.2 E-1` | L |
+| 6 | E-1: переключателя масштаба нет, снимок 1:1 через `placeCapture`, `zoomByNotches`, разрезание `EditorScaleSwitchView.swift`, переименование `+Scale.swift`. **Заодно снять `EditorStrings.fitPercent`** (`Editor/EditorStrings.swift:65-70`): она принимает `EditorGeometry.FitBound`, который удаляет задача 3, а её читатели (`+Scale.swift:88`, `+SmokeTest.swift:438`) уходят здесь же | `E §1.2 E-1` | L |
 | 7 | E-2: три блока, две строки, ширина свойств 176, `mayOverlap`, перетаскивание панели тремя отдельными методами | `E §1.2 E-2` | L |
-| 8 | E-3: две капсулы вместо шести кнопок и ряда точек, `syncAppearance`/`applyAppearance` по инспектору, слияние поповера стиля в поповер толщины, четвёртая палитра «неон» | `E §1.2 E-3` | L |
+| 8 | E-3: две капсулы вместо шести кнопок и ряда точек, `syncAppearance`/`applyAppearance` по инспектору, слияние поповера стиля в поповер толщины, четвёртая палитра «неон». **Плюс снять пункт `"bold"` из поповера стрелки** (`+Editing.swift:315`, `add(EditorStrings.arrowBold(language), "bold")`): Windows убрал «толстую» из списка (`OverlayEditorWindow.Arrows.cs:15-17`), в модели значение остаётся читаемым (§3.1) | `E §1.2 E-3`, §3.1 | L |
 | 9 | E-4: настройки инструментов переживают перезапуск, не потеряв `AnnotationPalette`, `CustomPaletteColors`, `AnnotationPencil` | `E §1.2 E-4` | S |
 | 10 | E-5: `pressTargetOf` в `beginGesture`, углы только у выделенной, `reach = 8`, инфляция текста 4, гейт `manipulationMoved` | `E §1.2 E-5` | L |
 | 11 | E-6: `badgeDrag`, постановка жестом, наведение разворачивает пилюлю, шаг Esc `expandedNote`, снятие привязки | `E §1.2 E-6` | L |
@@ -423,7 +459,7 @@ Windows, который строит его внутри). Сессия соби
 | 13 | H-1 (заливка на клике) и H-2 (`interpolation(ratio:)`) отдельными коммитами, чтобы снимались одним revert | `E §1.2 H-1`, `H-2` | S |
 | 14 | E-9, затем E-10: выноска от обода точки в обоих рисовальщиках, потом точка в экспорте и в файле на диске | `E §1.3 E-9`, `E-10` | M |
 | 15 | E-11: у размытия нет блока свойств, форма пишется только у рамки, зеркало `tools[.blur].shape` остаётся | `E §1.3 E-11` | S |
-| 16 | E-12 **последней**: кнопка «Копировать», Shift+Cmd+C, шпаргалка, плашка ответа; плюс **отдельным коммитом** снятие трёх пар `UiLanguage` (`«Толстая стрелка»`, `«По ширине · {0} %»`, `«По высоте · {0} %»`) после того, как их читатели сняты | `E §1.3 E-12`, `C §1.3` | M |
+| 16 | E-12 **последней**: кнопка «Копировать», Shift+Cmd+C, шпаргалка, плашка ответа, **требование `overlayEditorCopiesSingleCapture(_:) async -> Bool` в `OverlayEditorDelegate`** (подпись дословно в §2.4, реализация у Stack); плюс **отдельным коммитом** снятие трёх пар `UiLanguage` после того, как сняты все их читатели: `«Толстая стрелка»` (два читателя, `EditorStrings.swift:94` и `+Editing.swift:315`, оба уходят задачей 8), `«По ширине · {0} %»` и `«По высоте · {0} %»` (`EditorStrings.fitPercent`, уходит задачей 6) | `E §1.3 E-12`, `C §1.3`, §2.4 | M |
 
 **Нельзя трогать:** `ToolAppearanceStore.swift` и его тесты (волна 0), `Stack/**`, `Settings/**`,
 `App/AppCoordinator*.swift`, `SmokeTestRunner.swift`. Кнопка E-12 зовёт `copySingleCapture` порции Stack,
@@ -440,12 +476,13 @@ Windows, который строит его внутри). Сессия соби
 | 5 | Конец ряда галереи это метка (`atEnd`), кламп `firstCard` в `layout()` (§2.14) | `C §1.7 S5-4` | S |
 | 6 | Проба `A5-1`: высота четырёх вкладок против высоты окна с гвардом «меньше 200 px это не измерение»; `"60 %"` переживает смену языка; последовательность ряда палитр равна `EditorAppearance.palettes` | `C §1.9` | M |
 | 7 | Проба `A5-2`: `exportSingle(capture, label: "B")` даёт `01-B.png` и текст со «Снимок B» | `C §1.9` | S |
-| 8 | Правки `A5-3`: `custom.stackHeightManual = true` и непустой `custom.toolAppearance` в round-trip, `smokePaletteTitles` в четыре названия, окно на файле с `AnnotationPalette = "neon"` показывает неон | `C §1.9` | S |
+| 8 | Правки `A5-3` **в своём файле**: `smokePaletteTitles` в четыре названия, окно на файле с `AnnotationPalette = "neon"` показывает неон. Набор `custom.*` для round-trip лежит **не здесь**, а в `SmokeTestRunner.swift:76-89`, который принадлежит сведению: `custom.stackHeightManual` и непустой `custom.toolAppearance` дописывает сведение (§6, пункт 5) | `C §1.9` | S |
 | 9 | Правки языковой таблицы смоука `A5-4`; перевести accessibility-подпись вкладки с `«Горячие клавиши…»` на `«Настройки клавиш»`, чтобы пара снялась | `C §1.3`, `C §1.9` | S |
 
-**Нельзя трогать:** `App/AppCoordinator*.swift` (свою половину отдавать колбэком, §2.7), `Stack/**`,
-`Editor/**`, `Imaging/**`, `SmokeTestRunner.swift`, `UiLanguage.swift`. Утверждение про порядок палитр в
-`A5-1` станет истинным только после слияния порции Editor: это ожидаемо, CI один и после сведения.
+**Нельзя трогать:** `App/AppCoordinator*.swift` (§2.7), `Stack/**`, `Editor/**`, `Imaging/**`,
+`SmokeTestRunner.swift` (в том числе набор `custom.*` на `:76-89`), `UiLanguage.swift` (пара
+`«Горячие клавиши…»` снимается в сведении, §6 пункт 2). Утверждение про порядок палитр в `A5-1` станет
+истинным только после слияния порции Editor: это ожидаемо, CI один и после сведения.
 
 ### 5.5 Правила исполнителю порции (в промпт каждому дословно)
 
@@ -505,30 +542,44 @@ Windows, который строит его внутри). Сессия соби
 
 **После каждого мержа:**
 
-1. `grep -c` по координированным именам == 1 (§2.16): `listHeightForCount(`, `listHeight(count:`,
-   `capsuleLeft(`, `restoreRect(`, `clearsTheStrip(`, `exportSingle(`, `amplitude(volume:`,
-   `ToolAppearanceStore`, `appearanceKey`, `publishedIsSingleCapture`, `copySingleCapture(`,
+1. Греп по координированным именам ровно одно объявление (§2.16). **Якорить слева**, иначе счёт врёт:
+   `grep -rn "[^A-Za-z]placeCapture(" Sources/` (без якоря ловится `replaceCapture(`,
+   `App/SessionWorkspace.swift:223` плюс пять вызывающих), так же `[^A-Za-z]listHeight(count:` и
+   `[^A-Za-z]ToolbarLayout` (коллизия со `smokeVerifyToolbarLayout`). Полный список имён:
+   `listHeightForCount(`, `listHeight(count:`, `capsuleLeft(`, `restoreRect(`, `clearsTheStrip(`,
+   `exportSingle(`, `amplitude(volume:`, `ToolAppearanceStore`, `appearanceKey`,
+   `publishedIsSingleCapture`, `copySingleCapture(`, `overlayEditorCopiesSingleCapture(`,
    `applyListHeight(`, `pressTargetOf(`, `placeCapture(`, `exportMargins(`, `interpolation(ratio:`.
 2. `UiLanguage.swift`: ни одного повторяющегося русского ключа и ни одного повторяющегося английского
-   значения, разбирать таблицу скриптом (§2.15). Три отложенные пары сняты (после Editor), две
-   остающиеся (`«Свернуть в трей»`, `«Изображения и комментарии готовы к вставке»`) на месте и снабжены
-   комментарием, как уже сделано для пары SPEC-DELTA-3 §3.3.
+   значения, разбирать таблицу скриптом (§2.15). Отложенные пары снимаются здесь, а не в порциях:
+   `«Горячие клавиши…»` (`:243`) **сразу после мержа Settings**, три пары редактора (`«Толстая стрелка»`,
+   `«По ширине · {0} %»`, `«По высоте · {0} %»`) **после мержа Editor**, и перед каждым снятием грепом
+   проверить, что читателей действительно не осталось. Две остающиеся пары (`«Свернуть в трей»`,
+   `«Изображения и комментарии готовы к вставке»`) на месте и снабжены комментарием, как уже сделано для
+   пары SPEC-DELTA-3 §3.3.
 3. `git diff --name-only` сведённой порции сверить со списком §5.1: в чужие файлы никто не зашёл.
 
 **После всех трёх:**
 
 4. Реестр `App/SmokeTestRunner.swift`: каждая новая проба раунда вызывается **ровно один раз**,
    осиротевших нет, `smokeRunEditorScaleProbe` не остался после снятия переключателя масштаба.
-5. Числа `StackMetrics` выведены из `StripResizeGeometry`, литералов не осталось (§2.12).
-6. `SettingsMigration.currentVersion == 2`.
-7. `AppCoordinator.swift`: поле `publishedIsSingleCapture` одно, точка применения правила одна,
+5. **Правка сведения, а не порции:** там же, `SmokeTestRunner.swift:76-89`, в набор `custom.*` дописать
+   `custom.stackHeightManual = true` и непустой `custom.toolAppearance` (часть `A5-3`, которую порция
+   Settings сделать не могла: файл принадлежит сведению). Без этого проба «всё, что записали,
+   вернулось» новых ключей не увидит.
+6. Пара `overlayEditorCopiesSingleCapture(_:)` сошлась: требование в `OverlayEditorDelegate` (Editor) и
+   реализация в `AppCoordinator+OverlayEditorDelegate.swift` (Stack) есть обе, подписи совпадают буква
+   в букву (§2.4).
+7. Числа `StackMetrics` выведены из `StripResizeGeometry`, литералов не осталось (§2.12).
+8. `SettingsMigration.currentVersion == 2`.
+9. `AppCoordinator.swift`: поле `publishedIsSingleCapture` одно, точка применения правила одна,
    `workArea(for:)` зовётся только из трёх мест §2.6.
-8. Версия `1.7.0` в `macos/project.yml` (`CFBundleShortVersionString`, сейчас `1.5.0`).
-9. Обновить `macos/CONTRACTS.md` дополнением sync 5: два отклонения владения (§5.1), снятый
-   `EditorScaleSwitchView`, снятые `EditorGeometry.reopenFitBox`/`reopenCropRect`, новые кросс-зонные
-   сигнатуры (`exportSingle`, `copySingleCapture`, `clearsTheStrip`, `ToolAppearanceStore`,
-   `restoreRect`).
-10. **Один пуш.**
+10. Версия `1.7.0` в `macos/project.yml` (`CFBundleShortVersionString`, сейчас `1.5.0`).
+11. Обновить `macos/CONTRACTS.md` дополнением sync 5: два отклонения владения (§5.1), снятый
+    `EditorScaleSwitchView`, снятые `EditorGeometry.reopenFitBox`/`reopenCropRect`, снятая
+    `EditorStrings.fitPercent`, новые кросс-зонные сигнатуры (`exportSingle`, `copySingleCapture`,
+    `overlayEditorCopiesSingleCapture`, `clearsTheStrip`, `ToolAppearanceStore`, `restoreRect`).
+12. **Один пуш.**
 
 ---
 
