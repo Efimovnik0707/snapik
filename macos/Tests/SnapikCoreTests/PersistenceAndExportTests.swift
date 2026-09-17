@@ -513,4 +513,77 @@ final class PersistenceAndExportTests: XCTestCase {
         }
     }
 
+    // MARK: - The package of one capture (SPEC-DELTA-5 §3.4)
+
+    /// A session of `count` captures on disk, each of them carrying two noted marks so that the
+    /// text has badges to letter.
+    private func makeSession(count: Int, directory: String) throws -> (SnapikSession, URL) {
+        var session = SnapikSession.create(nowUtc: Self.start)
+        let sessionDirectory = root.appendingPathComponent(directory)
+        try FileManager.default.createDirectory(
+            at: sessionDirectory.appendingPathComponent("source"), withIntermediateDirectories: true)
+        for index in 0..<count {
+            var capture = CaptureItem.create(
+                sourceImagePath: "source/\(index).png", pixelWidth: 800, pixelHeight: 600)
+            capture.annotations = [
+                AnnotationItem.create(
+                    kind: .rectangle, points: [NormalizedPoint(0.1, 0.1), NormalizedPoint(0.4, 0.4)],
+                    note: "Первая отметка"),
+                AnnotationItem.create(
+                    kind: .arrow, points: [NormalizedPoint(0.5, 0.5), NormalizedPoint(0.8, 0.8)],
+                    note: "Вторая отметка"),
+            ]
+            try Self.onePixelPNG.write(
+                to: sessionDirectory.appendingPathComponent(capture.sourceImagePath))
+            session = try SessionOperations.addCapture(
+                session, capture: capture, nowUtc: Self.start.addingTimeInterval(Double(index)))
+        }
+        return (session, sessionDirectory)
+    }
+
+    /// Copying the card "B" alone must not rename it "A": the file, the text and the badges all say
+    /// the letter the card shows.
+    func test_A_package_of_one_capture_keeps_the_letter_it_was_given() async throws {
+        let (session, sessionDirectory) = try makeSession(count: 1, directory: "single-letter")
+
+        let prepared = try await FileExportService(
+            renderer: RecordingPNGRenderer(), timeProvider: FrozenTimeProvider(value: Self.start),
+            singleCaptureLabel: "B"
+        ).prepare(session: session, sessionDirectory: sessionDirectory)
+
+        XCTAssertEqual(["01-B.png"], prepared.manifest.images.map { $0.fileName })
+        XCTAssertEqual(["B"], prepared.manifest.images.map { $0.displayLabel })
+        XCTAssertTrue(prepared.manifest.promptText.contains("Снимок B."))
+        XCTAssertTrue(prepared.manifest.promptText.contains("B1: Первая отметка"))
+        XCTAssertTrue(prepared.manifest.promptText.contains("B2: Вторая отметка"))
+    }
+
+    /// Two captures and more are numbered by position as they always were, whatever letter the
+    /// caller passes: the letter belongs to a package of one.
+    func test_A_package_of_several_captures_ignores_the_letter() async throws {
+        let (session, sessionDirectory) = try makeSession(count: 3, directory: "several-letters")
+
+        let prepared = try await FileExportService(
+            renderer: RecordingPNGRenderer(), timeProvider: FrozenTimeProvider(value: Self.start),
+            singleCaptureLabel: "B"
+        ).prepare(session: session, sessionDirectory: sessionDirectory)
+
+        XCTAssertEqual(["01-A.png", "02-B.png", "03-C.png"], prepared.manifest.images.map { $0.fileName })
+        XCTAssertEqual(["A", "B", "C"], prepared.manifest.images.map { $0.displayLabel })
+        XCTAssertTrue(prepared.manifest.promptText.contains("Снимок A."))
+        XCTAssertTrue(prepared.manifest.promptText.contains("C2: Вторая отметка"))
+    }
+
+    /// Without a letter a package of one is byte for byte the one of every build before this.
+    func test_A_package_of_one_capture_without_a_letter_is_the_one_it_always_was() async throws {
+        let (session, sessionDirectory) = try makeSession(count: 1, directory: "single-plain")
+
+        let prepared = try await FileExportService(
+            renderer: RecordingPNGRenderer(), timeProvider: FrozenTimeProvider(value: Self.start)
+        ).prepare(session: session, sessionDirectory: sessionDirectory)
+
+        XCTAssertEqual(["01-A.png"], prepared.manifest.images.map { $0.fileName })
+        XCTAssertTrue(prepared.manifest.promptText.contains("Снимок A."))
+        XCTAssertTrue(prepared.manifest.promptText.contains("A1: Первая отметка"))
+    }
 }

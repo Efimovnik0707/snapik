@@ -4,7 +4,18 @@ import Foundation
 /// (matches the app's Russian-first prompt text; `UiLanguage` only translates chrome, not this
 /// generated document).
 public struct PromptGenerator {
-    public init() {}
+    /// The letter of a package made of one capture, when that capture already carries one
+    /// elsewhere: copying the card "B" alone must not rename it "A" in the text while the card and
+    /// the toast keep saying "B". A package of two or more captures numbers itself by position as
+    /// it always did.
+    private let singleCaptureLabel: String?
+
+    /// Written out rather than left to the memberwise one: a stored property takes the free
+    /// initializer away, and the memberwise one of a public struct is internal in any case, so
+    /// every `PromptGenerator()` outside this module would stop compiling.
+    public init(singleCaptureLabel: String? = nil) {
+        self.singleCaptureLabel = singleCaptureLabel
+    }
 
     public func generate(_ session: SnapikSession) throws -> String {
         try SessionValidation.validate(session)
@@ -15,7 +26,14 @@ public struct PromptGenerator {
         }
 
         for (captureIndex, capture) in session.captures.enumerated() {
-            let captureLabel = try CaptureLabels.forIndex(captureIndex)
+            // `CaptureLabels.forIndex` throws here, unlike the Windows one, so the branch is
+            // written out: `try` may not stand to the right of an operator.
+            let captureLabel: String
+            if let only = singleCaptureLabel, session.captures.count == 1 {
+                captureLabel = only
+            } else {
+                captureLabel = try CaptureLabels.forIndex(captureIndex)
+            }
             let labeled = CaptureLabels.forNotedAnnotations(captureLabel: captureLabel, capture: capture)
             // Port of `PromptGenerator.cs:23`: a whole-screen shot has no title of its own, and
             // without a word the receiver cannot tell it from a region — the kind speaks for it and

@@ -12,10 +12,19 @@ public final class FileExportService: ExportService {
 
     private let renderer: ExportImageRendering
     private let timeProvider: TimeProvider
+    /// The letter a package of one capture keeps instead of the "A" its position would give it: the
+    /// card it was copied from shows that letter, and the picture, the file name and the text have
+    /// to agree with it. `nil`, and a package numbers itself by position, byte for byte as before.
+    private let singleCaptureLabel: String?
 
-    public init(renderer: ExportImageRendering, timeProvider: TimeProvider = SystemTimeProvider()) {
+    public init(
+        renderer: ExportImageRendering,
+        timeProvider: TimeProvider = SystemTimeProvider(),
+        singleCaptureLabel: String? = nil
+    ) {
         self.renderer = renderer
         self.timeProvider = timeProvider
+        self.singleCaptureLabel = singleCaptureLabel
     }
 
     public func prepare(session: SnapikSession, sessionDirectory: URL) async throws -> PreparedExport {
@@ -36,7 +45,12 @@ public final class FileExportService: ExportService {
         do {
             var images: [ExportImageEntry] = []
             for (index, capture) in session.captures.enumerated() {
-                let label = try CaptureLabels.forIndex(index)
+                let label: String
+                if let only = singleCaptureLabel, session.captures.count == 1 {
+                    label = only
+                } else {
+                    label = try CaptureLabels.forIndex(index)
+                }
                 // Port of `FileExportService.cs:43-45`: the user opens these files in a folder
                 // of their own, and "01-A.png" sorts and reads like a page number. The guid of the
                 // capture stays in `manifest.images[].captureId`, and nothing takes the name apart
@@ -71,7 +85,7 @@ public final class FileExportService: ExportService {
             // all. The package is then images only, and an empty prompt.md would just be an empty
             // file for the user to open; the manifest carries empty strings, and a reader of it has
             // to allow for them.
-            let promptText = try PromptGenerator().generate(session)
+            let promptText = try PromptGenerator(singleCaptureLabel: singleCaptureLabel).generate(session)
             let promptFileName = promptText.isEmpty ? "" : "prompt.md"
             var promptSha256 = ""
             if !promptText.isEmpty {
