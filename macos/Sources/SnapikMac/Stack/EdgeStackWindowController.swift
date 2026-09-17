@@ -325,16 +325,29 @@ final class EdgeStackWindowController: NSWindowController {
             contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
         }
 
-        persistStackGeometry()
+        persistStackGeometry(kind: kind, startFrame: startFrame, startListHeight: startListHeight)
     }
 
-    private func persistStackGeometry() {
+    /// Port of `OnWidthDragCompleted`/`OnCornerDragCompleted` (`:956-957`, `:1004-1013`),
+    /// SPEC-DELTA-5 §1.2 L-12. Windows has a handler for each grip; the loop here is one, so the
+    /// two are told apart by `kind`: the width alone never writes the height and never raises the
+    /// flag, and only a finished drag of the **corner** makes the stored height a manual one.
+    private func persistStackGeometry(kind: StackResizeKind, startFrame: NSRect, startListHeight: CGFloat) {
         guard let window else { return }
         let width = Double(window.frame.width)
         let listHeight = Double(contentContainer.listHeight)
+        // A press that moved nothing writes nothing: the first click of a double click on the grip
+        // goes through this same loop, and a `manual = true` written by it would be taken back by
+        // the second click a moment later — the strip would settle on its content either way, but
+        // the settings file would have been written twice for a gesture that changed no geometry.
+        guard abs(width - Double(startFrame.width)) > 0.5 || abs(listHeight - Double(startListHeight)) > 0.5
+        else { return }
         mutateSettings { settings in
             settings.stackWidth = width
-            settings.stackHeight = listHeight
+            if kind == .corner {
+                settings.stackHeight = listHeight
+                settings.stackHeightManual = true
+            }
         }
     }
 
@@ -518,7 +531,17 @@ extension EdgeStackWindowController: EdgeStackContentViewDelegate {
         window?.performDrag(with: event)
     }
 
+    /// Port of `OnCornerGripPress` (`:996-1002`), SPEC-DELTA-5 §1.2 L-12: a double click on the
+    /// corner grip is the "size to content" gesture, and it gives the strip back to what it holds.
+    /// `NSEvent.clickCount` is counted by the system on the press itself, so the `Preview` trick
+    /// Windows needs against a `Thumb` that captures the mouse has no equivalent here.
     func edgeStackContent(_ view: EdgeStackContentView, didRequestResize kind: StackResizeKind, with event: NSEvent) {
+        if kind == .corner, event.clickCount == 2 {
+            mutateSettings { $0.stackHeightManual = false }
+            applyListHeight()
+            layoutWindow()
+            return
+        }
         runResize(kind: kind, startEvent: event)
     }
 
