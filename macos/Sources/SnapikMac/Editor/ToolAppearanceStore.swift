@@ -97,7 +97,8 @@ enum ToolAppearanceStore {
             fillColor: isBlank(entry.fillColor)
                 ? nil : parseColor(entry.fillColor, fallback: fallback.color),
             fontSize: finite(entry.fontSize) ?? fallback.fontSize,
-            arrowStyle: entry.arrowStyle.flatMap { isBlank($0) ? nil : $0 } ?? fallback.arrowStyle,
+            arrowStyle: isBlank(entry.arrowStyle)
+                ? fallback.arrowStyle : (entry.arrowStyle ?? fallback.arrowStyle),
             shape: AnnotationShape(rawValue: lowered(entry.shape)) ?? fallback.shape)
     }
 
