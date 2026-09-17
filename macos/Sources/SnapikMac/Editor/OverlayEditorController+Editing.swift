@@ -98,6 +98,9 @@ extension OverlayEditorController {
             if tool == .pen { self?.selectPencilTool() } else { self?.selectTool(tool) }
         }
         toolbar.onQuickColor = { [weak self] color in self?.applyAppearanceNow(color: color) }
+        toolbar.onDragBegan = { [weak self] point in self?.beginToolbarDrag(at: point) }
+        toolbar.onDragMoved = { [weak self] point in self?.dragToolbarTo(point) }
+        toolbar.onDragEnded = { [weak self] in self?.endToolbarDrag() }
         wireToolbarActions(toolbar)
         slot.contentView.addSubview(toolbar)
         toolbarView = toolbar

@@ -486,26 +486,74 @@ extension OverlayEditorController {
         return context.makeImage()
     }
 
-    /// SPEC-DELTA-3 §1.4 E-11: the panel keeps its width when the tool changes, and wraps onto a
-    /// second row against a working area narrower than it — measured against a synthetic rectangle,
-    /// not against a live monitor.
+    /// SPEC-DELTA-5-editor.md §4.2: the panel stands in three blocks, goes to two rows only when one
+    /// does not fit, keeps the buttons on the right of the first row either way, and stays where the
+    /// hand dragged it. Measured against synthetic widths, not against a live monitor.
     @discardableResult
     func smokeVerifyToolbarLayout() -> Bool {
-        guard let toolbarView else { return false }
-        let wideLimit: CGFloat = 4000
-        toolbarView.maximumWidth = wideLimit
-        selectTool(.rectangle)
-        let withRectangle = toolbarView.sizeToFitContent()
-        selectTool(.comment)
-        let withComment = toolbarView.sizeToFitContent()
-        guard abs(withRectangle.width - withComment.width) < 0.5, abs(withRectangle.height - withComment.height) < 0.5 else { return false }
+        guard let toolbarView, activeScreenIndex != nil else { return false }
+        let padding: CGFloat = 7
 
-        toolbarView.maximumWidth = withRectangle.width / 2
+        // One width for every tool in the hand: the properties block is 176 whatever stands in it,
+        // and that is the contract the count of rows leans on.
+        toolbarView.maximumWidth = 4000
+        var widths: [CGFloat] = []
+        for tool in [EditorTool.rectangle, .text, .blur, .select, .arrow] {
+            selectTool(tool)
+            widths.append(toolbarView.sizeToFitContent().size.width)
+        }
+        guard let firstWidth = widths.first, widths.allSatisfy({ abs($0 - firstWidth) < 0.5 }) else { return false }
+        guard EditorToolbarView.propertiesWidth == 176 else { return false }
+        selectTool(.rectangle)
+
+        // The free width of the reference shot without the comments panel: everything in one row.
+        toolbarView.maximumWidth = 1077
+        var ok = toolbarView.sizeToFitContent().rows == .one
+        ok = ok && toolbarView.thicknessButton.frame.minY == toolbarView.doneButton.frame.minY
+
+        // And with the comments panel: the properties go to the second row, the buttons stay on the
+        // right of the first, and the chevrons of the split capsules stay with the tools.
+        toolbarView.maximumWidth = 781
         let wrapped = toolbarView.sizeToFitContent()
-        let wraps = wrapped.height > withRectangle.height && wrapped.width <= withRectangle.width
-        toolbarView.maximumWidth = wideLimit
-        toolbarView.sizeToFitContent()
+        ok = ok && wrapped.rows == .two
+        ok = ok && wrapped.size.width <= 781
+        ok = ok && toolbarView.thicknessButton.frame.minY > toolbarView.doneButton.frame.minY
+        ok = ok && toolbarView.doneButton.frame.minY == padding
+        ok = ok && toolbarView.doneButton.frame.maxX <= wrapped.size.width - padding + 0.5
+        for chevron in [toolbarView.shapeMenuButton, toolbarView.arrowOptionsButton, toolbarView.pencilMenuButton] {
+            ok = ok && chevron.frame.minY == toolbarView.selectButton.frame.minY
+        }
+
+        // A panel that has room outside the capture never lies on it, whatever the working area.
+        let areas: [(crop: CGRect, work: CGRect)] = [
+            (CGRect(x: 500, y: 400, width: 540, height: 120), CGRect(x: 0, y: 0, width: 1920, height: 1080)),
+            (CGRect(x: 100, y: 100, width: 800, height: 400), CGRect(x: 0, y: 0, width: 1536, height: 824)),
+            (CGRect(x: 0, y: 0, width: 600, height: 700), CGRect(x: 0, y: 0, width: 1200, height: 800)),
+        ]
+        for area in areas {
+            let placed = EditorGeometry.placeToolbar(
+                crop: area.crop, work: area.work, size: CGSize(width: 460, height: 50), notes: [],
+                mayOverlap: false)
+            ok = ok && !placed.intersects(area.crop) && area.work.contains(placed)
+        }
+
+        // Dragged by its free place the panel moves, and the next placement leaves it where it was
+        // put instead of taking it back beside the capture.
+        toolbarView.maximumWidth = 4000
+        positionToolbar()
+        let placedByItself = toolbarView.frame.origin
+        beginToolbarDrag(at: CGPoint(x: placedByItself.x + 20, y: placedByItself.y + 20))
+        dragToolbarTo(CGPoint(x: placedByItself.x + 140, y: placedByItself.y + 90))
+        endToolbarDrag()
+        let dragged = toolbarView.frame.origin
+        ok = ok && hypot(dragged.x - placedByItself.x, dragged.y - placedByItself.y) > 1
+        positionToolbar()
+        ok = ok && hypot(toolbarView.frame.minX - dragged.x, toolbarView.frame.minY - dragged.y) < 0.5
+
+        toolbarUserOrigin = nil
+        toolbarDragGrab = nil
         selectTool(.select)
-        return wraps
+        positionToolbar()
+        return ok
     }
 }

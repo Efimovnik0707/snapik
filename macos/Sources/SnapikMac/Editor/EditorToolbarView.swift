@@ -312,10 +312,21 @@ final class EditorToolbarView: NSView {
     private var toolButtons: [ToolbarToggleButtonView] = []
     private var dotViews: [ToolbarColorDotView] = []
     private var dotHexes: [String] = []
-    private var placementOrder: [NSView] = []
+    /// The three blocks of the panel (`ToolbarTools`, `ToolbarProperties`, `ToolbarActions`,
+    /// `xaml:212-221`): the tools, the properties of the one in hand and the buttons on the right.
+    /// They are laid out apart, and the properties are the block that goes to the second row.
+    private var toolsOrder: [NSView] = []
+    private var propertiesOrder: [NSView] = []
+    private var actionsOrder: [NSView] = []
 
     var onToolSelected: ((EditorTool) -> Void)?
     var onQuickColor: ((NSColor) -> Void)?
+    /// The panel is dragged by its free place; the three are separate so that a probe can move it
+    /// without an `NSEvent` to carry a pointer (SPEC-DELTA-5-editor.md §1.2 E-2). Points are in the
+    /// space of the superview, which is the one the frame of the panel lives in.
+    var onDragBegan: ((CGPoint) -> Void)?
+    var onDragMoved: ((CGPoint) -> Void)?
+    var onDragEnded: (() -> Void)?
 
     /// The widest the row may lay itself out in; the controller sets it from the working area of the
     /// monitor the capture is on (SPEC-DELTA-3 §1.4 E-11 — the probe measures against a synthetic
@@ -371,14 +382,17 @@ final class EditorToolbarView: NSView {
         fontSizeButton.text = EditorStrings.pixelLabel(TextMarkMetrics.defaultFontSize)
         fillButton.text = EditorStrings.fillOutline(language)
 
-        placementOrder = [
+        toolsOrder = [
             selectButton, rectangleButton, shapeMenuButton, arrowButton, arrowOptionsButton,
             pencilButton, pencilMenuButton, textButton, eraserButton, blurButton, cropButton,
-            colorDotsView, appearanceButton, thicknessButton, lineStyleButton, fillButton,
-            fontSizeButton, commentButton, shortcutSheetButton, divider, undoButton, redoButton,
-            saveButton, doneButton,
+            commentButton, shortcutSheetButton,
         ]
-        for view in placementOrder { addSubview(view) }
+        propertiesOrder = [
+            colorDotsView, appearanceButton, thicknessButton, lineStyleButton, fillButton,
+            fontSizeButton,
+        ]
+        actionsOrder = [divider, undoButton, redoButton, saveButton, doneButton]
+        for view in toolsOrder + propertiesOrder + actionsOrder { addSubview(view) }
         setActiveTool(.rectangle)
     }
 
@@ -433,44 +447,95 @@ final class EditorToolbarView: NSView {
         for dot in dotViews { dot.isCurrent = EditorAppearance.sameColor(dot.color, color) }
     }
 
-    // MARK: - Layout (SPEC-DELTA-3 §1.4 E-11)
+    // MARK: - Layout (SPEC-DELTA-5-editor.md §1.2 E-2, `xaml.cs:1926-1962`)
 
-    /// Lays the row out, wrapping onto a second line when `maximumWidth` cannot hold it, sizes
-    /// `self` to fit, and returns the fitting size for `EditorGeometry.positionToolbar`.
+    /// The width of the properties block, whatever stands in it (`ToolbarPropertiesWidth`). It is a
+    /// requirement and not a nicety: while the block measures itself by its contents, "one row or
+    /// two" changes with the tool in the hand and the panel jumps under the cursor.
+    static let propertiesWidth: CGFloat = 176
+
+    private static let padding: CGFloat = 7
+    private static let itemMargin: CGFloat = 2
+    private static let rowHeight: CGFloat = 36
+    /// The air between the two rows (`ToolbarLayout.Measure`'s `rowGap`).
+    private static let rowGap: CGFloat = 7
+
+    /// Measures the three blocks, asks `ToolbarLayout` for the shape of the panel, lays the blocks
+    /// out by it and sizes `self` to fit. One row holds the tools, the properties and the buttons on
+    /// the right with the free place between the last two; two hold the tools and the buttons in the
+    /// first and the properties in the second.
     @discardableResult
-    func sizeToFitContent() -> CGSize {
-        let padding: CGFloat = 7
-        let itemMargin: CGFloat = 2
-        let rowHeight: CGFloat = 36
-        let rowGap: CGFloat = 6
-        let limit = max(200, maximumWidth) - padding * 2
+    func sizeToFitContent() -> ToolbarShape {
+        let tools = CGSize(width: blockWidth(toolsOrder), height: Self.rowHeight)
+        let properties = CGSize(width: Self.propertiesWidth, height: Self.rowHeight)
+        let actions = CGSize(width: blockWidth(actionsOrder), height: Self.rowHeight)
+        let shape = ToolbarLayout.measure(
+            tools: tools, properties: properties, actions: actions, freeWidth: max(200, maximumWidth))
 
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowWidth: CGFloat = 0
-        var widest: CGFloat = 0
-
-        for view in placementOrder {
-            let width = view === divider ? 15 : max(view.frame.width, 1)
-            if x > 0, x + width > limit {
-                widest = max(widest, rowWidth)
-                x = 0
-                y += rowHeight + rowGap
-                rowWidth = 0
-            }
-            if view === divider {
-                view.frame = CGRect(x: padding + x + 7, y: padding + y + 7, width: 1, height: 22)
-            } else {
-                view.frame = CGRect(x: padding + x, y: padding + y, width: width, height: rowHeight)
-            }
-            x += width + itemMargin * 2
-            rowWidth = x - itemMargin * 2
+        let padding = Self.padding
+        let actionsLeft = max(padding, shape.size.width - padding - actions.width)
+        switch shape.rows {
+        case .one:
+            layoutBlock(toolsOrder, from: padding, y: padding)
+            layoutBlock(propertiesOrder, from: padding + tools.width, y: padding)
+            layoutBlock(actionsOrder, from: actionsLeft, y: padding)
+        case .two:
+            layoutBlock(toolsOrder, from: padding, y: padding)
+            layoutBlock(actionsOrder, from: actionsLeft, y: padding)
+            layoutBlock(propertiesOrder, from: padding, y: padding + Self.rowHeight + Self.rowGap)
         }
-        widest = max(widest, rowWidth)
 
-        let size = NSSize(width: widest + padding * 2, height: y + rowHeight + padding * 2)
-        frame.size = size
-        return size
+        frame.size = shape.size
+        return shape
+    }
+
+    /// The width one block asks for: its views side by side, with the margin of the panel between
+    /// them and none hanging off either end. A view that is hidden keeps its place, the way
+    /// `Visibility.Hidden` does on Windows — the block must not change width with the tool in hand.
+    private func blockWidth(_ views: [NSView]) -> CGFloat {
+        var width: CGFloat = 0
+        for view in views { width += itemWidth(view) + Self.itemMargin * 2 }
+        return max(0, width - Self.itemMargin * 2)
+    }
+
+    private func itemWidth(_ view: NSView) -> CGFloat {
+        view === divider ? 15 : max(view.frame.width, 1)
+    }
+
+    private func layoutBlock(_ views: [NSView], from originX: CGFloat, y: CGFloat) {
+        var x = originX
+        for view in views {
+            let width = itemWidth(view)
+            if view === divider {
+                view.frame = CGRect(x: x + 7, y: y + 7, width: 1, height: 22)
+            } else {
+                view.frame = CGRect(x: x, y: y, width: width, height: Self.rowHeight)
+            }
+            x += width + Self.itemMargin * 2
+        }
+    }
+
+    // MARK: - Dragging the panel (`xaml.cs:1968-2030`)
+
+    /// The panel is dragged by whatever of it is not a button: `ToolbarButtonBaseView.mouseDown`
+    /// takes the press first, which is the same "the buttons take it before the body does" Windows
+    /// leans on. AppKit needs no mouse capture of its own — the view gets the whole track up to
+    /// `mouseUp` — so the risk of "the capture was never released and the drawing hung" has nothing
+    /// to port.
+    override func mouseDown(with event: NSEvent) {
+        onDragBegan?(dragPoint(of: event))
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        onDragMoved?(dragPoint(of: event))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        onDragEnded?()
+    }
+
+    private func dragPoint(of event: NSEvent) -> CGPoint {
+        superview?.convert(event.locationInWindow, from: nil) ?? convert(event.locationInWindow, from: nil)
     }
 
     override func draw(_ dirtyRect: NSRect) {

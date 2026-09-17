@@ -521,12 +521,53 @@ extension OverlayEditorController {
         guard let toolbarView, let screenIndex = activeScreenIndex else { return }
         let work = layoutWorkArea(screenIndex: screenIndex)
         let size = measureToolbar(work: work)
+        // The panel the hand put somewhere stays there; the place is only clamped again, because the
+        // panel may have changed rows or the working area may have changed under it.
+        if let userOrigin = toolbarUserOrigin {
+            let origin = clampToolbarOrigin(userOrigin, size: size, work: work)
+            toolbarUserOrigin = origin
+            toolbarView.frame = CGRect(origin: origin, size: size)
+            return
+        }
         let obstacles = chipViews.values.filter { !$0.isHidden }.map { $0.frame }
         // Nothing stands beside the panel any more: the switch of the scale is gone, and the panel
-        // is placed on its own (SPEC-DELTA-5-editor.md §1.2 E-1).
+        // is placed on its own (SPEC-DELTA-5-editor.md §1.2 E-1). A capture of the whole screen and
+        // a selection just drawn leave no room outside themselves, and there the panel is allowed
+        // over the picture; a capture that was placed keeping room for the panel below it keeps that
+        // promise instead (`PositionToolbar`, `xaml.cs:1968-1999`).
         let origin = EditorGeometry.positionToolbar(
-            cropRect: cropRectLocal, work: work, toolbarSize: size, obstacles: obstacles)
+            cropRect: cropRectLocal, work: work, toolbarSize: size, obstacles: obstacles,
+            mayOverlap: (capture?.kind ?? .region) == .fullscreen || isNewCapture)
         toolbarView.frame = CGRect(origin: origin, size: size)
+    }
+
+    // MARK: - Dragging the panel (`xaml.cs:2005-2030`)
+
+    /// The panel was taken hold of at `point`, in the space its own frame lives in.
+    func beginToolbarDrag(at point: CGPoint) {
+        guard let toolbarView else { return }
+        toolbarDragGrab = CGPoint(x: point.x - toolbarView.frame.minX, y: point.y - toolbarView.frame.minY)
+    }
+
+    /// The pointer moved while the panel is held: the panel follows it, kept inside the working area
+    /// with the margin of eight every other floating thing of the editor keeps.
+    func dragToolbarTo(_ point: CGPoint) {
+        guard let toolbarView, let grab = toolbarDragGrab, let screenIndex = activeScreenIndex else { return }
+        let work = layoutWorkArea(screenIndex: screenIndex)
+        let origin = clampToolbarOrigin(
+            CGPoint(x: point.x - grab.x, y: point.y - grab.y), size: toolbarView.frame.size, work: work)
+        toolbarUserOrigin = origin
+        toolbarView.frame = CGRect(origin: origin, size: toolbarView.frame.size)
+    }
+
+    func endToolbarDrag() {
+        toolbarDragGrab = nil
+    }
+
+    func clampToolbarOrigin(_ origin: CGPoint, size: CGSize, work: CGRect) -> CGPoint {
+        CGPoint(
+            x: EditorGeometry.clamp(origin.x, work.minX + 8, max(work.minX + 8, work.maxX - size.width - 8)),
+            y: EditorGeometry.clamp(origin.y, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8)))
     }
 
     /// Port of `MeasureToolbar` (`xaml.cs:1926-1962`): the panel is measured apart from being placed,
@@ -538,7 +579,7 @@ extension OverlayEditorController {
     func measureToolbar(work: CGRect) -> CGSize {
         guard let toolbarView else { return .zero }
         toolbarView.maximumWidth = max(240, work.width - 16)
-        return toolbarView.sizeToFitContent()
+        return toolbarView.sizeToFitContent().size
     }
 
     // MARK: - Monitor work area (SPEC §1.4 `GetCropMonitorWorkArea`)

@@ -162,6 +162,12 @@ final class OverlayEditorController {
     /// The caption of the capture (SPEC-DELTA-4 §1.3 E-7). The switch of the scale that used to
     /// stand beside the panel is gone: a capture opens at its own size (SPEC-DELTA-5-editor.md E-1).
     var shotKindView: EditorShotKindView?
+    /// Where the hand put the panel (`_toolbarUserPosition`, `xaml.cs:1968-2030`). An absolute point
+    /// and not a shift: the panel changes rows under a narrow working area, and a shift counted from
+    /// one anchor would move it somewhere else once the other anchor takes over.
+    var toolbarUserOrigin: CGPoint?
+    /// Where inside the panel it was taken hold of, while a drag lasts.
+    var toolbarDragGrab: CGPoint?
     var captureHandleViews: [CaptureHandleView] = []
     var resizeOutlineView: ResizeOutlineView?
     /// Host view for every comment chip (SPEC-DELTA-2B.md §C7 "Новый `ChipLayerView`"), sized to
