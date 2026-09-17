@@ -194,6 +194,11 @@ final class EdgeStackContentView: NSView {
     /// L-11). It holds no strong reference to anything: the block captures the view and the card
     /// weakly, so a strip that goes away while it waits leaves nothing behind.
     private var unfoldWork: DispatchWorkItem?
+    /// SPEC-DELTA-5 §1.2 L-8: raised by `scrollToNewest()` and read by the next `layoutCards`, which
+    /// is the only place that may set the scroll position — it ends by writing an origin of its own,
+    /// so a scroll done before it would be overwritten (Windows waits for its layout pass the same
+    /// way, with `DispatcherPriority.Loaded`).
+    private var pinToNewestOnNextLayout = false
     private var currentLanguage = "ru"
     private var emptyHintShortcut: String?
 
@@ -379,6 +384,14 @@ final class EdgeStackContentView: NSView {
             card.isSelected = index < rows.count && rows[index].id == id
         }
         layoutCards(animated: false)
+    }
+
+    /// Port of `ScrollStripToEnd` (`EdgeStackWindow.xaml.cs:358`), SPEC-DELTA-5 §1.2 L-8: show the
+    /// capture that was just added. The scrolling itself happens in the next `layoutCards`, because
+    /// that is what settles the size of the document and the position inside it.
+    func scrollToNewest() {
+        pinToNewestOnNextLayout = true
+        needsLayout = true
     }
 
     func setStatus(_ text: String, isError: Bool) {
@@ -628,8 +641,17 @@ final class EdgeStackContentView: NSView {
             for (card, frame) in zip(cardViews, frames) { card.frame = frame }
         }
 
-        let maxOrigin = max(0, documentHeight - visible.height)
-        let origin = min(max(0, documentHeight - distanceFromTop - visible.height), maxOrigin)
+        let origin: CGFloat
+        if pinToNewestOnNextLayout {
+            pinToNewestOnNextLayout = false
+            // SPEC-DELTA-5 §2.11: the container is not flipped, the newest card has the smallest `y`
+            // and the bottom of the document is zero. `scrollToEndOfDocument` would travel the other
+            // way, to the oldest capture of all.
+            origin = 0
+        } else {
+            let maxOrigin = max(0, documentHeight - visible.height)
+            origin = min(max(0, documentHeight - distanceFromTop - visible.height), maxOrigin)
+        }
         scrollView.contentView.scroll(to: NSPoint(x: 0, y: origin))
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }

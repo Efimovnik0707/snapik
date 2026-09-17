@@ -306,6 +306,9 @@ extension AppCoordinator {
             }
         }
         stackWindow?.refresh()
+        // Port of `ImportFileAsync`'s `ScrollStripToEnd()` (`:1271`), SPEC-DELTA-5 §1.2 L-8: the
+        // files that were just imported are the ones to look at.
+        stackWindow?.scrollStripToEnd()
         invalidatePrepared()
         _ = await save()
         stackWindow?.setStatus(StatusStrings.imported(count: imported), isError: false)
@@ -330,6 +333,8 @@ extension AppCoordinator {
             }
             _ = try await workspace.addCapture(pngData: data, pixelWidth: cgImage.width, pixelHeight: cgImage.height)
             stackWindow?.refresh()
+            // Port of `ImportClipboardAsync`'s `ScrollStripToEnd()` (`:1287`), SPEC-DELTA-5 §1.2 L-8.
+            stackWindow?.scrollStripToEnd()
             invalidatePrepared()
             _ = await save()
             stackWindow?.setStatus(StatusStrings.imageAdded, isError: false)

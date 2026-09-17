@@ -97,6 +97,9 @@ final class EdgeStackWindowController: NSWindowController {
             placedOnce = true
             placeStripInitially()
         }
+        // Port of the last line of `ShowStackWithoutActivation` (`:738`), SPEC-DELTA-5 §1.2 L-8: a
+        // showing ends at the capture that was added last.
+        scrollStripToEnd()
         window?.alphaValue = 0
         // `orderFrontRegardless()` shows the window without activating the app (SPEC §9.8).
         window?.orderFrontRegardless()
@@ -181,6 +184,14 @@ final class EdgeStackWindowController: NSWindowController {
         // window a frame behind.
         applyListHeight()
         layoutWindow()
+    }
+
+    /// Port of `ScrollStripToEnd` (`EdgeStackWindow.xaml.cs:358`), SPEC-DELTA-5 §1.2 L-8. Called
+    /// from a showing of the strip and from the two imports, and deliberately **not** from deleting,
+    /// reordering or marking captures as sent: the bottom of the list is the wrong place to be
+    /// taken to when the change was somewhere else.
+    func scrollStripToEnd() {
+        contentContainer.scrollToNewest()
     }
 
     /// R2 fix: `refresh()` keys its cache on `capture.id`, which survives a crop/resize/re-edit —
