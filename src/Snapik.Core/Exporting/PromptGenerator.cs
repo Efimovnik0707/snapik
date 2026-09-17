@@ -3,7 +3,12 @@ using Snapik.Core.Models;
 
 namespace Snapik.Core.Exporting;
 
-public sealed class PromptGenerator
+/// <param name="singleCaptureLabel">
+/// The letter of a package made of one capture, when that capture already carries one elsewhere:
+/// copying the card "B" alone must not rename it "A" in the text while the card and the toast keep
+/// saying "B". A package of two or more captures numbers itself by position as it always did.
+/// </param>
+public sealed class PromptGenerator(string? singleCaptureLabel = null)
 {
     public string Generate(SnapikSession session)
     {
@@ -18,7 +23,9 @@ public sealed class PromptGenerator
         for (var captureIndex = 0; captureIndex < session.Captures.Length; captureIndex++)
         {
             var capture = session.Captures[captureIndex];
-            var captureLabel = CaptureLabels.ForIndex(captureIndex);
+            var captureLabel = singleCaptureLabel is { } only && session.Captures.Length == 1
+                ? only
+                : CaptureLabels.ForIndex(captureIndex);
             var labeledAnnotations = CaptureLabels.ForNotedAnnotations(captureLabel, capture).ToArray();
             // A whole-screen shot has no title of its own, and without a word the receiver cannot
             // tell it from a region: the kind speaks for it and counts as content of its own.

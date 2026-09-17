@@ -228,7 +228,7 @@ public sealed class SessionWorkspace
     {
         var session = new SnapikSession(SessionId, SnapikSession.CurrentSchemaVersion, _createdAtUtc,
             DateTimeOffset.UtcNow, _revision, string.Empty, null, [capture.ToCore()]);
-        var prepared = await new FileExportService(new WpfExportImageRenderer())
+        var prepared = await new FileExportService(new WpfExportImageRenderer(), null, label)
             .PrepareAsync(session, SessionDirectory, cancellationToken);
         TrimExports(prepared.RootDirectory);
         return prepared;

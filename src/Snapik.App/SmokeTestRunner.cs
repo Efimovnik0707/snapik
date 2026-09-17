@@ -592,6 +592,7 @@ public static class SmokeTestRunner
         await VerifySessionDiscardAsync(Path.Combine(root, "discard-probe"));
         await VerifyAWholeScreenCaptureNamesItselfAsync(Path.Combine(root, "fullscreen-probe"));
         await VerifyAFileFromDiskReachesTheStripAsync(Path.Combine(root, "import-probe"));
+        await VerifyTz007SingleExport(Path.Combine(root, "single-export-probe"));
         VerifyTheWizardKeepsItsAppearance(root);
         VerifyALegacyPinIsCarriedOver(Path.Combine(root, "pin-probe"));
         WithoutBindingErrors("The strip list", EdgeStackWindow.RunStripGrowthProbe);
@@ -1307,6 +1308,22 @@ public static class SmokeTestRunner
     // A capture of the whole screen goes into the strip like any other, which leaves the text as the
     // only place that says what it is: a capture nobody wrote a word about used to be left out of
     // prompt.md altogether, and the kind now speaks for it. The number of monitors travels with it.
+    // Copying one card is a package of one capture, and the letter of that card has to travel the
+    // whole way: window, workspace, export service, prompt generator. The unit tests of the export
+    // call the service straight away, so a wire cut anywhere above it would leave them green and
+    // the user with a picture that says "A" while the toast says "B".
+    private static async Task VerifyTz007SingleExport(string probeRoot)
+    {
+        var workspace = new SessionWorkspace(probeRoot);
+        var capture = await workspace.AddImageAsync(SessionWorkspace.CreateDemoBitmap(0, 400, 300));
+        capture.Note = "Комментарий к одиночному снимку";
+        var prepared = await workspace.ExportSingleAsync(capture, "B");
+        if (prepared.Manifest.Images.Length != 1 || prepared.Manifest.Images[0].FileName != "01-B.png")
+            throw new InvalidOperationException("A single capture copied from card B must be exported as \"01-B.png\".");
+        if (!prepared.Manifest.PromptText.StartsWith("Снимок B", StringComparison.Ordinal))
+            throw new InvalidOperationException($"A single capture copied from card B must be called so in prompt.md: \"{prepared.Manifest.PromptText}\".");
+    }
+
     private static async Task VerifyAWholeScreenCaptureNamesItselfAsync(string probeRoot)
     {
         var workspace = new SessionWorkspace(probeRoot);

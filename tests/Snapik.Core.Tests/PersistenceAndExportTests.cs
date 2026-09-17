@@ -337,6 +337,76 @@ public sealed class PersistenceAndExportTests : IDisposable
         Assert.DoesNotContain(Directory.EnumerateFiles(prepared.RootDirectory), path => Path.GetFileName(path).Contains("source", StringComparison.OrdinalIgnoreCase));
     }
 
+    // Copying one card out of the strip is still a package, but the letter of that card is the one
+    // the user just read on it: the picture, the file name, the marks and the text have to agree.
+    [Fact]
+    public async Task A_package_of_one_capture_keeps_the_letter_it_was_given()
+    {
+        var labelsSeen = new ConcurrentQueue<string>();
+        var service = new FileExportService(new RecordingPngRenderer(labelsSeen), new FrozenTimeProvider(Start), "B");
+        var capture = CaptureItem.Create("source/one.png", 800, 600) with
+        {
+            Annotations =
+            [
+                AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.1, 0.1), new(0.5, 0.5)], note: "Первая отметка"),
+                AnnotationItem.Create(AnnotationKind.Rectangle, [new(0.6, 0.6), new(0.9, 0.9)], note: "Вторая отметка")
+            ]
+        };
+        var session = SessionOperations.AddCapture(SnapikSession.Create(Start), capture, Start);
+        var sessionDirectory = Path.Combine(_root, "single-letter");
+        Directory.CreateDirectory(Path.Combine(sessionDirectory, "source"));
+        await File.WriteAllBytesAsync(Path.Combine(sessionDirectory, capture.SourceImagePath), RecordingPngRenderer.OnePixelPng);
+
+        var prepared = await service.PrepareAsync(session, sessionDirectory);
+
+        Assert.Equal(["B"], labelsSeen);
+        Assert.Equal("B", prepared.Manifest.Images[0].DisplayLabel);
+        Assert.Equal("01-B.png", prepared.Manifest.Images[0].FileName);
+        Assert.StartsWith("Снимок B", prepared.Manifest.PromptText, StringComparison.Ordinal);
+        Assert.Contains("B1: Первая отметка", prepared.Manifest.PromptText, StringComparison.Ordinal);
+        Assert.Contains("B2: Вторая отметка", prepared.Manifest.PromptText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_package_of_several_captures_numbers_them_by_position_and_ignores_the_letter()
+    {
+        var labelsSeen = new ConcurrentQueue<string>();
+        var service = new FileExportService(new RecordingPngRenderer(labelsSeen), new FrozenTimeProvider(Start), "B");
+        var session = SnapikSession.Create(Start);
+        var sessionDirectory = Path.Combine(_root, "many-letters");
+        Directory.CreateDirectory(Path.Combine(sessionDirectory, "source"));
+        foreach (var name in new[] { "one", "two", "three" })
+        {
+            var capture = CaptureItem.Create($"source/{name}.png", 800, 600, note: $"Комментарий {name}");
+            session = SessionOperations.AddCapture(session, capture, Start);
+            await File.WriteAllBytesAsync(Path.Combine(sessionDirectory, capture.SourceImagePath), RecordingPngRenderer.OnePixelPng);
+        }
+
+        var prepared = await service.PrepareAsync(session, sessionDirectory);
+
+        Assert.Equal(["A", "B", "C"], labelsSeen);
+        Assert.Equal(["01-A.png", "02-B.png", "03-C.png"], prepared.Manifest.Images.Select(image => image.FileName));
+        Assert.StartsWith("Снимок A", prepared.Manifest.PromptText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_package_of_one_capture_without_a_letter_is_the_one_it_always_was()
+    {
+        var labelsSeen = new ConcurrentQueue<string>();
+        var service = new FileExportService(new RecordingPngRenderer(labelsSeen), new FrozenTimeProvider(Start));
+        var capture = CaptureItem.Create("source/one.png", 800, 600, note: "Единственный комментарий");
+        var session = SessionOperations.AddCapture(SnapikSession.Create(Start), capture, Start);
+        var sessionDirectory = Path.Combine(_root, "single-plain");
+        Directory.CreateDirectory(Path.Combine(sessionDirectory, "source"));
+        await File.WriteAllBytesAsync(Path.Combine(sessionDirectory, capture.SourceImagePath), RecordingPngRenderer.OnePixelPng);
+
+        var prepared = await service.PrepareAsync(session, sessionDirectory);
+
+        Assert.Equal(["A"], labelsSeen);
+        Assert.Equal("01-A.png", prepared.Manifest.Images[0].FileName);
+        Assert.StartsWith("Снимок A", prepared.Manifest.PromptText, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task A_package_without_notes_carries_images_only_and_writes_no_prompt_file()
     {

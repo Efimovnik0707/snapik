@@ -8,7 +8,12 @@ using Snapik.Infrastructure.Serialization;
 
 namespace Snapik.Infrastructure.Exporting;
 
-public sealed class FileExportService(IExportImageRenderer renderer, TimeProvider? timeProvider = null) : IExportService
+/// <param name="singleCaptureLabel">
+/// The letter a package of one capture keeps instead of the "A" its position would give it: the
+/// card it was copied from shows that letter, and the picture, the file name and the text have to
+/// agree with it. Null, and a package numbers itself by position, byte for byte as before.
+/// </param>
+public sealed class FileExportService(IExportImageRenderer renderer, TimeProvider? timeProvider = null, string? singleCaptureLabel = null) : IExportService
 {
     private static readonly byte[] PngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
@@ -39,7 +44,9 @@ public sealed class FileExportService(IExportImageRenderer renderer, TimeProvide
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var capture = session.Captures[index];
-                var label = CaptureLabels.ForIndex(index);
+                var label = singleCaptureLabel is { } only && session.Captures.Length == 1
+                    ? only
+                    : CaptureLabels.ForIndex(index);
                 // The user opens these files in a folder of their own: "01-A.png" sorts and reads
                 // like a page number. The guid of the capture stays in manifest.images[].captureId.
                 var fileName = $"{index + 1:D2}-{label}.png";
@@ -62,7 +69,7 @@ public sealed class FileExportService(IExportImageRenderer renderer, TimeProvide
 
             // Captures without notes produce no text at all: the package is then images only, and
             // an empty prompt.md would just be an empty file for the user to open.
-            var promptText = new PromptGenerator().Generate(session);
+            var promptText = new PromptGenerator(singleCaptureLabel).Generate(session);
             var promptFileName = promptText.Length == 0 ? string.Empty : "prompt.md";
             var promptSha256 = string.Empty;
             if (promptText.Length > 0)
