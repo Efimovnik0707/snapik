@@ -337,11 +337,16 @@ final class AppearancePickerView: NSView {
     /// window behind it.
     func pageByWheel(_ notches: Int) { pageBy(notches) }
 
-    // An end says so. A chevron with nothing left to show is switched off instead of answering a
-    // click with nothing.
+    // [S5-4] An end says so, and says so without switching the button off. Availability worked out
+    // from the numbers of a layout pass is availability that sticks: one pass that measures the
+    // gallery at nothing leaves the chevron dead for good, and with the chevron dead there is nothing
+    // left to page with. The end is a mark on the button instead, `draw(_:)` dims it, and a press at
+    // the end moves nothing because `pageBy` already clamps. Mac never had the pass that kills the
+    // button (the count is kept here, not read back from a scroll offset), but the two platforms
+    // answer a click at the end of the row the same way.
     private func markChevrons() {
-        previousThemeButton.isEnabled = firstCard > 0
-        nextThemeButton.isEnabled = firstCard < lastPage
+        previousThemeButton.atEnd = firstCard <= 0
+        nextThemeButton.atEnd = firstCard >= lastPage
     }
 
     private func layoutGallery(animated: Bool) {
@@ -406,6 +411,10 @@ final class AppearancePickerView: NSView {
             card.frame = NSRect(
                 x: CGFloat(index) * Self.cardStep, y: 0, width: Self.cardWidth, height: Self.cardHeight)
         }
+        // [S5-4] A wider gallery shows more cards at once, so the card it may start at moves back:
+        // without this the count would stay where a narrower pass had put it and the last page would
+        // be drawn short. Windows does the same from its `SizeChanged` subscription.
+        firstCard = min(firstCard, lastPage)
         layoutGallery(animated: false)
         markChevrons()
 
@@ -454,6 +463,16 @@ final class AppearancePickerView: NSView {
     var smokeCardCount: Int { cards.count }
 
     var smokeDotCount: Int { dots.count }
+
+    /// [S5-4] Which chevrons say they are at the end of the row, and whether both of them can still
+    /// be pressed. The end is a mark on the button, never a disabled state, so the pair is read apart.
+    var smokeChevronsAtEnd: (back: Bool, forward: Bool) {
+        (previousThemeButton.atEnd, nextThemeButton.atEnd)
+    }
+
+    var smokeChevronsArePressable: Bool {
+        previousThemeButton.isEnabled && nextThemeButton.isEnabled
+    }
 
     /// The three captions of the palette row, in the language the control was last given. The wizard
     /// switches this row off (O-6), so the settings window is the one place it is on screen and the
@@ -703,6 +722,9 @@ private final class SampleRowView: NSView {
 private final class ChevronButton: NSButton {
     private let pointsLeft: Bool
     var palette: ThemePalette = ThemeService.palette(nil) { didSet { needsDisplay = true } }
+    /// [S5-4] Whether there is nothing left on this side. It is a mark and not a disabled state: the
+    /// button stays pressable, and the press moves nothing.
+    var atEnd = false { didSet { needsDisplay = true } }
 
     init(pointsLeft: Bool) {
         self.pointsLeft = pointsLeft
@@ -716,7 +738,7 @@ private final class ChevronButton: NSButton {
 
     override func draw(_ dirtyRect: NSRect) {
         let box = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
-        let alpha: CGFloat = isEnabled ? 1 : 0.42
+        let alpha: CGFloat = atEnd ? 0.42 : 1
         palette.hover.withAlphaComponent(alpha).setFill()
         box.fill()
         palette.elevatedLine.withAlphaComponent(alpha).setStroke()

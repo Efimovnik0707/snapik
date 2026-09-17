@@ -49,6 +49,10 @@ extension SmokeTestRunner {
 
         // The gallery opens on the first card, pages by one, and stops where the last card is whole.
         var galleryOk = picker.firstCard == 0
+        // [S5-4] At the start of the row "back" is marked as the end and "forward" is not, and both
+        // stay pressable: the end is a mark the drawing dims by, never a disabled button.
+        let atStart = picker.smokeChevronsAtEnd
+        galleryOk = galleryOk && atStart.back && !atStart.forward && picker.smokeChevronsArePressable
         picker.pageBy(1)
         galleryOk = galleryOk && picker.firstCard == 1
         picker.pageByWheel(1)
@@ -56,11 +60,17 @@ extension SmokeTestRunner {
         picker.pageBy(20)
         let lastPage = picker.firstCard
         galleryOk = galleryOk && lastPage == picker.lastPage && lastPage > 0
+        let atFinish = picker.smokeChevronsAtEnd
+        galleryOk = galleryOk && !atFinish.back && atFinish.forward
+        // A press at the end of the row moves nothing, and the button it was pressed on is a button
+        // still.
+        picker.pageBy(1)
+        galleryOk = galleryOk && picker.firstCard == lastPage && picker.smokeChevronsArePressable
         // A card chosen where it stands leaves the gallery where the chevrons have taken it.
         picker.selectedTheme = ThemeService.themes[ThemeService.themes.count - 1]
         galleryOk = galleryOk && picker.firstCard == lastPage
         picker.pageBy(-20)
-        galleryOk = galleryOk && picker.firstCard == 0
+        galleryOk = galleryOk && picker.firstCard == 0 && picker.smokeChevronsArePressable
         check("theme gallery pages by one card and stays where it is put", galleryOk)
 
         check("one combination for two actions is refused", settings.smokeRunConflictProbe())
