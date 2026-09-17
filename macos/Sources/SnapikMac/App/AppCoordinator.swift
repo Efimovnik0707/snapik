@@ -56,6 +56,13 @@ final class AppCoordinator {
     /// published package is one at a time, and both of the Windows fields live exactly as long as
     /// this one. In memory only — nothing of it reaches a file.
     var publishedIsSingleCapture = false
+    /// The export that single copy was published from. Windows reads the paths, the prompt and the
+    /// capture ids of what was pasted off `PublishedPackage`; this port reads them off `prepared`,
+    /// and `prepared` is deliberately **not** replaced by a single copy (SPEC-DELTA-5 §5.2 point 4:
+    /// the paste button still sends everything that waits). Without this the paste of one card would
+    /// tick the whole package as sent and put it back on the clipboard. Read only while
+    /// `publishedIsSingleCapture` is up, and dropped with it.
+    var publishedSingleExport: PreparedExport?
     /// SPEC-DELTA-2A §4 (CONTRACTS.md sync 2): `true` once the package on the clipboard has been
     /// pasted and republished for reuse (`republishPackageForReuse`) — the *next* capture session
     /// must start fresh instead of appending to the pasted stack (`ensureCurrentCaptureSession`).

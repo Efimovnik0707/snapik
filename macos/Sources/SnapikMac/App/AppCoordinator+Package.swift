@@ -170,6 +170,9 @@ extension AppCoordinator {
             // rebuild it out of the captures that are waiting, and a paste of it must not clear the
             // strip (SPEC-DELTA-5 §2.3, §2.4).
             publishedIsSingleCapture = true
+            // What was published, for the paste that may notice it later: `prepared` still describes
+            // the package the paste button sends, and this is the one card that went out.
+            publishedSingleExport = export
             UiSoundService.copied(settings)
             stackWindow?.setStatus(
                 MacUiText.text("Снимок {0} скопирован", language: language)
@@ -195,7 +198,12 @@ extension AppCoordinator {
         panel.nameFieldStringValue = suggested.lastPathComponent
         panel.directoryURL = suggested.deletingLastPathComponent()
         // The strip floats over everything, its own dialog included, until the suspension ends.
-        let answer = stackWindow?.withTopmostSuspended { panel.runModal() } ?? panel.runModal()
+        let answer: NSApplication.ModalResponse
+        if let stackWindow {
+            answer = stackWindow.withTopmostSuspended { panel.runModal() }
+        } else {
+            answer = panel.runModal()
+        }
         guard answer == .OK, let url = panel.url else { return }
 
         let suffix = url.pathExtension.lowercased()
