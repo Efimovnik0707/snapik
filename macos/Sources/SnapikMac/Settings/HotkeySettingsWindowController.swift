@@ -63,6 +63,17 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
     /// The combination the chip put into the field, if the user took one.
     private var suggested: String?
 
+    /// [S5-2] The pause that stands for "the slider was let go": every change restarts it, and when
+    /// it runs out the tick is played at the volume the slider holds. Nothing is written by it
+    /// (`HotkeySettingsWindow.xaml.cs:149`, a 150 ms timer). A slider is moved by dragging, by a click
+    /// on its track and by the arrow keys, and only the first of the three ends with a gesture to
+    /// listen for — one pause restarted on every change stands for all three.
+    ///
+    /// A `DispatchWorkItem` and not a `Timer`: `Timer.scheduledTimer` keeps its target alive past the
+    /// window it belongs to, and the work item carries `self` weakly and is cancelled by name (the
+    /// pattern of `Stack/StackToastView.swift:89-94`).
+    private var volumePreview: DispatchWorkItem?
+
     private var tabs: [SettingsTabView] { [generalTab, hotkeysTab, savingTab, appearanceTab] }
 
     init(coordinator: AppCoordinator) {
@@ -77,11 +88,13 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         self.tabButtons = [general, hotkeys, saving, look]
 
         let window = NSWindow(
-            // SPEC-DELTA-2B.md §E4: height grows from 480 to 520 to fit the two new checkboxes.
-            // The width is the one Windows gives the same dialog (`HotkeySettingsWindow.xaml:3`,
-            // 620x520): the "Вид" tab of SPEC-DELTA-3 G-3 fits in it whole, and its gallery pages by
-            // the chevrons on both builds alike, so nothing has to scroll here.
-            contentRect: NSRect(x: 0, y: 0, width: 620, height: 520),
+            // SPEC-DELTA-5 §5.4 S5-1: the height is the one the tallest tab asks for, and the tallest
+            // tab is "Вид" with its gallery and its row of palettes. The window neither scrolls nor
+            // resizes, so a tab that outgrows this number loses its bottom without a word — which is
+            // what 520 did — and the probe A5-1 measures all four tabs against the area they are
+            // given instead of comparing one number with another. The pair is the one Windows declares
+            // for the same dialog (`HotkeySettingsWindow.xaml:3`, 620x620).
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 620),
             styleMask: [.borderless], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
@@ -93,6 +106,10 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         ThemeService.apply(theme: coordinator.settings.theme, accent: coordinator.settings.accentId)
         buildContent(in: window)
         populateFields(from: coordinator.settings)
+        // [S5-2] Subscribed after the value is in (`HotkeySettingsWindow.xaml.cs:54`), so that opening
+        // the window is not itself a change and plays nothing.
+        generalTab.volumeSlider.target = self
+        generalTab.volumeSlider.action = #selector(volumeChanged)
         applyLocalization()
         applyTheme()
         window.center()
@@ -144,6 +161,8 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
 
         generalTab.soundsBox.target = self
         generalTab.soundsBox.action = #selector(soundsChanged)
+        // The volume slider is the one control wired outside this pass: its action is subscribed in
+        // `init`, after `populateFields` has put the value in ([S5-2]).
         generalTab.languageSegment.target = self
         generalTab.languageSegment.action = #selector(languageChanged)
         generalTab.runOnboardingLink.onClick = { [weak self] in self?.runOnboardingClicked() }
@@ -210,6 +229,7 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         generalTab.soundsBox.state = settings.playSounds ? .on : .off
         generalTab.volumeSlider.integerValue = max(0, min(100, settings.soundVolume))
         generalTab.updateVolumeRow()
+        generalTab.updateVolumeCaption()
         generalTab.languageSegment.selectedSegment = settings.language == "en" ? 1 : 0
 
         hotkeysTab.captureEnabledBox.state = settings.captureEnabled ? .on : .off
@@ -236,12 +256,19 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
             button.title = MacUiText.text(names[index], language: language)
         }
         for tab in tabs { tab.applyLocalization(language) }
+        // [S5-2] The number beside the slider is put back after the walk that relabels the tab, the
+        // way Windows puts it back after `UiLanguage.Apply` (`HotkeySettingsWindow.xaml.cs:130-132`):
+        // it is the same number in both languages, and nothing else is allowed to write it.
+        generalTab.updateVolumeCaption()
         cancelButton.title = MacUiText.text("Отмена", language: language)
         saveButton.title = MacUiText.text("Сохранить", language: language)
-        // Finding 24: two §1.20 dictionary strings otherwise unused anywhere in the port —
-        // supplementary accessibility names for the "Клавиши" tab button (a menu-item-like
+        // Finding 24: supplementary accessibility names for the "Клавиши" tab button (a menu-item-like
         // control) and its content pane (the tab's header, for VoiceOver users tabbing in).
-        tabButtons[1].setAccessibilityLabel(MacUiText.text("Горячие клавиши…", language: language))
+        // [A5-4] Both read "Настройки клавиш" now. The button used to borrow the pair of the menu
+        // item that opens this window, which is the caption of a menu item and not of a tab: the tab
+        // is titled "Настройки клавиш", and with its last reader gone the borrowed pair leaves the
+        // table (SPEC-DELTA-5 §6 point 2 — the removal itself belongs to the merge, not here).
+        tabButtons[1].setAccessibilityLabel(MacUiText.text("Настройки клавиш", language: language))
         hotkeysTab.setAccessibilityTitle(MacUiText.text("Настройки клавиш", language: language))
         updateShortcutState()
         showTab(selectedTabIndex)
@@ -283,6 +310,42 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
 
     @objc private func soundsChanged() {
         generalTab.updateVolumeRow()
+        // [S5-2] The volume belongs to the sounds, and a tick the slider owed is dropped rather than
+        // arriving after the sounds were switched off.
+        if generalTab.soundsBox.state != .on { cancelVolumePreview() }
+    }
+
+    /// [S5-2] `NSSlider` sends its action all the way through a drag (`isContinuous` is on by
+    /// default), and sends the same one for a click on the track and for the arrow keys. The number
+    /// follows every step of it; the tick waits for the pause that means the slider was let go.
+    @objc private func volumeChanged() {
+        generalTab.updateVolumeCaption()
+        restartVolumePreview()
+    }
+
+    private func restartVolumePreview() {
+        cancelVolumePreview()
+        let work = DispatchWorkItem { [weak self] in self?.previewVolume() }
+        volumePreview = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
+    private func cancelVolumePreview() {
+        volumePreview?.cancel()
+        volumePreview = nil
+    }
+
+    /// The tick of the volume being chosen: the settings the window was opened with, with the sounds
+    /// on and the value the slider holds, and none of it is written to the file. The row is only on
+    /// screen while the sounds are on, so the preview cannot switch them on behind the user's back.
+    /// The tick is muted by a recent shutter and throttled to one in 170 ms
+    /// (`App/UiSoundService.swift:23-24`), exactly as `SoundThrottle` does on Windows.
+    private func previewVolume() {
+        volumePreview = nil
+        var preview = coordinator?.settings ?? HotkeySettings.default
+        preview.playSounds = true
+        preview.soundVolume = generalTab.volumeSlider.integerValue
+        UiSoundService.tick(preview)
     }
 
     @objc private func languageChanged() {
@@ -514,6 +577,63 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
 
     func smokeSelectTab(_ index: Int) { showTab(index) }
 
+    /// [A5-1] The tallest of the four tabs. Every tab is brought forward and laid out in turn: a tab
+    /// on a Mac is built whether or not it is showing, but only the one on screen is laid out, and a
+    /// tab that was never laid out measures as nothing.
+    func smokeTallestTabHeight() -> CGFloat {
+        let opened = selectedTabIndex
+        var tallest: CGFloat = 0
+        for (index, tab) in tabs.enumerated() {
+            showTab(index)
+            window?.contentView?.layoutSubtreeIfNeeded()
+            tallest = max(tallest, tab.smokeContentHeight)
+        }
+        showTab(opened)
+        return tallest
+    }
+
+    /// [A5-1] The height a tab is given between the row of tab buttons and the row of the two
+    /// buttons at the bottom: the number the tallest tab has to fit into.
+    var smokeTabAreaHeight: CGFloat { tabContainer.bounds.height }
+
+    /// [A5-3] What a settings file carrying `stored` as its annotation palette is shown as and saved
+    /// back as: the pair of lines the defect lived on is walked here, the read of `populateFields`
+    /// and the write of `buildCandidateSettings`. A name the picker refused used to be written back
+    /// as `"standard"` by any save at all, and the palette chosen in the editor went with it.
+    func smokeRunPaletteProbe(_ stored: String) -> String {
+        appearanceTab.picker.selectedPalette = stored
+        return buildCandidateSettings().annotationPalette
+    }
+
+    /// [A5-1, S5-2] The number beside the slider follows it, survives a change of language — the walk
+    /// that relabels the window rewrites unbound captions, and this one is put back after it — and
+    /// goes away with the sounds it belongs to, taking the tick it owed with it.
+    func smokeRunVolumeCaptionProbe() -> Bool {
+        let openedLanguage = language
+        let openedSounds = generalTab.soundsBox.state
+        generalTab.soundsBox.state = .on
+        soundsChanged()
+        generalTab.volumeSlider.integerValue = 60
+        volumeChanged()
+        let saysTheNumber = generalTab.volumeValueLabel.stringValue == "60 %"
+
+        language = "en"
+        applyLocalization()
+        let survivesTheLanguage = generalTab.volumeValueLabel.stringValue == "60 %"
+        language = openedLanguage
+        applyLocalization()
+
+        generalTab.soundsBox.state = .off
+        soundsChanged()
+        let rowIsGone =
+            generalTab.volumeLabel.isHidden && generalTab.volumeSlider.isHidden
+            && generalTab.volumeValueLabel.isHidden && volumePreview == nil
+
+        generalTab.soundsBox.state = openedSounds
+        soundsChanged()
+        return saysTheNumber && survivesTheLanguage && rowIsGone
+    }
+
     /// One combination written into both fields is refused, both of them go red and nothing is saved.
     /// The keys are given as a preset and as a custom id of the same gesture, so the check also proves
     /// the comparison is by gesture and not by text.
@@ -552,6 +672,8 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
+        // [S5-2] A tick owed to a value nobody saved must not arrive after the window is gone.
+        cancelVolumePreview()
         // The appearance tab repaints the application while it is being looked at and saves nothing;
         // walking away from the window has to put back the pair it was opened with (G-3).
         if !saved { ThemeService.apply(theme: openedTheme, accent: openedAccent) }

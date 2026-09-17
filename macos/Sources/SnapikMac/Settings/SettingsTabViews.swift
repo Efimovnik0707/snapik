@@ -32,6 +32,24 @@ private func sectionLabel(_ title: String) -> NSTextField {
 class SettingsTabView: NSView {
     func applyLocalization(_ language: String) {}
     func applyTheme(_ palette: ThemePalette) {}
+
+    /// [A5-1] What the tab lays out, from its top down to the lowest thing it puts on screen. The
+    /// window neither scrolls nor resizes, so a tab that asks for more than the area it is given
+    /// loses its bottom without a word, and the probe measures all four instead of comparing one
+    /// declared number with another. A row that is switched off is not part of the measurement, the
+    /// way a collapsed row is not part of a WPF stack.
+    var smokeContentHeight: CGFloat {
+        let shown = subviews.filter { !$0.isHidden }
+        guard let lowest = shown.map({ $0.frame.minY }).min(),
+            let highest = shown.map({ $0.frame.maxY }).max(), highest > 0
+        else {
+            // Nothing has a frame yet: a tab that was never laid out has to measure as nothing, so
+            // that the probe's "less than 200 px is not a measurement" catches it instead of reading
+            // the empty tab as one that fits exactly.
+            return 0
+        }
+        return bounds.height - lowest
+    }
 }
 
 /// "Общие": the startup switch, the notifications / clear-the-strip / sounds boxes with the volume
@@ -47,6 +65,9 @@ final class GeneralTabView: SettingsTabView {
     /// The volume belongs to the sounds: with them off there is nothing to make quieter (G-10).
     let volumeLabel = sectionLabel("")
     let volumeSlider = NSSlider(value: 40, minValue: 0, maxValue: 100, target: nil, action: nil)
+    /// [S5-2] The number the slider is worth, beside it. The slider carries no scale of its own, so
+    /// without the number the only way to read the volume was to listen to it.
+    let volumeValueLabel = sectionLabel("")
     let languageLabel = sectionLabel("")
     let languageSegment = NSSegmentedControl(labels: ["Русский", "English"], trackingMode: .selectOne, target: nil, action: nil)
     /// [ТЗ№4 E2] The link at the bottom of the tab; it opens the whole wizard with the values in
@@ -59,9 +80,11 @@ final class GeneralTabView: SettingsTabView {
         startupUnavailableLabel.isHidden = true
         volumeSlider.numberOfTickMarks = 101
         volumeSlider.allowsTickMarkValuesOnly = true
+        volumeValueLabel.font = NSFont.systemFont(ofSize: 12)
         for view in [
             startupSwitch, startupLabel, startupUnavailableLabel, notificationsBox, clearStackBox,
-            soundsBox, volumeLabel, volumeSlider, languageLabel, languageSegment, runOnboardingLink,
+            soundsBox, volumeLabel, volumeSlider, volumeValueLabel, languageLabel, languageSegment,
+            runOnboardingLink,
         ] as [NSView] {
             addSubview(view)
         }
@@ -74,6 +97,14 @@ final class GeneralTabView: SettingsTabView {
         let visible = soundsBox.state == .on
         volumeLabel.isHidden = !visible
         volumeSlider.isHidden = !visible
+        volumeValueLabel.isHidden = !visible
+    }
+
+    /// [S5-2] The number the slider is worth, in the shape the quality caption already uses: a space
+    /// before the sign, and the same text in both languages. Written by hand and not by a
+    /// `NumberFormatter`: a formatter would put a locale's separators into a number that has none.
+    func updateVolumeCaption() {
+        volumeValueLabel.stringValue = "\(volumeSlider.integerValue) %"
     }
 
     override func applyLocalization(_ language: String) {
@@ -100,6 +131,7 @@ final class GeneralTabView: SettingsTabView {
     override func applyTheme(_ palette: ThemePalette) {
         for label in [startupLabel, volumeLabel, languageLabel] { label.textColor = palette.text }
         startupUnavailableLabel.textColor = palette.textMuted
+        volumeValueLabel.textColor = palette.textMuted
         for box in [notificationsBox, clearStackBox, soundsBox] { box.contentTintColor = palette.text }
         runOnboardingLink.textColor = palette.textFaint
     }
@@ -123,6 +155,10 @@ final class GeneralTabView: SettingsTabView {
         volumeLabel.frame = NSRect(x: 22, y: y, width: bounds.width - 22, height: 16)
         y -= 26
         volumeSlider.frame = NSRect(x: 22, y: y, width: 200, height: 20)
+        // [S5-2] The number sits after the slider with the gap Windows gives it
+        // (`HotkeySettingsWindow.xaml:32-40`, a margin of 10 inside a horizontal stack).
+        volumeValueLabel.frame = NSRect(
+            x: volumeSlider.frame.maxX + 10, y: y + 2, width: 60, height: 16)
         y -= 30
         languageLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: 16)
         y -= 32
@@ -275,8 +311,9 @@ final class SavingTabView: SettingsTabView {
 }
 
 /// "Вид": the same control the wizard shows on its fourth step, with the row of annotation palettes
-/// the wizard does not show (G-3, G-4). It scrolls, because the tab is 338 px tall and the control
-/// with the palette row is taller than that.
+/// the wizard does not show (G-3, G-4). It scrolls, because the control with the palette row is
+/// taller than the tab whenever the window has to open shorter than the height it declares
+/// (SPEC-DELTA-5 §5.4 S5-1: 620 cures the cut content, not a monitor that cannot hold it).
 final class AppearanceTabView: SettingsTabView {
     let picker = AppearancePickerView(frame: .zero)
     private let scrollView = NSScrollView(frame: .zero)
@@ -296,6 +333,10 @@ final class AppearanceTabView: SettingsTabView {
     override func applyLocalization(_ language: String) { picker.applyLanguage(language) }
 
     override func applyTheme(_ palette: ThemePalette) { picker.refreshTheme() }
+
+    /// [A5-1] The only subview of this tab is the scroller, which always fills it: what the tab is
+    /// really worth is what the control inside asks for.
+    override var smokeContentHeight: CGFloat { picker.fittingHeight }
 
     override func layout() {
         super.layout()

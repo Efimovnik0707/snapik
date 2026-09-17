@@ -23,8 +23,22 @@ extension SmokeTestRunner {
         let settings = HotkeySettingsWindowController(coordinator: coordinator)
         settings.window?.contentView?.layoutSubtreeIfNeeded()
         check("settings tabs", settings.smokeTabCount == 4)
-        // The frame Windows gives the same dialog (`HotkeySettingsWindow.xaml:3`).
-        check("settings window 620x520", settings.window?.frame.size == NSSize(width: 620, height: 520))
+        // [A5-1] The window neither scrolls nor resizes, so the height it declares has to hold the
+        // tallest of its four tabs. A measurement that comes back as nothing would let any height
+        // through, which is how a cut tab lived through every run of the old check: it compared the
+        // declared 620x520 with the literal 620x520 and could not fail.
+        let tallestTab = settings.smokeTallestTabHeight()
+        let tabArea = settings.smokeTabAreaHeight
+        let tabsFit = tallestTab >= 200 && tallestTab <= tabArea
+        check(
+            "the settings window is as tall as its tallest tab"
+                + (tabsFit ? "" : ": \(Int(tallestTab)) px against \(Int(tabArea)) px"),
+            tabsFit)
+        // [A5-1, S5-2] The number beside the volume, in both languages, and the row that goes with
+        // the sounds.
+        check(
+            "the volume says its number and goes away with the sounds",
+            settings.smokeRunVolumeCaptionProbe())
 
         settings.smokeSelectTab(3)
         settings.window?.contentView?.layoutSubtreeIfNeeded()
@@ -40,15 +54,38 @@ extension SmokeTestRunner {
         // is checked here, where it is on screen.
         picker.applyLanguage("en")
         let paletteTitles = picker.smokePaletteTitles
-        let paletteTranslated = paletteTitles == ["Standard", "Pastel", "Custom"]
+        let paletteTranslated = paletteTitles == ["Standard", "Pastel", "Neon", "Custom"]
         check(
             "the palette row translates"
                 + (paletteTranslated ? "" : ": \(paletteTitles.joined(separator: " · "))"),
             paletteTranslated)
         picker.applyLanguage(coordinator.language)
 
+        // [A5-1] The row of the settings is written by hand and the popover of the editor builds
+        // itself out of `EditorAppearance.palettes`: two lists of one preference, compared as
+        // sequences, because a row offering the same names in another order already disagrees.
+        let offeredPalettes = picker.smokePaletteIds
+        let editorPalettes = EditorAppearance.palettes.map { $0.id }
+        let paletteOrderOk = offeredPalettes == editorPalettes
+        check(
+            "the settings offer the palettes of the editor in its order"
+                + (paletteOrderOk ? "" : ": \(offeredPalettes.joined(separator: ", "))"),
+            paletteOrderOk)
+
+        // [A5-3] A file that carries the neon palette is shown as neon and saved back as neon, and a
+        // name nobody knows still falls back to the standard set.
+        check(
+            "a settings file carrying the neon palette keeps it",
+            settings.smokeRunPaletteProbe("neon") == "neon"
+                && settings.smokeRunPaletteProbe("telepathy") == "standard")
+        _ = settings.smokeRunPaletteProbe(coordinator.settings.annotationPalette)
+
         // The gallery opens on the first card, pages by one, and stops where the last card is whole.
         var galleryOk = picker.firstCard == 0
+        // [S5-4] At the start of the row "back" is marked as the end and "forward" is not, and both
+        // stay pressable: the end is a mark the drawing dims by, never a disabled button.
+        let atStart = picker.smokeChevronsAtEnd
+        galleryOk = galleryOk && atStart.back && !atStart.forward && picker.smokeChevronsArePressable
         picker.pageBy(1)
         galleryOk = galleryOk && picker.firstCard == 1
         picker.pageByWheel(1)
@@ -56,11 +93,17 @@ extension SmokeTestRunner {
         picker.pageBy(20)
         let lastPage = picker.firstCard
         galleryOk = galleryOk && lastPage == picker.lastPage && lastPage > 0
+        let atFinish = picker.smokeChevronsAtEnd
+        galleryOk = galleryOk && !atFinish.back && atFinish.forward
+        // A press at the end of the row moves nothing, and the button it was pressed on is a button
+        // still.
+        picker.pageBy(1)
+        galleryOk = galleryOk && picker.firstCard == lastPage && picker.smokeChevronsArePressable
         // A card chosen where it stands leaves the gallery where the chevrons have taken it.
         picker.selectedTheme = ThemeService.themes[ThemeService.themes.count - 1]
         galleryOk = galleryOk && picker.firstCard == lastPage
         picker.pageBy(-20)
-        galleryOk = galleryOk && picker.firstCard == 0
+        galleryOk = galleryOk && picker.firstCard == 0 && picker.smokeChevronsArePressable
         check("theme gallery pages by one card and stays where it is put", galleryOk)
 
         check("one combination for two actions is refused", settings.smokeRunConflictProbe())
@@ -223,5 +266,33 @@ extension SmokeTestRunner {
         sheet.window?.close()
 
         return results
+    }
+
+    /// [A5-2] The letter of a copied card travels the whole way: card, workspace, export service,
+    /// prompt generator. Port of `VerifyTz007SingleExport` (`SmokeTestRunner.cs:1372-1381`). The unit
+    /// tests of the export call the service straight away, so a wire cut anywhere above it would
+    /// leave them green and the user with a picture that says "A" while the toast says "B".
+    ///
+    /// Apart from `runSettingsAndOnboardingProbes` because the export is `async` and that one is
+    /// called inside a `MainActor.run` block, which takes no `await` (SPEC-DELTA-5 §6 point 4: the
+    /// registry of `App/SmokeTestRunner.swift` calls this one beside it).
+    static func runSingleExportProbe(dataDirectory: URL) async -> (name: String, ok: Bool) {
+        let name = "a capture copied from card B is exported and written as B"
+        do {
+            let workspace = SessionWorkspace(dataDirectory: dataDirectory)
+            let image = try await DemoSessionFactory.renderDemoImage(index: 0, width: 400, height: 300)
+            guard let png = ImageCodec.encode(image, format: .png) else { return (name, false) }
+            let capture = try await workspace.addCapture(
+                pngData: png, pixelWidth: image.width, pixelHeight: image.height,
+                note: "Комментарий к одиночному снимку")
+            let prepared = try await workspace.exportSingle(
+                capture, label: "B", renderer: ExportImageRenderer())
+            let images = prepared.manifest.images
+            let fileOk = images.count == 1 && images[0].fileName == "01-B.png"
+                && images[0].displayLabel == "B"
+            return (name, fileOk && prepared.manifest.promptText.hasPrefix("Снимок B"))
+        } catch {
+            return (name, false)
+        }
     }
 }

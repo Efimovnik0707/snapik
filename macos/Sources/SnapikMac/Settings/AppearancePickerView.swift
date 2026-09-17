@@ -52,6 +52,12 @@ final class AppearancePickerView: NSView {
     private static let galleryMargin: CGFloat = 8
     private static let cardHeight: CGFloat = 100
 
+    /// [S5-3] The identifiers of the palette row, in the order the editor offers them
+    /// (`EditorAppearance.palettes`). One list and not three: the row is written by hand here while
+    /// the editor builds its own popover, and two lists of the same preference are how the fourth
+    /// name went missing in the first place.
+    private static let paletteIds = ["standard", "pastel", "neon", "custom"]
+
     /// The names of the themes, in the order the gallery shows them. [ТЗ№4 B1] The card that carried
     /// the light theme is the dawn one, and it says so.
     private static let themeNames: [String: String] = [
@@ -123,11 +129,17 @@ final class AppearancePickerView: NSView {
         }
     }
 
-    /// Which twelve-colour set the editor offers: standard, pastel or the user's own.
+    /// Which twelve-colour set the editor offers: standard, pastel, neon or the user's own.
+    ///
+    /// [S5-3] The names this setter accepts are the four the editor knows. A name it refused was
+    /// written back to the file as `"standard"` by the next save of the settings — any save, whether
+    /// or not the "Вид" tab was ever opened — and the neon chosen in the editor was lost with it.
     var selectedPalette: String {
         get { palette }
         set {
-            let value = (newValue == "pastel" || newValue == "custom") ? newValue : "standard"
+            let value =
+                (newValue == "pastel" || newValue == "neon" || newValue == "custom")
+                ? newValue : "standard"
             guard value != palette else { return }
             palette = value
             refreshPaletteRow()
@@ -148,8 +160,9 @@ final class AppearancePickerView: NSView {
     override init(frame frameRect: NSRect) {
         let standard = NSButton(title: "", target: nil, action: nil)
         let pastel = NSButton(title: "", target: nil, action: nil)
+        let neon = NSButton(title: "", target: nil, action: nil)
         let custom = NSButton(title: "", target: nil, action: nil)
-        paletteButtons = [standard, pastel, custom]
+        paletteButtons = [standard, pastel, neon, custom]
         super.init(frame: frameRect)
 
         for caption in [themeCaption, accentCaption, paletteCaption] {
@@ -208,7 +221,8 @@ final class AppearancePickerView: NSView {
         paletteCaption.stringValue = text("Палитра отметок")
         paletteButtons[0].title = text("Стандартная")
         paletteButtons[1].title = text("Пастель")
-        paletteButtons[2].title = text("Своя")
+        paletteButtons[2].title = text("Неон")
+        paletteButtons[3].title = text("Своя")
         previousThemeButton.toolTip = text("Предыдущая тема")
         nextThemeButton.toolTip = text("Следующая тема")
         sample.applyLanguage(language)
@@ -275,7 +289,7 @@ final class AppearancePickerView: NSView {
     }
 
     private func refreshPaletteRow() {
-        let ids = ["standard", "pastel", "custom"]
+        let ids = Self.paletteIds
         let tokens = ThemeService.accent(accent)
         let colours = ThemeService.palette(ThemeService.currentTheme)
         for (index, button) in paletteButtons.enumerated() {
@@ -323,11 +337,16 @@ final class AppearancePickerView: NSView {
     /// window behind it.
     func pageByWheel(_ notches: Int) { pageBy(notches) }
 
-    // An end says so. A chevron with nothing left to show is switched off instead of answering a
-    // click with nothing.
+    // [S5-4] An end says so, and says so without switching the button off. Availability worked out
+    // from the numbers of a layout pass is availability that sticks: one pass that measures the
+    // gallery at nothing leaves the chevron dead for good, and with the chevron dead there is nothing
+    // left to page with. The end is a mark on the button instead, `draw(_:)` dims it, and a press at
+    // the end moves nothing because `pageBy` already clamps. Mac never had the pass that kills the
+    // button (the count is kept here, not read back from a scroll offset), but the two platforms
+    // answer a click at the end of the row the same way.
     private func markChevrons() {
-        previousThemeButton.isEnabled = firstCard > 0
-        nextThemeButton.isEnabled = firstCard < lastPage
+        previousThemeButton.atEnd = firstCard <= 0
+        nextThemeButton.atEnd = firstCard >= lastPage
     }
 
     private func layoutGallery(animated: Bool) {
@@ -365,7 +384,7 @@ final class AppearancePickerView: NSView {
     }
 
     @objc private func paletteClicked(_ sender: NSButton) {
-        selectedPalette = ["standard", "pastel", "custom"][sender.tag]
+        selectedPalette = Self.paletteIds[sender.tag]
     }
 
     // MARK: - Layout
@@ -392,6 +411,10 @@ final class AppearancePickerView: NSView {
             card.frame = NSRect(
                 x: CGFloat(index) * Self.cardStep, y: 0, width: Self.cardWidth, height: Self.cardHeight)
         }
+        // [S5-4] A wider gallery shows more cards at once, so the card it may start at moves back:
+        // without this the count would stay where a narrower pass had put it and the last page would
+        // be drawn short. Windows does the same from its `SizeChanged` subscription.
+        firstCard = min(firstCard, lastPage)
         layoutGallery(animated: false)
         markChevrons()
 
@@ -441,7 +464,24 @@ final class AppearancePickerView: NSView {
 
     var smokeDotCount: Int { dots.count }
 
-    /// The three captions of the palette row, in the language the control was last given. The wizard
+    /// [S5-4] Which chevrons say they are at the end of the row, and whether both of them can still
+    /// be pressed. The end is a mark on the button, never a disabled state, so the pair is read apart.
+    var smokeChevronsAtEnd: (back: Bool, forward: Bool) {
+        (previousThemeButton.atEnd, nextThemeButton.atEnd)
+    }
+
+    var smokeChevronsArePressable: Bool {
+        previousThemeButton.isEnabled && nextThemeButton.isEnabled
+    }
+
+    /// [A5-1] The identifiers the row offers, in the order it offers them. The row of the settings is
+    /// written by hand here and the popover of the editor builds itself out of
+    /// `EditorAppearance.palettes`: two lists of the same preference, and the file keeps one name for
+    /// both. The probe compares them as sequences and not as sets, because a row that offers the same
+    /// four in another order is already a row that disagrees with the editor.
+    var smokePaletteIds: [String] { Self.paletteIds }
+
+    /// The four captions of the palette row, in the language the control was last given. The wizard
     /// switches this row off (O-6), so the settings window is the one place it is on screen and the
     /// one place its translation is worth checking.
     var smokePaletteTitles: [String] { paletteButtons.map(\.title) }
@@ -689,6 +729,9 @@ private final class SampleRowView: NSView {
 private final class ChevronButton: NSButton {
     private let pointsLeft: Bool
     var palette: ThemePalette = ThemeService.palette(nil) { didSet { needsDisplay = true } }
+    /// [S5-4] Whether there is nothing left on this side. It is a mark and not a disabled state: the
+    /// button stays pressable, and the press moves nothing.
+    var atEnd = false { didSet { needsDisplay = true } }
 
     init(pointsLeft: Bool) {
         self.pointsLeft = pointsLeft
@@ -702,7 +745,7 @@ private final class ChevronButton: NSButton {
 
     override func draw(_ dirtyRect: NSRect) {
         let box = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
-        let alpha: CGFloat = isEnabled ? 1 : 0.42
+        let alpha: CGFloat = atEnd ? 0.42 : 1
         palette.hover.withAlphaComponent(alpha).setFill()
         box.fill()
         palette.elevatedLine.withAlphaComponent(alpha).setStroke()

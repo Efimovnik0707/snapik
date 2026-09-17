@@ -115,9 +115,12 @@ enum UiSoundService {
             player = opened
         }
 
-        /// Port of `Sound.Play`: the volume of the preference, scaled by the gain of this sound, and
-        /// the sound restarted from its beginning. Audio feedback must never interrupt a capture, so
-        /// a sound that cannot be opened is switched off instead of throwing.
+        /// Port of `Sound.Play`: the volume of the preference on the curve of `SoundVolumeCurve`
+        /// (SPEC-DELTA-5 §3.3, `UiSoundService.cs:93`), scaled by the gain of this sound, and the
+        /// sound restarted from its beginning. `NSSound.volume` is an amplitude of `0…1`, the same as
+        /// `MediaPlayer.Volume`, so the curve carries over one for one and nothing else is applied on
+        /// top of it. Audio feedback must never interrupt a capture, so a sound that cannot be opened
+        /// is switched off instead of throwing.
         func play(volume: Int) {
             gate.lock()
             if failed {
@@ -136,7 +139,7 @@ enum UiSoundService {
             gate.unlock()
 
             guard let sound else { return }
-            sound.volume = Float(Double(max(0, min(100, volume))) / 100.0 * gain)
+            sound.volume = Float(SoundVolumeCurve.amplitude(volume: volume, gain: gain))
             sound.stop()
             sound.play()
         }
