@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Snapik.App.Controls;
@@ -35,6 +36,35 @@ public partial class EdgeStackWindow
         {
             SetStatus($"{UiLanguage.Text("Автосохранение не выполнено")}: {ex.Message}", true);
         }
+    }
+
+    /// <summary>
+    /// One capture on the clipboard: the same export and the same formats a package gets, because
+    /// SetPackageGuardedAsync with a single path lays out the PNG, the DIB, the Bitmap, the FileDrop
+    /// and the text by itself. It becomes the published package, so a paste that is noticed marks
+    /// that one capture as sent and nothing else. `_prepared` is left alone: the paste button still
+    /// sends everything that waits, and it rebuilds itself on the next capture anyway.
+    /// </summary>
+    internal async Task CopySingleCaptureAsync(CaptureItem capture, string label)
+    {
+        await _pasteIntentTransition;
+        CancelReceiverEchoWatch();
+        await _clipboardPublicationGate.WaitAsync();
+        try
+        {
+            var export = await _workspace.ExportSingleAsync(capture, label);
+            var current = await _clipboard.CaptureAsync(CancellationToken.None);
+            _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(
+                export.GetImagePathsInOrder(), export.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
+            SetPublished(Published(export));
+            UiSoundService.Copied(_settings);
+            ShowToast(string.Format(UiLanguage.Text("Снимок {0} скопирован"), label));
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"{UiLanguage.Text("Не удалось скопировать снимок")}: {ex.Message}", true);
+        }
+        finally { _clipboardPublicationGate.Release(); }
     }
 
     // The whole screen goes into the strip like any other capture, and the folder gets it from the

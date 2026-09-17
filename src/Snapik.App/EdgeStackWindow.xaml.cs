@@ -656,8 +656,16 @@ public partial class EdgeStackWindow : Window
 
     private async void OnRemoveCaptureClick(object sender, RoutedEventArgs e)
     {
-        await _pasteIntentTransition;
         if (sender is not Button { Tag: CaptureItem capture }) return;
+        await RemoveCapture(capture);
+        e.Handled = true;
+    }
+
+    // The removal apart from the button that asks for it: the card has one, and the context menu of
+    // the same card gets one too.
+    private async Task RemoveCapture(CaptureItem capture)
+    {
+        await _pasteIntentTransition;
         var index = Captures.IndexOf(capture);
         Captures.Remove(capture);
         _removed.Push((capture.DeepClone(), index));
@@ -668,7 +676,6 @@ public partial class EdgeStackWindow : Window
         await SaveAsync();
         ShowToast(UiLanguage.Text("Снимок удалён"), UiLanguage.Text("Отменить"), () => _ = RestoreRemoved());
         await RefreshOwnedClipboardAsync();
-        e.Handled = true;
     }
 
     private void HideForCapture()

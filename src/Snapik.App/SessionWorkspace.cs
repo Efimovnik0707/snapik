@@ -217,6 +217,23 @@ public sealed class SessionWorkspace
         return prepared;
     }
 
+    /// <summary>
+    /// A package of one capture: the same drawing and the same text a package gets, but the capture
+    /// is taken as it is and the session is not written back to disk — it may be a draft of the
+    /// editor the strip has not seen yet. The revision does not move either: only a real write of
+    /// the session moves it. <paramref name="label"/> is the letter the card shows, so that the
+    /// picture, the text and the toast all name the same capture.
+    /// </summary>
+    public async Task<PreparedExport> ExportSingleAsync(CaptureItem capture, string? label = null, CancellationToken cancellationToken = default)
+    {
+        var session = new SnapikSession(SessionId, SnapikSession.CurrentSchemaVersion, _createdAtUtc,
+            DateTimeOffset.UtcNow, _revision, string.Empty, null, [capture.ToCore()]);
+        var prepared = await new FileExportService(new WpfExportImageRenderer())
+            .PrepareAsync(session, SessionDirectory, cancellationToken);
+        TrimExports(prepared.RootDirectory);
+        return prepared;
+    }
+
     // Every prepared package writes another exports/revision-* directory with a full copy of the
     // strip, and captures now live on across pastes, so only the newest few are kept. The directory
     // the current package points at and the pinned ones (the package on the clipboard and the
