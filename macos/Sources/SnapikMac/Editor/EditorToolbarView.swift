@@ -356,6 +356,9 @@ final class EditorToolbarView: NSView {
     let undoButton: ToolbarActionButtonView
     let redoButton: ToolbarActionButtonView
     let saveButton: ToolbarActionButtonView
+    /// The picture goes to the clipboard whole, with its marks and its notes, without the editor
+    /// being closed (`CopyImageButton`, `xaml:313-315`).
+    let copyButton: ToolbarActionButtonView
     let doneButton: ToolbarActionButtonView
     private let divider = ToolbarDividerView(frame: .zero)
 
@@ -412,6 +415,8 @@ final class EditorToolbarView: NSView {
         redoButton = ToolbarActionButtonView(symbolName: EditorIcon.redo, tooltip: "\(EditorStrings.redo(language)) (Shift+Cmd+Z)")
         saveButton = ToolbarActionButtonView(
             symbolName: EditorIcon.save, tooltip: "\(EditorStrings.saveToComputer(language)) (Cmd+S)")
+        copyButton = ToolbarActionButtonView(
+            symbolName: EditorIcon.copy, tooltip: "\(EditorStrings.copyCapture(language)) (Shift+Cmd+C)")
         doneButton = ToolbarActionButtonView(text: EditorStrings.done(language), filledBackground: EditorTheme.accent, bold: true)
 
         super.init(frame: .zero)
@@ -432,7 +437,7 @@ final class EditorToolbarView: NSView {
             commentButton, shortcutSheetButton,
         ]
         propertiesOrder = [colorCapsule, lineCapsule]
-        actionsOrder = [divider, undoButton, redoButton, saveButton, doneButton]
+        actionsOrder = [divider, undoButton, redoButton, saveButton, copyButton, doneButton]
         for view in toolsOrder + propertiesOrder + actionsOrder { addSubview(view) }
         setActiveTool(.rectangle)
     }

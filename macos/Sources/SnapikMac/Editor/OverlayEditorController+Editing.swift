@@ -183,6 +183,7 @@ extension OverlayEditorController {
             case .line, .shape: self.togglePopover(.thickness, relativeTo: toolbar.lineCapsule)
             }
         }
+        toolbar.copyButton.onClick = { [weak self] in self?.copyToClipboard() }
         toolbar.shortcutSheetButton.onClick = { [weak self, weak toolbar] in
             guard let toolbar else { return }
             self?.togglePopover(.shortcutSheet, relativeTo: toolbar.shortcutSheetButton)

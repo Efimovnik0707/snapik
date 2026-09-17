@@ -78,6 +78,10 @@ extension OverlayEditorController {
             case "z":
                 self.performUndo()
                 return true
+            // Shift+Cmd+C stands before Cmd+C, or "Готово" would swallow it and close the editor.
+            case "c" where event.modifierFlags.contains(.shift):
+                self.copyToClipboard()
+                return true
             case "c":
                 self.commit(addNext: false)
                 return true

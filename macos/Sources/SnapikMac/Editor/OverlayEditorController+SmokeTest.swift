@@ -443,6 +443,18 @@ extension OverlayEditorController {
         return ok
     }
 
+    /// SPEC-DELTA-5-editor.md §1.3 E-12, §4.2: the cheat sheet knows Shift+Cmd+C, it stands before
+    /// "Готово" the way the keys are read, and the panel carries the button that does the same.
+    @discardableResult
+    func smokeVerifyCopyShortcut() -> Bool {
+        guard let toolbarView else { return false }
+        guard let copy = EditorShortcuts.actions.firstIndex(where: { $0.caption == "Shift+Cmd+C" }) else { return false }
+        guard EditorShortcuts.actions[copy].nameKey == "Копировать снимок" else { return false }
+        guard let done = EditorShortcuts.actions.firstIndex(where: { $0.caption == "Cmd+C" }) else { return false }
+        guard copy < done else { return false }
+        return toolbarView.copyButton.superview === toolbarView
+    }
+
     /// [ТЗ№4 D1] The spectrum, the eyedropper and the "+" belong to every palette, and "+" puts the
     /// colour in force into the own one without moving the row out from under the hand.
     @discardableResult

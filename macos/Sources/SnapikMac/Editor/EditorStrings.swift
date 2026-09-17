@@ -68,6 +68,14 @@ enum EditorStrings {
     /// The pair Windows carries, without the keys in it: the shortcut is appended by whoever shows a
     /// tooltip, the way "Отменить (Cmd+Z)" is built (`EditorToolbarView`).
     static func saveToComputer(_ language: String) -> String { text("Сохранить на компьютер", language: language) }
+    static func copyCapture(_ language: String) -> String { text("Копировать снимок", language: language) }
+    /// "Снимок B скопирован": what the plate of the editor says when the strip took the copy.
+    static func captureCopied(_ language: String, _ label: String) -> String {
+        UiFormat.text(text("Снимок {0} скопирован", language: language), label)
+    }
+    static func couldNotCopyCapture(_ language: String) -> String {
+        text("Не удалось скопировать снимок", language: language)
+    }
     static func done(_ language: String) -> String { text("Готово", language: language) }
 
     // Key cheat sheet (SPEC-DELTA-3 §1.4 E-19)

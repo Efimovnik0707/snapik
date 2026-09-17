@@ -11,6 +11,12 @@ protocol OverlayEditorDelegate: AnyObject {
     func overlayEditorRequestsNextCapture(_ editor: OverlayEditorController)
     /// SPEC §1.15 notification hook for a successful Cmd+S save.
     func overlayEditor(_ editor: OverlayEditorController, didSaveFileAt url: URL)
+    /// "Копировать" and Shift+Cmd+C hand one capture to the strip, which is what owns the clipboard
+    /// (SPEC-DELTA-5 §2.4). The editor knows no letter of the strip and asks for none: the shell
+    /// takes the capture it opened the editor with, copies it and answers whether it worked. The
+    /// answer is said by the plate of the editor itself, because the strip is hidden while the
+    /// editor is open and a toast of it would go into an invisible window.
+    func overlayEditorCopiesSingleCapture(_ editor: OverlayEditorController) async -> Bool
 }
 
 /// One screen's window + its always-present chrome (SPEC §9.5: "одно окно на каждый NSScreen").
