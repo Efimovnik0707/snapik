@@ -28,6 +28,10 @@ final class EdgeStackWindowController: NSWindowController {
     /// Port of `_capsuleMode`: a mode of this window, never written to the settings file — a strip
     /// that opened collapsed would look like a strip that failed to open.
     private var isCapsuleMode = false
+    /// SPEC-DELTA-5 §1.1 L-7: whether the strip has been put at the edge of the working area yet.
+    /// Windows places it from `OnLoaded` and never again; this port has no such moment — the window
+    /// is built with the coordinator and shown much later — so the first `reveal()` is it.
+    private var placedOnce = false
     private var expandedWidth: CGFloat = CGFloat(StripResizeGeometry.defaultWidth)
     private var expandedTop: CGFloat = 0
     /// Port of `_topmostSuspensions`: a dialog owned by the strip would open behind a floating one.
@@ -76,7 +80,19 @@ final class EdgeStackWindowController: NSWindowController {
     func reveal() {
         contentContainer.applyPalette()
         refresh()
-        positionAtEdge()
+        // SPEC-DELTA-5 §1.1 L-7, port of `if (!_capsuleMode) EnsureStripPlaced();` (`:730`): the
+        // capsule is placed by `positionAtEdge()`, which is the only branch it has; the strip is
+        // placed at the edge once and afterwards only brought back onto the screen if it has left
+        // it. Windows does the first placement from `OnLoaded`; the flag here is the same moment —
+        // the strip is built long before it is first shown.
+        if isCapsuleMode {
+            positionAtEdge()
+        } else if placedOnce {
+            ensureStripPlaced()
+        } else {
+            placedOnce = true
+            placeStripInitially()
+        }
         window?.alphaValue = 0
         // `orderFrontRegardless()` shows the window without activating the app (SPEC §9.8).
         window?.orderFrontRegardless()
@@ -217,14 +233,21 @@ final class EdgeStackWindowController: NSWindowController {
         (NSScreen.screens.first ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
     }
 
-    /// Port of `PositionAtEdge`: the stored width and list height, both clamped by the working area,
-    /// then the right edge of that area and a vertical middle that never starts above 24 points from
-    /// its top. The window is flush with the working area — the 20 points that are seen between the
-    /// panel and the edge of the screen are the field that carries the shadow ([ТЗ№4 C6]).
+    /// The working area of the screen a window of ours actually stands on, for the two places that
+    /// clamp a strip the user has already moved (SPEC-DELTA-5 §2.6): a strip dragged onto the second
+    /// monitor must not be pulled back by the frame of the first. Everything else — the first
+    /// placement, the clamp of the width, the probes — keeps asking `workArea()`, so a machine with
+    /// one screen answers exactly as it did before.
+    private func workArea(for window: NSWindow?) -> NSRect {
+        window?.screen?.visibleFrame ?? workArea()
+    }
+
+    /// Port of `PositionAtEdge` as it is left after the split (SPEC-DELTA-5 §1.1 L-7): the capsule,
+    /// which has no `EnsureStripPlaced` of its own, and the first placement of the strip.
     private func positionAtEdge() {
         guard let window else { return }
-        let work = workArea()
         if isCapsuleMode {
+            let work = workArea(for: window)
             let size = contentContainer.capsuleSize()
             let top = expandedTop > 0 ? expandedTop : work.maxY - 24
             window.setFrame(
@@ -233,7 +256,18 @@ final class EdgeStackWindowController: NSWindowController {
             contentContainer.frame = NSRect(origin: .zero, size: size)
             return
         }
+        placeStripInitially()
+    }
 
+    /// Port of `PlaceStripInitially` (`EdgeStackWindow.xaml.cs:887-906`): the stored width clamped by
+    /// the working area, the height of the list, then the right edge of that area and a vertical
+    /// middle that never starts above 24 points from its top. It happens **once**; every showing
+    /// after it is `ensureStripPlaced()`, which leaves the strip where the user dragged it. The
+    /// window is flush with the working area — the 20 points that are seen between the panel and the
+    /// edge of the screen are the field that carries the shadow ([ТЗ№4 C6]).
+    private func placeStripInitially() {
+        guard let window else { return }
+        let work = workArea()
         let settings = coordinator?.settings ?? HotkeySettings.default
         let width = CGFloat(StripResizeGeometry.clampWidth(settings.stackWidth, workWidth: Double(work.width)))
         applyListHeight()
@@ -244,6 +278,33 @@ final class EdgeStackWindowController: NSWindowController {
         let inset = max(24, (work.height - height) / 2)
         let originY = min(max(work.maxY - inset - height, work.minY), work.maxY - height)
         window.setFrame(NSRect(x: work.maxX - width, y: originY, width: width, height: height), display: true)
+        contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
+    }
+
+    /// Port of `EnsureStripPlaced` (`EdgeStackWindow.xaml.cs:908-917`), SPEC-DELTA-5 §1.1 L-7: a
+    /// showing of a strip that has already been placed settles the height of the list and brings the
+    /// rectangle back onto the screen **only** if it has left it. The width, the left edge and the
+    /// top edge are the user's from here on: a strip dragged away from the edge used to jump back to
+    /// it after every capture.
+    private func ensureStripPlaced() {
+        guard let window else { return }
+        applyListHeight()
+        let width = window.frame.width
+        contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: contentContainer.windowHeight())
+        contentContainer.layoutSubtreeIfNeeded()
+
+        let height = contentContainer.windowHeight()
+        let work = workArea(for: window)
+        // The top edge is held and the window grows downwards, as `layoutWindow()` does it; the
+        // rectangle handed to Core is therefore the one the window is about to have, not the one it
+        // has now. `restoreRect` knows Foundation alone, so it is given eight numbers (§2.5).
+        let placed = StripResizeGeometry.restoreRect(
+            x: Double(window.frame.minX), y: Double(window.frame.maxY - height),
+            width: Double(width), height: Double(height),
+            workX: Double(work.minX), workY: Double(work.minY),
+            workWidth: Double(work.width), workHeight: Double(work.height))
+        window.setFrame(
+            NSRect(x: CGFloat(placed.x), y: CGFloat(placed.y), width: width, height: height), display: true)
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
     }
 
