@@ -375,6 +375,27 @@ extension OverlayEditorController {
         return ok
     }
 
+    /// The rules of the interpolation (SPEC-DELTA-5-editor.md §1.2 H-2, §4.2, the analogue of
+    /// `VerifyScalingRules`): the mode is not kept on the view, so the pure function that decides it
+    /// is what the probe asks, at the four ratios the editor really draws at.
+    @discardableResult
+    func smokeVerifyScalingRules() -> Bool {
+        // Fitted below its own size: averaged, or a dark photograph comes out as grit.
+        var ok = AnnotationCanvasView.interpolation(ratio: 0.312) == .high
+        ok = ok && AnnotationCanvasView.interpolation(ratio: 0.5) == .high
+        // At its own size and above: pixel for pixel, or the seam of two monitors is smeared.
+        ok = ok && AnnotationCanvasView.interpolation(ratio: 1) == .none
+        ok = ok && AnnotationCanvasView.interpolation(ratio: 2) == .none
+        // And the picture the editor has on screen right now obeys the same rule.
+        if let canvasView, let capture, capture.image.width > 0 {
+            canvasView.recomputeImageRect()
+            let ratio = canvasView.imageRect.width / CGFloat(capture.image.width)
+            let expected: NSImageInterpolation = ratio >= 0.999 ? .none : .high
+            ok = ok && AnnotationCanvasView.interpolation(ratio: ratio) == expected
+        }
+        return ok
+    }
+
     /// [ТЗ№4 D1] The spectrum, the eyedropper and the "+" belong to every palette, and "+" puts the
     /// colour in force into the own one without moving the row out from under the hand.
     @discardableResult

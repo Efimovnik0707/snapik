@@ -22,6 +22,7 @@ extension SmokeTestRunner {
             EditorSyncProbeResult(name: "editor: the colour goes to the tool in the hand", passed: controller.smokeVerifyOneActiveColor()),
             // The probes sync 5 adds (SPEC-DELTA-5-editor.md §4.2).
             EditorSyncProbeResult(name: "editor: every tool remembers its own settings", passed: controller.smokeVerifyToolMemory()),
+            EditorSyncProbeResult(name: "editor: the rules of the interpolation", passed: controller.smokeVerifyScalingRules()),
             EditorSyncProbeResult(name: "editor: the spectrum and the eyedropper come with every palette", passed: controller.smokeVerifyPalettes()),
             EditorSyncProbeResult(name: "editor: the comment tool grabs what is already there", passed: controller.smokeVerifyCommentGrab()),
             EditorSyncProbeResult(name: "editor: the pattern of a stroke survives a copy and the export", passed: controller.smokeVerifyLineStyleRoundTrip()),

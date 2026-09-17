@@ -13,6 +13,15 @@ import SnapikCore
 
 @MainActor
 extension AnnotationCanvasView {
+    /// Port of `ApplyScalingMode` (`AnnotationCanvas.cs:267-275`, SPEC-DELTA-5-editor.md §1.2 H-2):
+    /// the mode is chosen by the size the picture is really drawn at and not by whether the view has
+    /// a scale of its own. A picture at its own size or above shows its own pixels; a picture shrunk
+    /// to fit is averaged, because throwing pixels away turns dark photographic texture into grit.
+    /// `.default` is not used at all: it is the linear mode that made that grit in the first place.
+    static func interpolation(ratio: CGFloat) -> NSImageInterpolation {
+        ratio >= 0.999 ? .none : .high
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext, let capture else { return }
         recomputeImageRect()
@@ -26,7 +35,8 @@ extension AnnotationCanvasView {
         // reads the interpolation off the context and blits upright in a flipped view — a plain
         // `CGContext.draw` would need the anti-flip of `macos/README.md` around it.
         let interpolation = NSGraphicsContext.current?.imageInterpolation
-        NSGraphicsContext.current?.imageInterpolation = viewScale == nil ? .default : .none
+        NSGraphicsContext.current?.imageInterpolation = Self.interpolation(
+            ratio: imageRect.width / CGFloat(max(1, displayImage.width)))
         NSImage(cgImage: displayImage, size: imageRect.size).draw(in: imageRect)
         if let interpolation { NSGraphicsContext.current?.imageInterpolation = interpolation }
 
