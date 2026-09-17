@@ -97,7 +97,6 @@ extension OverlayEditorController {
         toolbar.onToolSelected = { [weak self] tool in
             if tool == .pen { self?.selectPencilTool() } else { self?.selectTool(tool) }
         }
-        toolbar.onQuickColor = { [weak self] color in self?.applyAppearanceNow(color: color) }
         toolbar.onDragBegan = { [weak self] point in self?.beginToolbarDrag(at: point) }
         toolbar.onDragMoved = { [weak self] point in self?.dragToolbarTo(point) }
         toolbar.onDragEnded = { [weak self] in self?.endToolbarDrag() }
@@ -156,30 +155,32 @@ extension OverlayEditorController {
     }
 
     private func wireToolbarActions(_ toolbar: EditorToolbarView) {
-        toolbar.appearanceButton.onClick = { [weak self, weak toolbar] in
+        // The capsule of the colour opens the outline; the square inside it opens the fill, and it
+        // is a view of its own so that the two presses are told apart (H-1).
+        toolbar.colorCapsule.onClick = { [weak self, weak toolbar] in
             guard let toolbar else { return }
-            self?.togglePopover(.color, relativeTo: toolbar.appearanceButton)
+            self?.togglePopover(.color, relativeTo: toolbar.colorCapsule)
         }
-        toolbar.thicknessButton.onClick = { [weak self, weak toolbar] in
-            guard let toolbar else { return }
-            self?.togglePopover(.thickness, relativeTo: toolbar.thicknessButton)
-        }
-        toolbar.lineStyleButton.onClick = { [weak self, weak toolbar] in
-            guard let toolbar else { return }
-            self?.togglePopover(.lineStyle, relativeTo: toolbar.lineStyleButton)
-        }
-        toolbar.fillButton.onClick = { [weak self, weak toolbar] in
+        toolbar.colorCapsule.fillSquare.onClick = { [weak self, weak toolbar] in
             guard let self, let toolbar else { return }
             // The fill belongs to a region: with another tool in the hand and nothing selected the
-            // button arms the region first, the way a pick in the shape menu does.
+            // square arms the region first, the way a pick in the shape menu does.
             if self.canvasView?.selectedAnnotation == nil, !EditorAppearance.hasFill(self.canvasView?.tool ?? .select) {
                 self.selectTool(.rectangle)
             }
-            self.togglePopover(.fill, relativeTo: toolbar.fillButton)
+            self.togglePopover(.fill, relativeTo: toolbar.colorCapsule.fillSquare)
         }
-        toolbar.fontSizeButton.onClick = { [weak self, weak toolbar] in
-            guard let toolbar else { return }
-            self?.togglePopover(.fontSize, relativeTo: toolbar.fontSizeButton)
+        // The second capsule opens whichever sheet it is showing: the width with the pattern under
+        // it, or the size of a caption. A capsule that shows nothing opens nothing.
+        toolbar.lineCapsule.onClick = { [weak self, weak toolbar] in
+            guard let self, let toolbar else { return }
+            let second = EditorInspector.inspectorViewOf(EditorInspector.inspectedTool(
+                selected: self.canvasView?.selectedAnnotation, armed: self.canvasView?.tool ?? .rectangle)).second
+            switch second {
+            case .none: return
+            case .fontSize: self.togglePopover(.fontSize, relativeTo: toolbar.lineCapsule)
+            case .line, .shape: self.togglePopover(.thickness, relativeTo: toolbar.lineCapsule)
+            }
         }
         toolbar.shortcutSheetButton.onClick = { [weak self, weak toolbar] in
             guard let toolbar else { return }
@@ -252,7 +253,7 @@ extension OverlayEditorController {
         let target = EditorMenuTarget(controller: self)
         let menu = NSMenu()
         let selected = canvasView.selectedAnnotation
-        let current = (selected?.kind == .rectangle || selected?.kind == .blur) ? selected?.shape ?? activeShape : activeShape
+        let current = (selected?.kind == .rectangle || selected?.kind == .blur) ? (selected?.shape ?? activeShape) : activeShape
 
         func add(_ shape: AnnotationShape, _ title: String) {
             let item = NSMenuItem(title: title, action: #selector(EditorMenuTarget.selectShape(_:)), keyEquivalent: "")
@@ -324,9 +325,10 @@ extension OverlayEditorController {
             menu.addItem(item)
         }
 
+        // Three styles and not four: the thick arrow is not offered any more (`Arrows.cs:15-17`).
+        // The value goes on being read out of a session written before this round (§3.1).
         add(EditorStrings.arrowStraight(language), "straight")
         add(EditorStrings.arrowCurved(language), "curved")
-        add(EditorStrings.arrowBold(language), "bold")
         add(EditorStrings.arrowWide(language), "wide")
         popUp(menu, from: anchor)
         endMenuEdit()

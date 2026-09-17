@@ -104,6 +104,22 @@ enum EditorStrings {
         "\(Int(points.rounded())) px"
     }
 
+    /// The size of a caption on the second capsule, e.g. "20 pt" (`LineCapsuleValue`).
+    static func pointLabel(_ points: Double) -> String {
+        "\(Int(points.rounded())) pt"
+    }
+
+    /// The short name of a shape, the one the second capsule carries (`ShapeName`,
+    /// `.Appearance.cs:357-362`). Short on purpose: the capsule is 105 points wide, and the menu of
+    /// the shapes says the long names.
+    static func shapeNameKey(_ shape: AnnotationShape) -> String {
+        switch shape {
+        case .rounded: return "Скруглённый"
+        case .ellipse: return "Овал"
+        case .rectangle: return "Прямоугольник"
+        }
+    }
+
     // Errors / notifications
     static func couldNotSaveCapture(_ language: String, _ message: String) -> String {
         "\(text("Не удалось сохранить снимок", language: language)): \(message)"

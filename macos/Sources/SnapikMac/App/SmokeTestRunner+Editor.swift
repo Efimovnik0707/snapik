@@ -19,7 +19,7 @@ extension SmokeTestRunner {
     @MainActor
     static func editorProbes(on controller: OverlayEditorController) -> [EditorSyncProbeResult] {
         [
-            EditorSyncProbeResult(name: "editor: one active colour for every tool", passed: controller.smokeVerifyOneActiveColor()),
+            EditorSyncProbeResult(name: "editor: the colour goes to the tool in the hand", passed: controller.smokeVerifyOneActiveColor()),
             EditorSyncProbeResult(name: "editor: the spectrum and the eyedropper come with every palette", passed: controller.smokeVerifyPalettes()),
             EditorSyncProbeResult(name: "editor: the comment tool grabs what is already there", passed: controller.smokeVerifyCommentGrab()),
             EditorSyncProbeResult(name: "editor: the pattern of a stroke survives a copy and the export", passed: controller.smokeVerifyLineStyleRoundTrip()),

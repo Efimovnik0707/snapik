@@ -48,12 +48,12 @@ extension OverlayEditorController {
         let annotation = EditorAnnotation(
             kind: .rectangle,
             points: [CGPoint(x: clamped.minX, y: clamped.minY), CGPoint(x: clamped.maxX, y: clamped.maxY)],
-            color: activeColor,
-            thickness: activeThickness,
+            color: armedAppearance.color,
+            thickness: armedAppearance.thickness,
             shape: activeShape,
-            fill: activeFill,
-            fillColor: activeFillColor,
-            lineStyle: activeLineStyle)
+            fill: armedAppearance.fill,
+            fillColor: armedAppearance.fillColor,
+            lineStyle: armedAppearance.lineStyle)
         capture.annotations.append(annotation)
         canvasView?.selectAnnotation(id: annotation.id)
         annotationCreated(annotation)
@@ -84,8 +84,8 @@ extension OverlayEditorController {
         canvasView.draft = EditorAnnotation(
             kind: .blur,
             points: [CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY)],
-            color: activeColor,
-            thickness: activeThickness)
+            color: armedAppearance.color,
+            thickness: armedAppearance.thickness)
 
         let during = renderCanvasSnapshotForSmokeTest(canvasView)
 
@@ -129,7 +129,7 @@ extension OverlayEditorController {
         let imageBounds = CGRect(x: 0, y: 0, width: capture.image.width, height: capture.image.height)
         guard imageBounds.contains(point) else { return nil }
 
-        let annotation = EditorAnnotation(kind: .comment, points: [point, point], color: activeColor, thickness: activeThickness)
+        let annotation = EditorAnnotation(kind: .comment, points: [point, point], color: armedAppearance.color, thickness: armedAppearance.thickness)
         capture.annotations.append(annotation)
         annotationCreated(annotation)
 
@@ -153,7 +153,7 @@ extension OverlayEditorController {
         let h = CGFloat(capture.image.height)
         guard w >= 60, h >= 60 else { return false }
 
-        let arrow = EditorAnnotation(kind: .arrow, points: [CGPoint(x: 10, y: 10), CGPoint(x: 60, y: 40)], color: activeColor, thickness: activeThickness)
+        let arrow = EditorAnnotation(kind: .arrow, points: [CGPoint(x: 10, y: 10), CGPoint(x: 60, y: 40)], color: armedAppearance.color, thickness: armedAppearance.thickness)
         capture.annotations.append(arrow)
         canvasView?.selectAnnotation(id: arrow.id)
         commentButtonClicked()
@@ -192,7 +192,7 @@ extension OverlayEditorController {
         // A caption is typed on the capture itself: the field stands over it and no pill is made.
         let textAnnotation = EditorAnnotation(
             kind: .text, points: [CGPoint(x: w * 0.3, y: h * 0.3), CGPoint(x: w * 0.3 + 80, y: h * 0.3 + 40)],
-            color: activeColor, thickness: activeThickness, text: "")
+            color: armedAppearance.color, thickness: armedAppearance.thickness, text: "")
         capture.annotations.append(textAnnotation)
         annotationCreated(textAnnotation)
         guard chipViews[textAnnotation.id] == nil, isEditingText, let field = textEditorView else { return false }
@@ -252,16 +252,24 @@ extension OverlayEditorController {
 
     // MARK: - Probes of sync 3 (SPEC-DELTA-3 §1.7 K-2)
 
-    /// [ТЗ№4 D1] One colour for every tool: a colour picked while the Comment tool is in the hand
-    /// reaches the canvas and is what the next frame is drawn with.
+    /// The colour goes to the tool in the hand and to nothing else (rule 2 of the round of 1.6.0):
+    /// it reaches the canvas, the capsule of the panel shows it, and the next frame is drawn with it.
+    /// A tool with no settings of its own — the Comment here — takes nothing at all, and the frame
+    /// keeps what it was set to.
     @discardableResult
     func smokeVerifyOneActiveColor() -> Bool {
         guard let canvasView, let capture else { return false }
-        selectTool(.comment)
+        selectTool(.rectangle)
         let picked = NSColor(srgbRed: 0x34 / 255, green: 0xC7 / 255, blue: 0x59 / 255, alpha: 1)
         applyAppearance(color: picked)
         guard EditorAppearance.sameColor(canvasView.activeColor, picked) else { return false }
-        guard EditorAppearance.sameColor(toolbarView?.appearanceButton.color ?? .black, picked) else { return false }
+        guard EditorAppearance.sameColor(toolbarView?.colorCapsule.strokeColor ?? .black, picked) else { return false }
+
+        // With the Comment in hand the block is there but dead, and a colour pressed on it changes
+        // nothing: the frame still carries the one it was given.
+        selectTool(.comment)
+        applyAppearance(color: NSColor(srgbRed: 0, green: 0, blue: 1, alpha: 1))
+        guard EditorAppearance.sameColor(appearance(of: .rectangle).color, picked) else { return false }
 
         selectTool(.rectangle)
         let w = CGFloat(capture.image.width)
@@ -282,9 +290,9 @@ extension OverlayEditorController {
     @discardableResult
     func smokeVerifyPalettes() -> Bool {
         guard let toolbarView else { return false }
-        for id in ["standard", "pastel", "custom"] {
+        for id in ["standard", "pastel", "neon", "custom"] {
             selectPalette(id)
-            togglePopover(.color, relativeTo: toolbarView.appearanceButton)
+            togglePopover(.color, relativeTo: toolbarView.colorCapsule)
             guard let popover = colorPopoverController else { return false }
             guard popover.isSpectrumVisible, popover.isEyedropperVisible else { return false }
             if id == "custom", popover.swatchCount != HotkeySettings.maxCustomPaletteColors { return false }
@@ -293,9 +301,10 @@ extension OverlayEditorController {
 
         customColors.removeAll()
         selectPalette("standard")
+        selectTool(.rectangle)
         let colour = NSColor(srgbRed: 0x2F / 255, green: 0x8C / 255, blue: 0xFF / 255, alpha: 1)
         applyAppearance(color: colour)
-        rememberCustomColor(activeColor)
+        rememberCustomColor(inspectedAppearance.color)
         // The row of the panel did not move: the standard palette is still the one showing.
         guard activePalette.id == "standard" else { return false }
         guard customColors.first == colour.hexRGB else { return false }
@@ -325,7 +334,7 @@ extension OverlayEditorController {
         selectTool(.comment)
         canvasView.recomputeImageRect()
         let anchor = CGPoint(x: w * 0.5, y: h * 0.5)
-        let pin = EditorAnnotation(kind: .comment, points: [anchor, CGPoint(x: anchor.x + 8, y: anchor.y + 8)], color: activeColor, thickness: activeThickness)
+        let pin = EditorAnnotation(kind: .comment, points: [anchor, CGPoint(x: anchor.x + 8, y: anchor.y + 8)], color: armedAppearance.color, thickness: armedAppearance.thickness)
         pin.label = "A1"
         capture.annotations.append(pin)
         canvasView.needsDisplay = true
@@ -347,7 +356,7 @@ extension OverlayEditorController {
         guard let capture else { return false }
         let annotation = EditorAnnotation(
             kind: .rectangle, points: [CGPoint(x: 10, y: 10), CGPoint(x: 90, y: 60)],
-            color: activeColor, thickness: 4, lineStyle: .dashed)
+            color: armedAppearance.color, thickness: 4, lineStyle: .dashed)
         capture.annotations.append(annotation)
         let core = annotation.toCore(imageWidth: capture.image.width, imageHeight: capture.image.height)
         let copied = annotation.clone()
@@ -364,7 +373,7 @@ extension OverlayEditorController {
         let h = CGFloat(capture.image.height)
         let filled = EditorAnnotation(
             kind: .rectangle, points: [CGPoint(x: w * 0.2, y: h * 0.2), CGPoint(x: w * 0.6, y: h * 0.6)],
-            color: activeColor, thickness: 4, fill: .blur)
+            color: armedAppearance.color, thickness: 4, fill: .blur)
         capture.annotations.append(filled)
         let baked = canvasView.applyBlurAnnotations(capture.image)
         guard baked !== capture.image else {
@@ -389,7 +398,7 @@ extension OverlayEditorController {
     func smokeVerifyCaptionSize() -> Bool {
         guard let canvasView, let capture else { return false }
         let annotation = EditorAnnotation(
-            kind: .text, points: [CGPoint(x: 20, y: 20)], color: activeColor, thickness: 4,
+            kind: .text, points: [CGPoint(x: 20, y: 20)], color: armedAppearance.color, thickness: 4,
             text: "Ag Привет", fontSize: 32)
         capture.annotations.append(annotation)
         canvasView.fitTextMark(annotation)
@@ -424,7 +433,7 @@ extension OverlayEditorController {
             x: 100, y: 100, width: 3840 * CGFloat(scale), height: 1125 * CGFloat(scale))
         let mark = EditorAnnotation(
             kind: .rectangle, points: [CGPoint(x: 3600, y: 500), CGPoint(x: 3800, y: 700)],
-            color: activeColor, thickness: activeThickness, note: "У правого края")
+            color: armedAppearance.color, thickness: armedAppearance.thickness, note: "У правого края")
         capture.annotations.append(mark)
         visibleChipIds.insert(mark.id)
         setupEditor()
@@ -509,7 +518,7 @@ extension OverlayEditorController {
         // The free width of the reference shot without the comments panel: everything in one row.
         toolbarView.maximumWidth = 1077
         var ok = toolbarView.sizeToFitContent().rows == .one
-        ok = ok && toolbarView.thicknessButton.frame.minY == toolbarView.doneButton.frame.minY
+        ok = ok && toolbarView.lineCapsule.frame.minY == toolbarView.doneButton.frame.minY
 
         // And with the comments panel: the properties go to the second row, the buttons stay on the
         // right of the first, and the chevrons of the split capsules stay with the tools.
@@ -517,7 +526,7 @@ extension OverlayEditorController {
         let wrapped = toolbarView.sizeToFitContent()
         ok = ok && wrapped.rows == .two
         ok = ok && wrapped.size.width <= 781
-        ok = ok && toolbarView.thicknessButton.frame.minY > toolbarView.doneButton.frame.minY
+        ok = ok && toolbarView.lineCapsule.frame.minY > toolbarView.doneButton.frame.minY
         ok = ok && toolbarView.doneButton.frame.minY == padding
         ok = ok && toolbarView.doneButton.frame.maxX <= wrapped.size.width - padding + 0.5
         for chevron in [toolbarView.shapeMenuButton, toolbarView.arrowOptionsButton, toolbarView.pencilMenuButton] {

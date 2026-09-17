@@ -254,27 +254,37 @@ final class EditorValuePopoverContentView: EditorPopoverContentView {
     let presetRow = EditorSegmentedRowView(frame: .zero)
     let slider = EditorSliderView(frame: .zero)
     let preview: NSView
+    /// The block of the pattern of a stroke, merged into this sheet with the round of 1.6.0
+    /// (SPEC-DELTA-5-editor.md §3.10). `nil` in the popover of the size of a caption, which has no
+    /// pattern to show.
+    let lineStyleLabel: NSTextField?
+    let lineStyleRow: EditorSegmentedRowView?
     private let previewHeight: CGFloat
     private let width: CGFloat
 
-    init(width: CGFloat, title: String, preview: NSView, previewHeight: CGFloat) {
+    init(width: CGFloat, title: String, preview: NSView, previewHeight: CGFloat, lineStyleTitle: String? = nil) {
         self.width = width
         self.preview = preview
         self.previewHeight = previewHeight
         titleLabel = EditorPopoverChrome.label(title, bold: true)
         valueLabel = EditorPopoverChrome.label("", color: EditorTheme.textSecondary9A, alignment: .right)
+        lineStyleLabel = lineStyleTitle.map { EditorPopoverChrome.label($0, bold: true) }
+        lineStyleRow = lineStyleTitle == nil ? nil : EditorSegmentedRowView(frame: .zero)
         super.init(frame: CGRect(x: 0, y: 0, width: width, height: 0))
         addSubview(titleLabel)
         addSubview(valueLabel)
         addSubview(presetRow)
         addSubview(slider)
         addSubview(preview)
+        if let lineStyleLabel { addSubview(lineStyleLabel) }
+        if let lineStyleRow { addSubview(lineStyleRow) }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     func fittingHeight() -> CGFloat {
-        outerPadding + 22 + 12 + 34 + 12 + 26 + 12 + previewHeight + outerPadding
+        let base = outerPadding + 22 + 12 + 34 + 12 + 26 + 12 + previewHeight + outerPadding
+        return lineStyleRow == nil ? base : base + 12 + 22 + 12 + 34
     }
 
     override func layout() {
@@ -289,6 +299,11 @@ final class EditorValuePopoverContentView: EditorPopoverContentView {
         slider.frame = CGRect(x: outerPadding, y: y, width: contentWidth, height: 26)
         y += 26 + 12
         preview.frame = CGRect(x: outerPadding, y: y, width: contentWidth, height: previewHeight)
+        guard let lineStyleLabel, let lineStyleRow else { return }
+        y += previewHeight + 12
+        lineStyleLabel.frame = CGRect(x: outerPadding, y: y, width: contentWidth, height: 22)
+        y += 22 + 12
+        lineStyleRow.frame = CGRect(x: outerPadding, y: y, width: contentWidth, height: 34)
     }
 }
 
@@ -299,13 +314,34 @@ final class EditorThicknessPopoverViewController: EditorPopoverViewController {
 
     var onPresetSelected: ((Double) -> Void)?
     var onSliderChanged: ((Double) -> Void)?
+    /// The pattern of a stroke is picked in this same sheet since 1.6.0.
+    var onStyleSelected: ((AnnotationLineStyle) -> Void)?
 
     init(language: String) {
         valueContent = EditorValuePopoverContentView(
-            width: 252, title: EditorStrings.thickness(language), preview: strokePreview, previewHeight: 36)
+            width: 252, title: EditorStrings.thickness(language), preview: strokePreview, previewHeight: 36,
+            lineStyleTitle: EditorStrings.lineStyle(language))
         super.init(content: valueContent)
         valueContent.slider.setAccessibilityLabel(EditorStrings.strokeThicknessAccessibilityName(language))
         valueContent.slider.onValueChanged = { [weak self] value in self?.onSliderChanged?(value) }
+
+        let titles: [(AnnotationLineStyle, String)] = [
+            (.solid, EditorStrings.lineSolid(language)),
+            (.dashed, EditorStrings.lineDashed(language)),
+            (.dotted, EditorStrings.lineDotted(language)),
+        ]
+        valueContent.lineStyleRow?.setSegments(
+            titles.map { style, title in
+                let segment = EditorSegmentView(tag: style.rawValue, tooltip: title)
+                segment.drawSample = { rect, color in
+                    guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+                    AnnotationPainter.strokePath(
+                        [[CGPoint(x: rect.minX + 6, y: rect.midY), CGPoint(x: rect.maxX - 6, y: rect.midY)]],
+                        in: ctx, color: color, thickness: 2, lineStyle: style, highlight: false)
+                }
+                segment.onClick = { [weak self] in self?.onStyleSelected?(style) }
+                return segment
+            })
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -315,7 +351,10 @@ final class EditorThicknessPopoverViewController: EditorPopoverViewController {
     /// Port of `SyncAppearance`'s thickness half (`Appearance.cs:282-311`): the four presets and the
     /// range of the slider belong to the tool in the hand — the pencil counts in a few pixels, the
     /// highlighter in tens of them.
-    func sync(presets: [Double], range: ClosedRange<Double>, value: Double, color: NSColor, lineStyle: AnnotationLineStyle, highlight: Bool, enabled: Bool) {
+    func sync(
+        presets: [Double], range: ClosedRange<Double>, value: Double, color: NSColor,
+        lineStyle: AnnotationLineStyle, highlight: Bool, enabled: Bool, patterned: Bool
+    ) {
         valueContent.presetRow.setSegments(
             presets.map { preset in
                 let segment = EditorSegmentView(tag: "\(Int(preset))", tooltip: EditorStrings.pixelLabel(preset))
@@ -340,84 +379,8 @@ final class EditorThicknessPopoverViewController: EditorPopoverViewController {
         strokePreview.lineStyle = lineStyle
         strokePreview.isHighlight = highlight
         strokePreview.strokeHidden = !enabled
-    }
-}
-
-// MARK: - Line style (E-2)
-
-/// Port of `LineStylePopup` (`xaml:353-377`): three segments and a preview of the pattern.
-final class EditorLineStylePopoverContentView: EditorPopoverContentView {
-    static let width: CGFloat = 252
-    let titleLabel: NSTextField
-    let segmentRow = EditorSegmentedRowView(frame: .zero)
-    let preview = EditorStrokePreviewView(frame: .zero)
-
-    init(language: String) {
-        titleLabel = EditorPopoverChrome.label(EditorStrings.lineStyle(language), bold: true)
-        super.init(frame: CGRect(x: 0, y: 0, width: Self.width, height: 0))
-        addSubview(titleLabel)
-        addSubview(segmentRow)
-        addSubview(preview)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    func fittingHeight() -> CGFloat { outerPadding + 22 + 12 + 34 + 12 + 36 + outerPadding }
-
-    override func layout() {
-        super.layout()
-        let contentWidth = Self.width - outerPadding * 2
-        var y = outerPadding
-        titleLabel.frame = CGRect(x: outerPadding, y: y, width: contentWidth, height: 22)
-        y += 22 + 12
-        segmentRow.frame = CGRect(x: outerPadding, y: y, width: contentWidth, height: 34)
-        y += 34 + 12
-        preview.frame = CGRect(x: outerPadding, y: y, width: contentWidth, height: 36)
-    }
-}
-
-@MainActor
-final class EditorLineStylePopoverViewController: EditorPopoverViewController {
-    private let styleContent: EditorLineStylePopoverContentView
-
-    var onStyleSelected: ((AnnotationLineStyle) -> Void)?
-
-    init(language: String) {
-        styleContent = EditorLineStylePopoverContentView(language: language)
-        super.init(content: styleContent)
-
-        let titles: [(AnnotationLineStyle, String)] = [
-            (.solid, EditorStrings.lineSolid(language)),
-            (.dashed, EditorStrings.lineDashed(language)),
-            (.dotted, EditorStrings.lineDotted(language)),
-        ]
-        styleContent.segmentRow.setSegments(
-            titles.map { style, title in
-                let segment = EditorSegmentView(tag: style.rawValue, tooltip: title)
-                segment.drawSample = { rect, color in
-                    guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-                    AnnotationPainter.strokePath(
-                        [[CGPoint(x: rect.minX + 6, y: rect.midY), CGPoint(x: rect.maxX - 6, y: rect.midY)]],
-                        in: ctx, color: color, thickness: 2, lineStyle: style, highlight: false)
-                }
-                segment.onClick = { [weak self] in self?.onStyleSelected?(style) }
-                return segment
-            })
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override func contentSize() -> NSSize {
-        NSSize(width: EditorLineStylePopoverContentView.width, height: styleContent.fittingHeight())
-    }
-
-    func sync(style: AnnotationLineStyle, color: NSColor, thickness: Double, enabled: Bool) {
-        styleContent.segmentRow.choose(style.rawValue)
-        styleContent.segmentRow.isEnabled = enabled
-        styleContent.preview.strokeColor = color
-        styleContent.preview.strokeThickness = CGFloat(thickness)
-        styleContent.preview.lineStyle = style
-        styleContent.preview.strokeHidden = !enabled
+        valueContent.lineStyleRow?.isEnabled = patterned
+        valueContent.lineStyleRow?.choose(lineStyle.rawValue)
     }
 }
 

@@ -82,18 +82,12 @@ final class OverlayEditorController {
     /// [ТЗ№4 D1] One active colour for everything the tool in the hand draws: the popover, the
     /// quick dots, the spectrum, the HEX field and the eyedropper all write here, with every tool
     /// in the hand (`tasks/tz-005-details/D-editor.md` §2.1).
-    var activeColor: NSColor = EditorTheme.defaultAnnotationColor
-    var activeThickness: Double = EditorAppearance.defaultAnnotationThickness
-    /// The highlighter is measured in tens of pixels and keeps a width of its own; the panel reads
-    /// and writes both through `activeThickness(for:)`/`setActiveThickness(_:for:)` (E-3).
-    var activeHighlightThickness: Double = EditorAppearance.defaultHighlightThickness
-    var activeFontSize: Double = TextMarkMetrics.defaultFontSize
-    /// [ТЗ№4 D1] The frame, the fill and its colour are **not** remembered between captures: every
-    /// capture starts with an outline, no fill and a rectangle (`D-editor.md` §2.5).
-    var activeShape: AnnotationShape = .rectangle
-    var activeFill: AnnotationFill = .none
-    var activeFillColor: NSColor?
-    var activeLineStyle: AnnotationLineStyle = .solid
+    /// The six sets of the panel (`_tools`, `.Appearance.cs:99-100`): every tool keeps its own
+    /// colour, thickness and the rest, read out of the settings file when the editor opens and
+    /// written back when it closes. The dictionary is never indexed straight — `appearance(of:)` is
+    /// the one door to it, because `select`, `crop`, `comment` and the eraser are not in it at all.
+    var tools: [EditorTool: ToolAppearance] = [:]
+
     /// Which half of the pencil capsule is armed (`_activePencil`).
     var activePencil: EditorTool = .pen
     /// The set of twelve colours the popover offers, and the own colours behind it.
@@ -112,12 +106,11 @@ final class OverlayEditorController {
     /// written to the settings file when the session closes (`_appearanceDefaultsChanged`).
     var appearanceDefaultsChanged = false
 
-    /// The one popover on screen, and which of the five it is.
+    /// The one popover on screen, and which of the four it is.
     var activePopover: NSPopover?
     var activePopoverKind: EditorPopoverKind?
     var colorPopoverController: EditorColorPopoverViewController?
     var thicknessPopoverController: EditorThicknessPopoverViewController?
-    var lineStylePopoverController: EditorLineStylePopoverViewController?
     var fillPopoverController: EditorFillPopoverViewController?
     var fontSizePopoverController: EditorFontSizePopoverViewController?
     var appearancePopoverDelegate: AppearancePopoverDelegateProxy?
@@ -205,12 +198,9 @@ final class OverlayEditorController {
         // palette and which half of the pencil capsule is armed (`D-editor.md` §2.5). The shape, the
         // fill and its colour are deliberately **not** read back — every capture starts with an
         // outline, no fill and a rectangle.
-        activeColor = EditorAppearance.parseColor(settings.annotationColor)
-        activeThickness = min(max(settings.annotationThickness, EditorAppearance.minimumThickness), EditorAppearance.maximumThickness)
-        activeHighlightThickness = min(
-            max(settings.annotationHighlightThickness, EditorAppearance.minimumHighlightThickness),
-            EditorAppearance.maximumHighlightThickness)
-        activeFontSize = TextMarkMetrics.clamp(settings.annotationFontSize)
+        // Rule 6 of the round: every tool opens with what it was last set to, and a file without
+        // the new key hands them all the old common values (SPEC-DELTA-5 §3.1).
+        tools = ToolAppearanceStore.read(settings)
         activePencil = EditorAppearance.parsePencil(settings.annotationPencil)
         customColors = settings.customPaletteColors
         activePalette = EditorAppearance.palette(for: settings)
@@ -262,7 +252,8 @@ final class OverlayEditorController {
         if !editorCapture.note.isEmpty {
             editorCapture.annotations.append(EditorAnnotation(
                 kind: .comment, points: [CGPoint(x: 24, y: 24), CGPoint(x: 32, y: 32)],
-                color: activeColor, thickness: activeThickness, note: editorCapture.note))
+                color: armedAppearance.color, thickness: armedAppearance.thickness,
+                note: editorCapture.note))
             editorCapture.note = ""
         }
         self.capture = editorCapture

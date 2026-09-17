@@ -55,10 +55,21 @@ enum EditorAppearance {
         ],
         quick: ["#2F8CFF", "#FF4D4F", "#FFBE2E", "#28BE80", "#FFFFFF"])
 
+    /// The fourth set of the round of 1.6.0: the colours that carry over a dark screenshot without
+    /// being read as a part of it.
+    static let neonPalette = EditorPalette(
+        id: "neon", nameKey: "Неон",
+        colors: [
+            "#39FF14", "#00FFF0", "#FF00E6", "#FFE600", "#FF6B00", "#7CFF00",
+            "#00A3FF", "#FF2D55", "#FFFFFF", "#000000", "#B026FF", "#00FF9D",
+        ],
+        quick: ["#39FF14", "#00FFF0", "#FF00E6", "#FFE600", "#FFFFFF"])
+
     /// The own palette holds no colours of its own: they are the ones the user picked, they live in
     /// the settings file, and `customPalette` puts them in.
     static let palettes: [EditorPalette] = [
-        standardPalette, pastelPalette, EditorPalette(id: "custom", nameKey: "Своя", colors: [], quick: []),
+        standardPalette, pastelPalette, neonPalette,
+        EditorPalette(id: "custom", nameKey: "Своя", colors: [], quick: []),
     ]
 
     static func customPalette(_ colours: [String]) -> EditorPalette {
@@ -80,31 +91,15 @@ enum EditorAppearance {
 
     // MARK: - What a tool carries (`Appearance.cs:37-48`)
 
-    /// Port of `HasStroke` (`:38`), minus the `HasColor` gate that [ТЗ№4 D1] removes: a caption has
-    /// no thickness, everything else that draws a line has one. The colour itself is accepted by
-    /// every tool now, so there is no `HasColor` any more (`D-editor.md` §2.1).
-    static func hasStroke(_ tool: EditorTool) -> Bool {
-        switch tool {
-        case .rectangle, .arrow, .pen, .highlight: return true
-        default: return false
-        }
-    }
+    // `HasStroke`, `HasFontSize` and `HasLineStyle` are gone with the round of 1.6.0: what the
+    // properties block shows is the fields of `InspectorView`, and the pattern of a stroke is asked
+    // of `StrokePattern.participates` where both renderers read it (`.Appearance.cs:204-357`).
 
     /// The frame is shared by a region and by a blur: one shape is remembered for both. What stands
     /// inside the frame belongs to the region alone, a blur has its own picture inside it.
     static func hasShape(_ tool: EditorTool) -> Bool { tool == .rectangle || tool == .blur }
 
     static func hasFill(_ tool: EditorTool) -> Bool { tool == .rectangle }
-
-    /// The size of the letters belongs to a caption, and to nothing else on the panel.
-    static func hasFontSize(_ tool: EditorTool) -> Bool { tool == .text }
-
-    /// The pattern of a stroke belongs to the marks that are drawn with one: the frame and the oval,
-    /// the arrow and the pencil. The highlighter is left out on purpose — a dashed highlighter falls
-    /// apart into blots.
-    static func hasLineStyle(_ tool: EditorTool) -> Bool {
-        StrokePattern.participates(EditorAnnotation.coreKind(of: tool))
-    }
 
     /// The thickness the panel works on: the highlighter keeps one of its own, everything else with
     /// a stroke shares the other (`ThicknessPresetsFor`).

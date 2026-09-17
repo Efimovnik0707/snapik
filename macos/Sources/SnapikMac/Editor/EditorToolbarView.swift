@@ -102,66 +102,99 @@ final class ToolbarChevronButtonView: ToolbarButtonBaseView {
     }
 }
 
-/// A fixed-width button carrying a value that is never blanked (`ThicknessButton`, `LineStyleButton`,
-/// `FillButton`, `FontSizeButton`): SPEC-DELTA-3 §1.4 E-11 — the panel must not change width when
-/// the tool in the hand changes, so a tool without the property keeps the last value, dimmed.
-final class ToolbarValueButtonView: ToolbarButtonBaseView {
-    private let label = NSTextField(labelWithString: "")
-    private let previewWidth: CGFloat
-    /// Draws whatever stands to the left of the caption, inside the rect it is given.
-    var drawPreview: ((CGRect) -> Void)?
+/// The first capsule of the properties block (`ColorCapsule`, `xaml:272-292`): the circle of the
+/// colour of the outline and, beside it, the square of what stands inside the mark. The square is a
+/// view of its own with a press of its own, so that a click on it opens the fill and a click on the
+/// rest of the capsule opens the outline (SPEC-DELTA-5-editor.md §1.2 E-3, H-1).
+final class ToolbarColorCapsuleView: ToolbarButtonBaseView {
+    static let width: CGFloat = 63
 
-    var text: String {
-        get { label.stringValue }
-        set {
-            label.stringValue = newValue
-            needsLayout = true
+    var strokeColor: NSColor = EditorTheme.defaultAnnotationColor { didSet { needsDisplay = true } }
+    /// The square of the fill stands only for the marks that have one; the capsule keeps its width
+    /// either way, so the block never changes size with the tool in the hand.
+    var showsFillSquare = true {
+        didSet {
+            fillSquare.isHidden = !showsFillSquare
             needsDisplay = true
         }
     }
 
-    init(width: CGFloat, tooltip: String, previewWidth: CGFloat = 0) {
-        self.previewWidth = previewWidth
-        super.init(frame: CGRect(x: 0, y: 0, width: width, height: 36))
+    let fillSquare = ToolbarFillSquareView(frame: CGRect(x: 0, y: 0, width: 18, height: 18))
+
+    init(tooltip: String) {
+        super.init(frame: CGRect(x: 0, y: 0, width: Self.width, height: 36))
         toolTip = tooltip
         setAccessibilityLabel(tooltip)
-        label.font = EditorTheme.systemFont(13)
-        label.textColor = EditorTheme.textPrimary
-        label.backgroundColor = .clear
-        label.isBezeled = false
-        label.isEditable = false
-        label.isSelectable = false
-        addSubview(label)
+        addSubview(fillSquare)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func layout() {
         super.layout()
-        let size = label.attributedStringValue.size()
-        let contentWidth = previewWidth > 0 ? previewWidth + 7 + size.width : size.width
-        let left = (bounds.width - contentWidth) / 2
-        label.frame = CGRect(
-            x: left + (previewWidth > 0 ? previewWidth + 7 : 0), y: (bounds.height - size.height) / 2,
-            width: size.width, height: size.height)
+        fillSquare.frame = CGRect(x: 10 + 18 + 7, y: (bounds.height - 18) / 2, width: 18, height: 18)
     }
 
     override func drawContent() {
-        guard previewWidth > 0, let drawPreview else { return }
-        let size = label.attributedStringValue.size()
-        let contentWidth = previewWidth + 7 + size.width
-        let left = (bounds.width - contentWidth) / 2
-        drawPreview(CGRect(x: left, y: (bounds.height - 14) / 2, width: previewWidth, height: 14))
+        let circle = NSBezierPath(ovalIn: CGRect(x: 10, y: bounds.midY - 9, width: 18, height: 18))
+        strokeColor.setFill()
+        circle.fill()
+        circle.lineWidth = 1
+        EditorTheme.textSecondaryD9.setStroke()
+        circle.stroke()
     }
 }
 
-/// The colour button: a circle and nothing else (`AppearanceButton`, `xaml:229-231`). [ТЗ№4 D1] it
-/// is never disabled — a colour is accepted with every tool in the hand, the Comment included.
-final class ToolbarSwatchButtonView: ToolbarButtonBaseView {
-    var color: NSColor = EditorTheme.defaultAnnotationColor { didSet { needsDisplay = true } }
+/// The square inside the capsule of the colour (`FillSquare`, `FillSquareNone`, `FillSquareBlur`):
+/// what stands inside the mark, and the door to the popover of the fill.
+final class ToolbarFillSquareView: ToolbarButtonBaseView {
+    var fill: AnnotationFill = AnnotationFill.none { didSet { needsDisplay = true } }
+    var fillColor: NSColor = EditorTheme.defaultAnnotationColor { didSet { needsDisplay = true } }
+
+    override func drawContent() {
+        let square = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 4, yRadius: 4)
+        switch fill {
+        case .solid:
+            fillColor.setFill()
+            square.fill()
+        case .translucent:
+            fillColor.withAlphaComponent(64.0 / 255.0).setFill()
+            square.fill()
+        case .blur:
+            EditorTheme.blurPreviewFill.setFill()
+            square.fill()
+        case .none:
+            break
+        }
+        square.lineWidth = 1
+        EditorTheme.textSecondaryD9.setStroke()
+        square.stroke()
+        guard fill == .none else { return }
+        // A stroke across the square is "nothing inside", the way the reference draws it.
+        let slash = NSBezierPath()
+        slash.move(to: CGPoint(x: bounds.minX + 3, y: bounds.maxY - 3))
+        slash.line(to: CGPoint(x: bounds.maxX - 3, y: bounds.minY + 3))
+        slash.lineWidth = 1.6
+        NSColor(hex: "#FF5C5C").setStroke()
+        slash.stroke()
+    }
+}
+
+/// The second capsule of the properties block (`LineCapsule`, `xaml:293-305`): the width and the
+/// pattern of a stroke, the size of a caption, or the shape a mark is cut in — one capsule for the
+/// three of them, as the reference draws it.
+final class ToolbarLineCapsuleView: ToolbarButtonBaseView {
+    static let width: CGFloat = 105
+
+    /// `A` for the size of a caption, `▢` for a shape, nothing for a stroke.
+    var glyph = "" { didSet { needsDisplay = true } }
+    var value = "" { didSet { needsDisplay = true } }
+    /// Zero hides the sample of the stroke: only the width of a stroke carries one.
+    var sampleThickness: CGFloat = 0 { didSet { needsDisplay = true } }
+    var sampleLineStyle: AnnotationLineStyle = .solid { didSet { needsDisplay = true } }
 
     init(tooltip: String) {
-        super.init(frame: CGRect(x: 0, y: 0, width: 36, height: 36))
+        super.init(frame: CGRect(x: 0, y: 0, width: Self.width, height: 36))
         toolTip = tooltip
         setAccessibilityLabel(tooltip)
     }
@@ -169,12 +202,31 @@ final class ToolbarSwatchButtonView: ToolbarButtonBaseView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func drawContent() {
-        let circle = NSBezierPath(ovalIn: CGRect(x: bounds.midX - 8, y: bounds.midY - 8, width: 16, height: 16))
-        color.setFill()
-        circle.fill()
-        circle.lineWidth = 1
-        EditorTheme.textPrimary.setStroke()
-        circle.stroke()
+        var x: CGFloat = 10
+        if !glyph.isEmpty {
+            let text = NSAttributedString(
+                string: glyph,
+                attributes: [.font: EditorTheme.systemFont(13), .foregroundColor: EditorTheme.textSecondaryD9])
+            let size = text.size()
+            text.draw(at: CGPoint(x: x, y: bounds.midY - size.height / 2))
+            x += size.width + 6
+        }
+        if !value.isEmpty {
+            let text = NSAttributedString(
+                string: value,
+                attributes: [.font: EditorTheme.systemFont(12), .foregroundColor: EditorTheme.textPrimary])
+            let size = text.size()
+            text.draw(at: CGPoint(x: x, y: bounds.midY - size.height / 2))
+            x += size.width + 6
+        }
+        let chevron = CGRect(x: bounds.maxX - 19, y: bounds.midY - 3, width: 9, height: 6)
+        EditorIcon.draw(symbol: EditorIcon.chevronDown, in: chevron, color: contentColor, pointSize: 9, weight: .semibold)
+        guard sampleThickness > 0, let ctx = NSGraphicsContext.current?.cgContext else { return }
+        let sample = CGRect(x: max(x, chevron.minX - 28), y: bounds.midY - 3, width: 22, height: 6)
+        AnnotationPainter.strokePath(
+            [[CGPoint(x: sample.minX, y: sample.midY), CGPoint(x: sample.maxX, y: sample.midY)]],
+            in: ctx, color: EditorTheme.textSecondaryD9, thickness: Double(sampleThickness),
+            lineStyle: sampleLineStyle, highlight: false)
     }
 }
 
@@ -295,12 +347,10 @@ final class EditorToolbarView: NSView {
     let eraserButton: ToolbarToggleButtonView
     let blurButton: ToolbarToggleButtonView
     let cropButton: ToolbarToggleButtonView
-    let colorDotsView = NSView(frame: .zero)
-    let appearanceButton: ToolbarSwatchButtonView
-    let thicknessButton: ToolbarValueButtonView
-    let lineStyleButton: ToolbarValueButtonView
-    let fillButton: ToolbarValueButtonView
-    let fontSizeButton: ToolbarValueButtonView
+    /// The properties block is two capsules and no more (`E §1.2 E-3`): the colour of the outline
+    /// with the square of the fill inside it, and the width, the size or the shape beside it.
+    let colorCapsule: ToolbarColorCapsuleView
+    let lineCapsule: ToolbarLineCapsuleView
     let commentButton: ToolbarToggleButtonView
     let shortcutSheetButton: ToolbarActionButtonView
     let undoButton: ToolbarActionButtonView
@@ -310,8 +360,6 @@ final class EditorToolbarView: NSView {
     private let divider = ToolbarDividerView(frame: .zero)
 
     private var toolButtons: [ToolbarToggleButtonView] = []
-    private var dotViews: [ToolbarColorDotView] = []
-    private var dotHexes: [String] = []
     /// The three blocks of the panel (`ToolbarTools`, `ToolbarProperties`, `ToolbarActions`,
     /// `xaml:212-221`): the tools, the properties of the one in hand and the buttons on the right.
     /// They are laid out apart, and the properties are the block that goes to the second row.
@@ -320,7 +368,6 @@ final class EditorToolbarView: NSView {
     private var actionsOrder: [NSView] = []
 
     var onToolSelected: ((EditorTool) -> Void)?
-    var onQuickColor: ((NSColor) -> Void)?
     /// The panel is dragged by its free place; the three are separate so that a probe can move it
     /// without an `NSEvent` to carry a pointer (SPEC-DELTA-5-editor.md §1.2 E-2). Points are in the
     /// space of the superview, which is the one the frame of the panel lives in.
@@ -351,11 +398,12 @@ final class EditorToolbarView: NSView {
         eraserButton = toggle(.eraser, EditorIcon.eraser)
         blurButton = toggle(.blur, nil, EditorIcon.blurPath)
         cropButton = toggle(.crop, EditorIcon.crop)
-        appearanceButton = ToolbarSwatchButtonView(tooltip: EditorStrings.colorHeading(language))
-        thicknessButton = ToolbarValueButtonView(width: 64, tooltip: EditorStrings.thickness(language))
-        lineStyleButton = ToolbarValueButtonView(width: 64, tooltip: EditorStrings.lineStyle(language), previewWidth: 28)
-        fillButton = ToolbarValueButtonView(width: 96, tooltip: EditorStrings.fill(language), previewWidth: 20)
-        fontSizeButton = ToolbarValueButtonView(width: 64, tooltip: EditorStrings.fontSize(language))
+        // Built apart and assigned: nothing of `self` may be read before `super.init`.
+        let capsule = ToolbarColorCapsuleView(tooltip: EditorStrings.colorHeading(language))
+        capsule.fillSquare.toolTip = EditorStrings.fill(language)
+        capsule.fillSquare.setAccessibilityLabel(EditorStrings.fill(language))
+        colorCapsule = capsule
+        lineCapsule = ToolbarLineCapsuleView(tooltip: EditorStrings.thickness(language))
         commentButton = toggle(.comment, EditorIcon.comment)
         shortcutSheetButton = ToolbarActionButtonView(symbolName: EditorIcon.shortcutSheet, tooltip: EditorStrings.shortcutSheet(language), width: 30)
         // Undo/redo/save show the Mac keyboard mapping (§7.6: Cmd+Z / Shift+Cmd+Z / Cmd+S), appended
@@ -378,19 +426,12 @@ final class EditorToolbarView: NSView {
                 self?.onToolSelected?(button.tool)
             }
         }
-        thicknessButton.text = EditorStrings.pixelLabel(EditorAppearance.defaultAnnotationThickness)
-        fontSizeButton.text = EditorStrings.pixelLabel(TextMarkMetrics.defaultFontSize)
-        fillButton.text = EditorStrings.fillOutline(language)
-
         toolsOrder = [
             selectButton, rectangleButton, shapeMenuButton, arrowButton, arrowOptionsButton,
             pencilButton, pencilMenuButton, textButton, eraserButton, blurButton, cropButton,
             commentButton, shortcutSheetButton,
         ]
-        propertiesOrder = [
-            colorDotsView, appearanceButton, thicknessButton, lineStyleButton, fillButton,
-            fontSizeButton,
-        ]
+        propertiesOrder = [colorCapsule, lineCapsule]
         actionsOrder = [divider, undoButton, redoButton, saveButton, doneButton]
         for view in toolsOrder + propertiesOrder + actionsOrder { addSubview(view) }
         setActiveTool(.rectangle)
@@ -415,36 +456,6 @@ final class EditorToolbarView: NSView {
     func setUndoRedoEnabled(canUndo: Bool, canRedo: Bool) {
         undoButton.isEnabled = canUndo
         redoButton.isEnabled = canRedo
-    }
-
-    /// Port of `BuildColorDots` (`Appearance.cs:220-240`): the quick row of the active palette. The
-    /// row is rebuilt only when the palette behind it changed — every sync of the panel calls this,
-    /// and a colour dragged through the spectrum syncs on every move of the mouse.
-    func setQuickColors(_ hexes: [String], current: NSColor) {
-        guard dotHexes != hexes else {
-            setCurrentQuickColor(current)
-            return
-        }
-        dotHexes = hexes
-        for dot in dotViews { dot.removeFromSuperview() }
-        dotViews = hexes.compactMap { hex in
-            guard let color = EditorAppearance.color(fromHex: hex) else { return nil }
-            let dot = ToolbarColorDotView(color: color, tooltip: hex)
-            dot.onClick = { [weak self] in self?.onQuickColor?(color) }
-            return dot
-        }
-        for dot in dotViews { colorDotsView.addSubview(dot) }
-        colorDotsView.frame.size = NSSize(width: max(0, CGFloat(dotViews.count) * 24), height: 36)
-        var x: CGFloat = 0
-        for dot in dotViews {
-            dot.frame = CGRect(x: x + 1, y: 7, width: 22, height: 22)
-            x += 24
-        }
-        setCurrentQuickColor(current)
-    }
-
-    func setCurrentQuickColor(_ color: NSColor) {
-        for dot in dotViews { dot.isCurrent = EditorAppearance.sameColor(dot.color, color) }
     }
 
     // MARK: - Layout (SPEC-DELTA-5-editor.md §1.2 E-2, `xaml.cs:1926-1962`)
