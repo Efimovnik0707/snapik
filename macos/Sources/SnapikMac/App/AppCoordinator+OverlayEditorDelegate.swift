@@ -118,6 +118,23 @@ extension AppCoordinator: OverlayEditorDelegate {
         notificationService.notify("Снимок сохранён", language: language)
     }
 
+    /// Port of `OnCopyImageClick`'s call into the strip (`OverlayEditorWindow.Save.cs:61-88`),
+    /// SPEC-DELTA-5 §2.4: the editor asks for the capture it is showing to be copied on its own, and
+    /// is told whether it reached the clipboard — the strip is hidden while the editor is up, so its
+    /// toast is seen by nobody and the editor says the answer on its own plate.
+    ///
+    /// A translator and nothing else: the letter belongs to the strip (a sent capture has none of
+    /// its own, `singleCaptureLabel(for:)`), and the editor neither knows it nor should. A capture
+    /// that is still being taken has no card yet, and the answer is `false`, exactly as Windows
+    /// answers nothing at all when `_capture is null`.
+    func overlayEditorCopiesSingleCapture(_ editor: OverlayEditorController) async -> Bool {
+        guard
+            let captureId = overlayCaptureId,
+            let capture = workspace.session.captures.first(where: { $0.id == captureId })
+        else { return false }
+        return await copySingleCapture(capture, label: singleCaptureLabel(for: capture))
+    }
+
     /// Port of `AutoSaveCaptureAsync` (SPEC-DELTA-2.md §1.8, SPEC-DELTA-2B.md §E3): renders and
     /// writes the just-committed capture to the user's save folder when "Автоматически сохранять
     /// готовые снимки" is on. Never interrupts the capture flow — a failure only sets status text.

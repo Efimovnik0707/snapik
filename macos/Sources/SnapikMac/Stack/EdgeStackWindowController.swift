@@ -642,6 +642,34 @@ extension EdgeStackWindowController: EdgeStackContentViewDelegate {
         runResize(kind: kind, startEvent: event)
     }
 
+    /// Port of `OnCaptureListRightClick` (`:1984-1998`), SPEC-DELTA-5 §1.2 L-13: three items and a
+    /// separator, built in code and not in a resource, so the language of the moment reaches them —
+    /// the same reason Windows builds its own `ContextMenu` by hand. "Удалить" goes to the method the
+    /// cross of the card already goes to, so the undo toast belongs to this delete as well.
+    func edgeStackContent(_ view: EdgeStackContentView, menuForCaptureId id: SBGuid) -> NSMenu? {
+        guard let coordinator,
+            let capture = coordinator.workspace.session.captures.first(where: { $0.id == id })
+        else { return nil }
+        let language = coordinator.language
+        let label = coordinator.singleCaptureLabel(for: capture)
+        let menu = NSMenu()
+        menu.addItem(
+            makeItem("Копировать снимок", language: language) {
+                Task { @MainActor in await coordinator.copySingleCapture(capture, label: label) }
+            })
+        menu.addItem(
+            makeItem("Сохранить снимок…", language: language) {
+                Task { @MainActor in await coordinator.saveSingleCaptureAs(capture, label: label) }
+            })
+        menu.addItem(.separator())
+        menu.addItem(
+            makeItem("Удалить", language: language) { [weak self] in
+                self?.awaitingDeleteToast = true
+                Task { @MainActor in await coordinator.removeCapture(id) }
+            })
+        return menu
+    }
+
     /// Port of `OnCaptureThumbMouseEnter`/`OnCaptureListMouseWheel` (SPEC-DELTA-2 §1.6): the
     /// hover/scroll tick, throttled and suppressed after the shutter by `UiSoundService` itself.
     func edgeStackContentDidRequestTickSound(_ view: EdgeStackContentView) {

@@ -25,6 +25,9 @@ protocol EdgeStackContentViewDelegate: AnyObject {
     /// bar and the grips take the press for themselves before it gets here.
     func edgeStackContent(_ view: EdgeStackContentView, didRequestDragWith event: NSEvent)
     func edgeStackContent(_ view: EdgeStackContentView, didRequestResize kind: StackResizeKind, with event: NSEvent)
+    /// The menu of the right button on a card (SPEC-DELTA-5 §1.2 L-13): built where the language and
+    /// the session are, by the same `makeItem` the "•••" menu is built with.
+    func edgeStackContent(_ view: EdgeStackContentView, menuForCaptureId id: SBGuid) -> NSMenu?
     /// Port of `OnCaptureThumbMouseEnter`/`OnCaptureListMouseWheel` (SPEC-DELTA-2 §1.6): the
     /// hover/scroll tick, which needs `AppSettings.playSounds` — something only the coordinator
     /// (through `EdgeStackWindowController`) knows about.
@@ -689,6 +692,11 @@ extension EdgeStackContentView: ThumbnailCardViewDelegate {
         guard let index = cardViews.firstIndex(where: { $0 === card }) else { return }
         setSelectedCapture(rows[index].id)
         delegate?.edgeStackContent(self, didOpenCaptureId: rows[index].id)
+    }
+
+    func thumbnailCardMenu(_ card: ThumbnailCardView) -> NSMenu? {
+        guard let index = cardViews.firstIndex(where: { $0 === card }), index < rows.count else { return nil }
+        return delegate?.edgeStackContent(self, menuForCaptureId: rows[index].id)
     }
 
     func thumbnailCardDidRequestRemove(_ card: ThumbnailCardView) {

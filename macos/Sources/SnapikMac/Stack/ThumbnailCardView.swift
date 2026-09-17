@@ -89,6 +89,9 @@ protocol ThumbnailCardViewDelegate: AnyObject {
     /// Fired on `mouseEntered`/`mouseExited`, so the container can re-run its accordion layout
     /// (`EdgeStackContentView.layoutCards`) and play the hover tick sound.
     func thumbnailCard(_ card: ThumbnailCardView, hoverDidChange isHovered: Bool)
+    /// The menu of the right button (SPEC-DELTA-5 §1.2 L-13). Built by the window controller, which
+    /// is the one that knows the language, the session and the capture behind the card.
+    func thumbnailCardMenu(_ card: ThumbnailCardView) -> NSMenu?
 }
 
 /// One capture of the strip: the thumbnail full bleed at 0.86, a **top** strip ([ТЗ№4 C1]) with the
@@ -388,6 +391,14 @@ final class ThumbnailCardView: NSView {
     /// crossed) from "reorder drag" (SPEC §1.9).
     override func mouseDown(with event: NSEvent) {
         delegate?.thumbnailCard(self, didBeginDragWith: event)
+    }
+
+    /// SPEC-DELTA-5 §1.2 L-13: the AppKit idiom for the right button, which also catches Ctrl+click
+    /// and puts the menu where the pointer is. On the card and not on the list, or the menu would
+    /// open over the gaps between the cards as well; the left-button tracking loop of the reorder
+    /// drag never sees these events, because it waits for `.leftMouseDragged`/`.leftMouseUp`.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        delegate?.thumbnailCardMenu(self)
     }
 
     @objc private func removeClicked() { delegate?.thumbnailCardDidRequestRemove(self) }

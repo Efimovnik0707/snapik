@@ -50,6 +50,12 @@ final class AppCoordinator {
     /// used from `AppCoordinator+Package.swift`.
     var ownedClipboardReceipt: ClipboardSnapshot?
     var ownedClipboardPromptText: String?
+    /// SPEC-DELTA-5 §2.3: whether what lies on the clipboard is **one** capture copied on its own
+    /// (`copySingleCapture`) rather than a package. Windows keeps two fields of this, one on the
+    /// clipboard and one on the published package; there is no `PublishedPackage` here, the
+    /// published package is one at a time, and both of the Windows fields live exactly as long as
+    /// this one. In memory only — nothing of it reaches a file.
+    var publishedIsSingleCapture = false
     /// SPEC-DELTA-2A §4 (CONTRACTS.md sync 2): `true` once the package on the clipboard has been
     /// pasted and republished for reuse (`republishPackageForReuse`) — the *next* capture session
     /// must start fresh instead of appending to the pasted stack (`ensureCurrentCaptureSession`).
@@ -80,6 +86,12 @@ final class AppCoordinator {
     /// (chain ends) — both delegate calls for one commit happen synchronously, back to back, in
     /// `OverlayEditorController.commit(addNext:)`.
     var nextCaptureRequested = false
+    /// The capture the editor on screen was opened on, or `nil` while a brand-new one is being
+    /// taken. SPEC-DELTA-5 §2.4: the editor's "Копировать" asks the strip to copy the capture it is
+    /// showing, and it knows nothing about the strip, its letters or its session — so the coordinator
+    /// remembers which card it opened the editor with. `internal` (not `private`): written and read
+    /// from `AppCoordinator+OverlayEditorDelegate.swift`.
+    var overlayCaptureId: SBGuid?
 
     // `internal` (not `private`): used from `AppCoordinator+Package.swift`.
     var isBusy = false
@@ -375,6 +387,10 @@ final class AppCoordinator {
         controller.previousFrontmostApplicationOverride = captureSeriesPreviousApp
         controller.delegate = self
         overlay = controller
+        // A capture that is still being taken is in no session and has no letter: "Копировать" in
+        // the editor answers that it could not copy (SPEC-DELTA-5 §2.4, as Windows's `_capture is
+        // null` does).
+        overlayCaptureId = nil
         controller.present()
     }
 
@@ -462,6 +478,8 @@ final class AppCoordinator {
         let controller = OverlayEditorController(frame: frame, workspace: context, settings: settings, language: language)
         controller.delegate = self
         overlay = controller
+        // The card this editor stands on (SPEC-DELTA-5 §2.4): its "Копировать" copies this capture.
+        overlayCaptureId = capture.id
         controller.presentExisting(capture: capture, image: sourceImage)
     }
 
