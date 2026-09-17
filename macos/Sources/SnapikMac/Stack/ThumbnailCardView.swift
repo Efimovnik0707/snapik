@@ -99,6 +99,11 @@ final class ThumbnailCardView: NSView {
     private var currentLanguage = "ru"
 
     private(set) var isHovered = false
+    /// SPEC-DELTA-5 §1.2 L-11: whether the card is open to its full height and pushing the cards
+    /// below it down. Set by the container after the delay of the hover, not by the hover itself —
+    /// the border and the cross answer the pointer at once, the accordion waits 150 ms.
+    /// `internal` (not `private(set)`): the smoke probe opens a card by hand.
+    var isUnfolded = false
     /// A capture that has already left in a package: it stays in the strip, dimmed, with a check
     /// instead of a letter (`SentCaptureRules`).
     private(set) var isSent = false
@@ -292,7 +297,11 @@ final class ThumbnailCardView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let trackingArea { removeTrackingArea(trackingArea) }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self)
+        // `.inVisibleRect` (SPEC-DELTA-5 §1.2 L-11): the cards travel under the pointer while the
+        // accordion animates, and a `rect`-based area would answer for the frame the card had until
+        // the next `updateTrackingAreas()`.
+        let area = NSTrackingArea(
+            rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
         addTrackingArea(area)
         trackingArea = area
     }

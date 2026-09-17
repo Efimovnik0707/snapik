@@ -75,8 +75,6 @@ enum StackMetrics {
     /// Vertical distance between the tops of two collapsed cards (`cardHeight - cardOverlap`).
     static let cardStep = CGFloat(StripResizeGeometry.cardPitch)
     static let cardCornerRadius: CGFloat = 11
-    /// The room a hovered or selected card opens above and below itself.
-    static let expandedMargin: CGFloat = 4
     /// The strip with the letter and the number of notes, now at the **top** of the card ([ТЗ№4 C1]):
     /// the card below covers all but the first 30 points of this one, and the letter has to live in
     /// what is still seen.
@@ -99,8 +97,11 @@ enum StackMetrics {
 
     // MARK: - Animation
 
-    static let expandInSeconds: TimeInterval = 0.18
-    static let expandOutSeconds: TimeInterval = 0.16
+    /// SPEC-DELTA-5 §1.2 L-11, `EdgeStackWindow.xaml:388-411`: the card under the pointer opens
+    /// after `unfoldDelaySeconds` (`BeginTime="0:0:0.15"`) and takes `unfoldSeconds`
+    /// (`Duration="0:0:0.13"`) to do it. Folding back has the same duration and no delay at all.
+    static let unfoldSeconds: TimeInterval = 0.13
+    static let unfoldDelaySeconds: TimeInterval = 0.15
     static let appearSeconds: TimeInterval = 0.18
     static let toastLifetimeSeconds: TimeInterval = 5
     static let toastFadeSeconds: TimeInterval = 0.15

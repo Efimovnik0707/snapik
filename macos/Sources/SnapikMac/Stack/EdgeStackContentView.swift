@@ -190,6 +190,10 @@ final class EdgeStackContentView: NSView {
     private let cornerGrip = StackGripView()
 
     private var draggingCardIndex: Int?
+    /// The one delayed "open the card under the pointer" of the whole strip (SPEC-DELTA-5 §1.2
+    /// L-11). It holds no strong reference to anything: the block captures the view and the card
+    /// weakly, so a strip that goes away while it waits leaves nothing behind.
+    private var unfoldWork: DispatchWorkItem?
     private var currentLanguage = "ru"
     private var emptyHintShortcut: String?
 
@@ -576,13 +580,13 @@ final class EdgeStackContentView: NSView {
     }
 
     /// The cards, in the order of the data, each overlapping the one above it by
-    /// `StackMetrics.cardOverlap`; a hovered or selected card opens to its full height with
-    /// `StackMetrics.expandedMargin` of room above and below.
+    /// `StackMetrics.cardOverlap`; the card the pointer has opened (`isUnfolded`) shows its full
+    /// height and pushes the cards below it down by that same overlap.
     ///
     /// The container is not flipped, so the geometry is worked out as a distance from the top of the
     /// document and turned into AppKit's axis at the end. The scroll position is kept across a
     /// reload: measured from the top, the way the user reads the list ([ТЗ№4 C1]).
-    private func layoutCards(animated: Bool, duration: TimeInterval = StackMetrics.expandInSeconds) {
+    private func layoutCards(animated: Bool, duration: TimeInterval = StackMetrics.unfoldSeconds) {
         guard !cardViews.isEmpty else {
             listContainer.frame = NSRect(x: 0, y: 0, width: scrollView.bounds.width, height: scrollView.bounds.height)
             return
@@ -593,15 +597,12 @@ final class EdgeStackContentView: NSView {
         var tops: [CGFloat] = []
         var cursor = StackMetrics.listPaddingTop
         for card in cardViews {
-            // SPEC-DELTA-5 §1.1 L-1: only the pointer opens a card. Windows took the `Margin` setter
-            // off the focus trigger and deleted the `IsSelected` trigger whole, so a card comes back
-            // from the editor looking like every other one.
-            let expanded = card.isHovered
-            let cardTop = expanded ? cursor + StackMetrics.expandedMargin : cursor
-            tops.append(cardTop)
-            cursor = expanded
-                ? cardTop + StackMetrics.cardHeight + StackMetrics.expandedMargin
-                : cardTop + StackMetrics.cardStep
+            // SPEC-DELTA-5 §1.2 L-11: the card that is open does not move itself — its own top has
+            // already been counted — and everything under it goes down by exactly
+            // `cardHeight − cardStep`, which is `cardOverlap`. The height of the list does not
+            // change; only the document grows, by those same 48 points.
+            tops.append(cursor)
+            cursor += card.isUnfolded ? StackMetrics.cardHeight : StackMetrics.cardStep
         }
         let contentBottom = (tops.last ?? 0) + StackMetrics.cardHeight
         let documentHeight = max(contentBottom + StackMetrics.listPaddingBottom, scrollView.bounds.height)
@@ -673,13 +674,28 @@ extension EdgeStackContentView: ThumbnailCardViewDelegate {
         delegate?.edgeStackContent(self, didRequestRemoveCaptureId: rows[index].id)
     }
 
+    /// SPEC-DELTA-5 §1.2 L-11. One pending task for the whole strip and not one per card: a pointer
+    /// run quickly across six cards would otherwise leave six of them and open all six in turn. Any
+    /// change of hover cancels what is waiting, which is what `BeginTime` does on Windows — the
+    /// storyboard that never reached its start time has drawn nothing to take back.
     func thumbnailCard(_ card: ThumbnailCardView, hoverDidChange isHovered: Bool) {
-        // Fix MEDIUM-7: only the entering edge plays the hover tick; `mouseExited` firing it too
-        // doubled the sound on every card the pointer passed over.
+        unfoldWork?.cancel()
+        unfoldWork = nil
         if isHovered {
+            // Fix MEDIUM-7: only the entering edge plays the hover tick; `mouseExited` firing it too
+            // doubled the sound on every card the pointer passed over.
             delegate?.edgeStackContentDidRequestTickSound(self)
+            let work = DispatchWorkItem { [weak self, weak card] in
+                card?.isUnfolded = true
+                self?.layoutCards(animated: true, duration: StackMetrics.unfoldSeconds)
+            }
+            unfoldWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + StackMetrics.unfoldDelaySeconds, execute: work)
+        } else {
+            // Folding back has no delay of its own: the card the pointer has left closes at once.
+            card.isUnfolded = false
+            layoutCards(animated: true, duration: StackMetrics.unfoldSeconds)
         }
-        layoutCards(animated: true, duration: isHovered ? StackMetrics.expandInSeconds : StackMetrics.expandOutSeconds)
     }
 
     /// Manual drag-reorder loop (SPEC §1.9): a local event-tracking loop for the length of the drag
