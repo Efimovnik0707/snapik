@@ -254,7 +254,10 @@ extension OverlayEditorController {
         let target = EditorMenuTarget(controller: self)
         let menu = NSMenu()
         let selected = canvasView.selectedAnnotation
-        let current = (selected?.kind == .rectangle || selected?.kind == .blur) ? (selected?.shape ?? activeShape) : activeShape
+        // The shape belongs to the frame alone since 1.7.0 (`.Shapes.cs:50`): a blur is drawn with
+        // the shape the frame carries, and a selected blur has no say of its own in it
+        // (SPEC-DELTA-5-editor.md §1.3 E-11).
+        let current = selected?.kind == .rectangle ? (selected?.shape ?? activeShape) : activeShape
 
         func add(_ shape: AnnotationShape, _ title: String) {
             let item = NSMenuItem(title: title, action: #selector(EditorMenuTarget.selectShape(_:)), keyEquivalent: "")
@@ -282,10 +285,11 @@ extension OverlayEditorController {
     }
 
     func applyShape(_ shape: AnnotationShape) {
-        // The shape belongs to the region and to the blur alike: a selected blur takes it without the
-        // tool switching out from under the hand.
+        // The shape belongs to the frame and to nothing else (`.Shapes.cs:59-64`): picking one with
+        // a blur selected, or with a blur in the hand, switches to the frame the way any other
+        // foreign selection does, and the blur goes on being drawn with what the frame carries.
         let selected = canvasView?.selectedAnnotation
-        if !(selected?.kind == .rectangle || selected?.kind == .blur) { selectTool(.rectangle) }
+        if selected?.kind != .rectangle { selectTool(.rectangle) }
         applyAppearance(shape: shape)
     }
 

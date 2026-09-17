@@ -396,6 +396,53 @@ extension OverlayEditorController {
         return ok
     }
 
+    /// SPEC-DELTA-5-editor.md §1.3 E-11, §4.2: with the blur in the hand the properties block shows
+    /// nothing at all and keeps its width, the shape is picked on the frame alone, and the blur is
+    /// still drawn with whatever the frame carries.
+    @discardableResult
+    func smokeVerifyBlurHasNoProperties() -> Bool {
+        guard let canvasView, let capture, let toolbarView else { return false }
+        canvasView.selectAnnotation(id: nil)
+        toolbarView.maximumWidth = 4000
+
+        selectTool(.rectangle)
+        let withFrame = toolbarView.sizeToFitContent().size.width
+        selectTool(.blur)
+        var ok = toolbarView.colorCapsule.isHidden && toolbarView.lineCapsule.isHidden
+        ok = ok && abs(toolbarView.sizeToFitContent().size.width - withFrame) < 0.5
+        // A capsule that shows nothing says nothing either: the tip of the one it was left standing
+        // with used to hang over a tool that sets no thickness at all.
+        ok = ok && (toolbarView.lineCapsule.value.isEmpty && toolbarView.lineCapsule.glyph.isEmpty)
+
+        // The menu of the shapes belongs to the frame: choosing from it with the blur in the hand
+        // puts the frame in it, and the shape is the frame's from then on.
+        applyShape(.ellipse)
+        ok = ok && canvasView.tool == .rectangle && activeShape == .ellipse
+
+        // And the shape of the frame reaches a blur drawn by hand.
+        selectTool(.blur)
+        let w = CGFloat(capture.image.width)
+        let h = CGFloat(capture.image.height)
+        canvasView.recomputeImageRect()
+        canvasView.beginGesture(canvasView.toDisplay(CGPoint(x: w * 0.1, y: h * 0.1)))
+        canvasView.updateGesture(canvasView.toDisplay(CGPoint(x: w * 0.4, y: h * 0.4)), pressed: true)
+        canvasView.endGesture()
+        if let drawn = capture.annotations.last, drawn.kind == .blur {
+            ok = ok && drawn.shape == .ellipse
+            capture.annotations.removeAll(where: { $0 === drawn })
+        } else {
+            ok = false
+        }
+
+        // And the file keeps the mirror of it, so the other platform does not read a stale shape.
+        ok = ok && appearance(of: .blur).shape == .ellipse
+
+        applyShape(.rectangle)
+        canvasView.selectAnnotation(id: nil)
+        selectTool(.select)
+        return ok
+    }
+
     /// [ТЗ№4 D1] The spectrum, the eyedropper and the "+" belong to every palette, and "+" puts the
     /// colour in force into the own one without moving the row out from under the hand.
     @discardableResult
