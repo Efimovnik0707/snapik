@@ -14,8 +14,9 @@ extension OverlayEditorController {
         guard capture != nil else { return }
 
         if annotation.kind == .comment {
-            annotation.parentAnnotationId = commentParentId
-            commentParentId = nil
+            // The link to a mark is not made any more (SPEC-DELTA-5-editor.md §1.2 E-6, §2.2): a new
+            // comment belongs to the capture, and `parentAnnotationId` goes on being **read** out of
+            // a session written before this round, so an old one still says "к отметке A2".
             if let capture, let first = annotation.points.first {
                 let width = CGFloat(capture.image.width)
                 let height = CGFloat(capture.image.height)
@@ -48,7 +49,6 @@ extension OverlayEditorController {
 
     /// Port of `OnAnnotationChanged` (`:1287-1296`).
     func annotationChanged() {
-        moveLinkedComments()
         pushHistory()
         refreshLabels()
         guard let screenIndex = activeScreenIndex else { return }
@@ -95,12 +95,12 @@ extension OverlayEditorController {
 
     // MARK: - The Comment tool (SPEC-DELTA-3 §1.4 E-9)
 
-    /// Port of `OnCommentClick` (`:513-531`): captures which annotation (if any) the new comment
-    /// should link to, then arms the Comment tool. [ТЗ№4 D3] the tool stays armed after the pin.
+    /// Port of `OnCommentClick` (`:513-531`): arms the Comment tool. [ТЗ№4 D3] the tool stays armed
+    /// after the pin. Nothing is remembered to link the pin to any more: a comment is an object of
+    /// its own, and moving a frame leaves the comments beside it where they stand
+    /// (SPEC-DELTA-5-editor.md §1.2 E-6).
     func commentButtonClicked() {
         guard capture != nil else { return }
-        let selected = canvasView?.selectedAnnotation
-        commentParentId = selected?.kind == .comment ? selected?.parentAnnotationId : selected?.id
         selectTool(.comment)
     }
 
@@ -403,31 +403,14 @@ extension OverlayEditorController {
             width: size.width, height: size.height)
     }
 
-    // MARK: - Linked comment movement (SPEC-DELTA-2.md §1.3 `MoveLinkedComments`)
-
-    func moveLinkedComments() {
-        guard let capture else { return }
-        let before = lastSnapshot?.capture.annotations ?? []
-        let beforeById = Dictionary(uniqueKeysWithValues: before.map { ($0.id, $0) })
-
-        for annotation in capture.annotations {
-            guard let parentId = annotation.parentAnnotationId else { continue }
-            guard let parent = capture.annotations.first(where: { $0.id == parentId }) else {
-                annotation.parentAnnotationId = nil
-                continue
-            }
-            guard let beforeParent = beforeById[parentId] else { continue }
-            let oldBounds = EditorGeometry.boundsOf(points: beforeParent.points, additionalSegments: beforeParent.additionalPathSegments)
-            let newBounds = EditorGeometry.boundsOf(points: parent.points, additionalSegments: parent.additionalPathSegments)
-            guard oldBounds != newBounds else { continue }
-
-            let oldAnchor = beforeParent.points.first ?? .zero
-            let newAnchor = parent.points.first ?? .zero
-            let delta = CGPoint(x: newAnchor.x - oldAnchor.x, y: newAnchor.y - oldAnchor.y)
-            let imageSize = CGSize(width: capture.image.width, height: capture.image.height)
-            annotation.points = EditorGeometry.linkedCommentPoints(
-                annotation.points, oldParent: oldBounds, newParent: newBounds, parentDelta: delta, imageSize: imageSize)
-        }
+    /// Port of the `NoteHovered` handler (`xaml.cs:1896-1901`): pointing at the badge of a comment
+    /// unfolds its pill, so a note is read without a click. Pointing away leaves it standing — it is
+    /// Escape, a click outside or another badge that folds it back.
+    func noteHovered(_ annotation: EditorAnnotation?) {
+        guard let annotation, annotation.kind == .comment else { return }
+        guard visibleChipIds.contains(annotation.id) || chipViews[annotation.id] != nil else { return }
+        guard expandedChipId != annotation.id else { return }
+        expandChip(annotation.id, expanded: true)
     }
 
     // MARK: - Click-outside dismissal
@@ -520,22 +503,66 @@ extension OverlayEditorController {
     func positionToolbar() {
         guard let toolbarView, let screenIndex = activeScreenIndex else { return }
         let work = layoutWorkArea(screenIndex: screenIndex)
-        toolbarView.maximumWidth = max(240, work.width - 16)
-        let size = toolbarView.sizeToFitContent()
-        let obstacles = chipViews.values.filter { !$0.isHidden }.map { $0.frame }
-        // The switch of the scale stands to the right of the panel with a gap of ten, and the two are
-        // placed as one: measured apart, the switch would run off the right edge of the screen
-        // (`PositionToolbar`, `:1741-1746`, SPEC-DELTA-4 §1.3 E-6).
-        let switchSize: CGSize = scaleSwitchView.map { $0.isHidden ? CGSize.zero : $0.sizeToFitContent() } ?? .zero
-        let gap: CGFloat = switchSize.width > 0 ? 10 : 0
-        let origin = EditorGeometry.positionToolbar(
-            cropRect: cropRectLocal, work: work,
-            toolbarSize: CGSize(width: size.width + switchSize.width + gap, height: size.height), obstacles: obstacles)
-        toolbarView.frame = CGRect(origin: origin, size: size)
-        if let scaleSwitchView, switchSize.width > 0 {
-            scaleSwitchView.frame = CGRect(
-                origin: CGPoint(x: origin.x + size.width + gap, y: origin.y), size: switchSize)
+        let size = measureToolbar(work: work)
+        // The panel the hand put somewhere stays there; the place is only clamped again, because the
+        // panel may have changed rows or the working area may have changed under it.
+        if let userOrigin = toolbarUserOrigin {
+            let origin = clampToolbarOrigin(userOrigin, size: size, work: work)
+            toolbarUserOrigin = origin
+            toolbarView.frame = CGRect(origin: origin, size: size)
+            return
         }
+        let obstacles = chipViews.values.filter { !$0.isHidden }.map { $0.frame }
+        // Nothing stands beside the panel any more: the switch of the scale is gone, and the panel
+        // is placed on its own (SPEC-DELTA-5-editor.md §1.2 E-1). A capture of the whole screen and
+        // a selection just drawn leave no room outside themselves, and there the panel is allowed
+        // over the picture; a capture that was placed keeping room for the panel below it keeps that
+        // promise instead (`PositionToolbar`, `xaml.cs:1968-1999`).
+        let origin = EditorGeometry.positionToolbar(
+            cropRect: cropRectLocal, work: work, toolbarSize: size, obstacles: obstacles,
+            mayOverlap: (capture?.kind ?? .region) == .fullscreen || isNewCapture)
+        toolbarView.frame = CGRect(origin: origin, size: size)
+    }
+
+    // MARK: - Dragging the panel (`xaml.cs:2005-2030`)
+
+    /// The panel was taken hold of at `point`, in the space its own frame lives in.
+    func beginToolbarDrag(at point: CGPoint) {
+        guard let toolbarView else { return }
+        toolbarDragGrab = CGPoint(x: point.x - toolbarView.frame.minX, y: point.y - toolbarView.frame.minY)
+    }
+
+    /// The pointer moved while the panel is held: the panel follows it, kept inside the working area
+    /// with the margin of eight every other floating thing of the editor keeps.
+    func dragToolbarTo(_ point: CGPoint) {
+        guard let toolbarView, let grab = toolbarDragGrab, let screenIndex = activeScreenIndex else { return }
+        let work = layoutWorkArea(screenIndex: screenIndex)
+        let origin = clampToolbarOrigin(
+            CGPoint(x: point.x - grab.x, y: point.y - grab.y), size: toolbarView.frame.size, work: work)
+        toolbarUserOrigin = origin
+        toolbarView.frame = CGRect(origin: origin, size: toolbarView.frame.size)
+    }
+
+    func endToolbarDrag() {
+        toolbarDragGrab = nil
+    }
+
+    func clampToolbarOrigin(_ origin: CGPoint, size: CGSize, work: CGRect) -> CGPoint {
+        CGPoint(
+            x: EditorGeometry.clamp(origin.x, work.minX + 8, max(work.minX + 8, work.maxX - size.width - 8)),
+            y: EditorGeometry.clamp(origin.y, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8)))
+    }
+
+    /// Port of `MeasureToolbar` (`xaml.cs:1926-1962`): the panel is measured apart from being placed,
+    /// because the room the capture is given is counted from the height of the panel under it before
+    /// either of them stands anywhere (SPEC-DELTA-5-editor.md §1.2 E-1, E-2). `maximumWidth` is set
+    /// before the measurement, or the panel counts itself in one row and hands the capture a height
+    /// that is not there.
+    @discardableResult
+    func measureToolbar(work: CGRect) -> CGSize {
+        guard let toolbarView else { return .zero }
+        toolbarView.maximumWidth = max(240, work.width - 16)
+        return toolbarView.sizeToFitContent().size
     }
 
     // MARK: - Monitor work area (SPEC §1.4 `GetCropMonitorWorkArea`)

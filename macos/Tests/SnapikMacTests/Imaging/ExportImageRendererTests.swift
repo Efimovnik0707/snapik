@@ -99,6 +99,99 @@ final class ExportImageRendererTests: XCTestCase {
         XCTAssertLessThan(topRow.blueComponent, 0.1)
     }
 
+    /// SPEC-DELTA-5-editor.md §1.3 E-9, E-10, §4.2: a comment whose badge was carried away puts the
+    /// dot it is pinned by into the exported picture, with its white rim, and the field the badge
+    /// asked for moves the whole capture down by exactly the margin `captureOrigin` counts.
+    func test_renderPNG_drawsTheDotOfADraggedComment() async throws {
+        let width = 200
+        let height = 140
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ExportImageRendererTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appendingPathComponent("source.png")
+        let sourceImage = try XCTUnwrap(makeImage(width: width, height: height))
+        try ImageCodec.writeAtomically(try XCTUnwrap(ImageCodec.encode(sourceImage, format: .png)), to: sourceURL)
+
+        let comment = AnnotationItem.create(
+            kind: .comment,
+            points: [NormalizedPoint(0.5, 0.5), NormalizedPoint(0.54, 0.557)],
+            strokeColor: "#FFFF3B30",
+            thickness: 4,
+            note: "Отметка")
+        var dragged = comment
+        dragged.noteOffset = NormalizedPoint(0.2, -0.3)
+        var capture = CaptureItem.create(sourceImagePath: "source.png", pixelWidth: width, pixelHeight: height)
+        capture.annotations = [dragged]
+
+        let renderer = ExportImageRenderer()
+        let data = try await renderer.renderPNG(
+            capture: capture, annotations: capture.annotations,
+            context: ExportImageContext(displayLabel: "A", captureIndex: 0, sourceImagePath: sourceURL))
+        let decoded = try XCTUnwrap(ImageCodec.decodePNG(data))
+
+        // The badge was carried above the capture, so the sheet grew by the field it asked for.
+        let margin = NoteBadgeGeometry.exportMargins(
+            badges: [(anchor: NormalizedPoint(0.5, 0.5), offset: NormalizedPoint(0.2, -0.3), label: "A1")],
+            width: width, height: height)
+        XCTAssertGreaterThan(margin.top, 0)
+        XCTAssertEqual(margin.left + width + margin.right, decoded.width)
+        XCTAssertEqual(48 + margin.top + height + margin.bottom, decoded.height)
+
+        let origin = ExportImageRenderer.captureOrigin(margin)
+        let centre = CGPoint(x: origin.x + CGFloat(width) * 0.5, y: origin.y + CGFloat(height) * 0.5)
+        let bitmap = NSBitmapImageRep(cgImage: decoded)
+        let middle = try XCTUnwrap(bitmap.colorAt(x: Int(centre.x), y: Int(centre.y))?.usingColorSpace(.deviceRGB))
+        let accent = try XCTUnwrap(AccentPalette.flat.usingColorSpace(.deviceRGB))
+        XCTAssertEqual(Double(accent.redComponent), Double(middle.redComponent), accuracy: 0.08)
+        XCTAssertEqual(Double(accent.greenComponent), Double(middle.greenComponent), accuracy: 0.08)
+        XCTAssertEqual(Double(accent.blueComponent), Double(middle.blueComponent), accuracy: 0.08)
+
+        // And the rim around it, one and a half pixels of white grown by the same scale as the dot.
+        let radius = NoteBadgeGeometry.anchorRadius * NoteBadgeGeometry.exportScale("A1")
+        let rim = try XCTUnwrap(
+            bitmap.colorAt(x: Int((centre.x + radius + 1).rounded()), y: Int(centre.y))?.usingColorSpace(.deviceRGB))
+        XCTAssertGreaterThan(rim.redComponent, 0.85)
+        XCTAssertGreaterThan(rim.greenComponent, 0.85)
+        XCTAssertGreaterThan(rim.blueComponent, 0.85)
+    }
+
+    /// The other half of the same rule, on a second capture of its own: the list of noted marks is
+    /// one per picture, and a second comment in the same one would take the number apart. A comment
+    /// nobody dragged shows neither a dot nor a line, and the sheet is the size it always was.
+    func test_renderPNG_leavesACommentThatWasNotDraggedAlone() async throws {
+        let width = 200
+        let height = 140
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ExportImageRendererTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appendingPathComponent("source.png")
+        let sourceImage = try XCTUnwrap(makeImage(width: width, height: height))
+        try ImageCodec.writeAtomically(try XCTUnwrap(ImageCodec.encode(sourceImage, format: .png)), to: sourceURL)
+
+        let comment = AnnotationItem.create(
+            kind: .comment,
+            points: [NormalizedPoint(0.5, 0.5), NormalizedPoint(0.54, 0.557)],
+            strokeColor: "#FFFF3B30",
+            thickness: 4,
+            note: "Отметка")
+        var capture = CaptureItem.create(sourceImagePath: "source.png", pixelWidth: width, pixelHeight: height)
+        capture.annotations = [comment]
+
+        let renderer = ExportImageRenderer()
+        let data = try await renderer.renderPNG(
+            capture: capture, annotations: capture.annotations,
+            context: ExportImageContext(displayLabel: "A", captureIndex: 0, sourceImagePath: sourceURL))
+        let decoded = try XCTUnwrap(ImageCodec.decodePNG(data))
+
+        XCTAssertEqual(width, decoded.width)
+        XCTAssertEqual(height + 48, decoded.height)
+        let bitmap = NSBitmapImageRep(cgImage: decoded)
+        let middle = try XCTUnwrap(bitmap.colorAt(x: width / 2, y: 48 + height / 2)?.usingColorSpace(.deviceRGB))
+        // The grey the source is painted with, untouched: no dot was drawn over it.
+        XCTAssertEqual(200.0 / 255.0, Double(middle.redComponent), accuracy: 0.02)
+        XCTAssertEqual(200.0 / 255.0, Double(middle.blueComponent), accuracy: 0.02)
+    }
+
     private func makeImage(width: Int, height: Int) -> CGImage? {
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
         for offset in stride(from: 0, to: pixels.count, by: 4) {

@@ -19,16 +19,21 @@ extension SmokeTestRunner {
     @MainActor
     static func editorProbes(on controller: OverlayEditorController) -> [EditorSyncProbeResult] {
         [
-            EditorSyncProbeResult(name: "editor: one active colour for every tool", passed: controller.smokeVerifyOneActiveColor()),
+            EditorSyncProbeResult(name: "editor: the colour goes to the tool in the hand", passed: controller.smokeVerifyOneActiveColor()),
+            // The probes sync 5 adds (SPEC-DELTA-5-editor.md §4.2).
+            EditorSyncProbeResult(name: "editor: every tool remembers its own settings", passed: controller.smokeVerifyToolMemory()),
+            EditorSyncProbeResult(name: "editor: the rules of the interpolation", passed: controller.smokeVerifyScalingRules()),
+            EditorSyncProbeResult(name: "editor: the blur shows no properties", passed: controller.smokeVerifyBlurHasNoProperties()),
+            EditorSyncProbeResult(name: "editor: the cheat sheet knows Shift+Cmd+C", passed: controller.smokeVerifyCopyShortcut()),
             EditorSyncProbeResult(name: "editor: the spectrum and the eyedropper come with every palette", passed: controller.smokeVerifyPalettes()),
             EditorSyncProbeResult(name: "editor: the comment tool grabs what is already there", passed: controller.smokeVerifyCommentGrab()),
             EditorSyncProbeResult(name: "editor: the pattern of a stroke survives a copy and the export", passed: controller.smokeVerifyLineStyleRoundTrip()),
             EditorSyncProbeResult(name: "editor: a region filled with blur reuses the cached frame", passed: controller.smokeVerifyBlurCache()),
             EditorSyncProbeResult(name: "editor: a caption owns the box its letters take", passed: controller.smokeVerifyCaptionSize()),
             EditorSyncProbeResult(name: "editor: the panel keeps its width and wraps when it must", passed: controller.smokeVerifyToolbarLayout()),
-            // The probe sync 4 adds (SPEC-DELTA-4 §6, A-3): the switch, the caption and the scrolled
-            // picture of a capture of two monitors.
-            EditorSyncProbeResult(name: "editor: a capture of two monitors offers the scale switch", passed: controller.smokeRunEditorScaleProbe()),
+            // The probe sync 4 added and sync 5 rewrote (SPEC-DELTA-5-editor.md §4.2): the capture
+            // at its own size, its caption, the wheel with Cmd and the scrolled picture.
+            EditorSyncProbeResult(name: "editor: the view of the editor", passed: controller.smokeRunEditorViewProbe()),
         ]
     }
 

@@ -11,6 +11,12 @@ protocol OverlayEditorDelegate: AnyObject {
     func overlayEditorRequestsNextCapture(_ editor: OverlayEditorController)
     /// SPEC §1.15 notification hook for a successful Cmd+S save.
     func overlayEditor(_ editor: OverlayEditorController, didSaveFileAt url: URL)
+    /// "Копировать" and Shift+Cmd+C hand one capture to the strip, which is what owns the clipboard
+    /// (SPEC-DELTA-5 §2.4). The editor knows no letter of the strip and asks for none: the shell
+    /// takes the capture it opened the editor with, copies it and answers whether it worked. The
+    /// answer is said by the plate of the editor itself, because the strip is hidden while the
+    /// editor is open and a toast of it would go into an invisible window.
+    func overlayEditorCopiesSingleCapture(_ editor: OverlayEditorController) async -> Bool
 }
 
 /// One screen's window + its always-present chrome (SPEC §9.5: "одно окно на каждый NSScreen").
@@ -79,21 +85,12 @@ final class OverlayEditorController {
 
     // MARK: - Appearance (SPEC §1.3, §6.2, SPEC-DELTA-3 §1.4 E-1, E-3, E-16)
 
-    /// [ТЗ№4 D1] One active colour for everything the tool in the hand draws: the popover, the
-    /// quick dots, the spectrum, the HEX field and the eyedropper all write here, with every tool
-    /// in the hand (`tasks/tz-005-details/D-editor.md` §2.1).
-    var activeColor: NSColor = EditorTheme.defaultAnnotationColor
-    var activeThickness: Double = EditorAppearance.defaultAnnotationThickness
-    /// The highlighter is measured in tens of pixels and keeps a width of its own; the panel reads
-    /// and writes both through `activeThickness(for:)`/`setActiveThickness(_:for:)` (E-3).
-    var activeHighlightThickness: Double = EditorAppearance.defaultHighlightThickness
-    var activeFontSize: Double = TextMarkMetrics.defaultFontSize
-    /// [ТЗ№4 D1] The frame, the fill and its colour are **not** remembered between captures: every
-    /// capture starts with an outline, no fill and a rectangle (`D-editor.md` §2.5).
-    var activeShape: AnnotationShape = .rectangle
-    var activeFill: AnnotationFill = .none
-    var activeFillColor: NSColor?
-    var activeLineStyle: AnnotationLineStyle = .solid
+    /// The six sets of the panel (`_tools`, `.Appearance.cs:99-100`): every tool keeps its own
+    /// colour, thickness and the rest, read out of the settings file when the editor opens and
+    /// written back when it closes. The dictionary is never indexed straight — `appearance(of:)` is
+    /// the one door to it, because `select`, `crop`, `comment` and the eraser are not in it at all.
+    var tools: [EditorTool: ToolAppearance] = [:]
+
     /// Which half of the pencil capsule is armed (`_activePencil`).
     var activePencil: EditorTool = .pen
     /// The set of twelve colours the popover offers, and the own colours behind it.
@@ -112,12 +109,11 @@ final class OverlayEditorController {
     /// written to the settings file when the session closes (`_appearanceDefaultsChanged`).
     var appearanceDefaultsChanged = false
 
-    /// The one popover on screen, and which of the five it is.
+    /// The one popover on screen, and which of the four it is.
     var activePopover: NSPopover?
     var activePopoverKind: EditorPopoverKind?
     var colorPopoverController: EditorColorPopoverViewController?
     var thicknessPopoverController: EditorThicknessPopoverViewController?
-    var lineStylePopoverController: EditorLineStylePopoverViewController?
     var fillPopoverController: EditorFillPopoverViewController?
     var fontSizePopoverController: EditorFontSizePopoverViewController?
     var appearancePopoverDelegate: AppearancePopoverDelegateProxy?
@@ -159,23 +155,21 @@ final class OverlayEditorController {
     var canvasContainerView: NSView?
     var canvasView: AnnotationCanvasView?
     var toolbarView: EditorToolbarView?
-    /// The switch beside the panel and the caption of the capture (SPEC-DELTA-4 §1.3 E-5, E-7).
-    var scaleSwitchView: EditorScaleSwitchView?
+    /// The caption of the capture (SPEC-DELTA-4 §1.3 E-7). The switch of the scale that used to
+    /// stand beside the panel is gone: a capture opens at its own size (SPEC-DELTA-5-editor.md E-1).
     var shotKindView: EditorShotKindView?
-    /// The box the capture is fitted into, kept for the switch beside the panel: it is what says
-    /// whether the picture had to be scaled down at all, and which side of it stopped it
-    /// (`_fitBox`, `OverlayEditorWindow.xaml.cs:70`).
-    var fitBox: CGSize = .zero
+    /// Where the hand put the panel (`_toolbarUserPosition`, `xaml.cs:1968-2030`). An absolute point
+    /// and not a shift: the panel changes rows under a narrow working area, and a shift counted from
+    /// one anchor would move it somewhere else once the other anchor takes over.
+    var toolbarUserOrigin: CGPoint?
+    /// Where inside the panel it was taken hold of, while a drag lasts.
+    var toolbarDragGrab: CGPoint?
     var captureHandleViews: [CaptureHandleView] = []
     var resizeOutlineView: ResizeOutlineView?
     /// Host view for every comment chip (SPEC-DELTA-2B.md §C7 "Новый `ChipLayerView`"), sized to
     /// the full screen; created lazily in `setupEditor()`.
     var chipLayerView: ChipLayerView?
     var chipViews: [SBGuid: CommentChipView] = [:]
-    /// Port of `_commentParentId` (SPEC-DELTA-2.md §1.3 "One-shot"): captured by
-    /// `commentButtonClicked()`/the `N` hotkey right before arming `.comment`, consumed by
-    /// `annotationCreated` the moment the pin is placed. `nil` means "attach to the whole capture".
-    var commentParentId: SBGuid?
     /// The single chip currently shown expanded (270pt wide), if any (SPEC-DELTA-2B.md §C7).
     var expandedChipId: SBGuid?
 
@@ -199,16 +193,11 @@ final class OverlayEditorController {
         self.settings = settings
         self.language = language
         captureIndex = workspace.nextCaptureIndex
-        // [ТЗ№4 D1] Only four things travel between captures: the colour, the two thicknesses, the
-        // palette and which half of the pencil capsule is armed (`D-editor.md` §2.5). The shape, the
-        // fill and its colour are deliberately **not** read back — every capture starts with an
-        // outline, no fill and a rectangle.
-        activeColor = EditorAppearance.parseColor(settings.annotationColor)
-        activeThickness = min(max(settings.annotationThickness, EditorAppearance.minimumThickness), EditorAppearance.maximumThickness)
-        activeHighlightThickness = min(
-            max(settings.annotationHighlightThickness, EditorAppearance.minimumHighlightThickness),
-            EditorAppearance.maximumHighlightThickness)
-        activeFontSize = TextMarkMetrics.clamp(settings.annotationFontSize)
+        // Rule 6 of the round of 1.6.0: every tool opens with what it was last set to, the shape and
+        // the fill included, and a file without the new key hands them all the old common values
+        // (SPEC-DELTA-5 §3.1). Until this round only four things travelled between captures, and a
+        // capture always started with an outline and no fill.
+        tools = ToolAppearanceStore.read(settings)
         activePencil = EditorAppearance.parsePencil(settings.annotationPencil)
         customColors = settings.customPaletteColors
         activePalette = EditorAppearance.palette(for: settings)
@@ -260,19 +249,23 @@ final class OverlayEditorController {
         if !editorCapture.note.isEmpty {
             editorCapture.annotations.append(EditorAnnotation(
                 kind: .comment, points: [CGPoint(x: 24, y: 24), CGPoint(x: 32, y: 32)],
-                color: activeColor, thickness: activeThickness, note: editorCapture.note))
+                color: armedAppearance.color, thickness: armedAppearance.thickness,
+                note: editorCapture.note))
             editorCapture.note = ""
         }
         self.capture = editorCapture
         currentSourcePath = capture.sourceImagePath
 
-        let contentSize = slots[screenIndex].contentView.bounds.size
-        // A capture of the whole screen or a file from disk opens fitted, and the switch beside the
-        // panel says by which side (SPEC-DELTA-4 §4): the box it is fitted into is the same one
-        // `reopenCropRect` scales against.
-        fitBox = EditorGeometry.reopenFitBox(windowSize: contentSize)
-        cropRectLocal = EditorGeometry.reopenCropRect(
-            imageSize: CGSize(width: image.width, height: image.height), windowSize: contentSize)
+        // A capture opens at its own size whenever the working area holds it together with the panel
+        // below it, and is fitted only when it does not (SPEC-DELTA-5-editor.md §1.2 E-1). The panel
+        // is built and measured first: "does the capture fit one to one" is a question about the
+        // height of the panel under it, so the order is measure the panel, place the capture, place
+        // the panel (`xaml.cs:1199-1201`).
+        let work = layoutWorkArea(screenIndex: screenIndex)
+        ensureToolbarView(on: slots[screenIndex])
+        cropRectLocal = EditorGeometry.placeCapture(
+            image: CGSize(width: image.width, height: image.height), work: work,
+            panel: measureToolbar(work: work))
 
         slots[screenIndex].contentView.hintView.isHidden = true
         slots[screenIndex].contentView.holeRectLocal = cropRectLocal

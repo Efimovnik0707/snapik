@@ -3,11 +3,12 @@
 import AppKit
 import SnapikCore
 
-/// Which of the five popovers of the panel is on screen.
+/// Which of the four popovers of the panel is on screen. The pattern of a stroke has none of its
+/// own any more: it is one sheet with the thickness, the way the reference draws it
+/// (SPEC-DELTA-5-editor.md §3.10).
 enum EditorPopoverKind {
     case color
     case thickness
-    case lineStyle
     case fill
     case fontSize
     case shortcutSheet
@@ -15,24 +16,41 @@ enum EditorPopoverKind {
 
 @MainActor
 extension OverlayEditorController {
-    // MARK: - Thickness of the tool in the hand (E-3)
+    // MARK: - The set of one tool (`AppearanceOf`, `.Appearance.cs:99-100`)
 
-    /// Port of `ActiveThicknessFor` (`Appearance.cs:100-101`): the highlighter keeps one width of its
-    /// own, everything else with a stroke shares the other.
-    func activeThickness(for tool: EditorTool) -> Double {
-        tool == .highlight ? activeHighlightThickness : activeThickness
+    /// The one door to the dictionary of the six sets. `select`, `eraser`, `crop` and `comment` have
+    /// no settings of their own and are not in it — and a capture reopened from the strip arms
+    /// `select` — so indexing it straight would answer with nothing on every second opening. A tool
+    /// without a set of its own borrows the frame's.
+    func appearance(of tool: EditorTool) -> ToolAppearance {
+        tools[tool] ?? tools[.rectangle] ?? ToolAppearance()
     }
 
-    /// Port of `SetActiveThickness` (`:103-116`).
-    func setActiveThickness(_ value: Double, for tool: EditorTool) {
-        if tool == .highlight {
-            appearanceDefaultsChanged = appearanceDefaultsChanged || value != activeHighlightThickness
-            activeHighlightThickness = value
-        } else {
-            appearanceDefaultsChanged = appearanceDefaultsChanged || value != activeThickness
-            activeThickness = value
-        }
-        canvasView?.activeThickness = activeThickness(for: canvasView?.tool ?? .rectangle)
+    /// What a new mark is born with right now: the set of the tool in the hand, whatever is selected.
+    var armedAppearance: ToolAppearance {
+        appearance(of: canvasView?.tool ?? .rectangle)
+    }
+
+    /// The frame and the blur share one shape: it is kept on the frame, and the blur is written from
+    /// it so the settings file says the same thing whichever of the two wrote it.
+    var activeShape: AnnotationShape {
+        appearance(of: .rectangle).shape
+    }
+
+    /// Port of `SyncSurfaceDefaults` (`.Appearance.cs:106-117`): what the next mark is drawn with is
+    /// decided apart from what the block shows — the tool in the hand owns it, whatever mark the
+    /// pointer happens to have selected.
+    func syncSurfaceDefaults() {
+        guard let canvasView else { return }
+        let kept = appearance(of: canvasView.tool)
+        canvasView.activeColor = kept.color
+        canvasView.activeThickness = kept.thickness
+        canvasView.activeShape = activeShape
+        canvasView.activeFill = kept.fill
+        canvasView.activeFillColor = kept.fillColor
+        canvasView.activeLineStyle = kept.lineStyle
+        canvasView.activeFontSize = kept.fontSize
+        canvasView.activeArrowStyle = kept.arrowStyle
     }
 
     // MARK: - Opening a popover (`OpenAppearance`/`OpenThickness`/… `:130-180`)
@@ -54,7 +72,6 @@ extension OverlayEditorController {
         switch kind {
         case .color: controller = makeColorPopover()
         case .thickness: controller = makeThicknessPopover()
-        case .lineStyle: controller = makeLineStylePopover()
         case .fill: controller = makeFillPopover()
         case .fontSize: controller = makeFontSizePopover()
         case .shortcutSheet: controller = EditorShortcutSheetViewController(language: language)
@@ -93,15 +110,17 @@ extension OverlayEditorController {
         // own palette, from whichever palette is showing (`D-editor.md` §2.6).
         controller.onAddToCustomPalette = { [weak self] in
             guard let self else { return }
-            self.rememberCustomColor(self.activeColor)
+            self.rememberCustomColor(self.inspectedAppearance.color)
         }
         controller.onEyedropper = { [weak self] in self?.pickColorFromScreen() }
         controller.onCloseClicked = { [weak self] in self?.activePopover?.close() }
         colorPopoverController = controller
-        controller.setPalette(activePalette, selected: activeColor)
+        controller.setPalette(activePalette, selected: inspectedAppearance.color)
         return controller
     }
 
+    /// The width and the pattern of a stroke are one sheet since 1.6.0: the popover of the pattern is
+    /// gone and its three segments stand under the slider (SPEC-DELTA-5-editor.md §3.10).
     private func makeThicknessPopover() -> EditorThicknessPopoverViewController {
         let controller = EditorThicknessPopoverViewController(language: language)
         controller.onPresetSelected = { [weak self] value in self?.applyAppearance(thickness: value) }
@@ -109,14 +128,8 @@ extension OverlayEditorController {
             guard let self, !self.syncingAppearance else { return }
             self.applyAppearance(thickness: value.rounded())
         }
-        thicknessPopoverController = controller
-        return controller
-    }
-
-    private func makeLineStylePopover() -> EditorLineStylePopoverViewController {
-        let controller = EditorLineStylePopoverViewController(language: language)
         controller.onStyleSelected = { [weak self] style in self?.applyAppearance(lineStyle: style) }
-        lineStylePopoverController = controller
+        thicknessPopoverController = controller
         return controller
     }
 
@@ -125,7 +138,8 @@ extension OverlayEditorController {
         controller.onFillSelected = { [weak self] fill in self?.applyAppearance(fill: fill) }
         controller.onFillColorSelected = { [weak self] color in self?.applyAppearance(fillColor: color) }
         fillPopoverController = controller
-        controller.setPalette(activePalette, selected: activeFillColor ?? activeColor)
+        let kept = inspectedAppearance
+        controller.setPalette(activePalette, selected: kept.fillColor ?? kept.color)
         return controller
     }
 
@@ -140,8 +154,18 @@ extension OverlayEditorController {
         return controller
     }
 
-    // MARK: - Syncing the panel (`SyncAppearance`, `:242-376`)
+    // MARK: - Syncing the panel (`SyncAppearance`, `.Appearance.cs:204-357`)
 
+    /// The set the properties block belongs to: the selected mark owns it, and with nothing selected
+    /// it is the tool in the hand (`InspectedTool`).
+    var inspectedAppearance: ToolAppearance {
+        appearance(of: EditorInspector.inspectedTool(
+            selected: canvasView?.selectedAnnotation, armed: canvasView?.tool ?? .rectangle))
+    }
+
+    /// Two capsules and no more — the colour of the outline with the square of the fill beside it,
+    /// and the width and pattern of a stroke, the size of a caption or the shape of a mark. The block
+    /// keeps one width under every tool, so the panel never jumps.
     func syncAppearance() {
         guard let toolbarView, let canvasView else { return }
         syncingAppearance = true
@@ -149,82 +173,94 @@ extension OverlayEditorController {
         refreshUndoRedoButtons()
 
         let selected = canvasView.selectedAnnotation
-        let tool = selected?.kind ?? canvasView.tool
-        // [ТЗ№4 D1] One colour, and the circle on the panel always shows it: `PanelPaintsFill` is
-        // gone, so a filled frame no longer swaps the meaning of the button under the hand.
-        let color = selected?.color ?? activeColor
-        let thickness = selected?.thickness ?? activeThickness(for: tool)
-        let fill = selected?.fill ?? activeFill
-        let fillColor = (selected != nil ? selected?.fillColor : activeFillColor) ?? color
-        let lineStyle = selected.map { EditorAppearance.hasLineStyle($0.kind) ? $0.lineStyle : activeLineStyle } ?? activeLineStyle
-        let fontSize = selected?.fontSize ?? activeFontSize
+        let tool = EditorInspector.inspectedTool(selected: selected, armed: canvasView.tool)
+        let view = EditorInspector.inspectorViewOf(tool)
+        let kept = appearance(of: tool)
+        let color = selected?.color ?? kept.color
+        let thickness = selected?.thickness ?? kept.thickness
+        // The pattern belongs to the marks drawn with one: the highlighter carries a width and no
+        // dashes, and the rule lives in `StrokePattern`, where both renderers read it.
+        let patterned = StrokePattern.participates(EditorAnnotation.coreKind(of: tool))
+        let lineStyle = patterned ? (selected?.lineStyle ?? kept.lineStyle) : AnnotationLineStyle.solid
+        let fill = selected?.fill ?? kept.fill
+        let fillColor = (selected != nil ? selected?.fillColor : kept.fillColor) ?? color
+        let fontSize = selected?.fontSize ?? kept.fontSize
+        let shape = (selected?.kind == .rectangle || selected?.kind == .blur)
+            ? (selected?.shape ?? activeShape) : activeShape
 
-        // The next mark takes the thickness of the tool in the hand, not of the mark under the
-        // cursor; the same for everything else a new mark is born with.
-        canvasView.activeColor = activeColor
-        canvasView.activeThickness = activeThickness(for: canvasView.tool)
-        canvasView.activeShape = activeShape
-        canvasView.activeFill = activeFill
-        canvasView.activeFillColor = activeFillColor
-        canvasView.activeLineStyle = activeLineStyle
-        canvasView.activeFontSize = activeFontSize
-
+        // What the next mark is drawn with is decided apart from what the block shows.
+        syncSurfaceDefaults()
         toolbarView.setActiveTool(canvasView.tool)
-        toolbarView.appearanceButton.color = color
-        toolbarView.setQuickColors(activePalette.quick, current: color)
 
-        // A tool without the property keeps the last value on its button, dimmed by the disabled
-        // state: an empty caption is what used to make the panel jump (SPEC-DELTA-3 §1.4 E-11).
-        let hasStroke = EditorAppearance.hasStroke(tool)
-        toolbarView.thicknessButton.isEnabled = hasStroke
-        toolbarView.thicknessButton.text = EditorStrings.pixelLabel(hasStroke ? thickness : activeThickness(for: tool))
+        // The first capsule: the circle of the outline and the square of what stands inside it. A
+        // blur has no colour at all, so the capsule is hidden and not dimmed; a tool with no settings
+        // of its own keeps both capsules in place and switched off, and the block holds its width.
+        // Hidden and not removed on purpose: a view that is gone would take its place with it.
+        toolbarView.colorCapsule.isHidden = !view.stroke
+        toolbarView.colorCapsule.isEnabled = view.enabled
+        toolbarView.colorCapsule.alphaValue = view.enabled ? 1 : 0.28
+        toolbarView.colorCapsule.strokeColor = color
+        toolbarView.colorCapsule.showsFillSquare = view.fillSwatch
+        toolbarView.colorCapsule.fillSquare.fill = fill
+        toolbarView.colorCapsule.fillSquare.fillColor = fillColor
 
-        let hasLineStyle = EditorAppearance.hasLineStyle(tool)
-        toolbarView.lineStyleButton.isEnabled = hasLineStyle
-        toolbarView.lineStyleButton.text = ""
-        toolbarView.lineStyleButton.drawPreview = { rect in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-            AnnotationPainter.strokePath(
-                [[CGPoint(x: rect.minX, y: rect.midY), CGPoint(x: rect.maxX, y: rect.midY)]],
-                in: ctx, color: EditorTheme.textPrimary, thickness: 2, lineStyle: lineStyle, highlight: false)
-        }
-
-        // The button of the fill is dimmed only while a mark that cannot be filled is selected: with
-        // another tool in the hand it arms the region itself, so it stays pressable.
-        toolbarView.fillButton.isEnabled = selected == nil || EditorAppearance.hasFill(tool)
-        toolbarView.fillButton.text = EditorStrings.text(EditorAppearance.fillNameKey(fill), language: language)
-        toolbarView.fillButton.drawPreview = { rect in
-            let path = NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2)
-            if let inside = EditorAppearance.fillColor(fillColor, fill: fill) {
-                inside.setFill()
-                path.fill()
-            } else if fill == .blur {
-                EditorTheme.blurPreviewFill.setFill()
-                path.fill()
-            }
-            path.lineWidth = 1.5
-            EditorTheme.textPrimary.setStroke()
-            path.stroke()
-        }
-
-        let hasFontSize = EditorAppearance.hasFontSize(tool)
-        toolbarView.fontSizeButton.isEnabled = hasFontSize
-        toolbarView.fontSizeButton.text = EditorStrings.pixelLabel(hasFontSize ? fontSize : activeFontSize)
+        // The second capsule: the width and the pattern of a stroke, the size of a caption, or the
+        // shape a mark is cut in. A tool with nothing of its own to set hides it the way the colour
+        // capsule hides, and a hidden capsule says nothing: the tip it was left standing with used to
+        // hang over a tool that sets no thickness at all.
+        toolbarView.lineCapsule.isHidden = view.second == .none
+        toolbarView.lineCapsule.isEnabled = view.enabled
+        toolbarView.lineCapsule.alphaValue = view.enabled ? 1 : 0.28
+        toolbarView.lineCapsule.toolTip = lineCapsuleTooltip(view.second)
+        toolbarView.lineCapsule.setAccessibilityLabel(lineCapsuleTooltip(view.second))
+        toolbarView.lineCapsule.glyph = lineCapsuleGlyph(view.second)
+        toolbarView.lineCapsule.value = lineCapsuleValue(view.second, thickness: thickness, fontSize: fontSize, shape: shape)
+        toolbarView.lineCapsule.sampleThickness = view.second == .line ? min(max(CGFloat(thickness), 1), 6) : 0
+        toolbarView.lineCapsule.sampleLineStyle = lineStyle
+        toolbarView.lineCapsule.needsDisplay = true
 
         colorPopoverController?.sync(selectedColor: color)
         thicknessPopoverController?.sync(
             presets: EditorAppearance.thicknessPresets(for: tool), range: EditorAppearance.thicknessRange(for: tool),
-            value: thickness, color: color, lineStyle: lineStyle, highlight: tool == .highlight, enabled: hasStroke)
-        lineStylePopoverController?.sync(style: lineStyle, color: color, thickness: thickness, enabled: hasLineStyle)
-        fillPopoverController?.sync(fill: fill, fillColor: fillColor, enabled: EditorAppearance.hasFill(tool))
+            value: thickness, color: color, lineStyle: lineStyle, highlight: tool == .highlight,
+            enabled: view.second == .line, patterned: patterned)
+        fillPopoverController?.sync(fill: fill, fillColor: fillColor, enabled: view.fillSwatch)
         fontSizePopoverController?.sync(value: fontSize, color: color)
     }
 
-    // MARK: - Applying (`ApplyAppearance`, `:378-409`)
+    /// The tip of the second capsule, by what it is showing.
+    private func lineCapsuleTooltip(_ second: SecondCapsule) -> String {
+        switch second {
+        case .fontSize: return EditorStrings.fontSize(language)
+        case .shape: return EditorStrings.shape(language)
+        case .none: return ""
+        case .line: return EditorStrings.thickness(language)
+        }
+    }
 
-    /// [ТЗ№4 D1] The colour is accepted with **every** tool in the hand, the Comment and the Select
-    /// included: the condition `HasColor(tool)` is gone (`D-editor.md` §2.1). The rest still belongs
-    /// to the marks that have it.
+    private func lineCapsuleGlyph(_ second: SecondCapsule) -> String {
+        switch second {
+        case .fontSize: return "A"
+        case .shape: return "\u{25A2}"
+        case .none, .line: return ""
+        }
+    }
+
+    private func lineCapsuleValue(_ second: SecondCapsule, thickness: Double, fontSize: Double, shape: AnnotationShape) -> String {
+        switch second {
+        case .fontSize: return EditorStrings.pointLabel(fontSize)
+        case .shape: return EditorStrings.text(EditorStrings.shapeNameKey(shape), language: language)
+        case .none: return ""
+        case .line: return EditorStrings.pixelLabel(thickness)
+        }
+    }
+
+    // MARK: - Applying (`ApplyAppearance`, `.Appearance.cs:369-441`)
+
+    /// Rule 2 of the specification: with a mark selected the change goes into that mark and nowhere
+    /// else; with nothing selected it goes into the tool it belongs to, and every mark that tool
+    /// draws from now on carries it. A tool with no settings of its own takes nothing at all, and
+    /// what may be taken at all is the fields of `InspectorView` and not five predicates of its own.
     func applyAppearance(
         color: NSColor? = nil, thickness: Double? = nil, shape: AnnotationShape? = nil,
         fill: AnnotationFill? = nil, arrowStyle: String? = nil, fillColor: NSColor? = nil,
@@ -232,73 +268,119 @@ extension OverlayEditorController {
     ) {
         guard let canvasView else { return }
         let selected = canvasView.selectedAnnotation
-        let tool = selected?.kind ?? canvasView.tool
+        let tool = EditorInspector.inspectedTool(selected: selected, armed: canvasView.tool)
+        let view = EditorInspector.inspectorViewOf(tool)
 
-        if let color {
-            appearanceDefaultsChanged = appearanceDefaultsChanged || !EditorAppearance.sameColor(color, activeColor)
-            activeColor = color
-            canvasView.activeColor = color
+        func keep(_ change: (ToolAppearance) -> ToolAppearance) {
+            guard let before = tools[tool] else { return }
+            let after = change(before)
+            appearanceDefaultsChanged = appearanceDefaultsChanged || after != before
+            tools[tool] = after
+        }
+
+        if let color, view.stroke {
             if let selected {
                 selected.color = color
                 appearanceChanged = true
+            } else {
+                keep { before in
+                    var after = before
+                    after.color = color
+                    return after
+                }
             }
         }
-        if let thickness, EditorAppearance.hasStroke(tool) {
-            setActiveThickness(thickness, for: tool)
+        if let thickness, view.second == .line {
             if let selected {
                 selected.thickness = thickness
                 appearanceChanged = true
+            } else {
+                keep { before in
+                    var after = before
+                    after.thickness = thickness
+                    return after
+                }
             }
         }
-        if let shape, EditorAppearance.hasShape(tool) {
-            activeShape = shape
-            canvasView.activeShape = shape
+        // The shape belongs to the frame and to nothing else on the panel: a blur, selected or in the
+        // hand, is drawn with the shape the frame carries and has no say of its own in it.
+        if let shape, tool == .rectangle {
             if let selected {
                 selected.shape = shape
                 appearanceChanged = true
+            } else {
+                // One shape for the frame and the blur: it is kept on the frame and mirrored onto the
+                // blur, so the settings file says the same thing whichever of the two wrote it.
+                appearanceDefaultsChanged = appearanceDefaultsChanged || activeShape != shape
+                var frame = appearance(of: .rectangle)
+                frame.shape = shape
+                tools[.rectangle] = frame
+                var blur = appearance(of: .blur)
+                blur.shape = shape
+                tools[.blur] = blur
             }
         }
-        if let fill, EditorAppearance.hasFill(tool) {
-            activeFill = fill
-            canvasView.activeFill = fill
+        if let fill, view.fillSwatch {
             if let selected {
                 selected.fill = fill
                 appearanceChanged = true
+            } else {
+                keep { before in
+                    var after = before
+                    after.fill = fill
+                    return after
+                }
             }
         }
-        if let fillColor, EditorAppearance.hasFill(tool) {
-            activeFillColor = fillColor
-            canvasView.activeFillColor = fillColor
+        if let fillColor, view.fillSwatch {
             if let selected {
                 selected.fillColor = fillColor
                 appearanceChanged = true
+            } else {
+                keep { before in
+                    var after = before
+                    after.fillColor = fillColor
+                    return after
+                }
             }
         }
         if let arrowStyle, tool == .arrow {
-            canvasView.activeArrowStyle = arrowStyle
             if let selected {
                 selected.arrowStyle = arrowStyle
                 appearanceChanged = true
+            } else {
+                keep { before in
+                    var after = before
+                    after.arrowStyle = arrowStyle
+                    return after
+                }
             }
         }
-        if let lineStyle, EditorAppearance.hasLineStyle(tool) {
-            activeLineStyle = lineStyle
-            canvasView.activeLineStyle = lineStyle
+        if let lineStyle, StrokePattern.participates(EditorAnnotation.coreKind(of: tool)) {
             if let selected {
                 selected.lineStyle = lineStyle
                 appearanceChanged = true
+            } else {
+                keep { before in
+                    var after = before
+                    after.lineStyle = lineStyle
+                    return after
+                }
             }
         }
-        if let fontSize, EditorAppearance.hasFontSize(tool) {
+        if let fontSize, view.second == .fontSize {
             let clamped = TextMarkMetrics.clamp(fontSize)
-            appearanceDefaultsChanged = appearanceDefaultsChanged || clamped != activeFontSize
-            activeFontSize = clamped
-            canvasView.activeFontSize = clamped
             if let selected {
                 selected.fontSize = clamped
                 // The box of a caption is its letters, and they just changed size.
                 canvasView.fitTextMark(selected)
                 appearanceChanged = true
+            } else {
+                keep { before in
+                    var after = before
+                    after.fontSize = clamped
+                    return after
+                }
             }
             resizeTextEditor()
         }
@@ -342,8 +424,9 @@ extension OverlayEditorController {
         }
         activePalette = palette
         appearanceDefaultsChanged = true
-        colorPopoverController?.setPalette(palette, selected: activeColor)
-        fillPopoverController?.setPalette(palette, selected: activeFillColor ?? activeColor)
+        let kept = inspectedAppearance
+        colorPopoverController?.setPalette(palette, selected: kept.color)
+        fillPopoverController?.setPalette(palette, selected: kept.fillColor ?? kept.color)
         syncAppearance()
     }
 
@@ -361,8 +444,9 @@ extension OverlayEditorController {
         appearanceDefaultsChanged = true
         if activePalette.id == "custom" {
             activePalette = EditorAppearance.customPalette(customColors)
-            colorPopoverController?.setPalette(activePalette, selected: activeColor)
-            fillPopoverController?.setPalette(activePalette, selected: activeFillColor ?? activeColor)
+            let kept = inspectedAppearance
+            colorPopoverController?.setPalette(activePalette, selected: kept.color)
+            fillPopoverController?.setPalette(activePalette, selected: kept.fillColor ?? kept.color)
         }
         syncAppearance()
     }
@@ -374,13 +458,13 @@ extension OverlayEditorController {
     /// the colour it started with.
     func pickColorFromScreen() {
         guard let toolbarView else { return }
-        let before = activeColor
+        let before = inspectedAppearance.color
         activePopover?.close()
         let picked = ScreenColorPicker.pick(language: language) { [weak self] colour in
             self?.applyAppearance(color: colour)
         }
         applyAppearance(color: picked ?? before)
-        togglePopover(.color, relativeTo: toolbarView.appearanceButton)
+        togglePopover(.color, relativeTo: toolbarView.colorCapsule)
     }
 
     // MARK: - Closing one edit session (`OnAppearanceClosed`/`CommitAppearanceEdit`, `:631-656`)
@@ -398,10 +482,12 @@ extension OverlayEditorController {
         flushAppearanceDefaults()
     }
 
-    /// Port of `FlushAppearanceDefaults`/`SaveAppearanceDefaults` (`:651-684`). [ТЗ№4 D1] only what
-    /// travels between captures is written: the colour, the two thicknesses, the size of a caption,
-    /// the palette, the own colours and which half of the pencil capsule is armed (`D-editor.md`
-    /// §2.5). The shape, the fill, its colour and the outline flag are not written at all.
+    /// Port of `FlushAppearanceDefaults`/`SaveAppearanceDefaults` (`.Appearance.cs` of the round of
+    /// 1.6.0): rule 6 of the round — every tool keeps its own set, and all six of them are written,
+    /// the shape and the fill included, so a second window opens with what this one was set to. The
+    /// three keys that are common and not per tool (the palette, the own colours and which half of
+    /// the pencil capsule is armed) are written in the same pass: this method is their only writer,
+    /// and losing them here would quietly undo the round before this one.
     func flushAppearanceDefaults() {
         guard appearanceDefaultsChanged else { return }
         appearanceDefaultsChanged = false
@@ -414,13 +500,9 @@ extension OverlayEditorController {
                 (try? JSONDecoder().decode(HotkeySettings.self, from: data)) != nil
             else { return }
         }
-        var stored = HotkeySettings.load(path: path)
-        stored.annotationColor = activeColor.hexRGB
-        stored.annotationThickness = min(max(activeThickness, EditorAppearance.minimumThickness), EditorAppearance.maximumThickness)
-        stored.annotationHighlightThickness = min(
-            max(activeHighlightThickness, EditorAppearance.minimumHighlightThickness),
-            EditorAppearance.maximumHighlightThickness)
-        stored.annotationFontSize = TextMarkMetrics.clamp(activeFontSize)
+        // The store writes the six sets and mirrors the four old common keys beside them, so the
+        // file goes on being read whole by 1.5.0 (§3.1).
+        var stored = ToolAppearanceStore.write(HotkeySettings.load(path: path), tools: tools)
         stored.annotationPalette = activePalette.id
         stored.customPaletteColors = customColors
         stored.annotationPencil = activePencil == .highlight ? "highlight" : "pen"
@@ -434,7 +516,6 @@ extension OverlayEditorController {
         activePopoverKind = nil
         colorPopoverController = nil
         thicknessPopoverController = nil
-        lineStylePopoverController = nil
         fillPopoverController = nil
         fontSizePopoverController = nil
         appearancePopoverDelegate = nil
@@ -450,6 +531,10 @@ extension OverlayEditorController {
     /// the canvas before the window is asked at all.
     enum EscapeStep {
         case popover
+        /// A pill the pointer unfolded, folded back before the tool is put down: a new pin unfolds
+        /// its own pill at once, so this step stands above the comment
+        /// (`.Appearance.cs:691-698`, SPEC-DELTA-5-editor.md §1.2 E-6).
+        case expandedNote
         case comment
         case selection
         case capture
@@ -457,6 +542,7 @@ extension OverlayEditorController {
 
     func nextEscapeStep() -> EscapeStep {
         if activePopover?.isShown == true { return .popover }
+        if expandedChipId != nil { return .expandedNote }
         if canvasView?.tool == .comment { return .comment }
         if canvasView?.selectedAnnotation != nil { return .selection }
         return .capture

@@ -13,6 +13,15 @@ import SnapikCore
 
 @MainActor
 extension AnnotationCanvasView {
+    /// Port of `ApplyScalingMode` (`AnnotationCanvas.cs:267-275`, SPEC-DELTA-5-editor.md §1.2 H-2):
+    /// the mode is chosen by the size the picture is really drawn at and not by whether the view has
+    /// a scale of its own. A picture at its own size or above shows its own pixels; a picture shrunk
+    /// to fit is averaged, because throwing pixels away turns dark photographic texture into grit.
+    /// `.default` is not used at all: it is the linear mode that made that grit in the first place.
+    static func interpolation(ratio: CGFloat) -> NSImageInterpolation {
+        ratio >= 0.999 ? .none : .high
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext, let capture else { return }
         recomputeImageRect()
@@ -26,7 +35,8 @@ extension AnnotationCanvasView {
         // reads the interpolation off the context and blits upright in a flipped view — a plain
         // `CGContext.draw` would need the anti-flip of `macos/README.md` around it.
         let interpolation = NSGraphicsContext.current?.imageInterpolation
-        NSGraphicsContext.current?.imageInterpolation = viewScale == nil ? .default : .none
+        NSGraphicsContext.current?.imageInterpolation = Self.interpolation(
+            ratio: imageRect.width / CGFloat(max(1, displayImage.width)))
         NSImage(cgImage: displayImage, size: imageRect.size).draw(in: imageRect)
         if let interpolation { NSGraphicsContext.current?.imageInterpolation = interpolation }
 
@@ -114,7 +124,7 @@ extension AnnotationCanvasView {
                 AnnotationPainter.drawBoxShape(
                     in: ctx, shape: item.shape, rect: rect, scale: scale,
                     fill: EditorAppearance.fillColor(fillColor, fill: item.fill),
-                    outline: EditorAppearance.outlineColor(fill: item.fill, color: color, fillColor: fillColor),
+                    outline: AnnotationRules.outlineColorOf(fill: item.fill, color: color),
                     thickness: thickness, lineStyle: lineStyle)
             case .conceal:
                 // Nothing draws this kind any more: the tool is gone and a legacy `redaction` mark is
@@ -177,13 +187,26 @@ extension AnnotationCanvasView {
         ctx.saveGState()
         ctx.setLineDash(phase: 0, lengths: [])
         if item.noteOffset != nil {
-            let bounds = EditorGeometry.boundsOf(points: item.points, additionalSegments: item.additionalPathSegments)
-            let topLeft = map(CGPoint(x: bounds.minX, y: bounds.minY))
-            let bottomRight = map(CGPoint(x: bounds.maxX, y: bounds.maxY))
-            let outline = CGRect(
-                x: min(topLeft.x, bottomRight.x), y: min(topLeft.y, bottomRight.y),
-                width: abs(bottomRight.x - topLeft.x), height: abs(bottomRight.y - topLeft.y))
-            if let leader = NoteBadgeGeometry.leader(bounds: outline, badge: badge) {
+            // A comment is the dot it is pinned by, not the square of eight its two points make: the
+            // leader starts on the rim of that dot and not in the corner of a square nobody draws.
+            // `boundsOf` is not asked for it at all — a mark without points answers `.null`, whose
+            // edges are infinite, and the clamp inside `leader` would give back rubbish
+            // (SPEC-DELTA-5-editor.md §1.3 E-9).
+            let outline: CGRect
+            let fromRadius: CGFloat
+            if item.kind == .comment, let first = item.points.first {
+                outline = CGRect(origin: map(first), size: .zero)
+                fromRadius = Self.anchorRadius
+            } else {
+                let bounds = EditorGeometry.boundsOf(points: item.points, additionalSegments: item.additionalPathSegments)
+                let topLeft = map(CGPoint(x: bounds.minX, y: bounds.minY))
+                let bottomRight = map(CGPoint(x: bounds.maxX, y: bounds.maxY))
+                outline = CGRect(
+                    x: min(topLeft.x, bottomRight.x), y: min(topLeft.y, bottomRight.y),
+                    width: abs(bottomRight.x - topLeft.x), height: abs(bottomRight.y - topLeft.y))
+                fromRadius = 0
+            }
+            if let leader = NoteBadgeGeometry.leader(bounds: outline, badge: badge, fromRadius: fromRadius) {
                 ctx.setStrokeColor(accent.cgColor)
                 ctx.setLineWidth(1)
                 ctx.beginPath()

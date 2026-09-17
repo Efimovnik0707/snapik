@@ -62,20 +62,20 @@ enum EditorStrings {
     static func monitorCount(_ language: String, _ count: Int) -> String {
         UiFormat.text(text("мониторов: {0}", language: language), "\(count)")
     }
-    /// "По ширине · 31 %" / "По высоте · 25 %": the side of the box that stopped the picture, and how
-    /// far it was scaled down to get there.
-    static func fitPercent(_ language: String, boundBy: EditorGeometry.FitBound, percent: Int) -> String {
-        let template = boundBy == .height ? "По высоте · {0} %" : "По ширине · {0} %"
-        return UiFormat.text(text(template, language: language), "\(percent)")
-    }
-    /// The right segment of the switch: a ratio, not a sentence, and the same in both languages.
-    static let oneToOne = "1:1"
     static func removeComment(_ language: String) -> String { text("Удалить комментарий", language: language) }
     static func undo(_ language: String) -> String { text("Отменить", language: language) }
     static func redo(_ language: String) -> String { text("Повторить", language: language) }
     /// The pair Windows carries, without the keys in it: the shortcut is appended by whoever shows a
     /// tooltip, the way "Отменить (Cmd+Z)" is built (`EditorToolbarView`).
     static func saveToComputer(_ language: String) -> String { text("Сохранить на компьютер", language: language) }
+    static func copyCapture(_ language: String) -> String { text("Копировать снимок", language: language) }
+    /// "Снимок B скопирован": what the plate of the editor says when the strip took the copy.
+    static func captureCopied(_ language: String, _ label: String) -> String {
+        UiFormat.text(text("Снимок {0} скопирован", language: language), label)
+    }
+    static func couldNotCopyCapture(_ language: String) -> String {
+        text("Не удалось скопировать снимок", language: language)
+    }
     static func done(_ language: String) -> String { text("Готово", language: language) }
 
     // Key cheat sheet (SPEC-DELTA-3 §1.4 E-19)
@@ -91,7 +91,6 @@ enum EditorStrings {
     static func arrowStyle(_ language: String) -> String { text("Стиль стрелки", language: language) }
     static func arrowStraight(_ language: String) -> String { text("Прямая стрелка", language: language) }
     static func arrowCurved(_ language: String) -> String { text("Изогнутая стрелка", language: language) }
-    static func arrowBold(_ language: String) -> String { text("Толстая стрелка", language: language) }
     static func arrowWide(_ language: String) -> String { text("Широкая стрелка", language: language) }
 
     static func defaultText(_ language: String) -> String { text("Текст", language: language) }
@@ -110,6 +109,22 @@ enum EditorStrings {
     /// A value in pixels on a button, e.g. "4 px".
     static func pixelLabel(_ points: Double) -> String {
         "\(Int(points.rounded())) px"
+    }
+
+    /// The size of a caption on the second capsule, e.g. "20 pt" (`LineCapsuleValue`).
+    static func pointLabel(_ points: Double) -> String {
+        "\(Int(points.rounded())) pt"
+    }
+
+    /// The short name of a shape, the one the second capsule carries (`ShapeName`,
+    /// `.Appearance.cs:357-362`). Short on purpose: the capsule is 105 points wide, and the menu of
+    /// the shapes says the long names.
+    static func shapeNameKey(_ shape: AnnotationShape) -> String {
+        switch shape {
+        case .rounded: return "Скруглённый"
+        case .ellipse: return "Овал"
+        case .rectangle: return "Прямоугольник"
+        }
     }
 
     // Errors / notifications

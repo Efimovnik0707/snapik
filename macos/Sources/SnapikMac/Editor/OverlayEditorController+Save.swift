@@ -78,6 +78,29 @@ extension OverlayEditorController {
         }
     }
 
+    /// Port of `OnCopyImageClick` (`.Save.cs:56-85`, SPEC-DELTA-5-editor.md §1.3 E-12): the same
+    /// guards the save has, plus `busyCrop` held for the length of the export — a second Shift+Cmd+C
+    /// used to put a second export in the queue. The caption being typed is committed first: while
+    /// the field is open the canvas does not draw it, and the picture would go without the words
+    /// that are on screen. The strip is what owns the clipboard, and the editor only says the answer.
+    func copyToClipboard() {
+        guard let capture, !busyCrop, !isModalOpen, captureResizeCorner < 0,
+            canvasView?.manipulating != true, activeScreenIndex != nil
+        else { return }
+        commitTextEdit()
+        let label = capture.displayLabel
+        busyCrop = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let copied = await self.delegate?.overlayEditorCopiesSingleCapture(self) ?? false
+            self.busyCrop = false
+            self.showHintError(
+                copied
+                    ? EditorStrings.captureCopied(self.language, label)
+                    : EditorStrings.couldNotCopyCapture(self.language))
+        }
+    }
+
     /// Port of `LocalImageSave.NewPath`'s file-name half (`Snapik-yyyy-MM-dd-HHmmss-fff-XXXX`).
     private func defaultFileName() -> String {
         let formatter = DateFormatter()

@@ -78,6 +78,10 @@ extension OverlayEditorController {
             case "z":
                 self.performUndo()
                 return true
+            // Shift+Cmd+C stands before Cmd+C, or "Готово" would swallow it and close the editor.
+            case "c" where event.modifierFlags.contains(.shift):
+                self.copyToClipboard()
+                return true
             case "c":
                 self.commit(addNext: false)
                 return true
@@ -100,9 +104,8 @@ extension OverlayEditorController {
         }
 
         guard let key = event.charactersIgnoringModifiers?.uppercased(), let tool = EditorShortcuts.tool(forKey: key) else { return }
-        // SPEC-DELTA-2B.md §C7: the `N` key routes through `commentButtonClicked()` (which captures
-        // `commentParentId` from whatever is selected) instead of the plain `selectTool(_:)` every
-        // other letter uses.
+        // SPEC-DELTA-2B.md §C7: the `N` key routes through `commentButtonClicked()` instead of the
+        // plain `selectTool(_:)` every other letter uses.
         if tool == .comment {
             commentButtonClicked()
         } else {
@@ -110,9 +113,10 @@ extension OverlayEditorController {
         }
     }
 
-    /// Port of the Escape ladder (`NextEscapeStep`, `Appearance.cs:614-620`, SPEC-DELTA-3 §1.4 E-10):
-    /// an open popover, then the Comment tool, then the selection, and only with nothing left to give
-    /// up, the capture itself. The mark being drawn is taken by the canvas before this runs at all.
+    /// Port of the Escape ladder (`NextEscapeStep`, `.Appearance.cs:691-698`, SPEC-DELTA-3 §1.4 E-10,
+    /// SPEC-DELTA-5-editor.md §1.2 E-6): an open popover, then a pill the pointer unfolded, then the
+    /// Comment tool, then the selection, and only with nothing left to give up, the capture itself.
+    /// The mark being drawn is taken by the canvas before this runs at all.
     private func handleEscape() {
         if capture == nil {
             if selectionStartLocal == nil {
@@ -124,6 +128,8 @@ extension OverlayEditorController {
         switch nextEscapeStep() {
         case .popover:
             closePopovers()
+        case .expandedNote:
+            if let expandedChipId { expandChip(expandedChipId, expanded: false) }
         case .comment:
             selectTool(.select)
         case .selection:

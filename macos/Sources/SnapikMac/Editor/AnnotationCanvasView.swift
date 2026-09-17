@@ -89,6 +89,10 @@ final class AnnotationCanvasView: NSView {
     /// Port of `AnnotationActivated` (`:203-208`): a double click opens the note of whatever it
     /// lands on — the text editor for a caption, the note pill for everything else.
     var onAnnotationActivated: ((EditorAnnotation) -> Void)?
+    /// Port of `NoteHovered` (`AnnotationCanvas.cs:527-529`): the badge the pointer stands on, or
+    /// `nil` when it stands on none. Pointing at a number opens its note, and the window is the one
+    /// that knows about pills (SPEC-DELTA-5-editor.md §1.2 E-6).
+    var onNoteHovered: ((EditorAnnotation?) -> Void)?
 
     // Draft gesture state (SPEC §6.3 "Взаимодействие")
     var draft: EditorAnnotation?
@@ -103,6 +107,11 @@ final class AnnotationCanvasView: NSView {
     private var originalPoints: [CGPoint] = []
     private var originalAdditionalSegments: [[CGPoint]] = []
     private var manipulationChanged = false
+    /// A click on a mark with a pixel of tremor in it is a click and not a drag: without this gate
+    /// every press on a selected mark wrote an entry of the history. The threshold is the one the
+    /// anchor and a new mark are both measured by, and it is measured on screen
+    /// (`AnnotationCanvas.cs:454-455`).
+    private var manipulationMoved = false
 
     // Eraser (SPEC-DELTA-3 §1.4 E-5) — read by `+Drawing.swift`.
     private(set) var eraseHover: EditorAnnotation?
@@ -115,9 +124,22 @@ final class AnnotationCanvasView: NSView {
     private var anchorDragStart: CGPoint = .zero
     private var anchorMoved = false
 
+    // The badge of a comment travels on its own, and the point it is attached to stays: that is what
+    // the leader is for. Moving the two together is what the anchor does
+    // (`AnnotationCanvas.cs:39-41`, SPEC-DELTA-5-editor.md §1.2 E-6).
+    private var badgeDrag: EditorAnnotation?
+    private var badgeOriginOffset: CGPoint?
+    private var badgeDragStart: CGPoint = .zero
+    private var badgeMoved = false
+    /// The badge the pointer stands on, so that `onNoteHovered` speaks only when it changes.
+    private var badgeHoverId: SBGuid?
+
     /// Five pixels of circle and seven of reach: the circle grows to the reach under the pointer, so
-    /// what answers the press is what is seen at that moment (`AnnotationCanvas.cs:780-782`).
-    static let anchorRadius: CGFloat = 5
+    /// what answers the press is what is seen at that moment (`AnnotationCanvas.cs:780-782`). The
+    /// five live in `NoteBadgeGeometry`, where the exported dot and the leader read them too: the
+    /// line has to start on the rim of the dot in both drawers, and two copies of the number would
+    /// drift apart (SPEC-DELTA-5-editor.md §1.3 E-9).
+    static let anchorRadius: CGFloat = NoteBadgeGeometry.anchorRadius
     static let anchorHoverRadius: CGFloat = 7
 
     // Blur raster cache (SPEC §1.7)
@@ -270,7 +292,8 @@ final class AnnotationCanvasView: NSView {
     func beginGesture(_ point: CGPoint, clickCount: Int = 1) {
         guard let capture else { return }
         // Space held down turns the press into a drag of the picture itself, wherever it lands
-        // (`:224-228`).
+        // (`:224-228`). It is `PressTarget.pan` of the rule below, asked here because only the canvas
+        // knows whether the picture has a scale of its own to be dragged at.
         if panning, viewScale != nil {
             panStart = point
             panOrigin = viewOffset
@@ -278,9 +301,26 @@ final class AnnotationCanvasView: NSView {
         }
         guard imageRect.contains(point) else { return }
 
+        let imagePoint = toImage(point)
+        let anchored = findLeaderAnchor(point)
+        let handleHit = findResizeHandle(point)
+        let under = hitTestAnnotation(imagePoint)
+        let grabbed = findMoveHandle(point) ?? under
+        // One order for every tool, and no branch per tool: whatever is in the hand, the corners of
+        // the selected mark, the anchor of a comment and the mark under the cursor answer before a
+        // new mark is begun. The rule itself lives in `AnnotationRules`, where a test can reach it.
+        switch AnnotationRules.pressTargetOf(
+            tool: tool, panning: false, clickCount: clickCount,
+            onAnchor: anchored != nil, onSelectedHandle: handleHit.annotation != nil,
+            onObject: grabbed != nil, activatable: under?.kind == .text || under?.kind == .comment
+        ) {
+        case .pan:
+            // The drag of the picture is taken above, where the mode of the view is known.
+            return
+
         // The eraser draws nothing: it removes the mark under the pointer and tells the controller,
         // which turns that into one history entry, exactly as the Delete key does.
-        if tool == .eraser {
+        case .erase:
             guard let target = eraseTarget(point) else { return }
             select(nil)
             capture.annotations.removeAll(where: { $0 === target })
@@ -288,54 +328,66 @@ final class AnnotationCanvasView: NSView {
             onAnnotationChanged?()
             needsDisplay = true
             return
-        }
 
-        // A double click opens the note of whatever it lands on.
-        if clickCount == 2, let activated = hitTestAnnotation(toImage(point)) {
-            select(activated)
-            onAnnotationActivated?(activated)
+        // A double click opens what can be typed into: the field of a caption, the pill of a
+        // comment. On a frame or an arrow it is two single clicks, that is, a selection, and it
+        // falls to the branches below.
+        case .activate:
+            guard let under else { return }
+            select(under)
+            onAnnotationActivated?(under)
             return
-        }
 
         // The anchor of a leader is taken before the resize handles: it sits on the point of a
         // comment, a place where the handle of a neighbouring mark may lie as well, and the handle
         // would win the press by being asked first.
-        if let anchored = findLeaderAnchor(point) {
+        case .commentAnchor:
+            guard let anchored else { return }
             select(anchored)
             anchorDrag = anchored
             anchorOriginPoints = anchored.points
             anchorOriginOffset = anchored.noteOffset
-            anchorDragStart = toImage(point)
+            anchorDragStart = imagePoint
             anchorMoved = false
             return
-        }
 
-        // [ТЗ№4 D3] With the Comment tool in the hand the gate below no longer refuses everything:
-        // `findMoveHandle` answers only for badges of existing comments, so a press on one grabs it
-        // and a press anywhere else falls through to a new pin (`D-editor.md` §4.1).
-        let handleHit = findResizeHandle(point)
-        let moveHandleHit = findMoveHandle(point)
-        if tool == .select || handleHit.annotation != nil || moveHandleHit != nil {
-            let imagePoint = toImage(point)
-            let hit = handleHit.annotation ?? moveHandleHit ?? hitTestAnnotation(imagePoint)
+        case .resizeHandle, .object:
+            guard let hit = handleHit.annotation ?? grabbed else { return }
             select(hit)
-            if let hit {
-                gestureStart = imagePoint
-                originalPoints = hit.points
-                originalAdditionalSegments = hit.additionalPathSegments
-                originalBounds = EditorGeometry.boundsOf(points: hit.points, additionalSegments: hit.additionalPathSegments)
-                resizeCorner = handleHit.corner
-                resizing = resizeCorner >= 0
-                manipulating = true
-                manipulationChanged = false
+            // A comment taken by anything but a corner is taken by its badge, and only the badge
+            // travels: the point it is pinned to stays where it was put.
+            if hit.kind == .comment, handleHit.annotation == nil {
+                badgeDrag = hit
+                badgeOriginOffset = hit.noteOffset
+                badgeDragStart = imagePoint
+                badgeMoved = false
+                return
             }
+            gestureStart = imagePoint
+            originalPoints = hit.points
+            originalAdditionalSegments = hit.additionalPathSegments
+            originalBounds = EditorGeometry.boundsOf(points: hit.points, additionalSegments: hit.additionalPathSegments)
+            resizeCorner = handleHit.corner
+            resizing = resizeCorner >= 0
+            manipulating = true
+            manipulationChanged = false
+            manipulationMoved = false
             return
+
+        // The pointer over an empty place: the selection goes and nothing is begun. It draws no mark
+        // of its own, and a draft of its kind would reach `session.json` and the export.
+        case .deselect:
+            select(nil)
+            return
+
+        case .cropDraft, .empty:
+            break
         }
 
-        // A press with a drawing tool armed drops the selection at once: whatever the hand does
-        // next, the colour and the thickness on the panel belong to the next mark from now on.
+        // A press on an empty part of the capture, or the frame of a crop over whatever lies under
+        // it: the selection is dropped at once, and from now on the panel belongs to the next mark.
         select(nil)
-        let start = toImage(point)
+        let start = imagePoint
         gestureStart = start
         draft = EditorAnnotation(
             kind: tool,
@@ -395,8 +447,26 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
+        // The badge travels and the point stays. No clamp: a badge is allowed off the capture, onto
+        // the shade beside it, and the leader runs back inside (SPEC-DELTA-5-editor.md §1.2 E-6).
+        if let badged = badgeDrag, pressed {
+            let current = toImage(displayPoint)
+            let moved = CGPoint(x: current.x - badgeDragStart.x, y: current.y - badgeDragStart.y)
+            if !badgeMoved, hypot(moved.x, moved.y) * displayScale < EditorGeometry.gestureThreshold { return }
+            badgeMoved = true
+            let origin = badgeOriginOffset ?? .zero
+            badged.noteOffset = CGPoint(x: origin.x + moved.x, y: origin.y + moved.y)
+            needsDisplay = true
+            return
+        }
+
         if manipulating, let selected = selectedAnnotation, let gestureStart, pressed {
             let current = clampToImage(toImage(displayPoint))
+            if !manipulationMoved,
+                hypot(current.x - gestureStart.x, current.y - gestureStart.y) * displayScale < EditorGeometry.gestureThreshold {
+                return
+            }
+            manipulationMoved = true
             if resizing {
                 // `ResizeGeometry` (Sources/SnapikCore/Geometry/ResizeGeometry.swift) is
                 // Foundation-only; CG-typed overloads with matching labels live in
@@ -433,8 +503,16 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
-        guard let draft, gestureStart != nil, pressed else {
+        guard let draft, let gestureStart, pressed else {
             updateCursor(displayPoint)
+            return
+        }
+        // A comment is put down by "press and drag": the press fixes the point, and what the hand
+        // drags away is the badge, not the second point of the mark. No clamp, as above.
+        if draft.kind == .comment {
+            let carried = toImage(displayPoint)
+            draft.noteOffset = CGPoint(x: carried.x - gestureStart.x, y: carried.y - gestureStart.y)
+            needsDisplay = true
             return
         }
         let point = clampToImage(toImage(displayPoint))
@@ -469,9 +547,21 @@ final class AnnotationCanvasView: NSView {
             return
         }
 
+        if badgeDrag != nil {
+            let carried = badgeMoved
+            badgeDrag = nil
+            badgeOriginOffset = nil
+            badgeMoved = false
+            // One entry of the history for one drag, the way the anchor writes one.
+            if carried { onAnnotationChanged?() }
+            needsDisplay = true
+            return
+        }
+
         if manipulating {
             manipulating = false
             resizing = false
+            manipulationMoved = false
             gestureStart = nil
             originalPoints = []
             originalAdditionalSegments = []
@@ -483,6 +573,12 @@ final class AnnotationCanvasView: NSView {
         guard let draft else { return }
         self.draft = nil
         gestureStart = nil
+        // A press that did not travel is a click, and a click puts the badge on the point it was put
+        // down at: an offset shorter than the threshold is no offset at all.
+        if draft.kind == .comment, let carried = draft.noteOffset,
+            hypot(carried.x, carried.y) * displayScale < EditorGeometry.gestureThreshold {
+            draft.noteOffset = nil
+        }
         if EditorGeometry.gestureHasSize(kind: draft.kind, points: draft.points, scale: displayScale) {
             if draft.kind == .crop {
                 onCropRequested?(EditorGeometry.boundsOf(points: draft.points))
@@ -530,33 +626,22 @@ final class AnnotationCanvasView: NSView {
     /// `Delta / 120` (`:1042, 1059`).
     private static let lineTravel: CGFloat = 40
 
-    /// Port of `OnMouseWheel` (`:1039-1065`). The wheel belongs to the picture only while it is
-    /// shown at a scale of its own: fitted, there is nothing to scroll and nothing to zoom into, and
-    /// the event goes on its way.
+    /// Port of `OnMouseWheel` (`:1168-1182`). The wheel scrolls the picture only while it is shown at
+    /// a scale of its own: fitted, there is nothing to scroll. Cmd and the wheel answer from either
+    /// state — with the switch beside the panel gone, this is the one way into a scale of one's own
+    /// (SPEC-DELTA-5-editor.md §1.2 E-1).
     override func scrollWheel(with event: NSEvent) {
-        guard capture != nil, let scale = viewScale else {
+        let zooming = event.modifierFlags.contains(.command)
+        guard capture != nil, viewScale != nil || zooming else {
             super.scrollWheel(with: event)
             return
         }
 
-        if event.modifierFlags.contains(.command) {
-            // A tenth of the scale per notch, between "fit" and the picture at its own size: the
-            // switch beside the panel promises those two ends and nothing beyond them. The modifier
-            // is Cmd and not Ctrl, which on macOS belongs to the zoom of the system itself.
+        if zooming {
+            // The modifier is Cmd and not Ctrl, which on macOS belongs to the zoom of the system
+            // itself. A trackpad reports its travel in points, a wheel in lines.
             let notches = Double(event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / Self.lineTravel : event.scrollingDeltaY)
-            let wanted = min(max(scale * pow(1.1, notches), fitScale), 1)
-            // Back at the scale the picture is fitted with, the mode goes back to fitting, and the
-            // switch beside the panel moves to its left segment by itself.
-            if wanted <= fitScale {
-                viewOffset = .zero
-                viewScale = nil
-            } else {
-                viewOffset = EditorGeometry.zoomAround(
-                    cursor: convert(event.locationInWindow, from: nil), offset: viewOffset,
-                    fromScale: scale, toScale: wanted)
-                viewScale = wanted
-                needsDisplay = true
-            }
+            zoomByNotches(notches, cursor: convert(event.locationInWindow, from: nil))
             return
         }
 
@@ -572,6 +657,40 @@ final class AnnotationCanvasView: NSView {
         viewOffset = CGPoint(x: viewOffset.x - travelX * factor, y: viewOffset.y - travelY * factor)
         needsDisplay = true
         onViewChanged?()
+    }
+
+    /// Port of `ZoomByNotches` (`:1189-1214`): one notch of the wheel apart from the modifier that
+    /// carries it, because a smoke run has no keyboard to hold Cmd down with.
+    func zoomByNotches(_ notches: Double, cursor: CGPoint) {
+        guard let capture else { return }
+        // The scale the picture stands at right now, a scale of its own or the one it was fitted
+        // with. `fitScale` counts from `bounds` less `imagePadding` twice, and the editor hands the
+        // canvas `imagePadding = 0`, so the seed is the picture on screen to the pixel and the first
+        // notch does not make it jump. Put the padding back and it will.
+        let scale = viewScale ?? fitScale
+        // Fitted, the picture is centred by `fitRect` and `viewOffset` is never read; scaled, that
+        // offset is what holds it. The centred picture written as an offset is the seed, so the
+        // point under the cursor stays where it is on the very first notch.
+        let offset = viewScale == nil
+            ? CGPoint(
+                x: -(bounds.width - CGFloat(capture.image.width) * CGFloat(scale)) / 2,
+                y: -(bounds.height - CGFloat(capture.image.height) * CGFloat(scale)) / 2)
+            : viewOffset
+        // A tenth of the scale per notch, between "fit" and the picture at its own size, and nothing
+        // beyond those two ends. A capture small enough to stand at its own size is fitted at a scale
+        // of one or above, and the floor and the ceiling meet there — without the floor held down to
+        // one, the clamp is asked for a range that runs backwards.
+        let floor = min(fitScale, 1)
+        let wanted = min(max(scale * pow(1.1, notches), floor), 1)
+        // Back at the scale the picture is fitted with, the view goes back to fitting.
+        guard wanted > floor else {
+            viewOffset = .zero
+            viewScale = nil
+            return
+        }
+        viewOffset = EditorGeometry.zoomAround(cursor: cursor, offset: offset, fromScale: scale, toScale: wanted)
+        viewScale = wanted
+        needsDisplay = true
     }
 
     /// Port of `UpdateCursor` (`:341-362`): arrows on the corners of a selected mark, a hand where a
@@ -617,8 +736,16 @@ final class AnnotationCanvasView: NSView {
 
         // [ТЗ№4 D3] The hand over a pin is no longer reserved for the Select tool: with the Comment
         // tool armed a badge is grabbable, so the cursor has to say so (`D-editor.md` §4.2).
+        let grabbedHere = findMoveHandle(displayPoint)
+        // The badge under the pointer is told to the window as well: pointing at a number opens its
+        // note (`AnnotationCanvas.cs:527-529`).
+        let badge = grabbedHere?.kind == .comment ? grabbedHere : nil
+        if badge?.id != badgeHoverId {
+            badgeHoverId = badge?.id
+            onNoteHovered?(badge)
+        }
         let movablePin = hitTestAnnotation(toImage(displayPoint))?.kind == .comment
-        if findMoveHandle(displayPoint) != nil || movablePin {
+        if grabbedHere != nil || movablePin {
             NSCursor.openHand.set()
         } else if tool.isDrawing && imageRect.contains(displayPoint) {
             NSCursor.crosshair.set()
@@ -701,9 +828,8 @@ final class AnnotationCanvasView: NSView {
         })
     }
 
-    /// Port of `FindMoveHandle` (`:784-788`). [ТЗ№4 D3] the blanket refusal under the Comment tool
-    /// is gone; `isMoveHandle` narrows itself to comment badges instead, so a pin can still be put
-    /// down on top of a drawn frame (`D-editor.md` §4.1 step 2).
+    /// Port of `FindMoveHandle` (`:784-788`): whatever tool is in the hand, the mark under the
+    /// pointer answers, and the order of the press decides what that means (`pressTargetOf`).
     func findMoveHandle(_ displayPoint: CGPoint) -> EditorAnnotation? {
         guard let capture else { return nil }
         return capture.annotations.reversed().first(where: { isMoveHandle($0, displayPoint) })
@@ -715,10 +841,9 @@ final class AnnotationCanvasView: NSView {
     /// opaque and there is nothing to draw into.
     private func isMoveHandle(_ item: EditorAnnotation, _ point: CGPoint) -> Bool {
         guard capture != nil, !item.points.isEmpty else { return false }
-        // [ТЗ№4 D3] With the Comment tool in the hand only a comment answers: otherwise the band
-        // along a drawn frame would swallow the press and a pin could not be put on top of it.
-        if tool == .comment { return item.kind == .comment && badgeOf(item, target: imageRect).contains(point, slack: 4) }
-
+        // The branch for the Comment tool is gone with the round of 1.6.0: with a pin in the hand a
+        // press on the outline of a drawn frame selects the frame, because the order of the press is
+        // one for every tool (SPEC-DELTA-5-editor.md §3.5). A pin is put down on an empty place.
         let scale = displayScale
         let band = max(6, item.thickness * scale)
         switch item.kind {
@@ -738,9 +863,11 @@ final class AnnotationCanvasView: NSView {
             return false
         default:
             let bounds = displayBounds(of: item)
-            // [ТЗ№4 D3, variant Б] a mark of the same kind as the tool in the hand is easier to grab
-            // by its outline, and its empty interior stays free for the next mark.
-            let reach: CGFloat = item.kind == tool ? 10 : 6
+            // One band for every mark and every tool: eight pixels, which is what a hand hits. A
+            // band that changed width with the tool in the hand made the same press mean two things
+            // on the same pixel (`AnnotationCanvas.cs:1035`, SPEC-DELTA-5-editor.md §3.4). The
+            // interior of an empty frame stays free to draw into.
+            let reach: CGFloat = 8
             guard bounds.insetBy(dx: -reach, dy: -reach).contains(point) else { return false }
             // An opaque mark has no free interior, and a small one has no room for a band.
             if Self.hasInteriorGrab(item) || bounds.width < 24 || bounds.height < 24 { return true }
@@ -755,26 +882,26 @@ final class AnnotationCanvasView: NSView {
         item.kind == .blur || item.kind == .text || (item.kind == .rectangle && item.fill != .none)
     }
 
-    /// Port of `FindResizeHandle` (`:544-560`). Skips the kinds without handles (SPEC-DELTA-2B.md
-    /// §C4: a pin never has resize handles; a caption is sized by the panel, not by its corners).
+    /// Port of `FindResizeHandle` (`AnnotationCanvas.cs:749-755`). The corners belong to the selected
+    /// mark and to no other: they are drawn on it alone, and a corner that answers where nothing is
+    /// drawn promises a resize the press will not make. Every tool is offered them, the comment
+    /// included — one order of the press for all of them (SPEC-DELTA-5-editor.md §3.3). Skips the
+    /// kinds without handles (SPEC-DELTA-2B.md §C4: a pin never has resize handles; a caption is
+    /// sized by the panel, not by its corners).
     private func findResizeHandle(_ displayPoint: CGPoint) -> (annotation: EditorAnnotation?, corner: Int) {
-        guard let capture else { return (nil, -1) }
-        if let selected = selectedAnnotation, AnnotationCanvasView.hasResizeHandles(selected) {
-            let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: selected), point: displayPoint, radius: 10)
-            if corner >= 0 { return (selected, corner) }
-        }
-        for annotation in capture.annotations.reversed() where AnnotationCanvasView.hasResizeHandles(annotation) {
-            let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: annotation), point: displayPoint, radius: 10)
-            if corner >= 0 { return (annotation, corner) }
-        }
-        return (nil, -1)
+        guard capture != nil, let selected = selectedAnnotation,
+            AnnotationCanvasView.hasResizeHandles(selected)
+        else { return (nil, -1) }
+        let corner = ResizeGeometry.hitCorner(bounds: displayBounds(of: selected), point: displayPoint, radius: 10)
+        return corner >= 0 ? (selected, corner) : (nil, -1)
     }
 
     private func hitTestAnnotation(_ imagePoint: CGPoint) -> EditorAnnotation? {
         guard let capture else { return nil }
         for annotation in capture.annotations.reversed() {
             let bounds = EditorGeometry.boundsOf(points: annotation.points, additionalSegments: annotation.additionalPathSegments)
-            let inflated = EditorGeometry.hitTestInflatedBounds(bounds, thickness: annotation.thickness)
+            let inflated = EditorGeometry.hitTestInflatedBounds(
+                bounds, kind: annotation.kind, thickness: annotation.thickness)
             if inflated.contains(imagePoint) { return annotation }
         }
         return nil
@@ -814,16 +941,27 @@ final class AnnotationCanvasView: NSView {
         guard view.findMoveHandle(edgePoint) === rectangle else { return false }
         guard view.findMoveHandle(interiorPoint) == nil else { return false }
 
+        // The corners belong to the selected mark and to no other: unselected, the frame offers
+        // none, and selected it offers the one under the pointer (SPEC-DELTA-5-editor.md §3.3).
+        guard view.findResizeHandle(cornerPoint).annotation == nil else { return false }
+        view.selectAnnotation(id: rectangle.id)
         let cornerHit = view.findResizeHandle(cornerPoint)
         guard cornerHit.annotation === rectangle, cornerHit.corner == 2 else { return false }
 
+        view.selectAnnotation(id: pin.id)
         guard view.findResizeHandle(view.badgeCenter(of: pin)).annotation == nil else { return false }
+        view.selectAnnotation(id: nil)
 
-        // [ТЗ№4 D3] With the Comment tool armed the band along a frame answers nothing, so a pin can
-        // be put down on top of it; the badge of a comment still answers.
+        // With the Comment tool armed the band along a frame answers the frame, the way it does
+        // under every other tool: the order of the press is one for all of them, and a pin goes
+        // down on an empty place (SPEC-DELTA-5-editor.md §3.5). The badge answers its comment.
         view.tool = .comment
-        guard view.findMoveHandle(edgePoint) == nil else { return false }
+        guard view.findMoveHandle(edgePoint) === rectangle else { return false }
         guard view.findMoveHandle(view.badgeCenter(of: pin)) === pin else { return false }
+        // And an empty place well away from both is nothing to grab, so a new pin lands there.
+        guard view.findMoveHandle(CGPoint(x: rectangleBounds.maxX + 60, y: rectangleBounds.maxY + 40)) == nil else {
+            return false
+        }
 
         // Hovering never mutates the active tool (only the cursor).
         return view.tool == .comment

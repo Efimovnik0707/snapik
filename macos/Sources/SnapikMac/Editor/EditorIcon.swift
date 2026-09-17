@@ -20,6 +20,8 @@ enum EditorIcon {
     static let undo = "arrow.uturn.backward"
     static let redo = "arrow.uturn.forward"
     static let save = "square.and.arrow.down"
+    /// "Копировать снимок": the picture goes to the clipboard, the way the strip copies a package.
+    static let copy = "doc.on.doc"
     static let eyedropper = "eyedropper"
     static let close = "xmark"
     static let add = "plus"

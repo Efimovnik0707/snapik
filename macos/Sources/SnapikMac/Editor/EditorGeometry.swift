@@ -18,30 +18,37 @@ enum EditorGeometry {
         return CGRect(x: (width - w) / 2, y: (height - h) / 2, width: w, height: h)
     }
 
-    // MARK: - The view of the editor (SPEC-DELTA-4 §4.1, `Controls/EditorGeometry.cs:7-56`)
-
-    /// Which side of the box stopped the picture from growing any further.
-    enum FitBound {
-        case none
-        case width
-        case height
-    }
-
-    /// The scale the picture is shown at, and the side that decided it.
-    struct FitResult: Equatable {
-        let scale: Double
-        let boundBy: FitBound
-    }
+    // MARK: - The view of the editor (SPEC-DELTA-5-editor.md §1.1 W0-4, `EditorGeometry.cs:19-44`)
 
     /// The scale a picture is fitted into a box with, never above its own size: a capture smaller
-    /// than the box is shown as it is and has nothing to switch between (`EditorGeometry.cs:24-31`).
-    static func fit(imageWidth: Double, imageHeight: Double, boxWidth: Double, boxHeight: Double) -> FitResult {
-        guard imageWidth > 0, imageHeight > 0, boxWidth > 0, boxHeight > 0 else { return FitResult(scale: 1, boundBy: .none) }
-        let byWidth = boxWidth / imageWidth
-        let byHeight = boxHeight / imageHeight
-        let scale = min(byWidth, byHeight)
-        guard scale < 1 else { return FitResult(scale: 1, boundBy: .none) }
-        return FitResult(scale: scale, boundBy: byWidth < byHeight ? .width : .height)
+    /// than the box is shown as it is, and the answer is 1. The side that decided the scale is not
+    /// reported any more — it was read by the caption of the scale switch, and that switch is gone
+    /// (`EditorGeometry.cs:19-24`).
+    static func fit(imageWidth: Double, imageHeight: Double, boxWidth: Double, boxHeight: Double) -> Double {
+        guard imageWidth > 0, imageHeight > 0, boxWidth > 0, boxHeight > 0 else { return 1 }
+        let scale = min(boxWidth / imageWidth, boxHeight / imageHeight)
+        return scale >= 1 ? 1 : scale
+    }
+
+    /// Where the capture stands in the working area: at its own size when it fits there together
+    /// with the panel below it, fitted by its width or by its height when it does not. The answer is
+    /// in the units of the window, so "one to one" here is a size and not a mode of the canvas:
+    /// `viewScale` stays `nil` and every other count of the editor goes on as before
+    /// (`EditorGeometry.cs:32-44`).
+    static func placeCapture(image: CGSize, work: CGRect, panel: CGSize, gap: CGFloat = 10, margin: CGFloat = 8) -> CGRect {
+        let boxWidth = max(1, work.width - margin * 2)
+        let boxHeight = max(1, work.height - margin * 2 - panel.height - gap)
+        let scale: CGFloat = image.width <= boxWidth && image.height <= boxHeight
+            ? 1
+            : CGFloat(fit(
+                imageWidth: Double(image.width), imageHeight: Double(image.height),
+                boxWidth: Double(boxWidth), boxHeight: Double(boxHeight)))
+        let size = CGSize(width: image.width * scale, height: image.height * scale)
+        return CGRect(
+            x: work.minX + (work.width - size.width) / 2,
+            y: max(work.minY + margin, work.minY + (work.height - panel.height - gap - size.height) / 2),
+            width: size.width,
+            height: size.height)
     }
 
     /// The offset of a picture shown at `scale` inside a viewport, held so that no edge of the
@@ -118,13 +125,17 @@ enum EditorGeometry {
 
     // MARK: - Hit testing (SPEC §6.3)
 
-    /// Port of the rectangle hit test (`AnnotationCanvas.cs:562-577`, SPEC-DELTA-3 §1.4 E-13). The
+    /// Port of the rectangle hit test (`AnnotationCanvas.cs:760-773`, SPEC-DELTA-3 §1.4 E-13). The
     /// box is drawn through the middle of the stroke, so it is widened by half of it and a little to
     /// grab by. Twice the whole width was the same thing while the thickness of the highlighter
     /// meant a quarter of its real one; with the real width it reached 96 px, and the eraser took
     /// strokes the hand was nowhere near.
-    static func hitTestInflatedBounds(_ bounds: CGRect, thickness: Double) -> CGRect {
-        let inset = -max(8, thickness / 2 + 4)
+    ///
+    /// A caption is the exception: its thickness has nothing to do with the size of its letters, so
+    /// a caption of twelve pixels would be caught by a band of eight all round it and cover its
+    /// neighbours (SPEC-DELTA-5-editor.md §1.2 E-5).
+    static func hitTestInflatedBounds(_ bounds: CGRect, kind: EditorTool, thickness: Double) -> CGRect {
+        let inset = -(kind == .text ? 4 : max(8, thickness / 2 + 4))
         return bounds.insetBy(dx: inset, dy: inset)
     }
 
@@ -206,20 +217,6 @@ enum EditorGeometry {
         return !inner.contains(point)
     }
 
-    /// Port of `MoveLinkedComments`'s point remap (SPEC-DELTA-2.md §1.3): when the parent's bounds
-    /// actually changed, each point is carried through `ResizeGeometry.map` from `oldParent` to
-    /// `newParent`; when the parent had zero size before (never resized, only moved), a plain
-    /// `parentDelta` shift is used instead. Result is clamped into `[0, imageSize]`.
-    static func linkedCommentPoints(_ points: [CGPoint], oldParent: CGRect, newParent: CGRect, parentDelta: CGPoint, imageSize: CGSize) -> [CGPoint] {
-        func clampToImage(_ p: CGPoint) -> CGPoint {
-            CGPoint(x: clamp(p.x, 0, imageSize.width), y: clamp(p.y, 0, imageSize.height))
-        }
-        guard oldParent.width > 0, oldParent.height > 0 else {
-            return points.map { clampToImage(CGPoint(x: $0.x + parentDelta.x, y: $0.y + parentDelta.y)) }
-        }
-        return points.map { clampToImage(ResizeGeometry.map($0, original: oldParent, resized: newParent)) }
-    }
-
     // MARK: - Toolbar positioning (SPEC §6.2 `PositionToolbar`, "Дополнение 2026-09-09")
 
     /// Port of `OverlayEditorWindow.Toolbar.cs::PlaceToolbar` (new in the 2026-09-09 Windows
@@ -227,8 +224,14 @@ enum EditorGeometry {
     /// Tries the 4 exterior candidate rects around `crop` (below/above/right/left), preferring
     /// the first that lands fully inside `work` and avoids both `crop` and every rect in `notes`;
     /// falls back to the first crop-avoiding candidate, then — only when `crop` has no exterior
-    /// room at all (a full-screen selection) — to a rect that may still overlap a note.
-    static func placeToolbar(crop: CGRect, work: CGRect, size: CGSize, notes: [CGRect]) -> CGRect {
+    /// room at all — `mayOverlap` decides: a full screen selection has no exterior space and the
+    /// panel goes over the picture, while a capture that reserved room for the panel below it keeps
+    /// that promise and the panel sits at the bottom of the working area instead
+    /// (`ToolbarLayout.cs:43-68`).
+    ///
+    /// `mayOverlap` carries its old behaviour as a default so that the probe of the registry, which
+    /// only asks for exterior placements, goes on asking the way it did.
+    static func placeToolbar(crop: CGRect, work: CGRect, size: CGSize, notes: [CGRect], mayOverlap: Bool = true) -> CGRect {
         let gap: CGFloat = 10
         let left = clamp(crop.minX + (crop.width - size.width) / 2, work.minX + 8, max(work.minX + 8, work.maxX - size.width - 8))
         let sideTop = clamp(crop.minY + (crop.height - size.height) / 2, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8))
@@ -245,6 +248,14 @@ enum EditorGeometry {
         }
         if let first = candidates.first { return first }
 
+        // Nothing outside the capture fits, and the capture was placed leaving no room for the
+        // panel: the bottom of the working area is the one place that is not over the picture.
+        if !mayOverlap {
+            return CGRect(
+                x: left, y: max(work.minY + 8, work.maxY - size.height - 8),
+                width: size.width, height: size.height)
+        }
+
         // A full-screen selection has no exterior space on its monitor.
         let bottom = clamp(crop.maxY - size.height - gap, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8))
         let top = clamp(crop.minY + gap, work.minY + 8, max(work.minY + 8, work.maxY - size.height - 8))
@@ -259,10 +270,12 @@ enum EditorGeometry {
     /// Port of `PositionToolbar` (`:481-511`), now a thin wrapper around `placeToolbar` (SPEC
     /// §6.2 "Дополнение 2026-09-09"). `obstacles` are the currently-visible comment chip /
     /// shot-note-chip rects (same coordinate space). Returns the toolbar's top-left.
-    static func positionToolbar(cropRect: CGRect, work: CGRect, toolbarSize rawSize: CGSize, obstacles: [CGRect]) -> CGPoint {
+    static func positionToolbar(cropRect: CGRect, work: CGRect, toolbarSize rawSize: CGSize, obstacles: [CGRect], mayOverlap: Bool = true) -> CGPoint {
         let width = max(rawSize.width, 380)
         let height = max(rawSize.height, 50)
-        return placeToolbar(crop: cropRect, work: work, size: CGSize(width: width, height: height), notes: obstacles).origin
+        return placeToolbar(
+            crop: cropRect, work: work, size: CGSize(width: width, height: height),
+            notes: obstacles, mayOverlap: mayOverlap).origin
     }
 
     // MARK: - Capture corner handles (SPEC §1.6)
@@ -400,23 +413,6 @@ enum EditorGeometry {
             height: oldCropRectLocal.height * pixelRect.height / CGFloat(imageHeight))
     }
 
-    /// The box a capture reopened from the strip is fitted into: the same 0.72 of the window
-    /// `reopenCropRect` scales against, kept apart so the switch beside the panel can say how far the
-    /// picture was scaled down and which side of the box decided it (SPEC-DELTA-4 §4.1, `_fitBox`).
-    static func reopenFitBox(windowSize: CGSize) -> CGSize {
-        CGSize(width: windowSize.width * 0.72, height: windowSize.height * 0.72)
-    }
-
-    /// Port of the reopen-from-stack scale rule (SPEC §1.9 point 2, `OverlayEditorWindow.xaml.cs:156-163`):
-    /// `min(0.72*W/imgW, 0.72*H/imgH)`, centered in the editing window.
-    static func reopenCropRect(imageSize: CGSize, windowSize: CGSize) -> CGRect {
-        guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
-        let scale = min(0.72 * windowSize.width / imageSize.width, 0.72 * windowSize.height / imageSize.height)
-        let w = imageSize.width * scale
-        let h = imageSize.height * scale
-        return CGRect(x: (windowSize.width - w) / 2, y: (windowSize.height - h) / 2, width: w, height: h)
-    }
-
     // MARK: - Small numeric helpers
 
     static func clamp(_ value: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat {
@@ -425,5 +421,42 @@ enum EditorGeometry {
 
     static func clampInt(_ value: Int, _ lo: Int, _ hi: Int) -> Int {
         min(max(value, lo), hi)
+    }
+}
+
+/// How many rows the markup panel took.
+enum ToolbarRows {
+    case one
+    case two
+}
+
+/// The shape of the markup panel: its rows and the size it asks for.
+struct ToolbarShape: Equatable {
+    let rows: ToolbarRows
+    let size: CGSize
+}
+
+/// How tall the markup panel is and how many rows it took. A pure function on purpose: the place of
+/// the capture is worked out before the panel is laid out, and the two counts have to agree
+/// (`Controls/ToolbarLayout.cs:25-34`). Where the panel goes stays in `EditorGeometry.placeToolbar`,
+/// which the Mac has had since the sync of 2026-09-09.
+enum ToolbarLayout {
+    /// One row holds the tools, the properties, a free gap and the buttons on the right; two hold
+    /// the tools and the buttons in the first and the properties in the second. It is measured from
+    /// the three blocks and not from the finished panel, because the room for the capture is counted
+    /// before the panel is arranged.
+    static func measure(
+        tools: CGSize, properties: CGSize, actions: CGSize, freeWidth: CGFloat,
+        padding: CGFloat = 14, gap: CGFloat = 12, rowGap: CGFloat = 7
+    ) -> ToolbarShape {
+        let row = max(max(tools.height, properties.height), actions.height)
+        let oneRow = padding + tools.width + properties.width + gap + actions.width
+        if oneRow <= freeWidth {
+            return ToolbarShape(rows: .one, size: CGSize(width: oneRow, height: padding + row))
+        }
+        let twoRow = padding + max(tools.width + gap + actions.width, properties.width)
+        return ToolbarShape(
+            rows: .two,
+            size: CGSize(width: min(twoRow, max(freeWidth, 380)), height: padding + row * 2 + rowGap))
     }
 }

@@ -61,17 +61,13 @@ extension OverlayEditorController {
             chipLayerView = layer
         }
 
-        if toolbarView == nil {
-            let toolbar = EditorToolbarView(language: language)
-            // The pencil capsule's own button arms whichever half was last chosen, not always the
-            // pen (SPEC-DELTA-3 §1.4 E-4).
-            toolbar.onToolSelected = { [weak self] tool in
-                if tool == .pen { self?.selectPencilTool() } else { self?.selectTool(tool) }
-            }
-            toolbar.onQuickColor = { [weak self] color in self?.applyAppearanceNow(color: color) }
-            wireToolbarActions(toolbar)
-            slot.contentView.addSubview(toolbar)
-            toolbarView = toolbar
+        ensureToolbarView(on: slot)
+        // The panel is built before the capture is placed, so it went into the content view before
+        // the canvas did; the order of the subviews is the order they are drawn in, and the panel
+        // belongs over the picture. Asked for again here it lands where it always stood: over the
+        // canvas and the pills, under the views built after it.
+        if let toolbarView {
+            slot.contentView.addSubview(toolbarView, positioned: .above, relativeTo: nil)
         }
 
         setupCommentsPanelIfNeeded(on: slot)
@@ -88,6 +84,25 @@ extension OverlayEditorController {
         positionToolbar()
         window(for: screenIndex)?.makeFirstResponder(canvasView)
         settingUp = false
+    }
+
+    /// The panel is built before the capture is placed and not with the rest of the editing views:
+    /// the room the capture is given is the working area less the height of the panel, and that
+    /// height cannot be asked of a panel that does not exist yet (SPEC-DELTA-5-editor.md §1.2 E-1).
+    func ensureToolbarView(on slot: OverlayScreenSlot) {
+        guard toolbarView == nil else { return }
+        let toolbar = EditorToolbarView(language: language)
+        // The pencil capsule's own button arms whichever half was last chosen, not always the
+        // pen (SPEC-DELTA-3 §1.4 E-4).
+        toolbar.onToolSelected = { [weak self] tool in
+            if tool == .pen { self?.selectPencilTool() } else { self?.selectTool(tool) }
+        }
+        toolbar.onDragBegan = { [weak self] point in self?.beginToolbarDrag(at: point) }
+        toolbar.onDragMoved = { [weak self] point in self?.dragToolbarTo(point) }
+        toolbar.onDragEnded = { [weak self] in self?.endToolbarDrag() }
+        wireToolbarActions(toolbar)
+        slot.contentView.addSubview(toolbar)
+        toolbarView = toolbar
     }
 
     /// Port of `_commentsPanelVisible` (`OverlayEditorWindow.xaml.cs:1020`, SPEC-DELTA-3 §1.4 E-12):
@@ -112,7 +127,6 @@ extension OverlayEditorController {
     func teardownEditingViews() {
         canvasContainerView?.removeFromSuperview()
         toolbarView?.removeFromSuperview()
-        scaleSwitchView?.removeFromSuperview()
         shotKindView?.removeFromSuperview()
         chipLayerView?.removeFromSuperview()
         commentsPanelView?.removeFromSuperview()
@@ -123,7 +137,6 @@ extension OverlayEditorController {
         canvasContainerView = nil
         canvasView = nil
         toolbarView = nil
-        scaleSwitchView = nil
         shotKindView = nil
         chipLayerView = nil
         commentsPanelView = nil
@@ -139,34 +152,38 @@ extension OverlayEditorController {
         canvas.onCropRequested = { [weak self] bounds in self?.cropRequested(bounds) }
         canvas.onAnnotationActivated = { [weak self] annotation in self?.annotationActivated(annotation) }
         canvas.onViewChanged = { [weak self] in self?.surfaceViewChanged() }
+        canvas.onNoteHovered = { [weak self] annotation in self?.noteHovered(annotation) }
     }
 
     private func wireToolbarActions(_ toolbar: EditorToolbarView) {
-        toolbar.appearanceButton.onClick = { [weak self, weak toolbar] in
+        // The capsule of the colour opens the outline; the square inside it opens the fill, and it
+        // is a view of its own so that the two presses are told apart (H-1).
+        toolbar.colorCapsule.onClick = { [weak self, weak toolbar] in
             guard let toolbar else { return }
-            self?.togglePopover(.color, relativeTo: toolbar.appearanceButton)
+            self?.togglePopover(.color, relativeTo: toolbar.colorCapsule)
         }
-        toolbar.thicknessButton.onClick = { [weak self, weak toolbar] in
-            guard let toolbar else { return }
-            self?.togglePopover(.thickness, relativeTo: toolbar.thicknessButton)
-        }
-        toolbar.lineStyleButton.onClick = { [weak self, weak toolbar] in
-            guard let toolbar else { return }
-            self?.togglePopover(.lineStyle, relativeTo: toolbar.lineStyleButton)
-        }
-        toolbar.fillButton.onClick = { [weak self, weak toolbar] in
+        toolbar.colorCapsule.fillSquare.onClick = { [weak self, weak toolbar] in
             guard let self, let toolbar else { return }
             // The fill belongs to a region: with another tool in the hand and nothing selected the
-            // button arms the region first, the way a pick in the shape menu does.
+            // square arms the region first, the way a pick in the shape menu does.
             if self.canvasView?.selectedAnnotation == nil, !EditorAppearance.hasFill(self.canvasView?.tool ?? .select) {
                 self.selectTool(.rectangle)
             }
-            self.togglePopover(.fill, relativeTo: toolbar.fillButton)
+            self.togglePopover(.fill, relativeTo: toolbar.colorCapsule.fillSquare)
         }
-        toolbar.fontSizeButton.onClick = { [weak self, weak toolbar] in
-            guard let toolbar else { return }
-            self?.togglePopover(.fontSize, relativeTo: toolbar.fontSizeButton)
+        // The second capsule opens whichever sheet it is showing: the width with the pattern under
+        // it, or the size of a caption. A capsule that shows nothing opens nothing.
+        toolbar.lineCapsule.onClick = { [weak self, weak toolbar] in
+            guard let self, let toolbar else { return }
+            let second = EditorInspector.inspectorViewOf(EditorInspector.inspectedTool(
+                selected: self.canvasView?.selectedAnnotation, armed: self.canvasView?.tool ?? .rectangle)).second
+            switch second {
+            case .none: return
+            case .fontSize: self.togglePopover(.fontSize, relativeTo: toolbar.lineCapsule)
+            case .line, .shape: self.togglePopover(.thickness, relativeTo: toolbar.lineCapsule)
+            }
         }
+        toolbar.copyButton.onClick = { [weak self] in self?.copyToClipboard() }
         toolbar.shortcutSheetButton.onClick = { [weak self, weak toolbar] in
             guard let toolbar else { return }
             self?.togglePopover(.shortcutSheet, relativeTo: toolbar.shortcutSheetButton)
@@ -238,7 +255,10 @@ extension OverlayEditorController {
         let target = EditorMenuTarget(controller: self)
         let menu = NSMenu()
         let selected = canvasView.selectedAnnotation
-        let current = (selected?.kind == .rectangle || selected?.kind == .blur) ? selected?.shape ?? activeShape : activeShape
+        // The shape belongs to the frame alone since 1.7.0 (`.Shapes.cs:50`): a blur is drawn with
+        // the shape the frame carries, and a selected blur has no say of its own in it
+        // (SPEC-DELTA-5-editor.md §1.3 E-11).
+        let current = selected?.kind == .rectangle ? (selected?.shape ?? activeShape) : activeShape
 
         func add(_ shape: AnnotationShape, _ title: String) {
             let item = NSMenuItem(title: title, action: #selector(EditorMenuTarget.selectShape(_:)), keyEquivalent: "")
@@ -266,10 +286,11 @@ extension OverlayEditorController {
     }
 
     func applyShape(_ shape: AnnotationShape) {
-        // The shape belongs to the region and to the blur alike: a selected blur takes it without the
-        // tool switching out from under the hand.
+        // The shape belongs to the frame and to nothing else (`.Shapes.cs:59-64`): picking one with
+        // a blur selected, or with a blur in the hand, switches to the frame the way any other
+        // foreign selection does, and the blur goes on being drawn with what the frame carries.
         let selected = canvasView?.selectedAnnotation
-        if !(selected?.kind == .rectangle || selected?.kind == .blur) { selectTool(.rectangle) }
+        if selected?.kind != .rectangle { selectTool(.rectangle) }
         applyAppearance(shape: shape)
     }
 
@@ -310,25 +331,24 @@ extension OverlayEditorController {
             menu.addItem(item)
         }
 
+        // Three styles and not four: the thick arrow is not offered any more (`Arrows.cs:15-17`).
+        // The value goes on being read out of a session written before this round (§3.1).
         add(EditorStrings.arrowStraight(language), "straight")
         add(EditorStrings.arrowCurved(language), "curved")
-        add(EditorStrings.arrowBold(language), "bold")
         add(EditorStrings.arrowWide(language), "wide")
         popUp(menu, from: anchor)
         endMenuEdit()
     }
 
     /// Port of the arrow-style click (`Arrows.cs:25-31`): a selected arrow takes the style, otherwise
-    /// the tool is armed with it; the next new arrow picks it up either way.
+    /// the tool is armed with it; the next new arrow picks it up either way. Both branches go through
+    /// `applyAppearance`, which is what keeps the style in the set of the arrow: written straight onto
+    /// the canvas it would be wiped by the next `syncSurfaceDefaults`, which reads that set
+    /// (SPEC-DELTA-5-editor.md §1.2 E-3).
     func applyArrowStyle(_ style: String) {
         guard let canvasView else { return }
-        if canvasView.selectedAnnotation?.kind == .arrow {
-            applyAppearance(arrowStyle: style)
-        } else {
-            selectTool(.arrow)
-            canvasView.activeArrowStyle = style
-            syncAppearance()
-        }
+        if canvasView.selectedAnnotation?.kind != .arrow { selectTool(.arrow) }
+        applyAppearance(arrowStyle: style)
     }
 
     /// `NSMenu.popUp(positioning:at:in:)` runs its own modal event-tracking loop and does not return
