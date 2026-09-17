@@ -246,6 +246,9 @@ public partial class OverlayEditorWindow
 
         // The second capsule: the width and the pattern of a stroke, the size of a caption, or the
         // shape a blur is cut in. One capsule for the three of them, as the reference draws it.
+        // A tool with nothing of its own to set hides it the way the colour capsule hides: the
+        // block keeps its width, so the panel does not jump when such a tool is picked.
+        LineCapsule.Visibility = view.Second == SecondCapsule.None ? Visibility.Hidden : Visibility.Visible;
         LineCapsule.IsEnabled = view.Enabled;
         LineCapsule.Opacity = view.Enabled ? 1 : 0.28;
         LineCapsule.ToolTip = UiLanguage.Text(view.Second switch
@@ -260,6 +263,7 @@ public partial class OverlayEditorWindow
         {
             SecondCapsule.FontSize => $"{fontSize:0} pt",
             SecondCapsule.Shape => UiLanguage.Text(ShapeName(shape)),
+            SecondCapsule.None => string.Empty,
             _ => $"{thickness:0} px"
         };
         LineCapsuleSample.Visibility = view.Second == SecondCapsule.Line ? Visibility.Visible : Visibility.Collapsed;
@@ -515,6 +519,9 @@ public partial class OverlayEditorWindow
         {
             case SecondCapsule.FontSize: OpenFontSize(); break;
             case SecondCapsule.Shape: OpenToolMenu(BuildShapeMenu(LineCapsule)); break;
+            // The capsule of such a tool is hidden; reached by mistake it would open the width of a
+            // tool that has no stroke.
+            case SecondCapsule.None: return;
             default: OpenThickness(); break;
         }
     }
