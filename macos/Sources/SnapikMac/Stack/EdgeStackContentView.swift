@@ -593,7 +593,10 @@ final class EdgeStackContentView: NSView {
         var tops: [CGFloat] = []
         var cursor = StackMetrics.listPaddingTop
         for card in cardViews {
-            let expanded = card.isHovered || card.isSelected
+            // SPEC-DELTA-5 §1.1 L-1: only the pointer opens a card. Windows took the `Margin` setter
+            // off the focus trigger and deleted the `IsSelected` trigger whole, so a card comes back
+            // from the editor looking like every other one.
+            let expanded = card.isHovered
             let cardTop = expanded ? cursor + StackMetrics.expandedMargin : cursor
             tops.append(cardTop)
             cursor = expanded

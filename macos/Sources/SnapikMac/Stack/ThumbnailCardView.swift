@@ -309,11 +309,12 @@ final class ThumbnailCardView: NSView {
         delegate?.thumbnailCard(self, hoverDidChange: false)
     }
 
+    /// SPEC-DELTA-5 §1.1 L-1: three states and no fourth — the pointer, a capture that has been
+    /// sent, and every other card. Being the selected one paints nothing: `isSelected` is still set
+    /// and unset (Windows keeps `capture.IsSelected` too), it just no longer shows.
     private func updateAppearance() {
         let borderColour: NSColor
-        if isSelected {
-            borderColour = StackTheme.cardSelectedBorder
-        } else if isHovered {
+        if isHovered {
             borderColour = StackTheme.cardHoverBorder
         } else {
             borderColour = isSent ? StackTheme.sentCardBorder : StackTheme.cardBorder
@@ -322,7 +323,9 @@ final class ThumbnailCardView: NSView {
         // The dimming of a sent capture sits on the thumbnail and its strip, not on the card, so the
         // delete button that appears on hover stays as bright as on any other capture.
         clipView.alphaValue = isSent ? 0.45 : 1
-        deleteButton.animator().alphaValue = (isHovered || isSelected) ? 1 : 0
+        // The cross under the pointer alone (`EdgeStackWindow.xaml:412-414`): of the focus trigger
+        // Windows kept nothing but `DeleteButton.Opacity`, and of `IsSelected` nothing at all.
+        deleteButton.animator().alphaValue = isHovered ? 1 : 0
     }
 
     /// Delegated to the container's drag/click tracking loop, which tells "open" (no threshold

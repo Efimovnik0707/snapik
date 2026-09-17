@@ -134,7 +134,6 @@ enum StackTheme {
 
     static var cardBorder: NSColor { palette.surfaceLine }
     static let cardHoverBorder = NSColor(hex: "#718096")
-    static var cardSelectedBorder: NSColor { accent.focus }
     static var cardBackground: NSColor { palette.elevated }
     /// The plate the letter sits on, at the top of the card.
     static let cardLabelStripBackground = NSColor(hex: "#E6171A20")
