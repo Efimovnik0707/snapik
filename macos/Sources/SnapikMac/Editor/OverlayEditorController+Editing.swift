@@ -341,16 +341,14 @@ extension OverlayEditorController {
     }
 
     /// Port of the arrow-style click (`Arrows.cs:25-31`): a selected arrow takes the style, otherwise
-    /// the tool is armed with it; the next new arrow picks it up either way.
+    /// the tool is armed with it; the next new arrow picks it up either way. Both branches go through
+    /// `applyAppearance`, which is what keeps the style in the set of the arrow: written straight onto
+    /// the canvas it would be wiped by the next `syncSurfaceDefaults`, which reads that set
+    /// (SPEC-DELTA-5-editor.md §1.2 E-3).
     func applyArrowStyle(_ style: String) {
         guard let canvasView else { return }
-        if canvasView.selectedAnnotation?.kind == .arrow {
-            applyAppearance(arrowStyle: style)
-        } else {
-            selectTool(.arrow)
-            canvasView.activeArrowStyle = style
-            syncAppearance()
-        }
+        if canvasView.selectedAnnotation?.kind != .arrow { selectTool(.arrow) }
+        applyAppearance(arrowStyle: style)
     }
 
     /// `NSMenu.popUp(positioning:at:in:)` runs its own modal event-tracking loop and does not return
