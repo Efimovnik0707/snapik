@@ -63,6 +63,17 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
     /// The combination the chip put into the field, if the user took one.
     private var suggested: String?
 
+    /// [S5-2] The pause that stands for "the slider was let go": every change restarts it, and when
+    /// it runs out the tick is played at the volume the slider holds. Nothing is written by it
+    /// (`HotkeySettingsWindow.xaml.cs:149`, a 150 ms timer). A slider is moved by dragging, by a click
+    /// on its track and by the arrow keys, and only the first of the three ends with a gesture to
+    /// listen for — one pause restarted on every change stands for all three.
+    ///
+    /// A `DispatchWorkItem` and not a `Timer`: `Timer.scheduledTimer` keeps its target alive past the
+    /// window it belongs to, and the work item carries `self` weakly and is cancelled by name (the
+    /// pattern of `Stack/StackToastView.swift:89-94`).
+    private var volumePreview: DispatchWorkItem?
+
     private var tabs: [SettingsTabView] { [generalTab, hotkeysTab, savingTab, appearanceTab] }
 
     init(coordinator: AppCoordinator) {
@@ -95,6 +106,10 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         ThemeService.apply(theme: coordinator.settings.theme, accent: coordinator.settings.accentId)
         buildContent(in: window)
         populateFields(from: coordinator.settings)
+        // [S5-2] Subscribed after the value is in (`HotkeySettingsWindow.xaml.cs:54`), so that opening
+        // the window is not itself a change and plays nothing.
+        generalTab.volumeSlider.target = self
+        generalTab.volumeSlider.action = #selector(volumeChanged)
         applyLocalization()
         applyTheme()
         window.center()
@@ -146,6 +161,8 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
 
         generalTab.soundsBox.target = self
         generalTab.soundsBox.action = #selector(soundsChanged)
+        // The volume slider is the one control wired outside this pass: its action is subscribed in
+        // `init`, after `populateFields` has put the value in ([S5-2]).
         generalTab.languageSegment.target = self
         generalTab.languageSegment.action = #selector(languageChanged)
         generalTab.runOnboardingLink.onClick = { [weak self] in self?.runOnboardingClicked() }
@@ -212,6 +229,7 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         generalTab.soundsBox.state = settings.playSounds ? .on : .off
         generalTab.volumeSlider.integerValue = max(0, min(100, settings.soundVolume))
         generalTab.updateVolumeRow()
+        generalTab.updateVolumeCaption()
         generalTab.languageSegment.selectedSegment = settings.language == "en" ? 1 : 0
 
         hotkeysTab.captureEnabledBox.state = settings.captureEnabled ? .on : .off
@@ -238,6 +256,10 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
             button.title = MacUiText.text(names[index], language: language)
         }
         for tab in tabs { tab.applyLocalization(language) }
+        // [S5-2] The number beside the slider is put back after the walk that relabels the tab, the
+        // way Windows puts it back after `UiLanguage.Apply` (`HotkeySettingsWindow.xaml.cs:130-132`):
+        // it is the same number in both languages, and nothing else is allowed to write it.
+        generalTab.updateVolumeCaption()
         cancelButton.title = MacUiText.text("Отмена", language: language)
         saveButton.title = MacUiText.text("Сохранить", language: language)
         // Finding 24: two §1.20 dictionary strings otherwise unused anywhere in the port —
@@ -285,6 +307,42 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
 
     @objc private func soundsChanged() {
         generalTab.updateVolumeRow()
+        // [S5-2] The volume belongs to the sounds, and a tick the slider owed is dropped rather than
+        // arriving after the sounds were switched off.
+        if generalTab.soundsBox.state != .on { cancelVolumePreview() }
+    }
+
+    /// [S5-2] `NSSlider` sends its action all the way through a drag (`isContinuous` is on by
+    /// default), and sends the same one for a click on the track and for the arrow keys. The number
+    /// follows every step of it; the tick waits for the pause that means the slider was let go.
+    @objc private func volumeChanged() {
+        generalTab.updateVolumeCaption()
+        restartVolumePreview()
+    }
+
+    private func restartVolumePreview() {
+        cancelVolumePreview()
+        let work = DispatchWorkItem { [weak self] in self?.previewVolume() }
+        volumePreview = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
+    private func cancelVolumePreview() {
+        volumePreview?.cancel()
+        volumePreview = nil
+    }
+
+    /// The tick of the volume being chosen: the settings the window was opened with, with the sounds
+    /// on and the value the slider holds, and none of it is written to the file. The row is only on
+    /// screen while the sounds are on, so the preview cannot switch them on behind the user's back.
+    /// The tick is muted by a recent shutter and throttled to one in 170 ms
+    /// (`App/UiSoundService.swift:23-24`), exactly as `SoundThrottle` does on Windows.
+    private func previewVolume() {
+        volumePreview = nil
+        var preview = coordinator?.settings ?? HotkeySettings.default
+        preview.playSounds = true
+        preview.soundVolume = generalTab.volumeSlider.integerValue
+        UiSoundService.tick(preview)
     }
 
     @objc private func languageChanged() {
@@ -554,6 +612,8 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
     // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
+        // [S5-2] A tick owed to a value nobody saved must not arrive after the window is gone.
+        cancelVolumePreview()
         // The appearance tab repaints the application while it is being looked at and saves nothing;
         // walking away from the window has to put back the pair it was opened with (G-3).
         if !saved { ThemeService.apply(theme: openedTheme, accent: openedAccent) }

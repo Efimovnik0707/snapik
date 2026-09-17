@@ -47,6 +47,9 @@ final class GeneralTabView: SettingsTabView {
     /// The volume belongs to the sounds: with them off there is nothing to make quieter (G-10).
     let volumeLabel = sectionLabel("")
     let volumeSlider = NSSlider(value: 40, minValue: 0, maxValue: 100, target: nil, action: nil)
+    /// [S5-2] The number the slider is worth, beside it. The slider carries no scale of its own, so
+    /// without the number the only way to read the volume was to listen to it.
+    let volumeValueLabel = sectionLabel("")
     let languageLabel = sectionLabel("")
     let languageSegment = NSSegmentedControl(labels: ["Русский", "English"], trackingMode: .selectOne, target: nil, action: nil)
     /// [ТЗ№4 E2] The link at the bottom of the tab; it opens the whole wizard with the values in
@@ -59,9 +62,11 @@ final class GeneralTabView: SettingsTabView {
         startupUnavailableLabel.isHidden = true
         volumeSlider.numberOfTickMarks = 101
         volumeSlider.allowsTickMarkValuesOnly = true
+        volumeValueLabel.font = NSFont.systemFont(ofSize: 12)
         for view in [
             startupSwitch, startupLabel, startupUnavailableLabel, notificationsBox, clearStackBox,
-            soundsBox, volumeLabel, volumeSlider, languageLabel, languageSegment, runOnboardingLink,
+            soundsBox, volumeLabel, volumeSlider, volumeValueLabel, languageLabel, languageSegment,
+            runOnboardingLink,
         ] as [NSView] {
             addSubview(view)
         }
@@ -74,6 +79,14 @@ final class GeneralTabView: SettingsTabView {
         let visible = soundsBox.state == .on
         volumeLabel.isHidden = !visible
         volumeSlider.isHidden = !visible
+        volumeValueLabel.isHidden = !visible
+    }
+
+    /// [S5-2] The number the slider is worth, in the shape the quality caption already uses: a space
+    /// before the sign, and the same text in both languages. Written by hand and not by a
+    /// `NumberFormatter`: a formatter would put a locale's separators into a number that has none.
+    func updateVolumeCaption() {
+        volumeValueLabel.stringValue = "\(volumeSlider.integerValue) %"
     }
 
     override func applyLocalization(_ language: String) {
@@ -100,6 +113,7 @@ final class GeneralTabView: SettingsTabView {
     override func applyTheme(_ palette: ThemePalette) {
         for label in [startupLabel, volumeLabel, languageLabel] { label.textColor = palette.text }
         startupUnavailableLabel.textColor = palette.textMuted
+        volumeValueLabel.textColor = palette.textMuted
         for box in [notificationsBox, clearStackBox, soundsBox] { box.contentTintColor = palette.text }
         runOnboardingLink.textColor = palette.textFaint
     }
@@ -123,6 +137,10 @@ final class GeneralTabView: SettingsTabView {
         volumeLabel.frame = NSRect(x: 22, y: y, width: bounds.width - 22, height: 16)
         y -= 26
         volumeSlider.frame = NSRect(x: 22, y: y, width: 200, height: 20)
+        // [S5-2] The number sits after the slider with the gap Windows gives it
+        // (`HotkeySettingsWindow.xaml:32-40`, a margin of 10 inside a horizontal stack).
+        volumeValueLabel.frame = NSRect(
+            x: volumeSlider.frame.maxX + 10, y: y + 2, width: 60, height: 16)
         y -= 30
         languageLabel.frame = NSRect(x: 0, y: y, width: bounds.width, height: 16)
         y -= 32
