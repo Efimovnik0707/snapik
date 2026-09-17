@@ -262,10 +262,13 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         generalTab.updateVolumeCaption()
         cancelButton.title = MacUiText.text("Отмена", language: language)
         saveButton.title = MacUiText.text("Сохранить", language: language)
-        // Finding 24: two §1.20 dictionary strings otherwise unused anywhere in the port —
-        // supplementary accessibility names for the "Клавиши" tab button (a menu-item-like
+        // Finding 24: supplementary accessibility names for the "Клавиши" tab button (a menu-item-like
         // control) and its content pane (the tab's header, for VoiceOver users tabbing in).
-        tabButtons[1].setAccessibilityLabel(MacUiText.text("Горячие клавиши…", language: language))
+        // [A5-4] Both read "Настройки клавиш" now. The button used to borrow the pair of the menu
+        // item that opens this window, which is the caption of a menu item and not of a tab: the tab
+        // is titled "Настройки клавиш", and with its last reader gone the borrowed pair leaves the
+        // table (SPEC-DELTA-5 §6 point 2 — the removal itself belongs to the merge, not here).
+        tabButtons[1].setAccessibilityLabel(MacUiText.text("Настройки клавиш", language: language))
         hotkeysTab.setAccessibilityTitle(MacUiText.text("Настройки клавиш", language: language))
         updateShortcutState()
         showTab(selectedTabIndex)
