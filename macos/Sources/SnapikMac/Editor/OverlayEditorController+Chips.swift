@@ -520,22 +520,25 @@ extension OverlayEditorController {
     func positionToolbar() {
         guard let toolbarView, let screenIndex = activeScreenIndex else { return }
         let work = layoutWorkArea(screenIndex: screenIndex)
-        toolbarView.maximumWidth = max(240, work.width - 16)
-        let size = toolbarView.sizeToFitContent()
+        let size = measureToolbar(work: work)
         let obstacles = chipViews.values.filter { !$0.isHidden }.map { $0.frame }
-        // The switch of the scale stands to the right of the panel with a gap of ten, and the two are
-        // placed as one: measured apart, the switch would run off the right edge of the screen
-        // (`PositionToolbar`, `:1741-1746`, SPEC-DELTA-4 §1.3 E-6).
-        let switchSize: CGSize = scaleSwitchView.map { $0.isHidden ? CGSize.zero : $0.sizeToFitContent() } ?? .zero
-        let gap: CGFloat = switchSize.width > 0 ? 10 : 0
+        // Nothing stands beside the panel any more: the switch of the scale is gone, and the panel
+        // is placed on its own (SPEC-DELTA-5-editor.md §1.2 E-1).
         let origin = EditorGeometry.positionToolbar(
-            cropRect: cropRectLocal, work: work,
-            toolbarSize: CGSize(width: size.width + switchSize.width + gap, height: size.height), obstacles: obstacles)
+            cropRect: cropRectLocal, work: work, toolbarSize: size, obstacles: obstacles)
         toolbarView.frame = CGRect(origin: origin, size: size)
-        if let scaleSwitchView, switchSize.width > 0 {
-            scaleSwitchView.frame = CGRect(
-                origin: CGPoint(x: origin.x + size.width + gap, y: origin.y), size: switchSize)
-        }
+    }
+
+    /// Port of `MeasureToolbar` (`xaml.cs:1926-1962`): the panel is measured apart from being placed,
+    /// because the room the capture is given is counted from the height of the panel under it before
+    /// either of them stands anywhere (SPEC-DELTA-5-editor.md §1.2 E-1, E-2). `maximumWidth` is set
+    /// before the measurement, or the panel counts itself in one row and hands the capture a height
+    /// that is not there.
+    @discardableResult
+    func measureToolbar(work: CGRect) -> CGSize {
+        guard let toolbarView else { return .zero }
+        toolbarView.maximumWidth = max(240, work.width - 16)
+        return toolbarView.sizeToFitContent()
     }
 
     // MARK: - Monitor work area (SPEC §1.4 `GetCropMonitorWorkArea`)

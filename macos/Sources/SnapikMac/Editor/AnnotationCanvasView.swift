@@ -530,33 +530,22 @@ final class AnnotationCanvasView: NSView {
     /// `Delta / 120` (`:1042, 1059`).
     private static let lineTravel: CGFloat = 40
 
-    /// Port of `OnMouseWheel` (`:1039-1065`). The wheel belongs to the picture only while it is
-    /// shown at a scale of its own: fitted, there is nothing to scroll and nothing to zoom into, and
-    /// the event goes on its way.
+    /// Port of `OnMouseWheel` (`:1168-1182`). The wheel scrolls the picture only while it is shown at
+    /// a scale of its own: fitted, there is nothing to scroll. Cmd and the wheel answer from either
+    /// state — with the switch beside the panel gone, this is the one way into a scale of one's own
+    /// (SPEC-DELTA-5-editor.md §1.2 E-1).
     override func scrollWheel(with event: NSEvent) {
-        guard capture != nil, let scale = viewScale else {
+        let zooming = event.modifierFlags.contains(.command)
+        guard capture != nil, viewScale != nil || zooming else {
             super.scrollWheel(with: event)
             return
         }
 
-        if event.modifierFlags.contains(.command) {
-            // A tenth of the scale per notch, between "fit" and the picture at its own size: the
-            // switch beside the panel promises those two ends and nothing beyond them. The modifier
-            // is Cmd and not Ctrl, which on macOS belongs to the zoom of the system itself.
+        if zooming {
+            // The modifier is Cmd and not Ctrl, which on macOS belongs to the zoom of the system
+            // itself. A trackpad reports its travel in points, a wheel in lines.
             let notches = Double(event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / Self.lineTravel : event.scrollingDeltaY)
-            let wanted = min(max(scale * pow(1.1, notches), fitScale), 1)
-            // Back at the scale the picture is fitted with, the mode goes back to fitting, and the
-            // switch beside the panel moves to its left segment by itself.
-            if wanted <= fitScale {
-                viewOffset = .zero
-                viewScale = nil
-            } else {
-                viewOffset = EditorGeometry.zoomAround(
-                    cursor: convert(event.locationInWindow, from: nil), offset: viewOffset,
-                    fromScale: scale, toScale: wanted)
-                viewScale = wanted
-                needsDisplay = true
-            }
+            zoomByNotches(notches, cursor: convert(event.locationInWindow, from: nil))
             return
         }
 
@@ -572,6 +561,40 @@ final class AnnotationCanvasView: NSView {
         viewOffset = CGPoint(x: viewOffset.x - travelX * factor, y: viewOffset.y - travelY * factor)
         needsDisplay = true
         onViewChanged?()
+    }
+
+    /// Port of `ZoomByNotches` (`:1189-1214`): one notch of the wheel apart from the modifier that
+    /// carries it, because a smoke run has no keyboard to hold Cmd down with.
+    func zoomByNotches(_ notches: Double, cursor: CGPoint) {
+        guard let capture else { return }
+        // The scale the picture stands at right now, a scale of its own or the one it was fitted
+        // with. `fitScale` counts from `bounds` less `imagePadding` twice, and the editor hands the
+        // canvas `imagePadding = 0`, so the seed is the picture on screen to the pixel and the first
+        // notch does not make it jump. Put the padding back and it will.
+        let scale = viewScale ?? fitScale
+        // Fitted, the picture is centred by `fitRect` and `viewOffset` is never read; scaled, that
+        // offset is what holds it. The centred picture written as an offset is the seed, so the
+        // point under the cursor stays where it is on the very first notch.
+        let offset = viewScale == nil
+            ? CGPoint(
+                x: -(bounds.width - CGFloat(capture.image.width) * CGFloat(scale)) / 2,
+                y: -(bounds.height - CGFloat(capture.image.height) * CGFloat(scale)) / 2)
+            : viewOffset
+        // A tenth of the scale per notch, between "fit" and the picture at its own size, and nothing
+        // beyond those two ends. A capture small enough to stand at its own size is fitted at a scale
+        // of one or above, and the floor and the ceiling meet there — without the floor held down to
+        // one, the clamp is asked for a range that runs backwards.
+        let floor = min(fitScale, 1)
+        let wanted = min(max(scale * pow(1.1, notches), floor), 1)
+        // Back at the scale the picture is fitted with, the view goes back to fitting.
+        guard wanted > floor else {
+            viewOffset = .zero
+            viewScale = nil
+            return
+        }
+        viewOffset = EditorGeometry.zoomAround(cursor: cursor, offset: offset, fromScale: scale, toScale: wanted)
+        viewScale = wanted
+        needsDisplay = true
     }
 
     /// Port of `UpdateCursor` (`:341-362`): arrows on the corners of a selected mark, a hand where a

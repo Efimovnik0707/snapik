@@ -159,13 +159,9 @@ final class OverlayEditorController {
     var canvasContainerView: NSView?
     var canvasView: AnnotationCanvasView?
     var toolbarView: EditorToolbarView?
-    /// The switch beside the panel and the caption of the capture (SPEC-DELTA-4 §1.3 E-5, E-7).
-    var scaleSwitchView: EditorScaleSwitchView?
+    /// The caption of the capture (SPEC-DELTA-4 §1.3 E-7). The switch of the scale that used to
+    /// stand beside the panel is gone: a capture opens at its own size (SPEC-DELTA-5-editor.md E-1).
     var shotKindView: EditorShotKindView?
-    /// The box the capture is fitted into, kept for the switch beside the panel: it is what says
-    /// whether the picture had to be scaled down at all, and which side of it stopped it
-    /// (`_fitBox`, `OverlayEditorWindow.xaml.cs:70`).
-    var fitBox: CGSize = .zero
     var captureHandleViews: [CaptureHandleView] = []
     var resizeOutlineView: ResizeOutlineView?
     /// Host view for every comment chip (SPEC-DELTA-2B.md §C7 "Новый `ChipLayerView`"), sized to
@@ -266,13 +262,16 @@ final class OverlayEditorController {
         self.capture = editorCapture
         currentSourcePath = capture.sourceImagePath
 
-        let contentSize = slots[screenIndex].contentView.bounds.size
-        // A capture of the whole screen or a file from disk opens fitted, and the switch beside the
-        // panel says by which side (SPEC-DELTA-4 §4): the box it is fitted into is the same one
-        // `reopenCropRect` scales against.
-        fitBox = EditorGeometry.reopenFitBox(windowSize: contentSize)
-        cropRectLocal = EditorGeometry.reopenCropRect(
-            imageSize: CGSize(width: image.width, height: image.height), windowSize: contentSize)
+        // A capture opens at its own size whenever the working area holds it together with the panel
+        // below it, and is fitted only when it does not (SPEC-DELTA-5-editor.md §1.2 E-1). The panel
+        // is built and measured first: "does the capture fit one to one" is a question about the
+        // height of the panel under it, so the order is measure the panel, place the capture, place
+        // the panel (`xaml.cs:1199-1201`).
+        let work = layoutWorkArea(screenIndex: screenIndex)
+        ensureToolbarView(on: slots[screenIndex])
+        cropRectLocal = EditorGeometry.placeCapture(
+            image: CGSize(width: image.width, height: image.height), work: work,
+            panel: measureToolbar(work: work))
 
         slots[screenIndex].contentView.hintView.isHidden = true
         slots[screenIndex].contentView.holeRectLocal = cropRectLocal

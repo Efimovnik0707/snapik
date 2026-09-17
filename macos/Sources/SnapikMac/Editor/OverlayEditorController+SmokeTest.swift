@@ -400,29 +400,28 @@ extension OverlayEditorController {
         return abs(Double(box.width) - measured.width) < 2 && abs(Double(box.height) - measured.height) < 2 && core.fontSize == 32
     }
 
-    /// Port of `RunEditorScaleProbe` (`SmokeTestRunner.cs:460`, body `OverlayEditorWindow.xaml.cs:
-    /// 517-531`, SPEC-DELTA-4 §6): a capture of two monitors offers the switch fitted by its width,
-    /// names itself in its corner, and at one to one is scrolled — the mark by the right edge goes out
-    /// of sight and its pill with it. What the probe borrows it puts back: the controller has more
-    /// probes to run after this one.
+    /// Port of `RunEditorScaleProbe` (`SmokeTestRunner.cs:460`), rewritten for the round of 1.6.0
+    /// (SPEC-DELTA-5-editor.md §4.2): the switch beside the panel is gone, a capture opens at its own
+    /// size whenever there is room for it, and the wheel with Cmd is the one way into a scale of its
+    /// own. What is left of the old probe stands: the capture names itself in its corner, the picture
+    /// scrolls, and the pill of a mark that went out of sight goes with it. What the probe borrows it
+    /// puts back: the controller has more probes to run after this one.
     @discardableResult
-    func smokeRunEditorScaleProbe() -> Bool {
-        guard let canvasView, let capture, let scaleSwitchView, let shotKindView, activeScreenIndex != nil else { return false }
+    func smokeRunEditorViewProbe() -> Bool {
+        guard let canvasView, let capture, let shotKindView, activeScreenIndex != nil else { return false }
         guard let wide = Self.smokeSolidImage(width: 3840, height: 1125) else { return false }
 
         let previousImage = capture.image
         let previousKind = capture.kind
         let previousMonitors = capture.monitorCount
         let previousCrop = cropRectLocal
-        let previousFitBox = fitBox
 
-        let fit = EditorGeometry.fit(imageWidth: 3840, imageHeight: 1125, boxWidth: 1198, boxHeight: 593)
+        let scale = EditorGeometry.fit(imageWidth: 3840, imageHeight: 1125, boxWidth: 1198, boxHeight: 593)
         capture.image = wide
         capture.kind = .fullscreen
         capture.monitorCount = 2
-        fitBox = CGSize(width: 1198, height: 593)
         cropRectLocal = CGRect(
-            x: 100, y: 100, width: 3840 * CGFloat(fit.scale), height: 1125 * CGFloat(fit.scale))
+            x: 100, y: 100, width: 3840 * CGFloat(scale), height: 1125 * CGFloat(scale))
         let mark = EditorAnnotation(
             kind: .rectangle, points: [CGPoint(x: 3600, y: 500), CGPoint(x: 3800, y: 700)],
             color: activeColor, thickness: activeThickness, note: "У правого края")
@@ -433,22 +432,27 @@ extension OverlayEditorController {
         // that the scale is what puts it away.
         expandChip(mark.id, expanded: true)
 
-        // The switch stands beside the panel, on its left segment, and says which side of the box
-        // stopped the picture and how far it was scaled down to get there.
-        let fitted = EditorStrings.fitPercent(language, boundBy: .width, percent: Int((fit.scale * 100).rounded()))
-        var ok = !scaleSwitchView.isHidden && scaleSwitchView.isFitted && scaleSwitchView.fitCaption == fitted
+        // A capture the working area holds together with the panel below it opens at its own size:
+        // 1420 fits 1536 - 16 and 700 fits 824 - 16 - 50 - 10.
+        var ok = EditorGeometry.placeCapture(
+            image: CGSize(width: 1420, height: 700),
+            work: CGRect(x: 0, y: 0, width: 1536, height: 824),
+            panel: CGSize(width: 460, height: 50)).size == CGSize(width: 1420, height: 700)
         // The caption of the capture says what it is, in the same words the strip card carries.
         ok = ok && !shotKindView.isHidden
             && shotKindView.caption.contains("3840×1125")
             && shotKindView.caption.contains(EditorStrings.wholeScreen(language))
             && shotKindView.caption.contains(EditorStrings.monitorCount(language, 2))
-        // A capture that fits the screen as it is has nothing to switch between.
-        ok = ok && EditorGeometry.fit(imageWidth: 400, imageHeight: 300, boxWidth: 1198, boxHeight: 593).boundBy == .none
+        // A capture smaller than the box is not scaled at all.
+        ok = ok && EditorGeometry.fit(imageWidth: 400, imageHeight: 300, boxWidth: 1198, boxHeight: 593) == 1
 
-        // At one to one the picture opens in its middle, the mark by the right edge is out of sight,
-        // and its pill goes with it instead of hanging over the desktop.
-        oneToOneScaleClicked()
-        ok = ok && canvasView.viewScale == 1 && !scaleSwitchView.isFitted
+        // The wheel with Cmd answers from the fitted state, which is the regression this round
+        // carries: until it did, the right segment of the switch was the only way into a scale of
+        // one's own, and there is no switch any more. Thirteen notches of a tenth each run into the
+        // ceiling of one, where the mark by the right edge is out of sight and its pill goes with it
+        // instead of hanging over the desktop.
+        canvasView.zoomByNotches(13, cursor: CGPoint(x: cropRectLocal.width / 2, y: cropRectLocal.height / 2))
+        ok = ok && canvasView.viewScale == 1
         ok = ok && chipViews[mark.id]?.isHidden == true
 
         // And the picture scrolls: an offset past the end of it stops where the picture ends, and the
@@ -458,14 +462,14 @@ extension OverlayEditorController {
         ok = ok && abs(canvasView.viewOffset.x - (3840 - cropRectLocal.width)) < 0.5
         ok = ok && abs(canvasView.imageRect.minX + canvasView.viewOffset.x) < 0.5
 
-        fitScaleClicked()
+        canvasView.viewOffset = .zero
+        canvasView.viewScale = nil
         capture.annotations.removeAll(where: { $0 === mark })
         visibleChipIds.remove(mark.id)
         capture.image = previousImage
         capture.kind = previousKind
         capture.monitorCount = previousMonitors
         cropRectLocal = previousCrop
-        fitBox = previousFitBox
         setupEditor()
         return ok
     }

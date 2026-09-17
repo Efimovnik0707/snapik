@@ -62,14 +62,6 @@ enum EditorStrings {
     static func monitorCount(_ language: String, _ count: Int) -> String {
         UiFormat.text(text("мониторов: {0}", language: language), "\(count)")
     }
-    /// "По ширине · 31 %" / "По высоте · 25 %": the side of the box that stopped the picture, and how
-    /// far it was scaled down to get there.
-    static func fitPercent(_ language: String, boundBy: EditorGeometry.FitBound, percent: Int) -> String {
-        let template = boundBy == .height ? "По высоте · {0} %" : "По ширине · {0} %"
-        return UiFormat.text(text(template, language: language), "\(percent)")
-    }
-    /// The right segment of the switch: a ratio, not a sentence, and the same in both languages.
-    static let oneToOne = "1:1"
     static func removeComment(_ language: String) -> String { text("Удалить комментарий", language: language) }
     static func undo(_ language: String) -> String { text("Отменить", language: language) }
     static func redo(_ language: String) -> String { text("Повторить", language: language) }

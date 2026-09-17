@@ -61,17 +61,13 @@ extension OverlayEditorController {
             chipLayerView = layer
         }
 
-        if toolbarView == nil {
-            let toolbar = EditorToolbarView(language: language)
-            // The pencil capsule's own button arms whichever half was last chosen, not always the
-            // pen (SPEC-DELTA-3 §1.4 E-4).
-            toolbar.onToolSelected = { [weak self] tool in
-                if tool == .pen { self?.selectPencilTool() } else { self?.selectTool(tool) }
-            }
-            toolbar.onQuickColor = { [weak self] color in self?.applyAppearanceNow(color: color) }
-            wireToolbarActions(toolbar)
-            slot.contentView.addSubview(toolbar)
-            toolbarView = toolbar
+        ensureToolbarView(on: slot)
+        // The panel is built before the capture is placed, so it went into the content view before
+        // the canvas did; the order of the subviews is the order they are drawn in, and the panel
+        // belongs over the picture. Asked for again here it lands where it always stood: over the
+        // canvas and the pills, under the views built after it.
+        if let toolbarView {
+            slot.contentView.addSubview(toolbarView, positioned: .above, relativeTo: nil)
         }
 
         setupCommentsPanelIfNeeded(on: slot)
@@ -88,6 +84,23 @@ extension OverlayEditorController {
         positionToolbar()
         window(for: screenIndex)?.makeFirstResponder(canvasView)
         settingUp = false
+    }
+
+    /// The panel is built before the capture is placed and not with the rest of the editing views:
+    /// the room the capture is given is the working area less the height of the panel, and that
+    /// height cannot be asked of a panel that does not exist yet (SPEC-DELTA-5-editor.md §1.2 E-1).
+    func ensureToolbarView(on slot: OverlayScreenSlot) {
+        guard toolbarView == nil else { return }
+        let toolbar = EditorToolbarView(language: language)
+        // The pencil capsule's own button arms whichever half was last chosen, not always the
+        // pen (SPEC-DELTA-3 §1.4 E-4).
+        toolbar.onToolSelected = { [weak self] tool in
+            if tool == .pen { self?.selectPencilTool() } else { self?.selectTool(tool) }
+        }
+        toolbar.onQuickColor = { [weak self] color in self?.applyAppearanceNow(color: color) }
+        wireToolbarActions(toolbar)
+        slot.contentView.addSubview(toolbar)
+        toolbarView = toolbar
     }
 
     /// Port of `_commentsPanelVisible` (`OverlayEditorWindow.xaml.cs:1020`, SPEC-DELTA-3 §1.4 E-12):
@@ -112,7 +125,6 @@ extension OverlayEditorController {
     func teardownEditingViews() {
         canvasContainerView?.removeFromSuperview()
         toolbarView?.removeFromSuperview()
-        scaleSwitchView?.removeFromSuperview()
         shotKindView?.removeFromSuperview()
         chipLayerView?.removeFromSuperview()
         commentsPanelView?.removeFromSuperview()
@@ -123,7 +135,6 @@ extension OverlayEditorController {
         canvasContainerView = nil
         canvasView = nil
         toolbarView = nil
-        scaleSwitchView = nil
         shotKindView = nil
         chipLayerView = nil
         commentsPanelView = nil

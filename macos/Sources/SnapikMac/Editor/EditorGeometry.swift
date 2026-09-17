@@ -423,23 +423,6 @@ enum EditorGeometry {
             height: oldCropRectLocal.height * pixelRect.height / CGFloat(imageHeight))
     }
 
-    /// The box a capture reopened from the strip is fitted into: the same 0.72 of the window
-    /// `reopenCropRect` scales against, kept apart so the switch beside the panel can say how far the
-    /// picture was scaled down and which side of the box decided it (SPEC-DELTA-4 §4.1, `_fitBox`).
-    static func reopenFitBox(windowSize: CGSize) -> CGSize {
-        CGSize(width: windowSize.width * 0.72, height: windowSize.height * 0.72)
-    }
-
-    /// Port of the reopen-from-stack scale rule (SPEC §1.9 point 2, `OverlayEditorWindow.xaml.cs:156-163`):
-    /// `min(0.72*W/imgW, 0.72*H/imgH)`, centered in the editing window.
-    static func reopenCropRect(imageSize: CGSize, windowSize: CGSize) -> CGRect {
-        guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
-        let scale = min(0.72 * windowSize.width / imageSize.width, 0.72 * windowSize.height / imageSize.height)
-        let w = imageSize.width * scale
-        let h = imageSize.height * scale
-        return CGRect(x: (windowSize.width - w) / 2, y: (windowSize.height - h) / 2, width: w, height: h)
-    }
-
     // MARK: - Small numeric helpers
 
     static func clamp(_ value: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat {
