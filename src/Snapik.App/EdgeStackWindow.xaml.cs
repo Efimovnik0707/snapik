@@ -34,6 +34,7 @@ public partial class EdgeStackWindow : Window
     // after it stops. This is that second, and the bar it fades is found once, in the template.
     private readonly DispatcherTimer _scrollBarTimer;
     private System.Windows.Controls.Primitives.ScrollBar? _stripScrollBar;
+    private ScrollViewer? _stripScrollViewer;
     private readonly string _settingsPath;
     private readonly WinForms.NotifyIcon _trayIcon;
     private readonly IPasteIntentObserver _pasteIntentObserver;
@@ -316,16 +317,40 @@ public partial class EdgeStackWindow : Window
         bar.BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds)));
     }
 
+    // The viewer is the whole template of the list — the ListBox is retemplated into a bare
+    // ScrollViewer — so it is its only visual child, and it outlives every capture the strip holds:
+    // looked up once and kept, like the bar inside it.
+    private ScrollViewer? StripScrollViewer()
+    {
+        if (_stripScrollViewer is not null) return _stripScrollViewer;
+        if (CaptureList is null || VisualTreeHelper.GetChildrenCount(CaptureList) == 0) return null;
+        return _stripScrollViewer = VisualTreeHelper.GetChild(CaptureList, 0) as ScrollViewer;
+    }
+
     // The bar is part of the template of the viewer, which is part of the template of the list, so
     // it is looked up once and kept: the two templates outlive every capture the strip holds.
     private System.Windows.Controls.Primitives.ScrollBar? StripScrollBar()
     {
         if (_stripScrollBar is not null) return _stripScrollBar;
-        if (CaptureList is null || VisualTreeHelper.GetChildrenCount(CaptureList) == 0) return null;
-        if (VisualTreeHelper.GetChild(CaptureList, 0) is not ScrollViewer viewer) return null;
+        if (StripScrollViewer() is not { } viewer) return null;
         _stripScrollBar = viewer.Template.FindName("PART_VerticalScrollBar", viewer) as System.Windows.Controls.Primitives.ScrollBar;
         return _stripScrollBar;
     }
+
+    // The bottom of the strip, not the last card: the container of a card is 30 px tall — the
+    // overhang of 48 belongs to the panel — so ScrollIntoView would stop having shown 30 px of the
+    // 78 the card is drawn with. Called after the layout pass that added the card, and separately
+    // from the deferred call below so the probe of the strip can take the same path in one go.
+    private void ScrollStripToEndCore()
+    {
+        if (CaptureList is null || CaptureList.Visibility != Visibility.Visible) return;
+        CaptureList.UpdateLayout();
+        StripScrollViewer()?.ScrollToEnd();
+    }
+
+    // At Loaded priority: a capture is added and the strip is shown before the list has been given
+    // its new height, and a scroll asked for at that moment has nothing to scroll yet.
+    private void ScrollStripToEnd() => Dispatcher.InvokeAsync(ScrollStripToEndCore, DispatcherPriority.Loaded);
 
     private bool RegisterHotkeys()
     {
@@ -703,6 +728,11 @@ public partial class EdgeStackWindow : Window
         _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0053);
         UiLanguage.Apply(this);
         AnimateStackIn();
+        // Every showing of the strip ends at its last capture: this is the one path all of them go
+        // through — a capture, the whole screen, a paste, the tray, the start and the way back from
+        // the editor. Renumber and UpdateEmptyState are deliberately left alone: they also run on a
+        // removal, a reorder and a capture marked as sent, where the bottom is the wrong place.
+        ScrollStripToEnd();
     }
 
     public void RevealStack() => ShowStackWithoutActivation();
@@ -1213,6 +1243,9 @@ public partial class EdgeStackWindow : Window
         if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
         else if (truncated) ShowToast(string.Format(UiLanguage.Text("В ленте максимум {0} снимков. Отправьте или удалите лишние"), SentCaptureRules.MaxStripCaptures));
         else if (saved) ShowToast(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
+        // The import adds to the end of a strip that is already on screen, so it never passes
+        // through ShowStackWithoutActivation and asks for the bottom itself.
+        if (imported > 0) ScrollStripToEnd();
     }
 
     private async Task ImportClipboardAsync()
@@ -1226,6 +1259,7 @@ public partial class EdgeStackWindow : Window
         var saved = await SaveAsync();
         await RefreshOwnedClipboardAsync();
         if (saved) ShowToast(UiLanguage.Text("Изображение добавлено."));
+        ScrollStripToEnd();
     }
 
     // Copying and saving by hand are about the strip as a whole: they take every capture, sent ones
@@ -2033,11 +2067,7 @@ public partial class EdgeStackWindow : Window
                     throw new InvalidOperationException($"Five cards under a ceiling of 372 make a list of 220, not {window.CaptureList.Height}.");
                 if (viewer.ScrollableHeight > 0)
                     throw new InvalidOperationException($"A list that fits must not scroll: {viewer.ScrollableHeight} px of it are out of sight.");
-                var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
-                var last = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(window.Captures.Count - 1);
-                var cardBottom = last.TranslatePoint(new Point(0, 0), presenter).Y + Controls.StripResizeGeometry.CardHeight;
-                if (cardBottom > presenter.ActualHeight + 0.5)
-                    throw new InvalidOperationException($"The last card ends at {cardBottom} and the list at {presenter.ActualHeight}: the bottom of it is cut off.");
+                TheLastCardIsWhole(window, viewer);
             });
             ProbeStrip(12, (window, viewer) =>
             {
@@ -2048,6 +2078,14 @@ public partial class EdgeStackWindow : Window
                 var bar = window.StripScrollBar() ?? throw new InvalidOperationException("The template of the list must keep a PART_VerticalScrollBar.");
                 if (bar.Visibility != Visibility.Visible || bar.ActualWidth > 6)
                     throw new InvalidOperationException($"The bar of an overflowing strip is {bar.ActualWidth} px wide and {bar.Visibility}.");
+                // The path of the showing, taken by hand: the probe shows no window, and the
+                // deferred half of ScrollStripToEnd waits for a dispatcher nobody pumps here.
+                // The offset lands on the layout pass after the scroll, hence the second one.
+                window.ScrollStripToEndCore();
+                window.CaptureList.UpdateLayout();
+                if (Math.Abs(viewer.VerticalOffset - viewer.ScrollableHeight) > 0.5)
+                    throw new InvalidOperationException($"A strip that was shown stands at {viewer.VerticalOffset} of {viewer.ScrollableHeight}: the capture it just took is above the fold.");
+                TheLastCardIsWhole(window, viewer);
             });
         }
         finally
@@ -2055,6 +2093,18 @@ public partial class EdgeStackWindow : Window
             if (application is not null) application.ShutdownMode = shutdown;
             UiLanguage.Current = language;
         }
+    }
+
+    // The bottom of the last card against the bottom of the field the cards stand in. It is the
+    // same question in both cases — a list that fits and a list scrolled to its end — and the
+    // overhang of 48 given to the items panel is what makes the answer yes.
+    private static void TheLastCardIsWhole(EdgeStackWindow window, ScrollViewer viewer)
+    {
+        var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
+        var last = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(window.Captures.Count - 1);
+        var cardBottom = last.TranslatePoint(new Point(0, 0), presenter).Y + Controls.StripResizeGeometry.CardHeight;
+        if (cardBottom > presenter.ActualHeight + 0.5)
+            throw new InvalidOperationException($"The last card ends at {cardBottom} and the list at {presenter.ActualHeight}: the bottom of it is cut off.");
     }
 
     // A strip of its own for every case: a list refilled in place keeps the extent of the list it
