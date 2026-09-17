@@ -1428,6 +1428,11 @@ public partial class OverlayEditorWindow : Window
             // Nothing is written into ParentAnnotationId any more: a comment is a mark of its own,
             // and moving a frame no longer drags the notes that were put on top of it. The field is
             // still read, so a session of 1.5.0 keeps saying which mark its comments belong to.
+            // The second point is the rectangle of the comment and it stays where it is: the crop
+            // removes a mark whose box has no width (CaptureCropper.CropBox), the hit test and the
+            // double click that opens the pill reach through it, and the pill and the note button are
+            // laid out under it. Since 1.7.0 it is no part of the leader any more — the line is
+            // measured from Points[0] — so a session written before then draws like one written after.
             annotation.Points[1] = new Point(Math.Min(_capture.Image.PixelWidth, annotation.Points[0].X + 8), Math.Min(_capture.Image.PixelHeight, annotation.Points[0].Y + 8));
             // The tool stays in the hand, the way the frame and the arrow do: three comments in a row
             // without going back to the panel. It is put down by Escape, by "Select" and by arming

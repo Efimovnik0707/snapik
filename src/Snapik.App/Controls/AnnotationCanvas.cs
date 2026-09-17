@@ -827,24 +827,35 @@ public sealed class AnnotationCanvas : FrameworkElement
         {
             var badgeBrush = AccentPalette.Brush;
             var badge = BadgeOf(item, target);
-            // A badge dragged away from its mark keeps one hair line back to it.
+            // A badge dragged away from its mark keeps one hair line back to it. A frame and an arrow
+            // are led from their outline; a comment is led from the dot it is pinned by, because the
+            // rectangle of a comment is a square of eight pixels nobody sees and the line used to
+            // start at a corner of it, beside the dot. Points[0] is read straight instead of through
+            // BoundsOf: a mark without points would hand Rect.Empty, whose infinite edges make the
+            // Math.Clamp inside TryLeader throw.
             if (item.NoteOffset is not null)
             {
-                var badgeBounds = BoundsOf(item);
-                var outline = new Rect(Map(badgeBounds.TopLeft), Map(badgeBounds.BottomRight));
-                if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to))
+                var isComment = item.Kind == EditorTool.Comment;
+                var leaderAnchor = Map(item.Points[0]);
+                var outline = isComment
+                    ? new Rect(leaderAnchor, leaderAnchor)
+                    : new Rect(Map(BoundsOf(item).TopLeft), Map(BoundsOf(item).BottomRight));
+                // The dot keeps its five pixels at any zoom, so the line is held back by the same five.
+                if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to,
+                        isComment ? AnchorRadius : 0))
                     dc.DrawLine(new Pen(badgeBrush, 1), from, to);
             }
             dc.DrawEllipse(badgeBrush, null, badge.Center, badge.Radius, badge.Radius);
-            // The anchor of the leader, on screen only: includeSelection is what separates the canvas
-            // from RenderAnnotated, and a circle without a number explains nothing to whoever receives
-            // the picture. The export draws the leader and the badge, and neither needs a handle.
-            // While the note sits on its mark there is no leader, and the anchor would only cover the
-            // number in the badge, so it is drawn for a note dragged away.
-            if (includeSelection && item.Kind == EditorTool.Comment && item.NoteOffset is not null)
+            // The dot the leader starts at. It is drawn wherever the badge is drawn, the canvas and
+            // the file saved to disk alike: the line has to end on something, and a picture saved with
+            // "Save to computer" used to show it breaking off in mid-air. Only the reach under the
+            // pointer belongs to the canvas, so only that is kept behind includeSelection. While the
+            // note sits on its mark there is no leader, and the dot would only cover the number in the
+            // badge, so it is drawn for a note dragged away.
+            if (item.Kind == EditorTool.Comment && item.NoteOffset is not null)
             {
                 var anchor = Map(item.Points[0]);
-                var radius = _anchorHover == item.Id ? AnchorHoverRadius : AnchorRadius;
+                var radius = includeSelection && _anchorHover == item.Id ? AnchorHoverRadius : AnchorRadius;
                 dc.DrawEllipse(badgeBrush, new Pen(Brushes.White, 1.5), anchor, radius, radius);
             }
             var label = new FormattedText(item.Label, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
