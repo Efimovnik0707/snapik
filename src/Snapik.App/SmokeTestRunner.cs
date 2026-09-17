@@ -1579,6 +1579,9 @@ public static class SmokeTestRunner
 
     private static void VerifyTz007Editor()
     {
-        // The editor track writes here.
+        // Both checks of the editor track are written where the things they check already live, and
+        // both are run by this same smoke pass: the dot of an exported comment beside the probe that
+        // renders a dragged badge into a PNG, and the empty properties block of the blur inside
+        // OverlayEditorWindow.PanelChecks, which reaches the private members of the window.
     }
 }

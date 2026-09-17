@@ -532,6 +532,35 @@ public partial class OverlayEditorWindow : Window
             if (Math.Abs(window.Toolbar.Margin.Left - dragged.Left) > 0.5 || Math.Abs(window.Toolbar.Margin.Top - dragged.Top) > 0.5)
                 throw new InvalidOperationException($"A panel moved by hand must keep its place: {dragged} became {window.Toolbar.Margin}.");
             window._toolbarUserPosition = null;
+
+            // With a blur in the hand the properties block stands empty: the colours were hidden
+            // before, and the shape capsule went with 1.7.0, because choosing a shape from it with
+            // nothing selected armed the frame and the blur fell out of the hand. The block keeps its
+            // width — the loop above measures it for the blur among the other tools.
+            window.SelectToolMode(EditorTool.Blur);
+            if (window.ColorCapsule.Visibility != Visibility.Hidden || window.LineCapsule.Visibility != Visibility.Hidden)
+                throw new InvalidOperationException("With a blur in the hand both capsules of the properties block must be hidden.");
+            // The chevron of the frame is the one place a shape is picked from, and it arms the frame
+            // whatever was in the hand — a blur included. The menu is built and used without a popup
+            // on screen, the way the menus of the split buttons are checked elsewhere.
+            var shapeFromChevron = window.BuildShapeMenu(window.ShapeMenuButton);
+            shapeFromChevron.Items.OfType<MenuItem>().ElementAt(2).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            if (window.Surface.Tool != EditorTool.Rectangle ||
+                window.Surface.ActiveShape != Snapik.Core.Models.AnnotationShape.Ellipse)
+                throw new InvalidOperationException("A shape picked at the chevron of the frame must arm the frame and reach the active shape.");
+            // And the shape of the frame is the shape the next blur is drawn with: that is the whole
+            // of "an oval blur" now that the blur has no capsule of its own.
+            window.SelectToolMode(EditorTool.Blur);
+            window.Surface.Measure(new Size(window._cropRect.Width, window._cropRect.Height));
+            window.Surface.Arrange(new Rect(0, 0, window._cropRect.Width, window._cropRect.Height));
+            new System.Windows.Media.Imaging.RenderTargetBitmap(
+                (int)window._cropRect.Width, (int)window._cropRect.Height, 96, 96, PixelFormats.Pbgra32).Render(window.Surface);
+            window.Surface.BeginGesture(new Point(80, 60));
+            window.Surface.UpdateGesture(new Point(300, 240), pressed: true);
+            window.Surface.EndGesture();
+            if (window._capture!.Annotations.LastOrDefault(mark => mark.Kind == EditorTool.Blur) is not
+                { Shape: Snapik.Core.Models.AnnotationShape.Ellipse })
+                throw new InvalidOperationException("A blur drawn by hand must take the shape the frame carries.");
         }
         finally
         {

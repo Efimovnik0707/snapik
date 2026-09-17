@@ -387,8 +387,9 @@ public partial class OverlayEditorWindow
             if (selected is not null) { selected.Thickness = t; _appearanceChanged = true; }
             else Keep(before => before with { Thickness = t });
         }
-        // The shape belongs to the frame and to the blur, and to nothing else on the panel.
-        if (shape is { } picked && tool is EditorTool.Rectangle or EditorTool.Blur)
+        // The shape belongs to the frame and to nothing else on the panel: a blur, selected or in the
+        // hand, is drawn with the shape the frame carries and has no say of its own in it.
+        if (shape is { } picked && tool == EditorTool.Rectangle)
         {
             if (selected is not null) { selected.Shape = picked; _appearanceChanged = true; }
             else

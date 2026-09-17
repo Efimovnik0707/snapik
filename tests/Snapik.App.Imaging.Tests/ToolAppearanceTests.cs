@@ -29,7 +29,9 @@ public sealed class ToolAppearanceTests
             [EditorTool.Pen] = new(true, false, SecondCapsule.Line, true),
             [EditorTool.Highlight] = new(true, false, SecondCapsule.Line, true),
             [EditorTool.Text] = new(true, false, SecondCapsule.FontSize, true),
-            [EditorTool.Blur] = new(false, false, SecondCapsule.Shape, true),
+            // The blur shows nothing at all: no colour, and no shape either, because the shape it is
+            // drawn with is the one the frame carries.
+            [EditorTool.Blur] = new(false, false, SecondCapsule.None, true),
             // No tool draws a conceal any more, but an old mark of one can be selected, and then the
             // block shows its fields, the way it does for any other filled region.
             [EditorTool.Conceal] = new(true, true, SecondCapsule.Line, true),
@@ -112,5 +114,35 @@ public sealed class ToolAppearanceTests
         var read = ToolAppearanceStore.Read(saved);
         foreach (var tool in ToolAppearanceStore.Tools)
             Assert.Equal(written[tool], read[tool]);
+    }
+
+    [Fact]
+    public void With_a_blur_in_hand_the_block_shows_nothing_at_all()
+    {
+        // There is nothing left to press: the colours were already hidden, and the shape capsule is
+        // gone, because pressing it with nothing selected armed the frame and the blur fell out of
+        // the hand. The block itself stays, and stays its own width.
+        var blur = EditorInspector.InspectorViewOf(EditorTool.Blur);
+        Assert.Equal(SecondCapsule.None, blur.Second);
+        Assert.False(blur.Stroke);
+        Assert.False(blur.FillSwatch);
+        Assert.True(blur.Enabled);
+    }
+
+    [Fact]
+    public void The_shape_is_shown_by_the_frame_and_the_blur_keeps_only_its_mirror_in_the_file()
+    {
+        // The frame is the one tool the panel offers a shape for; a blur is drawn with whatever the
+        // frame carries. The settings file keeps a shape for the blur all the same, so that a build
+        // reading it — the Mac port among them — never finds a stale one.
+        Assert.NotEqual(SecondCapsule.Shape, EditorInspector.InspectorViewOf(EditorTool.Blur).Second);
+        var written = new Dictionary<EditorTool, ToolAppearance>
+        {
+            [EditorTool.Rectangle] = new() { Shape = AnnotationShape.Rounded },
+            [EditorTool.Blur] = new() { Shape = AnnotationShape.Rounded }
+        };
+        var read = ToolAppearanceStore.Read(ToolAppearanceStore.Write(HotkeySettings.Default, written));
+        Assert.Equal(AnnotationShape.Rounded, read[EditorTool.Rectangle].Shape);
+        Assert.Equal(AnnotationShape.Rounded, read[EditorTool.Blur].Shape);
     }
 }

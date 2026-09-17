@@ -175,8 +175,10 @@ internal static class EditorInspector
         // The highlighter has a colour and a thickness; the pattern of a stroke it has none of.
         EditorTool.Highlight => new(true, false, SecondCapsule.Line, true),
         EditorTool.Text => new(true, false, SecondCapsule.FontSize, true),
-        // The blur has a shape and nothing else: the colours are hidden, not switched off.
-        EditorTool.Blur => new(false, false, SecondCapsule.Shape, true),
+        // The blur has neither colour nor settings of its own: it takes the shape of the frame, so
+        // the block stands empty. It had a shape capsule of its own until 1.7.0, and choosing from
+        // it with nothing selected switched the hand to the frame — the blur fell out of the hand.
+        EditorTool.Blur => new(false, false, SecondCapsule.None, true),
         // No tool of the panel draws a conceal any more, but a mark of one read out of an old
         // session can be selected, and then the block belongs to that mark: it is a filled region
         // and shows what a region shows. Reached through InspectedTool alone, never through a hand.
