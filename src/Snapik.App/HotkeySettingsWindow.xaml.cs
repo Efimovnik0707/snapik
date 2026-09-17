@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Snapik.Windows;
 
 namespace Snapik.App;
@@ -46,9 +47,16 @@ public partial class HotkeySettingsWindow : Window
         AutoSaveBox.IsChecked = settings.AutoSaveCaptures;
         SoundsBox.IsChecked = settings.PlaySounds;
         VolumeSlider.Value = Math.Clamp(settings.SoundVolume, 0, 100);
+        // Subscribed after the value is put in, so that opening the window is not itself a change and
+        // does not play anything. A slider is moved by dragging, by a click on its track and by the
+        // arrow keys, and only the first of the three ends with a drag event: the moment the user let
+        // go is therefore read as a pause, one timer restarted on every change.
+        VolumeSlider.ValueChanged += (_, _) => { UpdateVolumeCaption(); _volumePreview.Stop(); _volumePreview.Start(); };
+        _volumePreview.Tick += (_, _) => { _volumePreview.Stop(); PreviewVolume(); };
         SoundsBox.Checked += (_, _) => UpdateVolume();
         SoundsBox.Unchecked += (_, _) => UpdateVolume();
         UpdateVolume();
+        UpdateVolumeCaption();
         ClearStackBox.IsChecked = settings.ClearStackAfterPaste;
         FormatBox.SelectedIndex = settings.SaveFormat == "jpeg" ? 1 : 0;
         QualitySlider.Value = Math.Clamp(settings.JpegQuality, 1, 100);
@@ -69,7 +77,12 @@ public partial class HotkeySettingsWindow : Window
         Loaded += (_, _) => ApplyLanguage(settings.Language);
         // The appearance tab repaints the application while it is being looked at and saves nothing;
         // walking away from the window has to put back the pair it was opened with.
-        Closed += (_, _) => { if (Result is null) ThemeService.Apply(_original.Theme, _original.AccentId); };
+        Closed += (_, _) =>
+        {
+            // A tick owed to a value nobody saved must not arrive after the window is gone.
+            _volumePreview.Stop();
+            if (Result is null) ThemeService.Apply(_original.Theme, _original.AccentId);
+        };
     }
 
     // The startup entry is a registry value, not a preference of the settings file: it is read when
@@ -114,6 +127,9 @@ public partial class HotkeySettingsWindow : Window
         UpdateShortcutState();
         AppearanceTab.ApplyLanguage(language);
         UpdateQuality();
+        // The walk of UiLanguage.Apply rewrites the text of every TextBlock that is not bound, so the
+        // number beside the slider is put back after it, the way the quality caption is.
+        UpdateVolumeCaption();
     }
 
     /// <summary>
@@ -125,6 +141,12 @@ public partial class HotkeySettingsWindow : Window
 
     /// <summary>The combination the chip put into the field, if the user took one.</summary>
     private string? _suggested;
+
+    /// <summary>
+    /// The pause that stands for "the slider was let go": every change restarts it, and when it runs
+    /// out the tick is played on the volume the slider holds. Nothing is saved by it.
+    /// </summary>
+    private readonly DispatcherTimer _volumePreview = new() { Interval = TimeSpan.FromMilliseconds(150) };
 
     // What the chip offers: the first combination of the queue that neither field holds and nothing
     // has refused. Null means the queue is exhausted and the chip has nothing to say.
@@ -167,8 +189,24 @@ public partial class HotkeySettingsWindow : Window
         UpdateShortcutState();
     }
 
-    // The volume belongs to the sounds: with them off there is nothing to make quieter.
-    private void UpdateVolume() => VolumeRow.Visibility = SoundsBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    // The volume belongs to the sounds: with them off there is nothing to make quieter, and a tick
+    // owed to the slider is dropped instead of arriving after the sounds were switched off.
+    private void UpdateVolume()
+    {
+        var audible = SoundsBox.IsChecked == true;
+        VolumeRow.Visibility = audible ? Visibility.Visible : Visibility.Collapsed;
+        if (!audible) _volumePreview.Stop();
+    }
+
+    // The number the slider is worth, in the shape the quality caption already uses: a space before
+    // the sign, and the same text in both languages.
+    private void UpdateVolumeCaption() => VolumeValueLabel.Text = $"{(int)VolumeSlider.Value} %";
+
+    // The tick of the volume being chosen: the settings of the window with the sounds on and the
+    // value the slider holds, and nothing of it is written to the file. The row is only on screen
+    // while the sounds are on, so the preview cannot switch them on behind the user's back.
+    private void PreviewVolume() =>
+        UiSoundService.Tick(_original with { PlaySounds = true, SoundVolume = (int)VolumeSlider.Value });
 
     private void UpdateQuality()
     {

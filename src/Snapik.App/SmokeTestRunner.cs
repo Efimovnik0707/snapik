@@ -218,8 +218,13 @@ public static class SmokeTestRunner
             window.ApplyLanguage("en");
             if (!window.QualityLabel.Text.StartsWith("JPEG quality", StringComparison.Ordinal))
                 throw new InvalidOperationException("The JPEG quality caption must follow the language applied to the window.");
-            window.Measure(new Size(530, 480));
-            window.Arrange(new Rect(0, 0, 530, 480));
+            // Measured at the size the window declares and not at a size of the probe's own: a window
+            // measured smaller than it opens hides the very cut this round is here to close. The tab of
+            // appearance is realised as well, because a TabControl builds only the tab that is selected.
+            window.Measure(new Size(window.Width, window.Height));
+            window.Arrange(new Rect(0, 0, window.Width, window.Height));
+            window.AppearanceTabItem.IsSelected = true;
+            window.UpdateLayout();
             ResolveTriggerBindings(window);
             window.ApplyLanguage("ru");
             if (!window.QualityLabel.Text.StartsWith("Качество JPEG", StringComparison.Ordinal))
@@ -260,6 +265,11 @@ public static class SmokeTestRunner
         {
             var window = new HotkeySettingsWindow(HotkeySettings.Default with { AnnotationPalette = "pastel" });
             if (window.AppearanceTab.SelectedPalette != "pastel")
+                throw new InvalidOperationException("The settings must open on the annotation palette the file carries.");
+            // The set picked in the editor is one of the four the settings know: a file carrying it
+            // opens on it, and "Save" hands the same name back instead of the standard one.
+            var neon = new HotkeySettingsWindow(HotkeySettings.Default with { AnnotationPalette = "neon" });
+            if (neon.AppearanceTab.SelectedPalette != "neon")
                 throw new InvalidOperationException("The settings must open on the annotation palette the file carries.");
         });
         // The brushes are compared as brushes and not as colours: a gradient accent hands out a
@@ -1522,9 +1532,62 @@ public static class SmokeTestRunner
     // its own hook into "private static async Task" and awaits its own call line; everything else
     // here belongs to somebody else. A check that needs the private members of a window is written
     // as a probe inside that window and called from here in one line.
+    // A1 of the round. The height of the settings window is a number in its XAML and nothing in the
+    // code reads it: the window neither scrolls nor resizes, so a tab that outgrows the number loses
+    // its bottom without a word. Every tab is selected in turn (a TabControl builds only the selected
+    // one) and the root of the window is then measured with the width of the window and no ceiling of
+    // its own; the tallest tab has to fit into the height the window declares. There is no chrome to
+    // subtract: WindowStyle="None" with AllowsTransparency="True" leaves the root border alone.
     private static void VerifyTz007Settings()
     {
-        // The settings track writes here.
+        WithoutBindingErrors("The tabs of the settings window", () =>
+        {
+            var window = new HotkeySettingsWindow(HotkeySettings.Default);
+            window.ApplyLanguage("ru");
+            var root = (FrameworkElement)window.Content;
+            var tallest = 0.0;
+            foreach (var tab in window.Tabs.Items.OfType<System.Windows.Controls.TabItem>())
+            {
+                tab.IsSelected = true;
+                window.Measure(new Size(window.Width, window.Height));
+                window.Arrange(new Rect(0, 0, window.Width, window.Height));
+                window.UpdateLayout();
+                root.Measure(new Size(window.Width, double.PositiveInfinity));
+                tallest = Math.Max(tallest, root.DesiredSize.Height);
+            }
+            // A measurement that comes back as nothing would let any height through, which is how the
+            // cut tab lived through every run before this check: the old one measured 530 by 480.
+            if (tallest < 200)
+                throw new InvalidOperationException($"The tabs of the settings window did not measure: {tallest:0} px is not a height.");
+            if (tallest > window.Height)
+                throw new InvalidOperationException($"The settings window must be as tall as its tallest tab: {tallest:0} px does not fit into {window.Height:0} px.");
+
+            // D1 of the round. The number beside the slider follows it, and survives a change of
+            // language: the walk of UiLanguage.Apply rewrites unbound TextBlocks, and this one is
+            // rebuilt after the walk. The tick itself is a live check: a headless run has no sound.
+            window.VolumeSlider.Value = 60;
+            if (window.VolumeValueLabel.Text != "60 %")
+                throw new InvalidOperationException("The volume must say the number the slider holds.");
+            window.ApplyLanguage("en");
+            if (window.VolumeValueLabel.Text != "60 %")
+                throw new InvalidOperationException("The number of the volume must survive the language of the window.");
+            // Switching the sounds off drops the tick the change of value owed, so the run leaves no
+            // preview waiting on a window nobody opened.
+            window.SoundsBox.IsChecked = false;
+            if (window.VolumeRow.Visibility != Visibility.Collapsed)
+                throw new InvalidOperationException("The volume row must go away with the sounds it belongs to.");
+
+            // D2 of the round. The row of the settings is written by hand and the popover of the editor
+            // builds itself out of Palettes: two lists of the same preference, and the file keeps one
+            // name for both. They are compared as sequences and not as sets, because a row that offers
+            // the same four in another order is already a row that disagrees with the editor.
+            string[] offered = [.. window.AppearanceTab.PaletteBlock.Children.OfType<System.Windows.Controls.Panel>()
+                .SelectMany(row => row.Children.OfType<System.Windows.Controls.RadioButton>())
+                .Select(segment => segment.Tag as string ?? string.Empty)];
+            if (!offered.SequenceEqual(OverlayEditorWindow.Palettes.Select(palette => palette.Id)))
+                throw new InvalidOperationException(
+                    $"The settings must offer the palettes of the editor in its order: {string.Join(", ", offered)}.");
+        });
     }
 
     private static void VerifyTz007Strip()
