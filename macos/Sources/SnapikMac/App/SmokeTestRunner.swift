@@ -88,6 +88,17 @@ enum SmokeTestRunner {
         // SPEC-DELTA-2B.md §F: round-trip the two new flags with non-default values.
         custom.autoSaveCaptures = true
         custom.playSounds = false
+        // SPEC-DELTA-5 §6 point 5, the half of [A5-3] the settings portion could not write because
+        // this file belongs to the merge: without the two keys of this round the round-trip looks
+        // straight past them. `pen` carries two fields out of eight on purpose — the absent ones
+        // must come back absent, which is what keeps `fillColor` from being written as `null`.
+        custom.stackHeightManual = true
+        custom.toolAppearance = [
+            "rectangle": ToolAppearanceEntry(
+                color: "#FF9500", thickness: 6, lineStyle: "dashed", fill: "translucent",
+                fillColor: "#0A84FF", fontSize: 22, arrowStyle: "curved", shape: "rounded"),
+            "pen": ToolAppearanceEntry(color: "#30D158", thickness: 2),
+        ]
         let customPath = root.appendingPathComponent("custom-hotkey-smoke.json")
         do {
             try custom.save(path: customPath)
@@ -114,6 +125,13 @@ enum SmokeTestRunner {
             runSettingsAndOnboardingProbes(dataDirectory: settingsProbeRoot)
         }
         for probe in settingsProbes { check(probe.name, probe.ok) }
+
+        // 2b'. [A5-2] The letter of a copied card, all the way from the card to the file name and
+        // the prompt. It stands beside the settings probes rather than inside them because the
+        // export is `async` and `MainActor.run` above takes no `await` (SPEC-DELTA-5 §6 point 4).
+        let single = await runSingleExportProbe(
+            dataDirectory: root.appendingPathComponent("single-export-probe", isDirectory: true))
+        check(single.name, single.ok)
 
         // 2c. The strip (SPEC-DELTA-3 §1.7 K-1).
         let stackProbeRoot = root.appendingPathComponent("stack-probe", isDirectory: true)

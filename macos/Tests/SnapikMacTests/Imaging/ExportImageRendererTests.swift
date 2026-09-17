@@ -147,9 +147,12 @@ final class ExportImageRendererTests: XCTestCase {
         XCTAssertEqual(Double(accent.blueComponent), Double(middle.blueComponent), accuracy: 0.08)
 
         // And the rim around it, one and a half pixels of white grown by the same scale as the dot.
+        // The sample is taken on `anchorRadius * scale` itself, which is the line the stroke is
+        // centred on: the band is 1.5·scale wide, so a pixel a whole point outside it is already the
+        // capture with a little antialiasing over it, not the rim.
         let radius = NoteBadgeGeometry.anchorRadius * NoteBadgeGeometry.exportScale("A1")
         let rim = try XCTUnwrap(
-            bitmap.colorAt(x: Int((centre.x + radius + 1).rounded()), y: Int(centre.y))?.usingColorSpace(.deviceRGB))
+            bitmap.colorAt(x: Int(centre.x + radius), y: Int(centre.y))?.usingColorSpace(.deviceRGB))
         XCTAssertGreaterThan(rim.redComponent, 0.85)
         XCTAssertGreaterThan(rim.greenComponent, 0.85)
         XCTAssertGreaterThan(rim.blueComponent, 0.85)

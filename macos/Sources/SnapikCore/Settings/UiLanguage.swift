@@ -246,10 +246,6 @@ public enum UiLanguage {
             "There is no free name for the package in this folder. Choose another folder."
         ),
         ("Не удалось сохранить пакет", "Could not save the package"),
-        // SPEC-DELTA-5 §1.3: this one goes in the merge as well. Its last reader is the
-        // accessibility label of a settings tab, which the settings portion of this round moves to
-        // the pair right below — that is the title of the tab in the first place.
-        ("Горячие клавиши…", "Settings…"),
         ("Настройки клавиш", "Shortcut settings"),
         ("Снимок сохранён", "Capture saved"),
         ("Снимки скопированы", "Captures copied"),
