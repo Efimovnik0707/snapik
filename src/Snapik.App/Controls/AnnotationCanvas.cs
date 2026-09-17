@@ -837,9 +837,13 @@ public sealed class AnnotationCanvas : FrameworkElement
             {
                 var isComment = item.Kind == EditorTool.Comment;
                 var leaderAnchor = Map(item.Points[0]);
-                var outline = isComment
-                    ? new Rect(leaderAnchor, leaderAnchor)
-                    : new Rect(Map(BoundsOf(item).TopLeft), Map(BoundsOf(item).BottomRight));
+                Rect outline;
+                if (isComment) outline = new Rect(leaderAnchor, leaderAnchor);
+                else
+                {
+                    var bounds = BoundsOf(item);
+                    outline = new Rect(Map(bounds.TopLeft), Map(bounds.BottomRight));
+                }
                 // The dot keeps its five pixels at any zoom, so the line is held back by the same five.
                 if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to,
                         isComment ? AnchorRadius : 0))

@@ -375,15 +375,19 @@
                                      from Captures.Count, so an unfolded card grows the extent of the scroll
                                      and nothing else — the list stands where it stood, and the bottom of it
                                      is reachable by scrolling. BeginTime is the delay of 150 ms the pointer
-                                     needs to mean it: until it is out, nothing on screen has moved, and a
-                                     pointer that only drove past takes the storyboard away with it. Folding
+                                     needs to mean it: until it is out, nothing on screen has moved, and the
+                                     folding below takes the waiting storyboard away with it — a BeginStoryboard
+                                     replaces the one that holds the property (SnapshotAndReplace) and keeps the
+                                     value it was holding, which is where the folding starts from. Stopping it
+                                     by hand instead dropped that value first: a card that had really unfolded
+                                     snapped back to -48 and then animated from -48 to -48. Folding
                                      back has no delay. Margin appears in no setter of this template, so
                                      nothing of the sort fights the animation for the property.
                                      Only the pointer unfolds a card: selection and focus still show nothing
                                      of the kind, a card that came back from the editor looks like the rest. -->
                                 <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True">
                                     <DataTrigger.EnterActions>
-                                        <BeginStoryboard x:Name="UnfoldCard">
+                                        <BeginStoryboard>
                                             <Storyboard>
                                                 <ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin"
                                                                     To="0,0,0,0" BeginTime="0:0:0.15" Duration="0:0:0.13" FillBehavior="HoldEnd">
@@ -393,7 +397,6 @@
                                         </BeginStoryboard>
                                     </DataTrigger.EnterActions>
                                     <DataTrigger.ExitActions>
-                                        <StopStoryboard BeginStoryboardName="UnfoldCard" />
                                         <BeginStoryboard>
                                             <Storyboard>
                                                 <ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin"

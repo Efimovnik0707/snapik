@@ -47,6 +47,11 @@ public partial class EdgeStackWindow : Window
     private PreparedExport? _preparedExport;
     private PublishedPackage? _published;
     private ClipboardWriteReceipt? _ownedClipboardReceipt;
+    // What lies on the clipboard under that receipt is one capture copied on its own, not the
+    // package of the captures that are waiting. A strip that changes before that copy is pasted
+    // leaves it alone: only the next capture, an explicit "Copy package" or a paste of this one
+    // gives the clipboard back to the package. See RefreshOwnedClipboardCoreAsync.
+    private bool _ownedClipboardIsSingleCapture;
     private string _legacyGlobalNote = string.Empty;
     private bool _loadedOnce;
     private bool _busy;
@@ -433,6 +438,10 @@ public partial class EdgeStackWindow : Window
             // A newer capture may have replaced the package while completion was waiting.
             // Never rotate that newer session in response to this older paste intent.
             if (_ownedClipboardReceipt != receiptAtIntent) return;
+            // What was published has been pasted, a single capture included: from here the strip
+            // rotates the way it rotates after a package, and the captures that are still waiting
+            // rebuild the clipboard.
+            _ownedClipboardIsSingleCapture = false;
 
             if (completion.CurrentClipboardReceipt is { } textReceipt)
             {
@@ -682,8 +691,11 @@ public partial class EdgeStackWindow : Window
     private async void OnRemoveCaptureClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: CaptureItem capture }) return;
-        await RemoveCapture(capture);
+        // Before the await: the routed event has gone on its way by the time the removal comes back,
+        // and marking it handled after that reaches nobody — the card under the button would take
+        // the click as a selection.
         e.Handled = true;
+        await RemoveCapture(capture);
     }
 
     // The removal apart from the button that asks for it: the card has one, and the context menu of
@@ -1037,6 +1049,7 @@ public partial class EdgeStackWindow : Window
                 await SaveCoreAsync();
                 _prepared = null;
                 _ownedClipboardReceipt = null;
+                _ownedClipboardIsSingleCapture = false;
                 SetPublished(null);
                 SetStatus(string.Empty);
                 return true;
@@ -1044,6 +1057,8 @@ public partial class EdgeStackWindow : Window
             _prepared = await _workspace.PrepareAsync(Captures, pending, string.Empty, SelectedProfile?.Id);
             var current = await _clipboard.CaptureAsync(CancellationToken.None);
             _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(_prepared.GetImagePathsInOrder(), _prepared.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
+            // The package is back on the clipboard: a capture copied on its own is over.
+            _ownedClipboardIsSingleCapture = false;
             SetPublished(Published(_prepared));
             NotifyCopied();
             SetStatus(string.Empty);
@@ -1289,6 +1304,7 @@ public partial class EdgeStackWindow : Window
             var package = await _workspace.PrepareAsync(Captures, Captures, string.Empty, SelectedProfile?.Id);
             var current = await _clipboard.CaptureAsync(CancellationToken.None);
             _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(package.GetImagePathsInOrder(), package.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
+            _ownedClipboardIsSingleCapture = false;
             SetPublished(Published(package));
             // The next capture rebuilds the package from the captures that are still waiting anyway.
             _prepared = package;
@@ -1699,6 +1715,7 @@ public partial class EdgeStackWindow : Window
             catch (Exception ex) { StartupTrace.Write(_options, $"Clear strip: the clipboard was not released: {ex.Message}"); }
         }
         _ownedClipboardReceipt = null;
+        _ownedClipboardIsSingleCapture = false;
         SetPublished(null);
     }
 
@@ -1768,9 +1785,15 @@ public partial class EdgeStackWindow : Window
             if (!await _clipboard.IsCurrentAsync(receipt, CancellationToken.None))
             {
                 _ownedClipboardReceipt = null;
+                _ownedClipboardIsSingleCapture = false;
                 SetPublished(null);
                 return;
             }
+            // One capture copied on its own stays on the clipboard as it was published. A removal, an
+            // import, a reorder or a tick of the autosave would otherwise replace the capture the user
+            // copied with the whole package of the captures that are waiting, and the paste would
+            // carry what was never asked for.
+            if (_ownedClipboardIsSingleCapture) return;
             var pending = PendingCaptures;
             if (pending.Count == 0)
             {

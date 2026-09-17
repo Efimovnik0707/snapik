@@ -65,8 +65,22 @@ public partial class OverlayEditorWindow
         // its text box is open the canvas leaves that caption out of the drawing, and the picture
         // would reach the clipboard without the words that are on the screen.
         CommitTextEdit();
-        if (Application.Current.MainWindow is EdgeStackWindow stack)
-            await stack.CopySingleCaptureAsync(_capture, _capture.DisplayLabel);
+        if (Application.Current.MainWindow is not EdgeStackWindow stack) return;
+        // The same guard saving holds: the export takes a moment, and a second Ctrl+Shift+C while it
+        // runs would queue a second copy of the same capture behind it.
+        _busyCrop = true;
+        try
+        {
+            var label = _capture.DisplayLabel;
+            var copied = await stack.CopySingleCaptureAsync(_capture, label);
+            // The strip is hidden while the editor is open, so its toast and its status line reach
+            // nobody: the answer is said here, on the plate the editor already speaks through.
+            Hint.Visibility = Visibility.Visible;
+            ((TextBlock)Hint.Child).Text = copied
+                ? string.Format(UiLanguage.Text("Снимок {0} скопирован"), label)
+                : UiLanguage.Text("Не удалось скопировать снимок");
+        }
+        finally { _busyCrop = false; }
     }
 
     private sealed record SavedRegion(int Left, int Top, int Width, int Height, double X, double Y, double W, double H);

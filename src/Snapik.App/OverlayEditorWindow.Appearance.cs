@@ -255,6 +255,9 @@ public partial class OverlayEditorWindow
         {
             SecondCapsule.FontSize => "Размер",
             SecondCapsule.Shape => "Фигура",
+            // A hidden capsule says nothing: the tip of the capsule it was left standing in used to
+            // hang over a tool that sets no thickness at all.
+            SecondCapsule.None => string.Empty,
             _ => "Толщина"
         });
         LineCapsuleGlyph.Visibility = view.Second is SecondCapsule.FontSize or SecondCapsule.Shape ? Visibility.Visible : Visibility.Collapsed;

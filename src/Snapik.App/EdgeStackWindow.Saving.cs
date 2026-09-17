@@ -45,8 +45,10 @@ public partial class EdgeStackWindow
     /// and the text by itself. It becomes the published package, so a paste that is noticed marks
     /// that one capture as sent and nothing else. `_prepared` is left alone: the paste button still
     /// sends everything that waits, and it rebuilds itself on the next capture anyway.
+    /// Says whether the capture reached the clipboard: the editor hides the strip while it is open,
+    /// so the toast and the status line below are seen by nobody there and it answers on its own.
     /// </summary>
-    internal async Task CopySingleCaptureAsync(CaptureItem capture, string label)
+    internal async Task<bool> CopySingleCaptureAsync(CaptureItem capture, string label)
     {
         await _pasteIntentTransition;
         CancelReceiverEchoWatch();
@@ -57,13 +59,18 @@ public partial class EdgeStackWindow
             var current = await _clipboard.CaptureAsync(CancellationToken.None);
             _ownedClipboardReceipt = await _clipboard.SetPackageGuardedAsync(
                 export.GetImagePathsInOrder(), export.Manifest.PromptText, current.SequenceNumber, CancellationToken.None);
+            // A strip that changes before this copy is pasted must not rebuild the clipboard out of
+            // the captures that are waiting: what lies there is the one capture the user asked for.
+            _ownedClipboardIsSingleCapture = true;
             SetPublished(Published(export));
             UiSoundService.Copied(_settings);
             ShowToast(string.Format(UiLanguage.Text("Снимок {0} скопирован"), label));
+            return true;
         }
         catch (Exception ex)
         {
             SetStatus($"{UiLanguage.Text("Не удалось скопировать снимок")}: {ex.Message}", true);
+            return false;
         }
         finally { _clipboardPublicationGate.Release(); }
     }
