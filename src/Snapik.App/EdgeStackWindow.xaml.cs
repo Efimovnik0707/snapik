@@ -1974,6 +1974,17 @@ public partial class EdgeStackWindow : Window
         return null;
     }
 
+    // The way down, for the parts of a card: the template of an item has a namescope of its own, so
+    // the card of a container is reached by walking its visual children and not by FindName.
+    private static T? FindDescendant<T>(DependencyObject? current, string name) where T : FrameworkElement
+    {
+        if (current is null) return null;
+        if (current is T match && match.Name == name) return match;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(current); i++)
+            if (FindDescendant<T>(VisualTreeHelper.GetChild(current, i), name) is { } found) return found;
+        return null;
+    }
+
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
         if (_allowClose) { CancelReceiverEchoWatch(); _hotkeys?.Dispose(); _pasteIntentObserver.Dispose(); _clipboard.Dispose(); _trayIcon.Visible = false; _trayIcon.Dispose(); return; }
@@ -2086,6 +2097,26 @@ public partial class EdgeStackWindow : Window
                 if (Math.Abs(viewer.VerticalOffset - viewer.ScrollableHeight) > 0.5)
                     throw new InvalidOperationException($"A strip that was shown stands at {viewer.VerticalOffset} of {viewer.ScrollableHeight}: the capture it just took is above the fold.");
                 TheLastCardIsWhole(window, viewer);
+            });
+            // The card that the pointer unfolds, unfolded by hand: the animation of the template is
+            // the only thing left out, and what it animates is this margin. The list keeps the
+            // height it was given, the 48 the card took go into the extent of the scroll, and the
+            // card itself does not move — the cards below it do.
+            ProbeStrip(5, (window, viewer) =>
+            {
+                var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
+                var third = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(2);
+                var topBefore = third.TranslatePoint(new Point(0, 0), presenter).Y;
+                var card = FindDescendant<Border>(third, "ThumbCard")
+                    ?? throw new InvalidOperationException("The template of a card must keep a border named ThumbCard.");
+                card.Margin = new Thickness(0);
+                window.CaptureList.UpdateLayout();
+                if (Math.Abs(window.CaptureList.Height - 220) > 0.5)
+                    throw new InvalidOperationException($"An unfolded card left the list at {window.CaptureList.Height} instead of the 220 five cards are given.");
+                if (Math.Abs(viewer.ScrollableHeight - Controls.StripResizeGeometry.CardOverlap) > 0.5)
+                    throw new InvalidOperationException($"An unfolded card adds 48 px to the extent, not {viewer.ScrollableHeight}.");
+                if (Math.Abs(third.TranslatePoint(new Point(0, 0), presenter).Y - topBefore) > 0.5)
+                    throw new InvalidOperationException("An unfolded card must stay where it was: the cards below it are the ones that move.");
             });
         }
         finally
