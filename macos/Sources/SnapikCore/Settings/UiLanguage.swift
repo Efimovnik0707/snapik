@@ -110,7 +110,6 @@ public enum UiLanguage {
         ("Предложить: {0}", "Suggest: {0}"),
         ("Не назначено", "Not assigned"),
         ("Новый снимок", "New capture"),
-        ("+ Снимок", "+ Capture"),
         ("Готово", "Done"),
         ("Выбор", "Select"),
         ("Область", "Region"),
@@ -126,7 +125,6 @@ public enum UiLanguage {
         ("Отменить снимок", "Cancel the capture"),
         ("Закончить заметку", "Finish the note"),
         ("Новая строка в заметке", "New line in the note"),
-        ("Цвет отметки", "Annotation color"),
         ("Толщина", "Thickness"),
         ("Карандаш", "Pencil"),
         ("Размер", "Size"),
@@ -135,7 +133,6 @@ public enum UiLanguage {
         ("Цвет HEX", "HEX color"),
         ("Толщина линии", "Line thickness"),
         ("Линия", "Line"),
-        ("Тип линии", "Line style"),
         ("Сплошная", "Solid"),
         ("Пунктир", "Dashed"),
         ("Точки", "Dotted"),
@@ -162,6 +159,10 @@ public enum UiLanguage {
         ("К отметке", "To annotation"),
         ("Прямая стрелка", "Straight arrow"),
         ("Изогнутая стрелка", "Curved arrow"),
+        // SPEC-DELTA-5 §1.3: Windows has dropped this pair, and here it goes in the merge and not
+        // before — its two readers (`EditorStrings.arrowBold` and the arrow popover beside it) are
+        // taken out by the editor portion of this round. Taking the pair first would leave Russian
+        // words in the English interface.
         ("Толстая стрелка", "Bold arrow"),
         ("Широкая стрелка", "Wide arrow"),
         ("Стиль стрелки", "Arrow style"),
@@ -176,6 +177,10 @@ public enum UiLanguage {
         ("Заливка размытием", "Blurred fill"),
         ("Цвет заливки", "Fill color"),
         ("Сохранить на компьютер", "Save to computer"),
+        // SPEC-DELTA-5 §1.3: Windows has dropped this pair and this build keeps it. There is no
+        // taskbar on macOS to minimise into, the strip hides into the menu bar instead, and
+        // `MacUiText.overrides` answers this very key with its own wording — taking the pair would
+        // break the override rather than tidy anything.
         ("Свернуть в трей", "Hide to tray"),
         ("Ещё", "More"),
         ("Свернуть в капсулу", "Collapse to a capsule"),
@@ -207,6 +212,12 @@ public enum UiLanguage {
         ("Копировать пакет", "Copy package"),
         ("Сохранить пакет…", "Save package…"),
         ("Импортировать файл…", "Import file…"),
+        // The single capture of the 1.7.0 round: the context menu of a card, the button of the
+        // editor and the two answers to them.
+        ("Копировать снимок", "Copy capture"),
+        ("Сохранить снимок…", "Save capture…"),
+        ("Снимок {0} скопирован", "Capture {0} copied"),
+        ("Не удалось скопировать снимок", "Could not copy the capture"),
         ("Вставить изображение из буфера", "Paste image from clipboard"),
         ("Вернуть удалённый снимок", "Restore deleted capture"),
         ("Сохранить пакет", "Save package"),
@@ -240,11 +251,16 @@ public enum UiLanguage {
             "There is no free name for the package in this folder. Choose another folder."
         ),
         ("Не удалось сохранить пакет", "Could not save the package"),
+        // SPEC-DELTA-5 §1.3: this one goes in the merge as well. Its last reader is the
+        // accessibility label of a settings tab, which the settings portion of this round moves to
+        // the pair right below — that is the title of the tab in the first place.
         ("Горячие клавиши…", "Settings…"),
         ("Настройки клавиш", "Shortcut settings"),
         ("Снимок сохранён", "Capture saved"),
         ("Снимки скопированы", "Captures copied"),
         ("Скопировано", "Copied"),
+        // SPEC-DELTA-5 §1.3, the same case as the pair of SPEC-DELTA-3 §3.3 below: Windows has
+        // dropped it, and here it is still the text of a notification the package sends.
         ("Изображения и комментарии готовы к вставке", "Images and comments are ready to paste"),
         (
             "Снимки сохранены, но вставка не завершена",
@@ -451,9 +467,20 @@ public enum UiLanguage {
         ("Не удалось снять экран", "The screen could not be captured"),
         ("весь экран", "whole screen"),
         ("мониторов: {0}", "monitors: {0}"),
+        // SPEC-DELTA-5 §1.3: both go in the merge, after the editor portion removes the scale
+        // switch and `EditorStrings.fitPercent` with it. There is nothing else reading them.
         ("По ширине · {0} %", "Fit width · {0} %"),
         ("По высоте · {0} %", "Fit height · {0} %"),
         ("Добавить цвет в свою палитру", "Add the colour to my palette"),
+        // The strings of the 1.6.0 round: the drag handle of the markup panel and the words of the
+        // properties block beside it. The three pairs Windows added about the taskbar icon left
+        // over from SnapBrief are not here: macOS has no taskbar to unpin anything from
+        // (SPEC-DELTA-5 §7.2, "not carried over").
+        ("Панель разметки", "Markup panel"),
+        ("Обводка", "Stroke"),
+        ("Скруглённый", "Rounded"),
+        ("Нет", "None"),
+        ("Неон", "Neon"),
         // SPEC-DELTA-3 §3.3: the last pair Windows no longer has. The strip still says this after a
         // paste, because the package really does stay on the clipboard here: the Windows wording
         // ("снимки помечены как отправленные") belongs to T-5, which this sync did not carry over,

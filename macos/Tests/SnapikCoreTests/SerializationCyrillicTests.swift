@@ -111,6 +111,27 @@ final class SerializationCyrillicTests: XCTestCase {
         XCTAssertEqual("Shortcut settings", UiLanguage.text("Настройки клавиш", language: "en"))
         // The outline row left with the switch it named (§3.4, ТЗ№4 D1).
         XCTAssertEqual("Показывать рамку", UiLanguage.text("Показывать рамку", language: "en"))
+        // SPEC-DELTA-5 §1.3: the five rows of 1.6.0 and the four of 1.7.0, and the way back from
+        // the short English words among them, which is where a duplicate value would show.
+        XCTAssertEqual("Markup panel", UiLanguage.text("Панель разметки", language: "en"))
+        XCTAssertEqual("Stroke", UiLanguage.text("Обводка", language: "en"))
+        XCTAssertEqual("Rounded", UiLanguage.text("Скруглённый", language: "en"))
+        XCTAssertEqual("None", UiLanguage.text("Нет", language: "en"))
+        XCTAssertEqual("Neon", UiLanguage.text("Неон", language: "en"))
+        XCTAssertEqual("Нет", UiLanguage.text("None", language: "ru"))
+        XCTAssertEqual("Неон", UiLanguage.text("Neon", language: "ru"))
+        XCTAssertEqual("Обводка", UiLanguage.text("Stroke", language: "ru"))
+        XCTAssertEqual("Copy capture", UiLanguage.text("Копировать снимок", language: "en"))
+        XCTAssertEqual("Save capture…", UiLanguage.text("Сохранить снимок…", language: "en"))
+        XCTAssertEqual("Capture {0} copied", UiLanguage.text("Снимок {0} скопирован", language: "en"))
+        XCTAssertEqual(
+            "Could not copy the capture",
+            UiLanguage.text("Не удалось скопировать снимок", language: "en"))
+        // The three rows this round took: nothing reads them any more, and an unknown value comes
+        // back as it went in.
+        XCTAssertEqual("Цвет отметки", UiLanguage.text("Цвет отметки", language: "en"))
+        XCTAssertEqual("Тип линии", UiLanguage.text("Тип линии", language: "en"))
+        XCTAssertEqual("+ Снимок", UiLanguage.text("+ Снимок", language: "en"))
     }
 
     func test_guid_lowercase_and_no_dashes_formats_match_dotnet_conventions() {
