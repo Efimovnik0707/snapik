@@ -33,6 +33,7 @@
     <Compile Include="..\..\src\Snapik.App\SingleInstanceActivation.cs" Link="SingleInstanceActivation.cs" />
     <Compile Include="..\..\src\Snapik.App\PublishedPackage.cs" Link="PublishedPackage.cs" />
     <Compile Include="..\..\src\Snapik.App\SoundThrottle.cs" Link="SoundThrottle.cs" />
+    <Compile Include="..\..\src\Snapik.App\SoundVolumeCurve.cs" Link="SoundVolumeCurve.cs" />
     <Compile Include="..\..\src\Snapik.App\SaveNaming.cs" Link="SaveNaming.cs" />
     <Compile Include="..\..\src\Snapik.App\SettingsMigration.cs" Link="SettingsMigration.cs" />
     <Compile Include="..\..\src\Snapik.App\AppDataPaths.cs" Link="AppDataPaths.cs" />

@@ -93,7 +93,7 @@ internal static class UiSoundService
             try
             {
                 var player = Player();
-                player.Volume = Math.Clamp(volume, 0, 100) / 100.0 * gain;
+                player.Volume = SoundVolumeCurve.Amplitude(volume, gain);
                 player.Position = TimeSpan.Zero;
                 player.Play();
             }
