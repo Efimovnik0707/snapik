@@ -37,8 +37,16 @@ final class ExportImageRendererTests: XCTestCase {
             context: ExportImageContext(displayLabel: "A", captureIndex: 0, sourceImagePath: sourceURL))
 
         let decoded = try XCTUnwrap(ImageCodec.decodePNG(data))
-        XCTAssertEqual(width, decoded.width)
-        XCTAssertEqual(height + 48, decoded.height)
+        // The header of 48 and, since SPEC-DELTA-5-editor.md §1.3 E-7, the field the badges ask for:
+        // the badge of this mark stands above a point three pixels from the top of a capture of
+        // forty by thirty, so it hangs over two edges and the sheet grows by what it needs.
+        let margin = NoteBadgeGeometry.exportMargins(
+            badges: [(anchor: NormalizedPoint(0.1, 0.1), offset: nil, label: "A1")],
+            width: width, height: height)
+        XCTAssertGreaterThan(margin.top, 0)
+        XCTAssertGreaterThan(margin.left, 0)
+        XCTAssertEqual(margin.left + width + margin.right, decoded.width)
+        XCTAssertEqual(48 + margin.top + height + margin.bottom, decoded.height)
     }
 
     /// R4 regression coverage (finding R4): a vertical-flip bug in the source blit would swap
@@ -141,10 +149,19 @@ final class ExportImageRendererTests: XCTestCase {
         let centre = CGPoint(x: origin.x + CGFloat(width) * 0.5, y: origin.y + CGFloat(height) * 0.5)
         let bitmap = NSBitmapImageRep(cgImage: decoded)
         let middle = try XCTUnwrap(bitmap.colorAt(x: Int(centre.x), y: Int(centre.y))?.usingColorSpace(.deviceRGB))
+        // A corner of the capture, where nothing is drawn: the grey the source was painted with, read
+        // through the same colour space as the dot, so the two numbers can be held against each other.
+        let untouched = try XCTUnwrap(
+            bitmap.colorAt(x: Int(origin.x) + 2, y: Int(origin.y) + 2)?.usingColorSpace(.deviceRGB))
+        // The dot is the accent and not the picture under it. The swatch is an sRGB colour and the
+        // sheet is a device-RGB bitmap, so the two agree as a swatch and not byte for byte — hence a
+        // tolerance wider than a rounding, and the line above, which is what keeps a tolerance that
+        // wide from passing a dot nobody drew.
         let accent = try XCTUnwrap(AccentPalette.flat.usingColorSpace(.deviceRGB))
-        XCTAssertEqual(Double(accent.redComponent), Double(middle.redComponent), accuracy: 0.08)
-        XCTAssertEqual(Double(accent.greenComponent), Double(middle.greenComponent), accuracy: 0.08)
-        XCTAssertEqual(Double(accent.blueComponent), Double(middle.blueComponent), accuracy: 0.08)
+        XCTAssertGreaterThan(abs(Double(middle.redComponent) - Double(untouched.redComponent)), 0.1)
+        XCTAssertEqual(Double(accent.redComponent), Double(middle.redComponent), accuracy: 0.12)
+        XCTAssertEqual(Double(accent.greenComponent), Double(middle.greenComponent), accuracy: 0.12)
+        XCTAssertEqual(Double(accent.blueComponent), Double(middle.blueComponent), accuracy: 0.12)
 
         // And the rim around it, one and a half pixels of white grown by the same scale as the dot.
         // The sample is taken on `anchorRadius * scale` itself, which is the line the stroke is
@@ -190,9 +207,12 @@ final class ExportImageRendererTests: XCTestCase {
         XCTAssertEqual(height + 48, decoded.height)
         let bitmap = NSBitmapImageRep(cgImage: decoded)
         let middle = try XCTUnwrap(bitmap.colorAt(x: width / 2, y: 48 + height / 2)?.usingColorSpace(.deviceRGB))
-        // The grey the source is painted with, untouched: no dot was drawn over it.
-        XCTAssertEqual(200.0 / 255.0, Double(middle.redComponent), accuracy: 0.02)
-        XCTAssertEqual(200.0 / 255.0, Double(middle.blueComponent), accuracy: 0.02)
+        // The grey the source is painted with, untouched: no dot was drawn over it. Held against a
+        // corner of the same picture and not against the byte the source was written with, because
+        // the two sides of that comparison would be read through two different colour spaces.
+        let corner = try XCTUnwrap(bitmap.colorAt(x: 2, y: 48 + 2)?.usingColorSpace(.deviceRGB))
+        XCTAssertEqual(Double(corner.redComponent), Double(middle.redComponent), accuracy: 0.01)
+        XCTAssertEqual(Double(corner.blueComponent), Double(middle.blueComponent), accuracy: 0.01)
     }
 
     private func makeImage(width: Int, height: Int) -> CGImage? {
