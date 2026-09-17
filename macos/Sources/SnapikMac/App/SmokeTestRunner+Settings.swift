@@ -259,4 +259,32 @@ extension SmokeTestRunner {
 
         return results
     }
+
+    /// [A5-2] The letter of a copied card travels the whole way: card, workspace, export service,
+    /// prompt generator. Port of `VerifyTz007SingleExport` (`SmokeTestRunner.cs:1372-1381`). The unit
+    /// tests of the export call the service straight away, so a wire cut anywhere above it would
+    /// leave them green and the user with a picture that says "A" while the toast says "B".
+    ///
+    /// Apart from `runSettingsAndOnboardingProbes` because the export is `async` and that one is
+    /// called inside a `MainActor.run` block, which takes no `await` (SPEC-DELTA-5 §6 point 4: the
+    /// registry of `App/SmokeTestRunner.swift` calls this one beside it).
+    static func runSingleExportProbe(dataDirectory: URL) async -> (name: String, ok: Bool) {
+        let name = "a capture copied from card B is exported and written as B"
+        do {
+            let workspace = SessionWorkspace(dataDirectory: dataDirectory)
+            let image = try await DemoSessionFactory.renderDemoImage(index: 0, width: 400, height: 300)
+            guard let png = ImageCodec.encode(image, format: .png) else { return (name, false) }
+            let capture = try await workspace.addCapture(
+                pngData: png, pixelWidth: image.width, pixelHeight: image.height,
+                note: "Комментарий к одиночному снимку")
+            let prepared = try await workspace.exportSingle(
+                capture, label: "B", renderer: ExportImageRenderer())
+            let images = prepared.manifest.images
+            let fileOk = images.count == 1 && images[0].fileName == "01-B.png"
+                && images[0].displayLabel == "B"
+            return (name, fileOk && prepared.manifest.promptText.hasPrefix("Снимок B"))
+        } catch {
+            return (name, false)
+        }
+    }
 }
