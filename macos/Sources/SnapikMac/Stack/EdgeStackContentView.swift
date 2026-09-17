@@ -57,9 +57,10 @@ final class TickingScrollView: NSScrollView {
     }
 }
 
-/// [ТЗ№4 C2] The bar of the list: four points wide at rest and under the pointer alike, the grip
-/// filling it, the slot never painted. It lives in the right padding lane of the list, so the width
-/// of a card does not change when the strip starts to overflow.
+/// The bar of the list: a lane as wide as the right padding of the list, and a grip of three points
+/// in it that grows to six under the pointer (SPEC-DELTA-5 §1.1 L-3). The lane is the hover field
+/// Windows draws as `BarField`; it lives in the right padding of the list, so the width of a card
+/// does not change when the strip starts to overflow.
 final class StackScroller: NSScroller {
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
@@ -67,17 +68,19 @@ final class StackScroller: NSScroller {
     override class var isCompatibleWithOverlayScrollers: Bool { true }
 
     override class func scrollerWidth(for controlSize: NSControl.ControlSize, scrollerStyle: NSScroller.Style) -> CGFloat {
-        StackMetrics.scrollBarWidth
+        StackMetrics.scrollBarLaneWidth
     }
 
     override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
 
     override func drawKnob() {
         let knob = rect(for: .knob)
-        let width = StackMetrics.scrollBarWidth
+        let width = isHovered ? StackMetrics.scrollBarHoverWidth : StackMetrics.scrollBarWidth
         let lane = NSRect(x: knob.midX - width / 2, y: knob.minY, width: width, height: knob.height)
         (isHovered ? StackTheme.scrollThumbHover : StackTheme.scrollThumb).setFill()
-        NSBezierPath(roundedRect: lane, xRadius: 2, yRadius: 2).fill()
+        // Half the width the grip has right now: a fixed radius of two would flatten the three-point
+        // grip into a rectangle with rounded stubs.
+        NSBezierPath(roundedRect: lane, xRadius: width / 2, yRadius: width / 2).fill()
     }
 
     override func updateTrackingAreas() {
