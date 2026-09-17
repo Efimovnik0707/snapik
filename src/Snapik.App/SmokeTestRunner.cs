@@ -266,6 +266,11 @@ public static class SmokeTestRunner
             var window = new HotkeySettingsWindow(HotkeySettings.Default with { AnnotationPalette = "pastel" });
             if (window.AppearanceTab.SelectedPalette != "pastel")
                 throw new InvalidOperationException("The settings must open on the annotation palette the file carries.");
+            // The set picked in the editor is one of the four the settings know: a file carrying it
+            // opens on it, and "Save" hands the same name back instead of the standard one.
+            var neon = new HotkeySettingsWindow(HotkeySettings.Default with { AnnotationPalette = "neon" });
+            if (neon.AppearanceTab.SelectedPalette != "neon")
+                throw new InvalidOperationException("The settings must open on the annotation palette the file carries.");
         });
         // The brushes are compared as brushes and not as colours: a gradient accent hands out a
         // LinearGradientBrush, and a cast to SolidColorBrush would drop the run instead of the check.
@@ -1571,6 +1576,17 @@ public static class SmokeTestRunner
             window.SoundsBox.IsChecked = false;
             if (window.VolumeRow.Visibility != Visibility.Collapsed)
                 throw new InvalidOperationException("The volume row must go away with the sounds it belongs to.");
+
+            // D2 of the round. The row of the settings is written by hand and the popover of the editor
+            // builds itself out of Palettes: two lists of the same preference, and the file keeps one
+            // name for both. They are compared as sequences and not as sets, because a row that offers
+            // the same four in another order is already a row that disagrees with the editor.
+            string[] offered = [.. window.AppearanceTab.PaletteBlock.Children.OfType<System.Windows.Controls.Panel>()
+                .SelectMany(row => row.Children.OfType<System.Windows.Controls.RadioButton>())
+                .Select(segment => segment.Tag as string ?? string.Empty)];
+            if (!offered.SequenceEqual(OverlayEditorWindow.Palettes.Select(palette => palette.Id)))
+                throw new InvalidOperationException(
+                    $"The settings must offer the palettes of the editor in its order: {string.Join(", ", offered)}.");
         });
     }
 

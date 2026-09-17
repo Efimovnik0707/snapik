@@ -106,6 +106,10 @@
             <StackPanel Orientation="Horizontal">
                 <RadioButton x:Name="StandardPalette" Style="{StaticResource SegmentButton}" GroupName="AnnotationPalette" Tag="standard" Checked="OnPaletteChecked" />
                 <RadioButton x:Name="PastelPalette" Style="{StaticResource SegmentButton}" GroupName="AnnotationPalette" Tag="pastel" Checked="OnPaletteChecked" />
+                <!-- The row stands in the order the editor offers the same four sets, and the smoke run
+                     compares the two: a row that disagrees with the popover is a row the user cannot
+                     trust, and the settings write what it shows over what the editor picked. -->
+                <RadioButton x:Name="NeonPalette" Style="{StaticResource SegmentButton}" GroupName="AnnotationPalette" Tag="neon" Checked="OnPaletteChecked" />
                 <RadioButton x:Name="CustomPalette" Style="{StaticResource SegmentButton}" GroupName="AnnotationPalette" Tag="custom" Checked="OnPaletteChecked" />
             </StackPanel>
         </StackPanel>

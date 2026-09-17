@@ -113,18 +113,23 @@ public partial class AppearancePicker : UserControl
         }
     }
 
-    /// <summary>Which twelve-colour set the editor offers: standard, pastel or the user's own.</summary>
+    /// <summary>
+    /// Which twelve-colour set the editor offers: standard, pastel, neon or the user's own. The four
+    /// names are the four the editor knows; a name this list refused used to be written back to the
+    /// file as "standard" on the next save, and the choice made in the editor was lost with it.
+    /// </summary>
     public string SelectedPalette
     {
         get => _palette;
         set
         {
-            var palette = value is "pastel" or "custom" ? value : "standard";
+            var palette = value is "pastel" or "neon" or "custom" ? value : "standard";
             if (palette == _palette) return;
             _palette = palette;
             _building = true;
             StandardPalette.IsChecked = palette == "standard";
             PastelPalette.IsChecked = palette == "pastel";
+            NeonPalette.IsChecked = palette == "neon";
             CustomPalette.IsChecked = palette == "custom";
             _building = false;
             PaletteChanged?.Invoke(this, EventArgs.Empty);
@@ -150,6 +155,7 @@ public partial class AppearancePicker : UserControl
         PaletteCaption.Text = Text("Палитра отметок");
         StandardPalette.Content = Text("Стандартная");
         PastelPalette.Content = Text("Пастель");
+        NeonPalette.Content = Text("Неон");
         CustomPalette.Content = Text("Своя");
         SampleDone.Text = Text("Готово");
         SampleCaption.Text = Text("так будут выглядеть отметки");
@@ -419,6 +425,13 @@ public partial class AppearancePicker : UserControl
         picker.SelectedPalette = "pastel";
         if (picker.PaletteBlock.Visibility != Visibility.Visible || picker.PastelPalette.IsChecked != true)
             throw new InvalidOperationException("The palette row must follow the value it is given.");
+        // The neon set the editor offers is a value of the row as well: until it was, the row healed
+        // it to "standard" and the next save wrote that over the choice made in the editor.
+        picker.SelectedPalette = "neon";
+        if (picker.SelectedPalette != "neon" || picker.NeonPalette.IsChecked != true ||
+            picker.PastelPalette.IsChecked == true || picker.StandardPalette.IsChecked == true ||
+            picker.CustomPalette.IsChecked == true)
+            throw new InvalidOperationException("The palette row must keep the neon set instead of healing it to the standard one.");
 
         ThemeService.Apply("dark", "blue");
         var sea = picker.ThemeCards.Children.OfType<Button>().First(card => card.Tag as string == "sea");
