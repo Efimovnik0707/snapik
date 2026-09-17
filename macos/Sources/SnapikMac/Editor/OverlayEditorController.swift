@@ -85,9 +85,6 @@ final class OverlayEditorController {
 
     // MARK: - Appearance (SPEC §1.3, §6.2, SPEC-DELTA-3 §1.4 E-1, E-3, E-16)
 
-    /// [ТЗ№4 D1] One active colour for everything the tool in the hand draws: the popover, the
-    /// quick dots, the spectrum, the HEX field and the eyedropper all write here, with every tool
-    /// in the hand (`tasks/tz-005-details/D-editor.md` §2.1).
     /// The six sets of the panel (`_tools`, `.Appearance.cs:99-100`): every tool keeps its own
     /// colour, thickness and the rest, read out of the settings file when the editor opens and
     /// written back when it closes. The dictionary is never indexed straight — `appearance(of:)` is
@@ -196,12 +193,10 @@ final class OverlayEditorController {
         self.settings = settings
         self.language = language
         captureIndex = workspace.nextCaptureIndex
-        // [ТЗ№4 D1] Only four things travel between captures: the colour, the two thicknesses, the
-        // palette and which half of the pencil capsule is armed (`D-editor.md` §2.5). The shape, the
-        // fill and its colour are deliberately **not** read back — every capture starts with an
-        // outline, no fill and a rectangle.
-        // Rule 6 of the round: every tool opens with what it was last set to, and a file without
-        // the new key hands them all the old common values (SPEC-DELTA-5 §3.1).
+        // Rule 6 of the round of 1.6.0: every tool opens with what it was last set to, the shape and
+        // the fill included, and a file without the new key hands them all the old common values
+        // (SPEC-DELTA-5 §3.1). Until this round only four things travelled between captures, and a
+        // capture always started with an outline and no fill.
         tools = ToolAppearanceStore.read(settings)
         activePencil = EditorAppearance.parsePencil(settings.annotationPencil)
         customColors = settings.customPaletteColors
