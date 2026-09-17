@@ -285,6 +285,73 @@ extension OverlayEditorController {
         return ok
     }
 
+    /// Rule 6 of the round (SPEC-DELTA-5-editor.md §1.2 E-4, §4.2): every tool keeps its own set, a
+    /// mark drawn by hand is born with the set of the tool that drew it, and what the editor writes
+    /// when it closes is what the next window reads back. The second window is not built here — what
+    /// it would read is the settings file, and the file is what this probe reads back, together with
+    /// the three common keys this same writer must not lose.
+    @discardableResult
+    func smokeVerifyToolMemory() -> Bool {
+        guard let canvasView, let capture else { return false }
+        let green = NSColor(srgbRed: 0x34 / 255, green: 0xC7 / 255, blue: 0x59 / 255, alpha: 1)
+        let red = NSColor(srgbRed: 1, green: 0x3B / 255, blue: 0x30 / 255, alpha: 1)
+        let blue = NSColor(srgbRed: 0, green: 0x7A / 255, blue: 1, alpha: 1)
+        let yellow = NSColor(srgbRed: 1, green: 0xCC / 255, blue: 0, alpha: 1)
+
+        canvasView.selectAnnotation(id: nil)
+        selectTool(.rectangle)
+        applyAppearance(color: green, thickness: 4, fill: .translucent, fillColor: red)
+        selectTool(.arrow)
+        applyAppearance(color: blue, lineStyle: .dashed)
+        selectTool(.text)
+        applyAppearance(color: .white, fontSize: 20)
+        selectTool(.highlight)
+        applyAppearance(color: yellow)
+
+        // Back on the frame: it gives its own set, and the capsules of the panel show it.
+        selectTool(.rectangle)
+        var ok = EditorAppearance.sameColor(appearance(of: .rectangle).color, green)
+        ok = ok && appearance(of: .rectangle).fill == .translucent
+        ok = ok && EditorAppearance.sameColor(appearance(of: .arrow).color, blue)
+        ok = ok && appearance(of: .arrow).lineStyle == .dashed
+        ok = ok && appearance(of: .text).fontSize == 20
+        ok = ok && EditorAppearance.sameColor(appearance(of: .highlight).color, yellow)
+        ok = ok && EditorAppearance.sameColor(toolbarView?.colorCapsule.strokeColor ?? .black, green)
+        ok = ok && toolbarView?.lineCapsule.value == EditorStrings.pixelLabel(4)
+
+        // A frame drawn by hand is born with it.
+        let w = CGFloat(capture.image.width)
+        let h = CGFloat(capture.image.height)
+        canvasView.recomputeImageRect()
+        canvasView.beginGesture(canvasView.toDisplay(CGPoint(x: w * 0.1, y: h * 0.1)))
+        canvasView.updateGesture(canvasView.toDisplay(CGPoint(x: w * 0.4, y: h * 0.4)), pressed: true)
+        canvasView.endGesture()
+        if let drawn = capture.annotations.last, drawn.kind == .rectangle {
+            ok = ok && EditorAppearance.sameColor(drawn.color, green) && drawn.fill == .translucent
+            capture.annotations.removeAll(where: { $0 === drawn })
+            canvasView.selectAnnotation(id: nil)
+        } else {
+            ok = false
+        }
+
+        // And the file the editor leaves behind: the six sets come back, and the palette, the own
+        // row of colours and the half of the pencil capsule are still in it.
+        appearanceDefaultsChanged = true
+        flushAppearanceDefaults()
+        let stored = HotkeySettings.load(path: workspaceContext.settingsPath)
+        let readBack = ToolAppearanceStore.read(stored)
+        ok = ok && readBack[.rectangle]?.color.hexRGB == green.hexRGB
+        ok = ok && readBack[.rectangle]?.fill == .translucent
+        ok = ok && readBack[.rectangle]?.fillColor?.hexRGB == red.hexRGB
+        ok = ok && readBack[.arrow]?.lineStyle == .dashed
+        ok = ok && readBack[.text]?.fontSize == 20
+        ok = ok && readBack[.highlight]?.color.hexRGB == yellow.hexRGB
+        ok = ok && stored.annotationPalette == activePalette.id
+        ok = ok && stored.customPaletteColors == customColors
+        ok = ok && stored.annotationPencil == (activePencil == .highlight ? "highlight" : "pen")
+        return ok
+    }
+
     /// [ТЗ№4 D1] The spectrum, the eyedropper and the "+" belong to every palette, and "+" puts the
     /// colour in force into the own one without moving the row out from under the hand.
     @discardableResult

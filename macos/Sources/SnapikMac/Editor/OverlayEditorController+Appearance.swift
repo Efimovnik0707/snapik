@@ -482,10 +482,12 @@ extension OverlayEditorController {
         flushAppearanceDefaults()
     }
 
-    /// Port of `FlushAppearanceDefaults`/`SaveAppearanceDefaults` (`:651-684`). [ТЗ№4 D1] only what
-    /// travels between captures is written: the colour, the two thicknesses, the size of a caption,
-    /// the palette, the own colours and which half of the pencil capsule is armed (`D-editor.md`
-    /// §2.5). The shape, the fill, its colour and the outline flag are not written at all.
+    /// Port of `FlushAppearanceDefaults`/`SaveAppearanceDefaults` (`.Appearance.cs` of the round of
+    /// 1.6.0): rule 6 of the round — every tool keeps its own set, and all six of them are written,
+    /// the shape and the fill included, so a second window opens with what this one was set to. The
+    /// three keys that are common and not per tool (the palette, the own colours and which half of
+    /// the pencil capsule is armed) are written in the same pass: this method is their only writer,
+    /// and losing them here would quietly undo the round before this one.
     func flushAppearanceDefaults() {
         guard appearanceDefaultsChanged else { return }
         appearanceDefaultsChanged = false
@@ -498,13 +500,9 @@ extension OverlayEditorController {
                 (try? JSONDecoder().decode(HotkeySettings.self, from: data)) != nil
             else { return }
         }
-        var stored = HotkeySettings.load(path: path)
-        stored.annotationColor = activeColor.hexRGB
-        stored.annotationThickness = min(max(activeThickness, EditorAppearance.minimumThickness), EditorAppearance.maximumThickness)
-        stored.annotationHighlightThickness = min(
-            max(activeHighlightThickness, EditorAppearance.minimumHighlightThickness),
-            EditorAppearance.maximumHighlightThickness)
-        stored.annotationFontSize = TextMarkMetrics.clamp(activeFontSize)
+        // The store writes the six sets and mirrors the four old common keys beside them, so the
+        // file goes on being read whole by 1.5.0 (§3.1).
+        var stored = ToolAppearanceStore.write(HotkeySettings.load(path: path), tools: tools)
         stored.annotationPalette = activePalette.id
         stored.customPaletteColors = customColors
         stored.annotationPencil = activePencil == .highlight ? "highlight" : "pen"
