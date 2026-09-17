@@ -75,10 +75,15 @@ enum StackMetrics {
     /// Vertical distance between the tops of two collapsed cards (`cardHeight - cardOverlap`).
     static let cardStep = CGFloat(StripResizeGeometry.cardPitch)
     static let cardCornerRadius: CGFloat = 11
+    /// The line of the border of the card. The thumbnail is clipped by `cardCornerRadius` less this
+    /// (SPEC-DELTA-5 §1.1 L-4, `RoundedClip.Radius="10"` on Windows): the picture then stops at the
+    /// inner edge of the stroke instead of climbing onto it.
+    static let cardBorderWidth: CGFloat = 1
     /// The strip with the letter and the number of notes, now at the **top** of the card ([ТЗ№4 C1]):
     /// the card below covers all but the first 30 points of this one, and the letter has to live in
-    /// what is still seen.
-    static let cardLabelStripHeight: CGFloat = 26
+    /// what is still seen. Thirty and not twenty-six (SPEC-DELTA-5 §1.2 L-9): it is now the height
+    /// of the part of a card the next card leaves uncovered, the `cardStep` of the list.
+    static let cardLabelStripHeight: CGFloat = 30
     static let cardDeleteButtonSize: CGFloat = 22
 
     /// [ТЗ№4 C6] The only two shadows of the strip are this one and the one under the window.
@@ -133,13 +138,23 @@ enum StackTheme {
     static var palette: ThemePalette { ThemeService.palette(ThemeService.currentTheme) }
     static var accent: AccentTokens { ThemeService.accent(ThemeService.currentAccent) }
 
-    static var cardBorder: NSColor { palette.surfaceLine }
-    static let cardHoverBorder = NSColor(hex: "#718096")
+    /// The three borders of a card are tokens of the palette now and not colours of the dark theme
+    /// written into this zone (SPEC-DELTA-5 §1.2 L-10): on the dark palettes the numbers are the
+    /// same to the byte, and "Стекло" and "Рассвет" stop showing a dark bite in the corner.
+    static var cardBorder: NSColor { palette.elevatedLine }
+    static var cardHoverBorder: NSColor { palette.textFaint }
     static var cardBackground: NSColor { palette.elevated }
-    /// The plate the letter sits on, at the top of the card.
-    static let cardLabelStripBackground = NSColor(hex: "#E6171A20")
+    /// The plate the letter sits on, at the top of the card: a gradient down the plate, from a plate
+    /// that is nearly opaque under the letter to nothing at all where the thumbnail takes over
+    /// (`EdgeStackWindow.xaml:299-303`). The transparent stop carries the same RGB as the other two
+    /// on purpose — a gradient to plain `clear` travels through grey on its way there.
+    static let cardLabelStripStops = [
+        NSColor(hex: "#8C141E1E"), NSColor(hex: "#47141E1E"), NSColor(hex: "#00141E1E"),
+    ]
+    static let cardLabelStripLocations: [CGFloat] = [0, 0.6, 1]
+    /// The badge of a sent capture is a constant on both platforms (`EdgeStackWindow.xaml:358`).
     static let sentBadgeBackground = NSColor(hex: "#4A5563")
-    static let sentCardBorder = NSColor(hex: "#333C49")
+    static var sentCardBorder: NSColor { palette.surfaceLine }
 
     /// [ТЗ№4 C2] The grip of the scroll bar: 28 % of the text colour of the palette at rest, 45 %
     /// under the pointer. The round asks for white, and on the five dark palettes the text colour
