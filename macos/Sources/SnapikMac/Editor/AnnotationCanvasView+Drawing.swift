@@ -114,7 +114,7 @@ extension AnnotationCanvasView {
                 AnnotationPainter.drawBoxShape(
                     in: ctx, shape: item.shape, rect: rect, scale: scale,
                     fill: EditorAppearance.fillColor(fillColor, fill: item.fill),
-                    outline: EditorAppearance.outlineColor(fill: item.fill, color: color, fillColor: fillColor),
+                    outline: AnnotationRules.outlineColorOf(fill: item.fill, color: color),
                     thickness: thickness, lineStyle: lineStyle)
             case .conceal:
                 // Nothing draws this kind any more: the tool is gone and a legacy `redaction` mark is

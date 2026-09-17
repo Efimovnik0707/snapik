@@ -169,7 +169,7 @@ public enum AnnotationPainter {
                 drawBoxShape(
                     in: ctx, shape: item.shape, rect: rect, scale: 1,
                     fill: EditorAppearance.fillColor(fillColor, fill: item.fill),
-                    outline: EditorAppearance.outlineColor(fill: item.fill, color: color, fillColor: fillColor),
+                    outline: AnnotationRules.outlineColorOf(fill: item.fill, color: color),
                     thickness: thickness, lineStyle: lineStyle)
 
             case .redaction:

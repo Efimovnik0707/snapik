@@ -118,19 +118,9 @@ enum EditorAppearance {
 
     // MARK: - Fill and outline (`D-editor.md` §2.7)
 
-    /// The colour of the outline by the kind of fill: a solid and a translucent one carry the colour
-    /// of the fill, so no separate frame is seen; a blur has no outline at all; without a fill the
-    /// outline is the colour of the mark. `nil` means "no outline is drawn".
-    ///
-    /// The outline of a translucent mark is opaque on purpose: otherwise the border gets a double
-    /// transparency (the stroke over the fill) and the edge comes out darker than the middle.
-    static func outlineColor(fill: AnnotationFill, color: NSColor, fillColor: NSColor?) -> NSColor? {
-        switch fill {
-        case .blur: return nil
-        case .solid, .translucent: return fillColor ?? color
-        case .none: return color
-        }
-    }
+    // The colour of the outline is not decided here any more: it is the colour of the mark whatever
+    // stands inside it, and that rule lives in `AnnotationRules.outlineColorOf(fill:color:)` where
+    // both renderers reach it (`AnnotationRules.cs:17-18`).
 
     /// The brush inside a boxed mark (`ShapeFillBrush`). A blur fill is baked into the picture before
     /// the marks are drawn, so nothing is painted over the region here.
