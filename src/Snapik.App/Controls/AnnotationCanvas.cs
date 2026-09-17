@@ -980,7 +980,7 @@ public sealed class AnnotationCanvas : FrameworkElement
 
     // Five pixels of circle and seven of reach: the circle grows to the reach under the pointer, so
     // what answers the press is what is seen at that moment.
-    private const double AnchorRadius = 5;
+    private const double AnchorRadius = NoteBadgeGeometry.AnchorRadius;
     private const double AnchorHoverRadius = 7;
 
     private AnnotationItem? FindMoveHandle(Point point)

@@ -34,11 +34,17 @@ internal static class NoteBadgeGeometry
         Create(anchor, ExportDiameter(label), offset, ExportGap, topMargin);
 
     /// <summary>
+    /// How much larger the exported badge is than the one on screen, never below 1. One number for
+    /// everything that has to grow with the badge: the leader, the dot of a comment and its rim.
+    /// </summary>
+    internal static double ExportScale(string label) =>
+        Math.Max(1, ExportDiameter(label) / ScreenDiameter(label));
+
+    /// <summary>
     /// The leader of an exported badge, in pixels: the badge itself is drawn larger than the one on
     /// screen, so the line grows with it instead of thinning out to a thread, and never below 1 px.
     /// </summary>
-    internal static double ExportLeaderThickness(string label) =>
-        Math.Max(1, ExportDiameter(label) / ScreenDiameter(label));
+    internal static double ExportLeaderThickness(string label) => ExportScale(label);
 
     private static double ScreenDiameter(string label) => Math.Max(26, label.Length * 7 + 12);
 
@@ -46,6 +52,11 @@ internal static class NoteBadgeGeometry
 
     /// <summary>The air between the point of a mark and the rim of its badge in the export.</summary>
     private const double ExportGap = 4;
+
+    /// <summary>The dot a comment is pinned by, on screen and, scaled by <see cref="ExportScale"/>,
+    /// in the export. It lives here and not in the canvas because the leader has to start on its
+    /// rim in all three drawers, and they would drift apart on two copies of the number.</summary>
+    internal const double AnchorRadius = 5;
 
     private static NoteBadge Create(Point anchor, double diameter, Vector offset, double gap, double topMargin)
     {
@@ -91,7 +102,10 @@ internal static class NoteBadgeGeometry
 
     // The thin leader between the mark and a badge the user moved away from it: it starts on the
     // outline of the mark and stops on the rim of the badge, so neither is covered by the line.
-    internal static bool TryLeader(Rect bounds, NoteBadge badge, out Point from, out Point to)
+    // A comment has no outline to start from — its mark is the dot itself, so it passes the radius
+    // of that dot as <paramref name="fromRadius"/> and a degenerate rectangle as the bounds: the
+    // line then begins on the rim of the dot instead of in its middle. Zero keeps the old picture.
+    internal static bool TryLeader(Rect bounds, NoteBadge badge, out Point from, out Point to, double fromRadius = 0)
     {
         from = new Point(
             Math.Clamp(badge.Center.X, bounds.Left, bounds.Right),
@@ -99,8 +113,9 @@ internal static class NoteBadgeGeometry
         to = badge.Center;
         var direction = badge.Center - from;
         var length = direction.Length;
-        if (length <= badge.Radius + 1) return false;
+        if (length <= badge.Radius + fromRadius + 1) return false;
         direction /= length;
+        from += direction * fromRadius;
         to = badge.Center - direction * badge.Radius;
         return true;
     }

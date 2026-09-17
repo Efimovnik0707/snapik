@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Windows;
 using Snapik.App.Imaging;
 using Snapik.Core.Models;
 
@@ -65,5 +66,56 @@ public sealed class NoteBadgeGeometryTests
         // "10" is 9 px per character plus 16, which is still under the floor of 34; "1234567" is not.
         var many = Margins((new NormalizedPoint(0, 0.5), new NormalizedPoint(-0.1, 0), "1234567"));
         Assert.True(many.Left > one.Left);
+    }
+
+    // The leader between a mark and the badge dragged off it. A frame starts it on its own outline,
+    // a comment on the rim of its dot; both stop on the rim of the badge.
+    [Fact]
+    public void The_leader_of_a_frame_starts_on_its_outline()
+    {
+        var bounds = new Rect(100, 100, 100, 60);
+        var badge = new NoteBadge(new Point(400, 40), 17);
+        Assert.True(NoteBadgeGeometry.TryLeader(bounds, badge, out var from, out _));
+        Assert.Equal(bounds.Right, from.X, 6);
+        Assert.Equal(bounds.Top, from.Y, 6);
+    }
+
+    [Fact]
+    public void The_leader_of_a_comment_starts_on_the_rim_of_its_dot()
+    {
+        var anchor = new Point(200, 200);
+        var badge = new NoteBadge(new Point(300, 120), 17);
+        Assert.True(NoteBadgeGeometry.TryLeader(new Rect(anchor, anchor), badge, out var from, out _, 5));
+        Assert.Equal(5, (from - anchor).Length, 6);
+        var toBadge = badge.Center - anchor;
+        toBadge.Normalize();
+        var started = from - anchor;
+        started.Normalize();
+        Assert.Equal(toBadge.X, started.X, 6);
+        Assert.Equal(toBadge.Y, started.Y, 6);
+    }
+
+    [Fact]
+    public void The_leader_stops_on_the_rim_of_the_badge()
+    {
+        var badge = new NoteBadge(new Point(300, 120), 17);
+        Assert.True(NoteBadgeGeometry.TryLeader(new Rect(100, 100, 100, 60), badge, out _, out var to));
+        Assert.Equal(badge.Radius, (badge.Center - to).Length, 6);
+    }
+
+    // A badge almost on top of its dot leaves no room for a line; drawn anyway it would turn inside out.
+    [Fact]
+    public void A_leader_shorter_than_the_badge_and_the_dot_is_not_drawn()
+    {
+        var anchor = new Point(200, 200);
+        var badge = new NoteBadge(new Point(218, 200), 17);
+        Assert.False(NoteBadgeGeometry.TryLeader(new Rect(anchor, anchor), badge, out _, out _, 5));
+    }
+
+    [Fact]
+    public void The_exported_dot_grows_by_the_same_scale_as_the_leader()
+    {
+        Assert.Equal(NoteBadgeGeometry.ExportLeaderThickness("1"), NoteBadgeGeometry.ExportScale("1"), 6);
+        Assert.True(NoteBadgeGeometry.ExportScale("1") > 1);
     }
 }
