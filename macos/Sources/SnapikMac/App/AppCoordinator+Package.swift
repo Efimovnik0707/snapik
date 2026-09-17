@@ -31,6 +31,7 @@ extension AppCoordinator {
                 prepared = nil
                 ownedClipboardReceipt = nil
                 ownedClipboardPromptText = nil
+                publishedIsSingleCapture = false
                 stackWindow?.setStatus("", isError: false)
                 return true
             }
@@ -49,6 +50,9 @@ extension AppCoordinator {
             }
             ownedClipboardReceipt = receipt
             ownedClipboardPromptText = export.manifest.promptText
+            // Port of `CopyPackageAsync`'s `:1307`: a package published by hand or by a capture ends
+            // the life of a single copy that was on the clipboard before it.
+            publishedIsSingleCapture = false
             // Finding 4: gate on "Показывать уведомления".
             if settings.showNotifications { notificationService.notify("Снимки скопированы", language: language) }
             // Finding 24: two §1.20 dictionary strings otherwise unused anywhere in the port —
@@ -80,12 +84,17 @@ extension AppCoordinator {
         cancelReceiverEchoWatch()
 
         guard let receipt = ownedClipboardReceipt else { return }
+        // SPEC-DELTA-5 §2.4 rule 1, port of `:1806`: what lies on the clipboard is one capture the
+        // user copied on purpose. Rebuilding the package out of everything that waits would take it
+        // away between the copy and the paste.
+        guard !publishedIsSingleCapture else { return }
         let stillOurs = await withCheckedContinuation { continuation in
             clipboard.capture { continuation.resume(returning: $0.sequence == receipt.sequence) }
         }
         guard stillOurs else {
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            publishedIsSingleCapture = false
             return
         }
 
@@ -116,11 +125,156 @@ extension AppCoordinator {
             }
             ownedClipboardReceipt = newReceipt
             ownedClipboardPromptText = export.manifest.promptText
+            // What is published now is a package again, whatever was published before it.
+            publishedIsSingleCapture = false
             // Finding 4: gate on "Показывать уведомления".
             if settings.showNotifications { notificationService.notify("Снимки скопированы", language: language) }
         } catch {
             stackWindow?.setStatus(StatusStrings.sessionSavedButClipboardNotUpdated("\(error)"), isError: true)
         }
+    }
+
+    // MARK: - One capture on its own (SPEC-DELTA-5 §1.2 L-13)
+
+    /// Port of `CopySingleCaptureAsync` (`EdgeStackWindow.Saving.cs:51-83`): one capture on the
+    /// clipboard, through the same export and in the same formats a whole package is copied with, so
+    /// a chat takes it the same way. It becomes the published package, so a paste that is noticed
+    /// later marks that one capture as sent and nothing else; `prepared` is left alone, because the
+    /// paste button still sends everything that waits.
+    ///
+    /// Returns whether the capture reached the clipboard: the strip is hidden while the editor is
+    /// open, so its toast is seen by nobody there and the editor answers on its own plate
+    /// (SPEC-DELTA-5 §2.4).
+    @discardableResult
+    func copySingleCapture(_ capture: CaptureItem, label: String) async -> Bool {
+        await pasteIntentTransition?.value
+        cancelReceiverEchoWatch()
+        await clipboardPublicationGate.wait()
+        defer { clipboardPublicationGate.release() }
+
+        do {
+            let export = try await workspace.exportSingle(
+                capture, label: label, renderer: ExportImageRenderer())
+            let current = await withCheckedContinuation { (continuation: CheckedContinuation<ClipboardSnapshot, Never>) in
+                clipboard.capture { continuation.resume(returning: $0) }
+            }
+            let receipt = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ClipboardSnapshot, Error>) in
+                clipboard.setPackageGuarded(
+                    paths: export.imagePathsInOrder().map(\.path), text: export.manifest.promptText,
+                    expectedSequence: current.sequence
+                ) { result in continuation.resume(with: result) }
+            }
+            ownedClipboardReceipt = receipt
+            ownedClipboardPromptText = export.manifest.promptText
+            // What lies on the clipboard is the one card the user asked for: the strip must not
+            // rebuild it out of the captures that are waiting, and a paste of it must not clear the
+            // strip (SPEC-DELTA-5 §2.3, §2.4).
+            publishedIsSingleCapture = true
+            // What was published, for the paste that may notice it later: `prepared` still describes
+            // the package the paste button sends, and this is the one card that went out.
+            publishedSingleExport = export
+            UiSoundService.copied(settings)
+            stackWindow?.setStatus(
+                MacUiText.text("Снимок {0} скопирован", language: language)
+                    .replacingOccurrences(of: "{0}", with: label), isError: false)
+            return true
+        } catch {
+            stackWindow?.setStatus(
+                "\(MacUiText.text("Не удалось скопировать снимок", language: language)): \(error)", isError: true)
+            return false
+        }
+    }
+
+    /// Port of `SaveSingleCaptureAsAsync` (`EdgeStackWindow.Saving.cs:86-121`): one capture into a
+    /// file the user picks. The picture is the one "Сохранить на компьютер" writes — the capture and
+    /// its annotations, without the header and without the field the carried badges stand in — while
+    /// "Копировать снимок" goes through the export and has both. The asymmetry is Windows's own.
+    func saveSingleCaptureAs(_ capture: CaptureItem, label: String) async {
+        let panel = NSSavePanel()
+        panel.title = MacUiText.text("Сохранить снимок…", language: language)
+        panel.allowedContentTypes = [.png, .jpeg]
+        let suggested = FastSaveService.newPath(
+            directory: URL(fileURLWithPath: settings.saveDirectory), format: settings.saveFormat)
+        panel.nameFieldStringValue = suggested.lastPathComponent
+        panel.directoryURL = suggested.deletingLastPathComponent()
+        // The strip floats over everything, its own dialog included, until the suspension ends.
+        let answer: NSApplication.ModalResponse
+        if let stackWindow {
+            answer = stackWindow.withTopmostSuspended { panel.runModal() }
+        } else {
+            answer = panel.runModal()
+        }
+        guard answer == .OK, let url = panel.url else { return }
+
+        let suffix = url.pathExtension.lowercased()
+        guard suffix == "png" || suffix == "jpg" || suffix == "jpeg" else {
+            stackWindow?.setStatus(MacUiText.text("Выберите PNG или JPEG.", language: language), isError: true)
+            return
+        }
+        do {
+            let format: ImageCodec.Format =
+                suffix == "png" ? .png : .jpeg(quality: max(1, min(100, settings.jpegQuality)))
+            try writeAnnotated(capture, label: label, format: format, to: url)
+            if settings.showNotifications { notificationService.notify("Снимок сохранён", language: language) }
+        } catch {
+            stackWindow?.setStatus(
+                "\(MacUiText.text("Не удалось сохранить", language: language)): \(error)", isError: true)
+        }
+    }
+
+    /// The letter of a capture as the strip shows it. Mac has no `CaptureItem.DisplayLabel` the way
+    /// Windows does: a capture that is still waiting takes the letter the strip hands out
+    /// (`SentCaptureRules.stripLabels`), and a sent one — whose badge is a tick and whose letter is
+    /// `nil` — takes the letter of its place, the way the autosave names one (SPEC-DELTA-5 §1.2
+    /// L-13, the trap of the strip letter).
+    func singleCaptureLabel(for capture: CaptureItem) -> String {
+        let captures = workspace.session.captures
+        guard let index = captures.firstIndex(where: { $0.id == capture.id }) else { return "A" }
+        if let labels = try? SentCaptureRules.stripLabels(captures.map(\.sent)), index < labels.count,
+            let label = labels[index]
+        {
+            return label
+        }
+        return (try? CaptureLabels.forIndex(index)) ?? "A"
+    }
+
+    /// The capture and its annotations drawn into a file, by the recipe of `AutoSaveService` (the
+    /// "save what you see" render, not the export PNG) but into the place the user picked.
+    private func writeAnnotated(
+        _ capture: CaptureItem, label: String, format: ImageCodec.Format, to url: URL
+    ) throws {
+        let sourceURL = workspace.sessionDirectory.appendingPathComponent(capture.sourceImagePath)
+        guard let sourceImage = ImageCodec.loadImage(at: sourceURL) else {
+            throw SnapikError.fileNotFound("The source image of the capture is missing at \(sourceURL.path).")
+        }
+        let width = sourceImage.width
+        let height = sourceImage.height
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo)
+        else {
+            throw SnapikError.invalidOperation("The render context of the capture could not be created.")
+        }
+        // Top-left origin, Y downwards, which is `AnnotationPainter`'s contract.
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 1, y: -1)
+
+        var labelsById: [SBGuid: String] = [:]
+        for labeled in CaptureLabels.forNotedAnnotations(captureLabel: label, capture: capture) {
+            labelsById[labeled.annotation.id] = labeled.displayLabel
+        }
+        AnnotationPainter.draw(
+            capture.annotations, imageSize: CGSize(width: width, height: height), in: context,
+            options: AnnotationPaintOptions(
+                showLabels: true, labelFor: { labelsById[$0.id] }, sourceImage: sourceImage,
+                labelStyle: .screen))
+
+        guard let rendered = context.makeImage(), let data = ImageCodec.encode(rendered, format: format) else {
+            throw SnapikError.invalidData("The annotated capture could not be encoded.")
+        }
+        try ImageCodec.writeAtomically(data, to: url)
     }
 
     func copyPackage() async {
@@ -306,6 +460,9 @@ extension AppCoordinator {
             }
         }
         stackWindow?.refresh()
+        // Port of `ImportFileAsync`'s `ScrollStripToEnd()` (`:1271`), SPEC-DELTA-5 §1.2 L-8: the
+        // files that were just imported are the ones to look at.
+        stackWindow?.scrollStripToEnd()
         invalidatePrepared()
         _ = await save()
         stackWindow?.setStatus(StatusStrings.imported(count: imported), isError: false)
@@ -330,6 +487,8 @@ extension AppCoordinator {
             }
             _ = try await workspace.addCapture(pngData: data, pixelWidth: cgImage.width, pixelHeight: cgImage.height)
             stackWindow?.refresh()
+            // Port of `ImportClipboardAsync`'s `ScrollStripToEnd()` (`:1287`), SPEC-DELTA-5 §1.2 L-8.
+            stackWindow?.scrollStripToEnd()
             invalidatePrepared()
             _ = await save()
             stackWindow?.setStatus(StatusStrings.imageAdded, isError: false)

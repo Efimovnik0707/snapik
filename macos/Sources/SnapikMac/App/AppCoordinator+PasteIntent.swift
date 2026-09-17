@@ -56,11 +56,15 @@ extension AppCoordinator {
             ownedClipboardReceipt == receiptAtIntent
         else { return }
 
-        let pathsAtIntent = prepared?.imagePathsInOrder().map(\.path) ?? []
+        // What is on the clipboard right now: the single copy when one was published (SPEC-DELTA-5
+        // §2.4), the package otherwise. Windows reads both off `PublishedPackage`; here `prepared`
+        // is the package alone, because a single copy leaves it alone on purpose.
+        let publishedAtIntent = publishedIsSingleCapture ? publishedSingleExport : prepared
+        let pathsAtIntent = publishedAtIntent?.imagePathsInOrder().map(\.path) ?? []
         // T-5, port of `publishedAtIntent.CaptureIds` (`:377`): which captures the package on the
         // clipboard was built from, read now and not after the completion — a capture edited in
         // between keeps its id, and one added in between was never in this package.
-        let idsAtIntent = prepared?.manifest.images.map(\.captureId) ?? []
+        let idsAtIntent = publishedAtIntent?.manifest.images.map(\.captureId) ?? []
         // MEDIUM-6: while this sequence runs, a second physical Cmd+V/Ctrl+V must be swallowed
         // (not just left to the predicate, which already rejects it via `transitionInFlight` and
         // would otherwise let the raw keystroke through and paste the still-owned package again)
@@ -119,6 +123,14 @@ extension AppCoordinator {
         // A newer capture may have replaced the package while completion was waiting: never act
         // on that newer session in response to this older paste intent (`:204-205`).
         guard ownedClipboardReceipt?.sequence == receiptAtIntent.sequence else { return }
+        // Port of `:444`, SPEC-DELTA-5 §2.4: what was published has been pasted, a single capture
+        // included, so from here the strip behaves the way it does after a package. The question
+        // below is asked of the value the paste **found**, not of the one left after it: Windows
+        // reads it off `publishedAtIntent`, the package it captured when the intent arrived.
+        let wasSingleCapture = publishedIsSingleCapture
+        let publishedAtIntent = wasSingleCapture ? publishedSingleExport : prepared
+        publishedIsSingleCapture = false
+        publishedSingleExport = nil
 
         if let receipt = result.currentClipboardReceipt {
             ownedClipboardReceipt = receipt
@@ -130,14 +142,22 @@ extension AppCoordinator {
             // with "После Ctrl+V лента очищается сама" on, the paste that went through empties the
             // strip instead of republishing a package that points at the captures it takes away.
             // The gate this method holds is the one `clearStack` would otherwise take.
-            if settings.clearStackAfterPaste {
+            //
+            // SPEC-DELTA-5 §2.2/§2.4 rule 2: "очищать ленту после вставки" is about a package. A
+            // capture copied on its own sent one card out of many, nobody pasted the rest, and
+            // clearing here would take away captures the user never sent, together with the session
+            // on disk and the undo stack.
+            if SentCaptureRules.clearsTheStrip(
+                isSingleCapture: wasSingleCapture, clearStackAfterPaste: settings.clearStackAfterPaste)
+            {
                 await clearStack(clipboardGateHeld: true)
             } else {
                 // T-5, port of the rest of `MarkCapturesSentAsync` (`:1568-1573`): the captures that
                 // were in the package stay in the strip, dimmed and without a letter, and out of
                 // every package after this one.
                 await markCapturesSent(idsAtIntent)
-                await republishPackageForReuse(paths: pathsAtIntent, prompt: promptAtIntent)
+                await republishPackageForReuse(
+                    paths: pathsAtIntent, prompt: promptAtIntent, published: publishedAtIntent)
             }
         case .notApplicable where !intent.intercepted:
             // Pasted our package somewhere other than Codex Desktop, and Codex's own text
@@ -184,12 +204,16 @@ extension AppCoordinator {
 
     /// Port of `RepublishPackageForReuseAsync` (`:317-344`), called from inside
     /// `completePasteIntent`'s `clipboardPublicationGate` critical section.
-    func republishPackageForReuse(paths: [String], prompt: String) async {
-        guard let current = ownedClipboardReceipt, let preparedExport = prepared else {
+    /// `published` is what the paste actually took: the package (`prepared`) or the single copy,
+    /// whose export is held apart from it (SPEC-DELTA-5 §2.4). It is asked for the number of notes
+    /// the line of the strip says, and a strip whose package was invalidated between the copy and
+    /// the paste must not be told that its single copy was displaced.
+    func republishPackageForReuse(paths: [String], prompt: String, published: PreparedExport?) async {
+        guard let current = ownedClipboardReceipt, let published else {
             stackWindow?.setStatus(StatusStrings.packageDisplaced(language: language), isError: true)
             return
         }
-        let noteCount = preparedExport.manifest.noteCount
+        let noteCount = published.manifest.noteCount
 
         let result = await setPackageGuardedAsync(paths: paths, text: prompt, expectedSequence: current.sequence)
         switch result {
@@ -206,6 +230,7 @@ extension AppCoordinator {
             cancelReceiverEchoWatch()
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            publishedIsSingleCapture = false
             stackWindow?.setStatus(StatusStrings.packageDisplaced(language: language), isError: true)
         }
     }

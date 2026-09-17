@@ -28,8 +28,16 @@ final class EdgeStackWindowController: NSWindowController {
     /// Port of `_capsuleMode`: a mode of this window, never written to the settings file — a strip
     /// that opened collapsed would look like a strip that failed to open.
     private var isCapsuleMode = false
+    /// SPEC-DELTA-5 §1.1 L-7: whether the strip has been put at the edge of the working area yet.
+    /// Windows places it from `OnLoaded` and never again; this port has no such moment — the window
+    /// is built with the coordinator and shown much later — so the first `reveal()` is it.
+    private var placedOnce = false
     private var expandedWidth: CGFloat = CGFloat(StripResizeGeometry.defaultWidth)
     private var expandedTop: CGFloat = 0
+    /// Port of `_expandedLeft` (SPEC-DELTA-5 §1.1 L-6): without it the strip came back to the edge
+    /// of the monitor whatever corner the user had dragged it to, and the capsule stood at that edge
+    /// instead of over the strip it came from.
+    private var expandedLeft: CGFloat = 0
     /// Port of `_topmostSuspensions`: a dialog owned by the strip would open behind a floating one.
     private var topmostSuspensions = 0
     /// Set when a card's delete button was pressed, so the undo toast belongs to that delete and not
@@ -76,7 +84,22 @@ final class EdgeStackWindowController: NSWindowController {
     func reveal() {
         contentContainer.applyPalette()
         refresh()
-        positionAtEdge()
+        // SPEC-DELTA-5 §1.1 L-7, port of `if (!_capsuleMode) EnsureStripPlaced();` (`:730`): the
+        // capsule is placed by `positionAtEdge()`, which is the only branch it has; the strip is
+        // placed at the edge once and afterwards only brought back onto the screen if it has left
+        // it. Windows does the first placement from `OnLoaded`; the flag here is the same moment —
+        // the strip is built long before it is first shown.
+        if isCapsuleMode {
+            positionAtEdge()
+        } else if placedOnce {
+            ensureStripPlaced()
+        } else {
+            placedOnce = true
+            placeStripInitially()
+        }
+        // Port of the last line of `ShowStackWithoutActivation` (`:738`), SPEC-DELTA-5 §1.2 L-8: a
+        // showing ends at the capture that was added last.
+        scrollStripToEnd()
         window?.alphaValue = 0
         // `orderFrontRegardless()` shows the window without activating the app (SPEC §9.8).
         window?.orderFrontRegardless()
@@ -156,7 +179,19 @@ final class EdgeStackWindowController: NSWindowController {
         contentContainer.reload(rows: rows)
         contentContainer.setEmptyHintShortcut(captureShortcutLabel())
         noteStripGrowth(count: captures.count)
+        // Before `layoutWindow()` and not after it (SPEC-DELTA-5 §1.1 L-2): the window takes its own
+        // height from the list and from the footer, and a list settled afterwards would leave the
+        // window a frame behind.
+        applyListHeight()
         layoutWindow()
+    }
+
+    /// Port of `ScrollStripToEnd` (`EdgeStackWindow.xaml.cs:358`), SPEC-DELTA-5 §1.2 L-8. Called
+    /// from a showing of the strip and from the two imports, and deliberately **not** from deleting,
+    /// reordering or marking captures as sent: the bottom of the list is the wrong place to be
+    /// taken to when the change was somewhere else.
+    func scrollStripToEnd() {
+        contentContainer.scrollToNewest()
     }
 
     /// R2 fix: `refresh()` keys its cache on `capture.id`, which survives a crop/resize/re-edit —
@@ -213,29 +248,51 @@ final class EdgeStackWindowController: NSWindowController {
         (NSScreen.screens.first ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
     }
 
-    /// Port of `PositionAtEdge`: the stored width and list height, both clamped by the working area,
-    /// then the right edge of that area and a vertical middle that never starts above 24 points from
-    /// its top. The window is flush with the working area — the 20 points that are seen between the
-    /// panel and the edge of the screen are the field that carries the shadow ([ТЗ№4 C6]).
+    /// The working area of the screen a window of ours actually stands on, for the two places that
+    /// clamp a strip the user has already moved (SPEC-DELTA-5 §2.6): a strip dragged onto the second
+    /// monitor must not be pulled back by the frame of the first. Everything else — the first
+    /// placement, the clamp of the width, the probes — keeps asking `workArea()`, so a machine with
+    /// one screen answers exactly as it did before.
+    private func workArea(for window: NSWindow?) -> NSRect {
+        window?.screen?.visibleFrame ?? workArea()
+    }
+
+    /// Port of `PositionAtEdge` as it is left after the split (SPEC-DELTA-5 §1.1 L-7): the capsule,
+    /// which has no `EnsureStripPlaced` of its own, and the first placement of the strip.
     private func positionAtEdge() {
         guard let window else { return }
-        let work = workArea()
         if isCapsuleMode {
+            let work = workArea(for: window)
             let size = contentContainer.capsuleSize()
             let top = expandedTop > 0 ? expandedTop : work.maxY - 24
+            // Port of `PositionCapsuleAtStrip` (`:825-829`), SPEC-DELTA-5 §1.1 L-6: the right edge
+            // of the strip the capsule came from, not the right edge of the monitor. Both windows
+            // carry the same 20-point field under their shadow, so the sides that are seen line up.
+            let left = CGFloat(
+                StripResizeGeometry.capsuleLeft(
+                    stripLeft: Double(expandedLeft), stripWidth: Double(expandedWidth),
+                    capsuleWidth: Double(size.width)))
             window.setFrame(
-                NSRect(x: work.maxX - size.width, y: top - size.height, width: size.width, height: size.height),
+                NSRect(x: left, y: top - size.height, width: size.width, height: size.height),
                 display: true)
             contentContainer.frame = NSRect(origin: .zero, size: size)
             return
         }
+        placeStripInitially()
+    }
 
+    /// Port of `PlaceStripInitially` (`EdgeStackWindow.xaml.cs:887-906`): the stored width clamped by
+    /// the working area, the height of the list, then the right edge of that area and a vertical
+    /// middle that never starts above 24 points from its top. It happens **once**; every showing
+    /// after it is `ensureStripPlaced()`, which leaves the strip where the user dragged it. The
+    /// window is flush with the working area — the 20 points that are seen between the panel and the
+    /// edge of the screen are the field that carries the shadow ([ТЗ№4 C6]).
+    private func placeStripInitially() {
+        guard let window else { return }
+        let work = workArea()
         let settings = coordinator?.settings ?? HotkeySettings.default
         let width = CGFloat(StripResizeGeometry.clampWidth(settings.stackWidth, workWidth: Double(work.width)))
-        contentContainer.listHeight = CGFloat(
-            StripResizeGeometry.clampListHeight(
-                settings.stackHeight, workHeight: Double(work.height),
-                chromeHeight: Double(contentContainer.chromeHeight())))
+        applyListHeight()
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: contentContainer.windowHeight())
         contentContainer.layoutSubtreeIfNeeded()
 
@@ -244,6 +301,50 @@ final class EdgeStackWindowController: NSWindowController {
         let originY = min(max(work.maxY - inset - height, work.minY), work.maxY - height)
         window.setFrame(NSRect(x: work.maxX - width, y: originY, width: width, height: height), display: true)
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
+    }
+
+    /// Port of `EnsureStripPlaced` (`EdgeStackWindow.xaml.cs:908-917`), SPEC-DELTA-5 §1.1 L-7: a
+    /// showing of a strip that has already been placed settles the height of the list and brings the
+    /// rectangle back onto the screen **only** if it has left it. The width, the left edge and the
+    /// top edge are the user's from here on: a strip dragged away from the edge used to jump back to
+    /// it after every capture.
+    private func ensureStripPlaced() {
+        guard let window else { return }
+        applyListHeight()
+        let width = window.frame.width
+        contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: contentContainer.windowHeight())
+        contentContainer.layoutSubtreeIfNeeded()
+
+        let height = contentContainer.windowHeight()
+        let work = workArea(for: window)
+        // The top edge is held and the window grows downwards, as `layoutWindow()` does it; the
+        // rectangle handed to Core is therefore the one the window is about to have, not the one it
+        // has now. `restoreRect` knows Foundation alone, so it is given eight numbers (§2.5).
+        let placed = StripResizeGeometry.restoreRect(
+            x: Double(window.frame.minX), y: Double(window.frame.maxY - height),
+            width: Double(width), height: Double(height),
+            workX: Double(work.minX), workY: Double(work.minY),
+            workWidth: Double(work.width), workHeight: Double(work.height))
+        window.setFrame(
+            NSRect(x: CGFloat(placed.x), y: CGFloat(placed.y), width: width, height: height), display: true)
+        contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
+    }
+
+    /// Port of `ApplyListHeight` (`EdgeStackWindow.xaml.cs:876-882`), SPEC-DELTA-5 §1.1 L-2: the
+    /// height of the list is the height of what it holds until the corner grip is dragged, and the
+    /// number from the settings after that — a ceiling in the first case, the height itself in the
+    /// second (`StripResizeGeometry.listHeight`). Written here and nowhere else: every path that
+    /// changes the strip ends in `refresh()`, which is where this is called.
+    /// `internal` (not `private`): the probes of this zone measure the height the strip settles on
+    /// for five cards and for twelve (`App/SmokeTestRunner+Stack.swift`).
+    func applyListHeight() {
+        let settings = coordinator?.settings ?? HotkeySettings.default
+        let stored = StripResizeGeometry.clampListHeight(
+            settings.stackHeight, workHeight: Double(workArea().height),
+            chromeHeight: Double(contentContainer.chromeHeight()))
+        contentContainer.listHeight = CGFloat(
+            StripResizeGeometry.listHeight(
+                count: contentContainer.rowCount, stored: stored, manual: settings.stackHeightManual))
     }
 
     /// The window follows the height of its content without walking about: the top right corner is
@@ -309,16 +410,29 @@ final class EdgeStackWindowController: NSWindowController {
             contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
         }
 
-        persistStackGeometry()
+        persistStackGeometry(kind: kind, startFrame: startFrame, startListHeight: startListHeight)
     }
 
-    private func persistStackGeometry() {
+    /// Port of `OnWidthDragCompleted`/`OnCornerDragCompleted` (`:956-957`, `:1004-1013`),
+    /// SPEC-DELTA-5 §1.2 L-12. Windows has a handler for each grip; the loop here is one, so the
+    /// two are told apart by `kind`: the width alone never writes the height and never raises the
+    /// flag, and only a finished drag of the **corner** makes the stored height a manual one.
+    private func persistStackGeometry(kind: StackResizeKind, startFrame: NSRect, startListHeight: CGFloat) {
         guard let window else { return }
         let width = Double(window.frame.width)
         let listHeight = Double(contentContainer.listHeight)
+        // A press that moved nothing writes nothing: the first click of a double click on the grip
+        // goes through this same loop, and a `manual = true` written by it would be taken back by
+        // the second click a moment later — the strip would settle on its content either way, but
+        // the settings file would have been written twice for a gesture that changed no geometry.
+        guard abs(width - Double(startFrame.width)) > 0.5 || abs(listHeight - Double(startListHeight)) > 0.5
+        else { return }
         mutateSettings { settings in
             settings.stackWidth = width
-            settings.stackHeight = listHeight
+            if kind == .corner {
+                settings.stackHeight = listHeight
+                settings.stackHeightManual = true
+            }
         }
     }
 
@@ -331,24 +445,38 @@ final class EdgeStackWindowController: NSWindowController {
         isCapsuleMode = true
         expandedWidth = window.frame.width
         expandedTop = window.frame.maxY
+        // The whole rectangle is remembered, the left edge included; the height of the list is not,
+        // on purpose — it follows the content, and captures may arrive while the strip stands
+        // collapsed (`_expandedListHeight` was taken off Windows for the same reason).
+        expandedLeft = window.frame.minX
         contentContainer.hideToast()
         contentContainer.setCollapsed(true)
         positionAtEdge()
     }
 
-    /// Port of `ExpandFromCapsule`: the width and the top edge the strip had when it was collapsed,
-    /// and the same right edge of the same working area.
+    /// Port of `ExpandFromCapsule` (`:795-822`), SPEC-DELTA-5 §1.1 L-6: the rectangle the strip had
+    /// when it was collapsed, with the height of the list settled again from what the strip holds
+    /// now. The working area is a frame to clamp against and not a place to move to — a strip
+    /// dragged away from the edge comes back where it was left.
     func expandFromCapsule() {
         guard isCapsuleMode, let window else { return }
         isCapsuleMode = false
         contentContainer.setCollapsed(false)
-        let work = workArea()
+        let work = workArea(for: window)
         let width = CGFloat(StripResizeGeometry.clampWidth(Double(expandedWidth), workWidth: Double(work.width)))
+        applyListHeight()
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: contentContainer.windowHeight())
         contentContainer.layoutSubtreeIfNeeded()
         let height = contentContainer.windowHeight()
+        let placed = StripResizeGeometry.restoreRect(
+            x: Double(expandedLeft), y: Double(expandedTop - height),
+            width: Double(width), height: Double(height),
+            workX: Double(work.minX), workY: Double(work.minY),
+            workWidth: Double(work.width), workHeight: Double(work.height))
+        // One `setFrame`, as `PlaceWindow` is one `SetWindowPos`: the strip must not be seen
+        // travelling through a placement of its own between two assignments.
         window.setFrame(
-            NSRect(x: work.maxX - width, y: expandedTop - height, width: width, height: height), display: true)
+            NSRect(x: CGFloat(placed.x), y: CGFloat(placed.y), width: width, height: height), display: true)
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
     }
 
@@ -502,8 +630,46 @@ extension EdgeStackWindowController: EdgeStackContentViewDelegate {
         window?.performDrag(with: event)
     }
 
+    /// Port of `OnCornerGripPress` (`:996-1002`), SPEC-DELTA-5 §1.2 L-12: a double click on the
+    /// corner grip is the "size to content" gesture, and it gives the strip back to what it holds.
+    /// `NSEvent.clickCount` is counted by the system on the press itself, so the `Preview` trick
+    /// Windows needs against a `Thumb` that captures the mouse has no equivalent here.
     func edgeStackContent(_ view: EdgeStackContentView, didRequestResize kind: StackResizeKind, with event: NSEvent) {
+        if kind == .corner, event.clickCount == 2 {
+            mutateSettings { $0.stackHeightManual = false }
+            applyListHeight()
+            layoutWindow()
+            return
+        }
         runResize(kind: kind, startEvent: event)
+    }
+
+    /// Port of `OnCaptureListRightClick` (`:1984-1998`), SPEC-DELTA-5 §1.2 L-13: three items and a
+    /// separator, built in code and not in a resource, so the language of the moment reaches them —
+    /// the same reason Windows builds its own `ContextMenu` by hand. "Удалить" goes to the method the
+    /// cross of the card already goes to, so the undo toast belongs to this delete as well.
+    func edgeStackContent(_ view: EdgeStackContentView, menuForCaptureId id: SBGuid) -> NSMenu? {
+        guard let coordinator,
+            let capture = coordinator.workspace.session.captures.first(where: { $0.id == id })
+        else { return nil }
+        let language = coordinator.language
+        let label = coordinator.singleCaptureLabel(for: capture)
+        let menu = NSMenu()
+        menu.addItem(
+            makeItem("Копировать снимок", language: language) {
+                Task { @MainActor in await coordinator.copySingleCapture(capture, label: label) }
+            })
+        menu.addItem(
+            makeItem("Сохранить снимок…", language: language) {
+                Task { @MainActor in await coordinator.saveSingleCaptureAs(capture, label: label) }
+            })
+        menu.addItem(.separator())
+        menu.addItem(
+            makeItem("Удалить", language: language) { [weak self] in
+                self?.awaitingDeleteToast = true
+                Task { @MainActor in await coordinator.removeCapture(id) }
+            })
+        return menu
     }
 
     /// Port of `OnCaptureThumbMouseEnter`/`OnCaptureListMouseWheel` (SPEC-DELTA-2 §1.6): the

@@ -44,38 +44,52 @@ enum StackMetrics {
     /// `Margin="0,7,0,8"` of the list: the gap to the header above and to the capture button below.
     static let listTopGap: CGFloat = 7
     static let listBottomGap: CGFloat = 8
-    /// [ТЗ№4 C6] `Padding="8,14,8,52"`: the left and right eights are what the card gives up so the
-    /// scroll bar has a lane of its own, the fourteen is the room the shadow of the first card
-    /// needs, and the fifty-two lets the last card be scrolled clear of the capture button.
-    static let listPaddingLeft: CGFloat = 8
-    static let listPaddingTop: CGFloat = 14
-    static let listPaddingRight: CGFloat = 8
-    static let listPaddingBottom: CGFloat = 52
-    /// [ТЗ№4 C2] Four points wide, at rest and under the pointer alike: the bar no longer grows on
-    /// hover, only the grip changes colour.
-    static let scrollBarWidth: CGFloat = 4
+    /// `Padding="4,14,12,8"` (SPEC-DELTA-5 §1.1 L-3): the right twelve are the lane of the scroll
+    /// bar, the left four are what that lane gives back so the card keeps its 168, the fourteen is
+    /// the room the shadow of the first card needs, and the bottom eight is what a list that ends
+    /// where its cards end needs — the fifty-two of the round before scrolled the last card clear of
+    /// a button the list no longer overlaps.
+    ///
+    /// The numbers themselves live in Core (SPEC-DELTA-5 §2.12): `StripResizeGeometry` is the one
+    /// owner of the geometry of the list, and this zone only turns its `Double`s into `CGFloat`.
+    static let listPaddingLeft = CGFloat(StripResizeGeometry.listPaddingLeft)
+    static let listPaddingTop = CGFloat(StripResizeGeometry.listTopPadding)
+    static let listPaddingRight = CGFloat(StripResizeGeometry.listPaddingRight)
+    static let listPaddingBottom = CGFloat(StripResizeGeometry.listBottomPadding)
+    /// The grip of the bar: three points at rest and six under the pointer
+    /// (`EdgeStackWindow.xaml:168, 180`).
+    static let scrollBarWidth: CGFloat = 3
+    static let scrollBarHoverWidth: CGFloat = 6
+    /// The lane the grip is drawn in, which is the right padding of the list itself (`BarField` on
+    /// Windows, `EdgeStackWindow.xaml:164`): twelve points of hover area around a grip of three.
+    static let scrollBarLaneWidth = CGFloat(StripResizeGeometry.listPaddingRight)
 
     /// [ТЗ№4 C3] The empty strip is the header, this block and the capture button — nothing else,
     /// and no corner grip.
-    static let emptyHintHeight: CGFloat = 92
+    static let emptyHintHeight = CGFloat(StripResizeGeometry.emptyListHeight)
 
     // MARK: - Card
 
-    static let cardHeight: CGFloat = 78
-    static let cardOverlap: CGFloat = 48
+    static let cardHeight = CGFloat(StripResizeGeometry.cardHeight)
+    static let cardOverlap = CGFloat(StripResizeGeometry.cardOverlap)
     /// Vertical distance between the tops of two collapsed cards (`cardHeight - cardOverlap`).
-    static let cardStep: CGFloat = cardHeight - cardOverlap
+    static let cardStep = CGFloat(StripResizeGeometry.cardPitch)
     static let cardCornerRadius: CGFloat = 11
-    /// The room a hovered or selected card opens above and below itself.
-    static let expandedMargin: CGFloat = 4
+    /// The line of the border of the card. The thumbnail is clipped by `cardCornerRadius` less this
+    /// (SPEC-DELTA-5 §1.1 L-4, `RoundedClip.Radius="10"` on Windows): the picture then stops at the
+    /// inner edge of the stroke instead of climbing onto it.
+    static let cardBorderWidth: CGFloat = 1
     /// The strip with the letter and the number of notes, now at the **top** of the card ([ТЗ№4 C1]):
     /// the card below covers all but the first 30 points of this one, and the letter has to live in
-    /// what is still seen.
-    static let cardLabelStripHeight: CGFloat = 26
+    /// what is still seen. Thirty and not twenty-six (SPEC-DELTA-5 §1.2 L-9): it is now the height
+    /// of the part of a card the next card leaves uncovered, the `cardStep` of the list.
+    static let cardLabelStripHeight: CGFloat = 30
     static let cardDeleteButtonSize: CGFloat = 22
 
     /// [ТЗ№4 C6] The only two shadows of the strip are this one and the one under the window.
-    static let cardShadowBlur: CGFloat = 16
+    /// Twelve and not sixteen (SPEC-DELTA-5 §1.1 L-5): half of the blur is how far the shadow
+    /// spreads sideways, and sixteen reached into the lane of the scroll bar.
+    static let cardShadowBlur: CGFloat = 12
     /// Upwards, onto the card the new one is drawn over: the seam that is seen is the top edge of
     /// the lower card, and the shadow falls into it.
     static let cardShadowOffset: CGFloat = 6
@@ -88,8 +102,11 @@ enum StackMetrics {
 
     // MARK: - Animation
 
-    static let expandInSeconds: TimeInterval = 0.18
-    static let expandOutSeconds: TimeInterval = 0.16
+    /// SPEC-DELTA-5 §1.2 L-11, `EdgeStackWindow.xaml:388-411`: the card under the pointer opens
+    /// after `unfoldDelaySeconds` (`BeginTime="0:0:0.15"`) and takes `unfoldSeconds`
+    /// (`Duration="0:0:0.13"`) to do it. Folding back has the same duration and no delay at all.
+    static let unfoldSeconds: TimeInterval = 0.13
+    static let unfoldDelaySeconds: TimeInterval = 0.15
     static let appearSeconds: TimeInterval = 0.18
     static let toastLifetimeSeconds: TimeInterval = 5
     static let toastFadeSeconds: TimeInterval = 0.15
@@ -104,16 +121,15 @@ enum StackMetrics {
         panelWidth(windowWidth: windowWidth) - panelPadding * 2
     }
 
-    /// The card: the content less the two paddings of the list. 168 at the width of this round.
+    /// The card: the content less the two paddings of the list. 168 at the width of this round —
+    /// 244 − 2·20 − 2·10 − 4 − 12, the same figure the eights gave (SPEC-DELTA-5 §1.1 L-3).
     static func cardWidth(windowWidth: CGFloat) -> CGFloat {
         contentWidth(windowWidth: windowWidth) - listPaddingLeft - listPaddingRight
     }
 
-    /// The height a list of `count` collapsed cards asks for, its paddings included.
-    static func listContentHeight(count: Int) -> CGFloat {
-        guard count > 0 else { return 0 }
-        return listPaddingTop + CGFloat(count - 1) * cardStep + cardHeight + listPaddingBottom
-    }
+    // The height a list of `count` cards asks for is `StripResizeGeometry.listHeightForCount`
+    // (SPEC-DELTA-5 §2.12): two formulas of one number cannot be kept, and the one that is left is
+    // the one both platforms share.
 }
 
 /// The palette and the accent as the strip reads them: through `ThemeService` and the pair the user
@@ -122,14 +138,23 @@ enum StackTheme {
     static var palette: ThemePalette { ThemeService.palette(ThemeService.currentTheme) }
     static var accent: AccentTokens { ThemeService.accent(ThemeService.currentAccent) }
 
-    static var cardBorder: NSColor { palette.surfaceLine }
-    static let cardHoverBorder = NSColor(hex: "#718096")
-    static var cardSelectedBorder: NSColor { accent.focus }
+    /// The three borders of a card are tokens of the palette now and not colours of the dark theme
+    /// written into this zone (SPEC-DELTA-5 §1.2 L-10): on the dark palettes the numbers are the
+    /// same to the byte, and "Стекло" and "Рассвет" stop showing a dark bite in the corner.
+    static var cardBorder: NSColor { palette.elevatedLine }
+    static var cardHoverBorder: NSColor { palette.textFaint }
     static var cardBackground: NSColor { palette.elevated }
-    /// The plate the letter sits on, at the top of the card.
-    static let cardLabelStripBackground = NSColor(hex: "#E6171A20")
+    /// The plate the letter sits on, at the top of the card: a gradient down the plate, from a plate
+    /// that is nearly opaque under the letter to nothing at all where the thumbnail takes over
+    /// (`EdgeStackWindow.xaml:299-303`). The transparent stop carries the same RGB as the other two
+    /// on purpose — a gradient to plain `clear` travels through grey on its way there.
+    static let cardLabelStripStops = [
+        NSColor(hex: "#8C141E1E"), NSColor(hex: "#47141E1E"), NSColor(hex: "#00141E1E"),
+    ]
+    static let cardLabelStripLocations: [CGFloat] = [0, 0.6, 1]
+    /// The badge of a sent capture is a constant on both platforms (`EdgeStackWindow.xaml:358`).
     static let sentBadgeBackground = NSColor(hex: "#4A5563")
-    static let sentCardBorder = NSColor(hex: "#333C49")
+    static var sentCardBorder: NSColor { palette.surfaceLine }
 
     /// [ТЗ№4 C2] The grip of the scroll bar: 28 % of the text colour of the palette at rest, 45 %
     /// under the pointer. The round asks for white, and on the five dark palettes the text colour

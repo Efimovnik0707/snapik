@@ -63,6 +63,25 @@ final class StackKindChipView: NSView {
     }
 }
 
+/// The plate at the top of the card (SPEC-DELTA-5 §1.2 L-9). A view that paints itself and not a
+/// layer colour: `backgroundColor` is one colour, the plate is three stops, and this zone already
+/// paints its gradients by hand (`StackPanelView.draw`, `StackBrush.fill`).
+final class StackCardLabelStripView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        let locations = StackTheme.cardLabelStripLocations
+        let gradient = locations.withUnsafeBufferPointer { pointer in
+            NSGradient(
+                colors: StackTheme.cardLabelStripStops, atLocations: pointer.baseAddress,
+                colorSpace: .sRGB)
+        }
+        // Downwards on the screen: the view is not flipped, so the first stop belongs at `maxY`,
+        // under the letter, and the transparent one at the bottom edge of the plate.
+        gradient?.draw(
+            from: NSPoint(x: bounds.midX, y: bounds.maxY), to: NSPoint(x: bounds.midX, y: bounds.minY),
+            options: [])
+    }
+}
+
 protocol ThumbnailCardViewDelegate: AnyObject {
     func thumbnailCardDidOpen(_ card: ThumbnailCardView)
     func thumbnailCardDidRequestRemove(_ card: ThumbnailCardView)
@@ -70,6 +89,9 @@ protocol ThumbnailCardViewDelegate: AnyObject {
     /// Fired on `mouseEntered`/`mouseExited`, so the container can re-run its accordion layout
     /// (`EdgeStackContentView.layoutCards`) and play the hover tick sound.
     func thumbnailCard(_ card: ThumbnailCardView, hoverDidChange isHovered: Bool)
+    /// The menu of the right button (SPEC-DELTA-5 §1.2 L-13). Built by the window controller, which
+    /// is the one that knows the language, the session and the capture behind the card.
+    func thumbnailCardMenu(_ card: ThumbnailCardView) -> NSMenu?
 }
 
 /// One capture of the strip: the thumbnail full bleed at 0.86, a **top** strip ([ТЗ№4 C1]) with the
@@ -87,10 +109,13 @@ final class ThumbnailCardView: NSView {
     /// The card clips its content; the card's own layer must not, or it would clip its shadow away.
     private let clipView = NSView()
     private let imageView = NSImageView()
-    private let labelStrip = NSView()
+    private let labelStrip = StackCardLabelStripView()
     private let badgeView = NSView()
     private let badgeLabel = NSTextField(labelWithString: "")
     private let sentMark = NSImageView()
+    /// The icon and the counter under one shadow, as they are under one `DropShadowEffect` on
+    /// Windows (`EdgeStackWindow.xaml:310`): white text on a picture needs it to stay readable.
+    private let noteGroup = NSView()
     private let noteIconView = NSImageView()
     private let noteCountLabel = NSTextField(labelWithString: "")
     private let kindChip = StackKindChipView(frame: .zero)
@@ -99,6 +124,11 @@ final class ThumbnailCardView: NSView {
     private var currentLanguage = "ru"
 
     private(set) var isHovered = false
+    /// SPEC-DELTA-5 §1.2 L-11: whether the card is open to its full height and pushing the cards
+    /// below it down. Set by the container after the delay of the hover, not by the hover itself —
+    /// the border and the cross answer the pointer at once, the accordion waits 150 ms.
+    /// `internal` (not `private(set)`): the smoke probe opens a card by hand.
+    var isUnfolded = false
     /// A capture that has already left in a package: it stays in the strip, dimmed, with a check
     /// instead of a letter (`SentCaptureRules`).
     private(set) var isSent = false
@@ -119,7 +149,7 @@ final class ThumbnailCardView: NSView {
 
     private func configure() {
         layer?.cornerRadius = StackMetrics.cardCornerRadius
-        layer?.borderWidth = 1
+        layer?.borderWidth = StackMetrics.cardBorderWidth
         layer?.masksToBounds = false
         layer?.shadowColor = NSColor.black.cgColor
         layer?.shadowRadius = StackMetrics.cardShadowBlur / 2
@@ -129,7 +159,10 @@ final class ThumbnailCardView: NSView {
         layer?.shadowOffset = CGSize(width: 0, height: StackMetrics.cardShadowOffset)
 
         clipView.wantsLayer = true
-        clipView.layer?.cornerRadius = StackMetrics.cardCornerRadius
+        // SPEC-DELTA-5 §1.1 L-4: the radius of the card less the line of its border, so the clip
+        // runs along the **inner** edge of that line. The frame of the clip view stays the bounds of
+        // the card; only the radius changes.
+        clipView.layer?.cornerRadius = StackMetrics.cardCornerRadius - StackMetrics.cardBorderWidth
         clipView.layer?.masksToBounds = true
         addSubview(clipView)
 
@@ -137,11 +170,17 @@ final class ThumbnailCardView: NSView {
         imageView.alphaValue = 0.86
         clipView.addSubview(imageView)
 
-        labelStrip.wantsLayer = true
         clipView.addSubview(labelStrip)
 
         badgeView.wantsLayer = true
         badgeView.layer?.cornerRadius = 10
+        // The letter keeps a shadow of its own, softer and wider than the one of the group
+        // (`BlurRadius="3" Opacity="0.4"`, `EdgeStackWindow.xaml:312`). Downwards is a negative
+        // offset here: the layer is not flipped, unlike WPF's `Direction="270"`.
+        badgeView.layer?.shadowColor = NSColor.black.cgColor
+        badgeView.layer?.shadowRadius = 1.5
+        badgeView.layer?.shadowOffset = CGSize(width: 0, height: -1)
+        badgeView.layer?.shadowOpacity = 0.4
         labelStrip.addSubview(badgeView)
 
         badgeLabel.alignment = .center
@@ -157,16 +196,26 @@ final class ThumbnailCardView: NSView {
         sentMark.isHidden = true
         badgeView.addSubview(sentMark)
 
-        noteIconView.image = NSImage(systemSymbolName: "bubble.left", accessibilityDescription: nil)
-        noteIconView.contentTintColor = NSColor(hex: "#AEB8C7")
-        labelStrip.addSubview(noteIconView)
+        // SPEC-DELTA-5 §1.2 L-9: white, both of them, and one shadow for the pair
+        // (`BlurRadius="2" ShadowDepth="1" Direction="270" Opacity="0.6"`). The plate under them is
+        // a gradient now, so a grey icon on a light thumbnail had nothing left to stand against.
+        noteGroup.wantsLayer = true
+        noteGroup.layer?.shadowColor = NSColor.black.cgColor
+        noteGroup.layer?.shadowRadius = 1
+        noteGroup.layer?.shadowOffset = CGSize(width: 0, height: -1)
+        noteGroup.layer?.shadowOpacity = 0.6
+        labelStrip.addSubview(noteGroup)
 
-        noteCountLabel.textColor = NSColor(hex: "#DCE3ED")
+        noteIconView.image = NSImage(systemSymbolName: "bubble.left", accessibilityDescription: nil)
+        noteIconView.contentTintColor = .white
+        noteGroup.addSubview(noteIconView)
+
+        noteCountLabel.textColor = .white
         noteCountLabel.font = NSFont.systemFont(ofSize: 11)
         noteCountLabel.backgroundColor = .clear
         noteCountLabel.isBezeled = false
         noteCountLabel.isEditable = false
-        labelStrip.addSubview(noteCountLabel)
+        noteGroup.addSubview(noteCountLabel)
 
         kindChip.isHidden = true
         labelStrip.addSubview(kindChip)
@@ -211,7 +260,6 @@ final class ThumbnailCardView: NSView {
     /// is shown, so a theme picked in the settings is on screen at the next capture.
     func applyPalette() {
         clipView.layer?.backgroundColor = StackTheme.cardBackground.cgColor
-        labelStrip.layer?.backgroundColor = StackTheme.cardLabelStripBackground.cgColor
         badgeView.layer?.backgroundColor = (isSent ? StackTheme.sentBadgeBackground : StackTheme.accent.flat).cgColor
         updateAppearance()
     }
@@ -263,10 +311,12 @@ final class ThumbnailCardView: NSView {
         // not cover.
         let stripHeight = StackMetrics.cardLabelStripHeight
         labelStrip.frame = NSRect(x: 0, y: bounds.height - stripHeight, width: bounds.width, height: stripHeight)
+        // The plate paints a gradient over its own bounds, so a plate that changed size has to be
+        // painted again.
+        labelStrip.needsDisplay = true
         badgeView.frame = NSRect(x: 7, y: (stripHeight - 20) / 2, width: 20, height: 20)
         badgeLabel.frame = badgeView.bounds
         sentMark.frame = NSRect(x: 4, y: 4, width: 12, height: 12)
-        noteIconView.frame = NSRect(x: badgeView.frame.maxX + 7, y: (stripHeight - 11) / 2, width: 11, height: 11)
 
         // The chip stands against the right end of the bar, and the counter gives it the room it
         // asks for: the delete button takes the same corner, so the chip stops short of it.
@@ -278,11 +328,16 @@ final class ThumbnailCardView: NSView {
         kindChip.needsLayout = true
         kindChip.layoutSubtreeIfNeeded()
 
-        let noteLabelX = noteIconView.frame.maxX + 4
-        let noteLabelRight = kindChip.isHidden ? 36 : chipWidth + 11
+        // The icon and the counter live in `noteGroup`, which carries the shadow of the pair: their
+        // own frames are inside it, and the eleven and the four below are the icon and the gap after
+        // it, exactly as they stood on the plate before.
+        let noteGroupX = badgeView.frame.maxX + 7
+        let noteGroupRight = kindChip.isHidden ? 36 : chipWidth + 11
+        let noteGroupWidth = max(0, bounds.width - noteGroupX - noteGroupRight)
+        noteGroup.frame = NSRect(x: noteGroupX, y: 0, width: noteGroupWidth, height: stripHeight)
+        noteIconView.frame = NSRect(x: 0, y: (stripHeight - 11) / 2, width: 11, height: 11)
         noteCountLabel.frame = NSRect(
-            x: noteLabelX, y: (stripHeight - 14) / 2, width: max(0, bounds.width - noteLabelX - noteLabelRight),
-            height: 14)
+            x: 15, y: (stripHeight - 14) / 2, width: max(0, noteGroupWidth - 15), height: 14)
 
         let deleteSize = StackMetrics.cardDeleteButtonSize
         deleteButton.frame = NSRect(
@@ -292,7 +347,11 @@ final class ThumbnailCardView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let trackingArea { removeTrackingArea(trackingArea) }
-        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self)
+        // `.inVisibleRect` (SPEC-DELTA-5 §1.2 L-11): the cards travel under the pointer while the
+        // accordion animates, and a `rect`-based area would answer for the frame the card had until
+        // the next `updateTrackingAreas()`.
+        let area = NSTrackingArea(
+            rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
         addTrackingArea(area)
         trackingArea = area
     }
@@ -309,11 +368,12 @@ final class ThumbnailCardView: NSView {
         delegate?.thumbnailCard(self, hoverDidChange: false)
     }
 
+    /// SPEC-DELTA-5 §1.1 L-1: three states and no fourth — the pointer, a capture that has been
+    /// sent, and every other card. Being the selected one paints nothing: `isSelected` is still set
+    /// and unset (Windows keeps `capture.IsSelected` too), it just no longer shows.
     private func updateAppearance() {
         let borderColour: NSColor
-        if isSelected {
-            borderColour = StackTheme.cardSelectedBorder
-        } else if isHovered {
+        if isHovered {
             borderColour = StackTheme.cardHoverBorder
         } else {
             borderColour = isSent ? StackTheme.sentCardBorder : StackTheme.cardBorder
@@ -322,13 +382,23 @@ final class ThumbnailCardView: NSView {
         // The dimming of a sent capture sits on the thumbnail and its strip, not on the card, so the
         // delete button that appears on hover stays as bright as on any other capture.
         clipView.alphaValue = isSent ? 0.45 : 1
-        deleteButton.animator().alphaValue = (isHovered || isSelected) ? 1 : 0
+        // The cross under the pointer alone (`EdgeStackWindow.xaml:412-414`): of the focus trigger
+        // Windows kept nothing but `DeleteButton.Opacity`, and of `IsSelected` nothing at all.
+        deleteButton.animator().alphaValue = isHovered ? 1 : 0
     }
 
     /// Delegated to the container's drag/click tracking loop, which tells "open" (no threshold
     /// crossed) from "reorder drag" (SPEC §1.9).
     override func mouseDown(with event: NSEvent) {
         delegate?.thumbnailCard(self, didBeginDragWith: event)
+    }
+
+    /// SPEC-DELTA-5 §1.2 L-13: the AppKit idiom for the right button, which also catches Ctrl+click
+    /// and puts the menu where the pointer is. On the card and not on the list, or the menu would
+    /// open over the gaps between the cards as well; the left-button tracking loop of the reorder
+    /// drag never sees these events, because it waits for `.leftMouseDragged`/`.leftMouseUp`.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        delegate?.thumbnailCardMenu(self)
     }
 
     @objc private func removeClicked() { delegate?.thumbnailCardDidRequestRemove(self) }

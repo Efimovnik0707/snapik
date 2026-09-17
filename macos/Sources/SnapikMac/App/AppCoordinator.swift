@@ -50,6 +50,19 @@ final class AppCoordinator {
     /// used from `AppCoordinator+Package.swift`.
     var ownedClipboardReceipt: ClipboardSnapshot?
     var ownedClipboardPromptText: String?
+    /// SPEC-DELTA-5 §2.3: whether what lies on the clipboard is **one** capture copied on its own
+    /// (`copySingleCapture`) rather than a package. Windows keeps two fields of this, one on the
+    /// clipboard and one on the published package; there is no `PublishedPackage` here, the
+    /// published package is one at a time, and both of the Windows fields live exactly as long as
+    /// this one. In memory only — nothing of it reaches a file.
+    var publishedIsSingleCapture = false
+    /// The export that single copy was published from. Windows reads the paths, the prompt and the
+    /// capture ids of what was pasted off `PublishedPackage`; this port reads them off `prepared`,
+    /// and `prepared` is deliberately **not** replaced by a single copy (SPEC-DELTA-5 §5.2 point 4:
+    /// the paste button still sends everything that waits). Without this the paste of one card would
+    /// tick the whole package as sent and put it back on the clipboard. Read only while
+    /// `publishedIsSingleCapture` is up, and dropped with it.
+    var publishedSingleExport: PreparedExport?
     /// SPEC-DELTA-2A §4 (CONTRACTS.md sync 2): `true` once the package on the clipboard has been
     /// pasted and republished for reuse (`republishPackageForReuse`) — the *next* capture session
     /// must start fresh instead of appending to the pasted stack (`ensureCurrentCaptureSession`).
@@ -80,6 +93,12 @@ final class AppCoordinator {
     /// (chain ends) — both delegate calls for one commit happen synchronously, back to back, in
     /// `OverlayEditorController.commit(addNext:)`.
     var nextCaptureRequested = false
+    /// The capture the editor on screen was opened on, or `nil` while a brand-new one is being
+    /// taken. SPEC-DELTA-5 §2.4: the editor's "Копировать" asks the strip to copy the capture it is
+    /// showing, and it knows nothing about the strip, its letters or its session — so the coordinator
+    /// remembers which card it opened the editor with. `internal` (not `private`): written and read
+    /// from `AppCoordinator+OverlayEditorDelegate.swift`.
+    var overlayCaptureId: SBGuid?
 
     // `internal` (not `private`): used from `AppCoordinator+Package.swift`.
     var isBusy = false
@@ -314,6 +333,8 @@ final class AppCoordinator {
             cancelReceiverEchoWatch()
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            // Port of `PrepareAsync`'s `:1052`: the next capture is the end of a single copy.
+            publishedIsSingleCapture = false
             return await startNewSession()
         }
 
@@ -328,6 +349,8 @@ final class AppCoordinator {
 
         ownedClipboardReceipt = nil
         ownedClipboardPromptText = nil
+        // Port of `PrepareAsync`'s `:1061`, the other half of the same rule.
+        publishedIsSingleCapture = false
         return await startNewSession()
     }
 
@@ -375,6 +398,10 @@ final class AppCoordinator {
         controller.previousFrontmostApplicationOverride = captureSeriesPreviousApp
         controller.delegate = self
         overlay = controller
+        // A capture that is still being taken is in no session and has no letter: "Копировать" in
+        // the editor answers that it could not copy (SPEC-DELTA-5 §2.4, as Windows's `_capture is
+        // null` does).
+        overlayCaptureId = nil
         controller.present()
     }
 
@@ -462,6 +489,8 @@ final class AppCoordinator {
         let controller = OverlayEditorController(frame: frame, workspace: context, settings: settings, language: language)
         controller.delegate = self
         overlay = controller
+        // The card this editor stands on (SPEC-DELTA-5 §2.4): its "Копировать" copies this capture.
+        overlayCaptureId = capture.id
         controller.presentExisting(capture: capture, image: sourceImage)
     }
 
@@ -547,6 +576,7 @@ final class AppCoordinator {
             prepared = nil
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            publishedIsSingleCapture = false
             stackWindow?.refresh()
             stackWindow?.hide()
             stackWindow?.setStatus("", isError: false)
@@ -592,8 +622,15 @@ final class AppCoordinator {
         defer {
             ownedClipboardReceipt = nil
             ownedClipboardPromptText = nil
+            publishedIsSingleCapture = false
         }
         guard let receipt = ownedClipboardReceipt else { return }
+        // SPEC-DELTA-5 §2.4 rule 3, port of `:1710`: a capture copied on its own outlives the strip
+        // it came from. Clearing the strip or leaving the application gives a *package* back,
+        // because a package is a list of paths into a session that is about to go; the single copy
+        // was asked for by hand, and the picture and the text of it stay on the clipboard. The price
+        // is that the paths in that copy stop leading anywhere, which is the price Windows pays too.
+        guard !publishedIsSingleCapture else { return }
         let stillOurs = await withCheckedContinuation { continuation in
             clipboard.capture { continuation.resume(returning: $0.sequence == receipt.sequence) }
         }

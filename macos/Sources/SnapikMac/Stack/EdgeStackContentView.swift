@@ -25,6 +25,9 @@ protocol EdgeStackContentViewDelegate: AnyObject {
     /// bar and the grips take the press for themselves before it gets here.
     func edgeStackContent(_ view: EdgeStackContentView, didRequestDragWith event: NSEvent)
     func edgeStackContent(_ view: EdgeStackContentView, didRequestResize kind: StackResizeKind, with event: NSEvent)
+    /// The menu of the right button on a card (SPEC-DELTA-5 §1.2 L-13): built where the language and
+    /// the session are, by the same `makeItem` the "•••" menu is built with.
+    func edgeStackContent(_ view: EdgeStackContentView, menuForCaptureId id: SBGuid) -> NSMenu?
     /// Port of `OnCaptureThumbMouseEnter`/`OnCaptureListMouseWheel` (SPEC-DELTA-2 §1.6): the
     /// hover/scroll tick, which needs `AppSettings.playSounds` — something only the coordinator
     /// (through `EdgeStackWindowController`) knows about.
@@ -57,9 +60,10 @@ final class TickingScrollView: NSScrollView {
     }
 }
 
-/// [ТЗ№4 C2] The bar of the list: four points wide at rest and under the pointer alike, the grip
-/// filling it, the slot never painted. It lives in the right padding lane of the list, so the width
-/// of a card does not change when the strip starts to overflow.
+/// The bar of the list: a lane as wide as the right padding of the list, and a grip of three points
+/// in it that grows to six under the pointer (SPEC-DELTA-5 §1.1 L-3). The lane is the hover field
+/// Windows draws as `BarField`; it lives in the right padding of the list, so the width of a card
+/// does not change when the strip starts to overflow.
 final class StackScroller: NSScroller {
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
@@ -67,17 +71,19 @@ final class StackScroller: NSScroller {
     override class var isCompatibleWithOverlayScrollers: Bool { true }
 
     override class func scrollerWidth(for controlSize: NSControl.ControlSize, scrollerStyle: NSScroller.Style) -> CGFloat {
-        StackMetrics.scrollBarWidth
+        StackMetrics.scrollBarLaneWidth
     }
 
     override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
 
     override func drawKnob() {
         let knob = rect(for: .knob)
-        let width = StackMetrics.scrollBarWidth
+        let width = isHovered ? StackMetrics.scrollBarHoverWidth : StackMetrics.scrollBarWidth
         let lane = NSRect(x: knob.midX - width / 2, y: knob.minY, width: width, height: knob.height)
         (isHovered ? StackTheme.scrollThumbHover : StackTheme.scrollThumb).setFill()
-        NSBezierPath(roundedRect: lane, xRadius: 2, yRadius: 2).fill()
+        // Half the width the grip has right now: a fixed radius of two would flatten the three-point
+        // grip into a rectangle with rounded stubs.
+        NSBezierPath(roundedRect: lane, xRadius: width / 2, yRadius: width / 2).fill()
     }
 
     override func updateTrackingAreas() {
@@ -187,6 +193,15 @@ final class EdgeStackContentView: NSView {
     private let cornerGrip = StackGripView()
 
     private var draggingCardIndex: Int?
+    /// The one delayed "open the card under the pointer" of the whole strip (SPEC-DELTA-5 §1.2
+    /// L-11). It holds no strong reference to anything: the block captures the view and the card
+    /// weakly, so a strip that goes away while it waits leaves nothing behind.
+    private var unfoldWork: DispatchWorkItem?
+    /// SPEC-DELTA-5 §1.2 L-8: raised by `scrollToNewest()` and read by the next `layoutCards`, which
+    /// is the only place that may set the scroll position — it ends by writing an origin of its own,
+    /// so a scroll done before it would be overwritten (Windows waits for its layout pass the same
+    /// way, with `DispatcherPriority.Loaded`).
+    private var pinToNewestOnNextLayout = false
     private var currentLanguage = "ru"
     private var emptyHintShortcut: String?
 
@@ -197,6 +212,10 @@ final class EdgeStackContentView: NSView {
     }
     private(set) var isCollapsed = false
     var isEmpty: Bool { rows.isEmpty }
+    /// How many cards the list holds, for the height the list asks for
+    /// (`EdgeStackWindowController.applyListHeight`). The rows themselves stay private: the height
+    /// is the only thing outside this view has any business reading off them.
+    var rowCount: Int { rows.count }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -368,6 +387,14 @@ final class EdgeStackContentView: NSView {
             card.isSelected = index < rows.count && rows[index].id == id
         }
         layoutCards(animated: false)
+    }
+
+    /// Port of `ScrollStripToEnd` (`EdgeStackWindow.xaml.cs:358`), SPEC-DELTA-5 §1.2 L-8: show the
+    /// capture that was just added. The scrolling itself happens in the next `layoutCards`, because
+    /// that is what settles the size of the document and the position inside it.
+    func scrollToNewest() {
+        pinToNewestOnNextLayout = true
+        needsLayout = true
     }
 
     func setStatus(_ text: String, isError: Bool) {
@@ -569,13 +596,13 @@ final class EdgeStackContentView: NSView {
     }
 
     /// The cards, in the order of the data, each overlapping the one above it by
-    /// `StackMetrics.cardOverlap`; a hovered or selected card opens to its full height with
-    /// `StackMetrics.expandedMargin` of room above and below.
+    /// `StackMetrics.cardOverlap`; the card the pointer has opened (`isUnfolded`) shows its full
+    /// height and pushes the cards below it down by that same overlap.
     ///
     /// The container is not flipped, so the geometry is worked out as a distance from the top of the
     /// document and turned into AppKit's axis at the end. The scroll position is kept across a
     /// reload: measured from the top, the way the user reads the list ([ТЗ№4 C1]).
-    private func layoutCards(animated: Bool, duration: TimeInterval = StackMetrics.expandInSeconds) {
+    private func layoutCards(animated: Bool, duration: TimeInterval = StackMetrics.unfoldSeconds) {
         guard !cardViews.isEmpty else {
             listContainer.frame = NSRect(x: 0, y: 0, width: scrollView.bounds.width, height: scrollView.bounds.height)
             return
@@ -586,12 +613,12 @@ final class EdgeStackContentView: NSView {
         var tops: [CGFloat] = []
         var cursor = StackMetrics.listPaddingTop
         for card in cardViews {
-            let expanded = card.isHovered || card.isSelected
-            let cardTop = expanded ? cursor + StackMetrics.expandedMargin : cursor
-            tops.append(cardTop)
-            cursor = expanded
-                ? cardTop + StackMetrics.cardHeight + StackMetrics.expandedMargin
-                : cardTop + StackMetrics.cardStep
+            // SPEC-DELTA-5 §1.2 L-11: the card that is open does not move itself — its own top has
+            // already been counted — and everything under it goes down by exactly
+            // `cardHeight − cardStep`, which is `cardOverlap`. The height of the list does not
+            // change; only the document grows, by those same 48 points.
+            tops.append(cursor)
+            cursor += card.isUnfolded ? StackMetrics.cardHeight : StackMetrics.cardStep
         }
         let contentBottom = (tops.last ?? 0) + StackMetrics.cardHeight
         let documentHeight = max(contentBottom + StackMetrics.listPaddingBottom, scrollView.bounds.height)
@@ -617,8 +644,17 @@ final class EdgeStackContentView: NSView {
             for (card, frame) in zip(cardViews, frames) { card.frame = frame }
         }
 
-        let maxOrigin = max(0, documentHeight - visible.height)
-        let origin = min(max(0, documentHeight - distanceFromTop - visible.height), maxOrigin)
+        let origin: CGFloat
+        if pinToNewestOnNextLayout {
+            pinToNewestOnNextLayout = false
+            // SPEC-DELTA-5 §2.11: the container is not flipped, the newest card has the smallest `y`
+            // and the bottom of the document is zero. `scrollToEndOfDocument` would travel the other
+            // way, to the oldest capture of all.
+            origin = 0
+        } else {
+            let maxOrigin = max(0, documentHeight - visible.height)
+            origin = min(max(0, documentHeight - distanceFromTop - visible.height), maxOrigin)
+        }
         scrollView.contentView.scroll(to: NSPoint(x: 0, y: origin))
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
@@ -640,6 +676,14 @@ final class EdgeStackContentView: NSView {
 
     // MARK: - Smoke hooks (`App/SmokeTestRunner+Stack.swift`)
 
+    /// How tall the cards are laid out and how much of that is seen: whether the list scrolls is the
+    /// difference between the two (SPEC-DELTA-5 §4.2).
+    var smokeDocumentHeight: CGFloat { listContainer.frame.height }
+    var smokeVisibleListHeight: CGFloat { scrollView.contentView.bounds.height }
+    /// Where the list stands, in the axis of a container that is not flipped: zero is the **bottom**
+    /// of the document, which is the newest capture (SPEC-DELTA-5 §2.11).
+    var smokeScrollOrigin: CGFloat { scrollView.contentView.bounds.origin.y }
+
     /// Every string the strip shows by itself: the smoke run reads them back in English and fails on
     /// a Cyrillic one, which is how a string without a pair in the dictionary is caught.
     func smokeVisibleStrings() -> [String] {
@@ -658,18 +702,38 @@ extension EdgeStackContentView: ThumbnailCardViewDelegate {
         delegate?.edgeStackContent(self, didOpenCaptureId: rows[index].id)
     }
 
+    func thumbnailCardMenu(_ card: ThumbnailCardView) -> NSMenu? {
+        guard let index = cardViews.firstIndex(where: { $0 === card }), index < rows.count else { return nil }
+        return delegate?.edgeStackContent(self, menuForCaptureId: rows[index].id)
+    }
+
     func thumbnailCardDidRequestRemove(_ card: ThumbnailCardView) {
         guard let index = cardViews.firstIndex(where: { $0 === card }) else { return }
         delegate?.edgeStackContent(self, didRequestRemoveCaptureId: rows[index].id)
     }
 
+    /// SPEC-DELTA-5 §1.2 L-11. One pending task for the whole strip and not one per card: a pointer
+    /// run quickly across six cards would otherwise leave six of them and open all six in turn. Any
+    /// change of hover cancels what is waiting, which is what `BeginTime` does on Windows — the
+    /// storyboard that never reached its start time has drawn nothing to take back.
     func thumbnailCard(_ card: ThumbnailCardView, hoverDidChange isHovered: Bool) {
-        // Fix MEDIUM-7: only the entering edge plays the hover tick; `mouseExited` firing it too
-        // doubled the sound on every card the pointer passed over.
+        unfoldWork?.cancel()
+        unfoldWork = nil
         if isHovered {
+            // Fix MEDIUM-7: only the entering edge plays the hover tick; `mouseExited` firing it too
+            // doubled the sound on every card the pointer passed over.
             delegate?.edgeStackContentDidRequestTickSound(self)
+            let work = DispatchWorkItem { [weak self, weak card] in
+                card?.isUnfolded = true
+                self?.layoutCards(animated: true, duration: StackMetrics.unfoldSeconds)
+            }
+            unfoldWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + StackMetrics.unfoldDelaySeconds, execute: work)
+        } else {
+            // Folding back has no delay of its own: the card the pointer has left closes at once.
+            card.isUnfolded = false
+            layoutCards(animated: true, duration: StackMetrics.unfoldSeconds)
         }
-        layoutCards(animated: true, duration: isHovered ? StackMetrics.expandInSeconds : StackMetrics.expandOutSeconds)
     }
 
     /// Manual drag-reorder loop (SPEC §1.9): a local event-tracking loop for the length of the drag
