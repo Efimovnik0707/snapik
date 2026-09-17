@@ -253,3 +253,61 @@ struct StackCaptureRow { …; let kind: CaptureKind }
 enum EditorGeometry { static func fit(…); static func clampOffset(…); static func zoomAround(…); static func reopenFitBox(windowSize:); static func reopenCropRect(imageSize:windowSize:) }
 final class EditorScaleSwitchView: NSView { }
 ```
+
+## Дополнение sync 5 (2026-09-17): что перестало быть правдой выше
+
+- **Два отклонения владения этого раунда** (`SPEC-DELTA-5.md` §5.1): `App/AppCoordinator+PasteIntent.swift`
+  правила порция Stack, а не exec-transport — правило «одиночная вставка не чистит ленту» применяется
+  там же, где вставка замечена; `Editor/ToolAppearanceStore.swift` написала волна 0, а не exec-editor,
+  потому что `EditorTool` объявлен в зоне редактора, а словарь настроек шести инструментов нужен Core-ключу.
+- **Переключателя масштаба у редактора нет.** `EditorScaleSwitchView` снят вместе с
+  `EditorGeometry.reopenFitBox` / `reopenCropRect` и `EditorStrings.fitPercent`: снимок открывается 1:1
+  через `EditorGeometry.placeCapture`, вход в масштаб только Cmd+колесо.
+- **Высота списка ленты — одна формула, и она в Core.** `StackMetrics` больше не держит своих чисел для
+  списка и не объявляет `listContentHeight`: `listPaddingLeft/Top/Right/Bottom`, `cardHeight`,
+  `cardOverlap`, `cardStep`, `emptyHintHeight` и `scrollBarLaneWidth` — это `CGFloat(...)` от
+  `StripResizeGeometry`.
+- **Ротации `exports/revision-*` нет ни у пакета, ни у одиночной копии** (§2.1): `trimExports` в дереве
+  не существует, и `exportSingle` ничего не обрезает.
+- **Правило «одиночная вставка не чистит ленту» живёт в `SentCaptureRules`** (§2.2).
+  `PreparedExport.clearsTheStrip` не реализован.
+- **Блок свойств панели — это две чистые функции**, а не ветка на инструмент:
+  `EditorInspector.inspectedTool(selected:armed:)` и `inspectorViewOf(_:)`.
+- **Порядок нажатия мыши — одно правило на все инструменты**: `AnnotationRules.pressTargetOf(...)`.
+  Нажатие внутри границ уже стоящей отметки выделяет её и не начинает черновик, каким бы инструмент ни
+  был в руке (как `AnnotationCanvas.cs:296`); пробам смоука поэтому нужен свободный угол снимка
+  (`OverlayEditorController.smokeFreeCorner`).
+
+```swift
+// Core
+public struct ToolAppearanceEntry: Codable, Equatable, Sendable { … }   // значение словаря toolAppearance
+extension HotkeySettings { public var stackHeightManual: Bool; public var toolAppearance: [String: ToolAppearanceEntry] }
+extension StripResizeGeometry {
+    public static func listHeightForCount(_ count: Int, cap: Double) -> Double
+    public static func listHeight(count: Int, stored: Double, manual: Bool) -> Double
+    public static func capsuleLeft(stripLeft: Double, stripWidth: Double, capsuleWidth: Double) -> Double
+    public static func restoreRect(x: Double, y: Double, width: Double, height: Double,
+                                   workX: Double, workY: Double, workWidth: Double, workHeight: Double) -> (x: Double, y: Double)
+}
+enum SentCaptureRules { public static func clearsTheStrip(isSingleCapture: Bool, clearStackAfterPaste: Bool) -> Bool }
+enum SoundVolumeCurve { public static func amplitude(volume: Int, gain: Double) -> Double }
+extension PromptGenerator { public init(singleCaptureLabel: String? = nil) }
+extension FileExportService { public init(renderer: ExportImageRendering, timeProvider: TimeProvider, singleCaptureLabel: String?) }
+// Mac: память инструментов (Editor пишет, волна 0 объявила)
+struct ToolAppearance: Equatable { var color: NSColor; var thickness: Double; … }
+enum ToolAppearanceStore { static func read(_ settings: HotkeySettings) -> [EditorTool: ToolAppearance]
+                           static func write(_ settings: HotkeySettings, tools: [EditorTool: ToolAppearance]) -> HotkeySettings }
+extension EditorTool { var appearanceKey: String?; init?(appearanceKey: String) }
+// Одиночный снимок: Shell → Stack → Editor
+extension SessionWorkspace { func exportSingle(_ capture: CaptureItem, label: String?, renderer: ExportImageRendering) async throws -> PreparedExport }
+extension AppCoordinator { @discardableResult func copySingleCapture(_ capture: CaptureItem, label: String) async -> Bool
+                           func singleCaptureLabel(for capture: CaptureItem) -> String }
+protocol OverlayEditorDelegate { func overlayEditorCopiesSingleCapture(_ editor: OverlayEditorController) async -> Bool }
+// Панель разметки и бейджи экспорта
+enum ToolbarLayout { static func measure(tools: CGSize, properties: CGSize, actions: CGSize, freeWidth: CGFloat,
+                                         padding: CGFloat, gap: CGFloat, rowGap: CGFloat) -> ToolbarShape }
+extension NoteBadgeGeometry { public static func exportMargins(badges:width:height:) -> ExportMargin
+                              public static func exportScale(_ label: String) -> CGFloat
+                              public static let anchorRadius: CGFloat
+                              public static func leader(bounds: CGRect, badge: NoteBadge, fromRadius: CGFloat) -> (from: CGPoint, to: CGPoint)? }
+```
