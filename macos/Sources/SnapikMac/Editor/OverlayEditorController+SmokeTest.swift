@@ -275,6 +275,23 @@ extension OverlayEditorController {
 
     // MARK: - Probes of sync 3 (SPEC-DELTA-3 §1.7 K-2)
 
+    /// The corner of the capture a probe may draw a frame in, and the point it drags that frame to.
+    ///
+    /// Windows opens a clone of the capture for its own tool-memory probe, and every Mac probe of the
+    /// run shares one: by the time these two are reached the capture already carries the arrow, the
+    /// comment, the two frames and the caption the probes before them put on it, all of them in the
+    /// top left. A press inside the bounds of a frame that is already there selects it and begins no
+    /// draft, and that is the rule of the round and not a fault of it (SPEC-DELTA-5-editor.md §1.2
+    /// E-5, `AnnotationCanvas.cs:296`), so the gesture of a probe has to land where nothing stands.
+    /// The bottom right quarter is that place, and the count of the marks is what catches the day a
+    /// probe moves into it.
+    static func smokeFreeCorner(width: CGFloat, height: CGFloat) -> (origin: CGPoint, corner: CGPoint) {
+        (
+            CGPoint(x: width * 0.55, y: height * 0.55),
+            CGPoint(x: width * 0.85, y: height * 0.85)
+        )
+    }
+
     /// The colour goes to the tool in the hand and to nothing else (rule 2 of the round of 1.6.0):
     /// it reaches the canvas, the capsule of the panel shows it, and the next frame is drawn with it.
     /// A tool with no settings of its own — the Comment here — takes nothing at all, and the frame
@@ -298,10 +315,14 @@ extension OverlayEditorController {
         let w = CGFloat(capture.image.width)
         let h = CGFloat(capture.image.height)
         canvasView.recomputeImageRect()
-        canvasView.beginGesture(canvasView.toDisplay(CGPoint(x: w * 0.1, y: h * 0.1)))
-        canvasView.updateGesture(canvasView.toDisplay(CGPoint(x: w * 0.4, y: h * 0.4)), pressed: true)
+        let born = capture.annotations.count
+        canvasView.beginGesture(canvasView.toDisplay(Self.smokeFreeCorner(width: w, height: h).origin))
+        canvasView.updateGesture(
+            canvasView.toDisplay(Self.smokeFreeCorner(width: w, height: h).corner), pressed: true)
         canvasView.endGesture()
-        guard let drawn = capture.annotations.last, drawn.kind == .rectangle else { return false }
+        guard capture.annotations.count == born + 1,
+            let drawn = capture.annotations.last, drawn.kind == .rectangle
+        else { return false }
         let ok = EditorAppearance.sameColor(drawn.color, picked)
         capture.annotations.removeAll(where: { $0 === drawn })
         canvasView.selectAnnotation(id: nil)
@@ -346,9 +367,12 @@ extension OverlayEditorController {
         let w = CGFloat(capture.image.width)
         let h = CGFloat(capture.image.height)
         canvasView.recomputeImageRect()
-        canvasView.beginGesture(canvasView.toDisplay(CGPoint(x: w * 0.1, y: h * 0.1)))
-        canvasView.updateGesture(canvasView.toDisplay(CGPoint(x: w * 0.4, y: h * 0.4)), pressed: true)
+        let born = capture.annotations.count
+        canvasView.beginGesture(canvasView.toDisplay(Self.smokeFreeCorner(width: w, height: h).origin))
+        canvasView.updateGesture(
+            canvasView.toDisplay(Self.smokeFreeCorner(width: w, height: h).corner), pressed: true)
         canvasView.endGesture()
+        ok = ok && capture.annotations.count == born + 1
         if let drawn = capture.annotations.last, drawn.kind == .rectangle {
             ok = ok && EditorAppearance.sameColor(drawn.color, green) && drawn.fill == .translucent
             capture.annotations.removeAll(where: { $0 === drawn })
