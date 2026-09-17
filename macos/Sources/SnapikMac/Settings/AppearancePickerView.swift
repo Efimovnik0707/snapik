@@ -52,6 +52,12 @@ final class AppearancePickerView: NSView {
     private static let galleryMargin: CGFloat = 8
     private static let cardHeight: CGFloat = 100
 
+    /// [S5-3] The identifiers of the palette row, in the order the editor offers them
+    /// (`EditorAppearance.palettes`). One list and not three: the row is written by hand here while
+    /// the editor builds its own popover, and two lists of the same preference are how the fourth
+    /// name went missing in the first place.
+    private static let paletteIds = ["standard", "pastel", "neon", "custom"]
+
     /// The names of the themes, in the order the gallery shows them. [ТЗ№4 B1] The card that carried
     /// the light theme is the dawn one, and it says so.
     private static let themeNames: [String: String] = [
@@ -123,11 +129,17 @@ final class AppearancePickerView: NSView {
         }
     }
 
-    /// Which twelve-colour set the editor offers: standard, pastel or the user's own.
+    /// Which twelve-colour set the editor offers: standard, pastel, neon or the user's own.
+    ///
+    /// [S5-3] The names this setter accepts are the four the editor knows. A name it refused was
+    /// written back to the file as `"standard"` by the next save of the settings — any save, whether
+    /// or not the "Вид" tab was ever opened — and the neon chosen in the editor was lost with it.
     var selectedPalette: String {
         get { palette }
         set {
-            let value = (newValue == "pastel" || newValue == "custom") ? newValue : "standard"
+            let value =
+                (newValue == "pastel" || newValue == "neon" || newValue == "custom")
+                ? newValue : "standard"
             guard value != palette else { return }
             palette = value
             refreshPaletteRow()
@@ -148,8 +160,9 @@ final class AppearancePickerView: NSView {
     override init(frame frameRect: NSRect) {
         let standard = NSButton(title: "", target: nil, action: nil)
         let pastel = NSButton(title: "", target: nil, action: nil)
+        let neon = NSButton(title: "", target: nil, action: nil)
         let custom = NSButton(title: "", target: nil, action: nil)
-        paletteButtons = [standard, pastel, custom]
+        paletteButtons = [standard, pastel, neon, custom]
         super.init(frame: frameRect)
 
         for caption in [themeCaption, accentCaption, paletteCaption] {
@@ -208,7 +221,8 @@ final class AppearancePickerView: NSView {
         paletteCaption.stringValue = text("Палитра отметок")
         paletteButtons[0].title = text("Стандартная")
         paletteButtons[1].title = text("Пастель")
-        paletteButtons[2].title = text("Своя")
+        paletteButtons[2].title = text("Неон")
+        paletteButtons[3].title = text("Своя")
         previousThemeButton.toolTip = text("Предыдущая тема")
         nextThemeButton.toolTip = text("Следующая тема")
         sample.applyLanguage(language)
@@ -275,7 +289,7 @@ final class AppearancePickerView: NSView {
     }
 
     private func refreshPaletteRow() {
-        let ids = ["standard", "pastel", "custom"]
+        let ids = Self.paletteIds
         let tokens = ThemeService.accent(accent)
         let colours = ThemeService.palette(ThemeService.currentTheme)
         for (index, button) in paletteButtons.enumerated() {
@@ -365,7 +379,7 @@ final class AppearancePickerView: NSView {
     }
 
     @objc private func paletteClicked(_ sender: NSButton) {
-        selectedPalette = ["standard", "pastel", "custom"][sender.tag]
+        selectedPalette = Self.paletteIds[sender.tag]
     }
 
     // MARK: - Layout
