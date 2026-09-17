@@ -200,6 +200,10 @@ final class EdgeStackContentView: NSView {
     }
     private(set) var isCollapsed = false
     var isEmpty: Bool { rows.isEmpty }
+    /// How many cards the list holds, for the height the list asks for
+    /// (`EdgeStackWindowController.applyListHeight`). The rows themselves stay private: the height
+    /// is the only thing outside this view has any business reading off them.
+    var rowCount: Int { rows.count }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)

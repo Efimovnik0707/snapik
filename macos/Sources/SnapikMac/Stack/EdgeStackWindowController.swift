@@ -156,6 +156,10 @@ final class EdgeStackWindowController: NSWindowController {
         contentContainer.reload(rows: rows)
         contentContainer.setEmptyHintShortcut(captureShortcutLabel())
         noteStripGrowth(count: captures.count)
+        // Before `layoutWindow()` and not after it (SPEC-DELTA-5 §1.1 L-2): the window takes its own
+        // height from the list and from the footer, and a list settled afterwards would leave the
+        // window a frame behind.
+        applyListHeight()
         layoutWindow()
     }
 
@@ -232,10 +236,7 @@ final class EdgeStackWindowController: NSWindowController {
 
         let settings = coordinator?.settings ?? HotkeySettings.default
         let width = CGFloat(StripResizeGeometry.clampWidth(settings.stackWidth, workWidth: Double(work.width)))
-        contentContainer.listHeight = CGFloat(
-            StripResizeGeometry.clampListHeight(
-                settings.stackHeight, workHeight: Double(work.height),
-                chromeHeight: Double(contentContainer.chromeHeight())))
+        applyListHeight()
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: contentContainer.windowHeight())
         contentContainer.layoutSubtreeIfNeeded()
 
@@ -244,6 +245,21 @@ final class EdgeStackWindowController: NSWindowController {
         let originY = min(max(work.maxY - inset - height, work.minY), work.maxY - height)
         window.setFrame(NSRect(x: work.maxX - width, y: originY, width: width, height: height), display: true)
         contentContainer.frame = NSRect(x: 0, y: 0, width: width, height: height)
+    }
+
+    /// Port of `ApplyListHeight` (`EdgeStackWindow.xaml.cs:876-882`), SPEC-DELTA-5 §1.1 L-2: the
+    /// height of the list is the height of what it holds until the corner grip is dragged, and the
+    /// number from the settings after that — a ceiling in the first case, the height itself in the
+    /// second (`StripResizeGeometry.listHeight`). Written here and nowhere else: every path that
+    /// changes the strip ends in `refresh()`, which is where this is called.
+    private func applyListHeight() {
+        let settings = coordinator?.settings ?? HotkeySettings.default
+        let stored = StripResizeGeometry.clampListHeight(
+            settings.stackHeight, workHeight: Double(workArea().height),
+            chromeHeight: Double(contentContainer.chromeHeight()))
+        contentContainer.listHeight = CGFloat(
+            StripResizeGeometry.listHeight(
+                count: contentContainer.rowCount, stored: stored, manual: settings.stackHeightManual))
     }
 
     /// The window follows the height of its content without walking about: the top right corner is
