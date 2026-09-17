@@ -172,6 +172,32 @@ final class TransportMacTests: XCTestCase {
         pasteboard.clearContents()
     }
 
+    // SPEC-DELTA-5 §4.1, port of `tests/Snapik.Windows.Tests/ClipboardPackageFormatsTests.cs`: the
+    // package of a capture copied on its own ("Копировать снимок", `copySingleCapture`) reaches the
+    // clipboard in the shape a whole package has — the picture, the raster copy of it and the file
+    // in one item, and the text of `prompt.md` in another. The formats were already right
+    // (SPEC-DELTA-5 §0.1); this pins them down so the single copy cannot drift from the package.
+    func testAPackageOfOneCaptureCarriesThePictureTheFileAndTheText() throws {
+        let pasteboard = try XCTUnwrap(NSPasteboard(name: .init("snapik-test-transport-single-capture")))
+        let service = MacClipboardService(pasteboard: pasteboard, queue: .main)
+        let path = try Self.writeTempFile(data: try Self.makeSinglePixelPNG(), name: "single-capture.png")
+
+        let written = expectation(description: "single capture package")
+        service.setPackageGuarded(paths: [path], text: "Снимок B.", expectedSequence: nil) { result in
+            defer { written.fulfill() }
+            guard case .success = result else { XCTFail("expected success"); return }
+            let items = pasteboard.pasteboardItems ?? []
+            XCTAssertEqual(items.count, 2, "one item for the picture and the file, one for the text")
+            let picture = items.first { $0.types.contains(.png) }
+            XCTAssertNotNil(picture?.data(forType: .png))
+            XCTAssertNotNil(picture?.data(forType: .tiff))
+            XCTAssertEqual(picture?.string(forType: .fileURL), URL(fileURLWithPath: path).absoluteString)
+            XCTAssertEqual(pasteboard.string(forType: .string), "Снимок B.")
+        }
+        wait(for: [written], timeout: 5)
+        pasteboard.clearContents()
+    }
+
     // LOW-1 review finding: `captureCore` reads `filePaths` with `.urlReadingFileURLsOnly` so a
     // non-file URL sitting elsewhere on the pasteboard (e.g. `http://`) never leaks into it.
     func testCaptureFilePathsExcludesNonFileURLs() throws {

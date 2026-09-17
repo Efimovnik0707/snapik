@@ -335,7 +335,9 @@ final class EdgeStackWindowController: NSWindowController {
     /// number from the settings after that — a ceiling in the first case, the height itself in the
     /// second (`StripResizeGeometry.listHeight`). Written here and nowhere else: every path that
     /// changes the strip ends in `refresh()`, which is where this is called.
-    private func applyListHeight() {
+    /// `internal` (not `private`): the probes of this zone measure the height the strip settles on
+    /// for five cards and for twelve (`App/SmokeTestRunner+Stack.swift`).
+    func applyListHeight() {
         let settings = coordinator?.settings ?? HotkeySettings.default
         let stored = StripResizeGeometry.clampListHeight(
             settings.stackHeight, workHeight: Double(workArea().height),

@@ -676,6 +676,14 @@ final class EdgeStackContentView: NSView {
 
     // MARK: - Smoke hooks (`App/SmokeTestRunner+Stack.swift`)
 
+    /// How tall the cards are laid out and how much of that is seen: whether the list scrolls is the
+    /// difference between the two (SPEC-DELTA-5 §4.2).
+    var smokeDocumentHeight: CGFloat { listContainer.frame.height }
+    var smokeVisibleListHeight: CGFloat { scrollView.contentView.bounds.height }
+    /// Where the list stands, in the axis of a container that is not flipped: zero is the **bottom**
+    /// of the document, which is the newest capture (SPEC-DELTA-5 §2.11).
+    var smokeScrollOrigin: CGFloat { scrollView.contentView.bounds.origin.y }
+
     /// Every string the strip shows by itself: the smoke run reads them back in English and fails on
     /// a Cyrillic one, which is how a string without a pair in the dictionary is caught.
     func smokeVisibleStrings() -> [String] {

@@ -147,10 +147,114 @@ extension SmokeTestRunner {
                     && (!WindowCaptureExclusion.isEnabled || duringCapture == .none)
             ))
 
+        checks += growthProbes(controller: controller)
         checks += kindProbes(options: options)
 
         controller.hide()
         return checks
+    }
+
+    /// Port of `RunStripGrowthProbe`/`ProbeStrip` (`src/Snapik.App/EdgeStackWindow.xaml.cs:2129-2233`),
+    /// SPEC-DELTA-5 §4.2: how tall the list is for what it holds, whether it scrolls, where it
+    /// stands after a capture, and that a card opened by the pointer grows the document and not the
+    /// strip. Every case is laid out on the same content view the window carries, the way the capsule
+    /// probe above drives it: `reload(rows:)` builds the cards, `applyListHeight()` settles the
+    /// height the way every real change of the strip does, and `layoutSubtreeIfNeeded()` is what
+    /// works the frames out.
+    private static func growthProbes(controller: EdgeStackWindowController) -> [(String, Bool)] {
+        var checks: [(String, Bool)] = []
+        let content = controller.contentContainer
+        let width = CGFloat(StripResizeGeometry.defaultWidth)
+
+        func layOut(cards count: Int) {
+            content.reload(rows: rowsOfProbeCaptures(count: count))
+            controller.applyListHeight()
+            content.frame = NSRect(x: 0, y: 0, width: width, height: content.windowHeight())
+            content.layoutSubtreeIfNeeded()
+        }
+
+        // Five cards: 14 + 4·30 + 78 + 8 = 220, and nothing to scroll.
+        layOut(cards: 5)
+        let fiveFits = content.smokeDocumentHeight <= content.smokeVisibleListHeight + 0.5
+        checks.append(
+            (
+                "five cards take 220 and do not scroll"
+                    + (content.listHeight == 220 && fiveFits ? "" : ": \(content.listHeight), document \(content.smokeDocumentHeight) of \(content.smokeVisibleListHeight)"),
+                content.listHeight == 220 && fiveFits
+            ))
+
+        // The last card is whole: the bottom of it stands on the bottom padding of the list and not
+        // below the edge of what is seen (`TheLastCardIsWhole`).
+        let lastCardIsWhole = (content.cardViews.last?.frame.minY ?? -1) >= StackMetrics.listPaddingBottom - 0.5
+        checks.append(("the bottom of the last card is whole", lastCardIsWhole))
+
+        // A card opened by the pointer shows its full height and pushes the ones below it down: the
+        // list keeps its 220 and only the document grows, by exactly one overlap. The card that
+        // opened does not move — in this container that is its distance from the top of the document,
+        // because the document itself has grown under it.
+        let documentBefore = content.smokeDocumentHeight
+        let openedCard = content.cardViews.count > 2 ? content.cardViews[2] : nil
+        let topBefore = openedCard.map { documentBefore - $0.frame.maxY }
+        openedCard?.isUnfolded = true
+        content.needsLayout = true
+        content.layoutSubtreeIfNeeded()
+        let topAfter = openedCard.map { content.smokeDocumentHeight - $0.frame.maxY }
+        checks.append(
+            (
+                "an opened card grows the document and not the strip",
+                openedCard != nil && content.listHeight == 220
+                    && abs(content.smokeDocumentHeight - documentBefore - StackMetrics.cardOverlap) < 0.5
+                    && abs((topAfter ?? -1) - (topBefore ?? -2)) < 0.5
+            ))
+        openedCard?.isUnfolded = false
+
+        // Twelve cards ask for 430 and are stopped by the ceiling of the stored height: the list is
+        // 372 and what is left is scrolled.
+        layOut(cards: 12)
+        let twelveScroll = content.smokeDocumentHeight > content.smokeVisibleListHeight + 0.5
+        checks.append(
+            (
+                "twelve cards stop at the ceiling of 372 and scroll"
+                    + (content.listHeight == 372 && twelveScroll ? "" : ": \(content.listHeight), document \(content.smokeDocumentHeight) of \(content.smokeVisibleListHeight)"),
+                content.listHeight == 372 && twelveScroll
+            ))
+
+        // A showing of the strip ends at the capture that came last. Zero is the bottom of the
+        // document here (SPEC-DELTA-5 §2.11), and the list starts at the other end of it.
+        let originBeforePin = content.smokeScrollOrigin
+        content.scrollToNewest()
+        content.layoutSubtreeIfNeeded()
+        checks.append(
+            (
+                "the strip shows the newest capture",
+                originBeforePin > 0.5 && abs(content.smokeScrollOrigin) < 0.5
+            ))
+
+        // A height dragged by hand is the height of the list, empty space under the last card
+        // included (SPEC-DELTA-5 §1.2 L-12). The pure part is a unit test of Core; what is asked
+        // here is that the window is as tall as that number plus its chrome.
+        let manual = StripResizeGeometry.listHeight(count: 3, stored: 310, manual: true)
+        layOut(cards: 3)
+        content.listHeight = CGFloat(manual)
+        content.frame = NSRect(x: 0, y: 0, width: width, height: content.windowHeight())
+        content.layoutSubtreeIfNeeded()
+        checks.append(
+            (
+                "a height dragged by hand stays",
+                manual == 310 && abs(content.windowHeight() - content.chromeHeight() - 310) < 0.5
+            ))
+
+        content.reload(rows: [])
+        return checks
+    }
+
+    /// `count` cards of the strip, lettered as the strip letters them.
+    private static func rowsOfProbeCaptures(count: Int) -> [StackCaptureRow] {
+        (0..<count).map { index in
+            StackCaptureRow(
+                id: SBGuid(), label: (try? CaptureLabels.forIndex(index)) ?? "?", thumbnail: nil,
+                noteCount: 0, isSent: false, kind: .region)
+        }
     }
 
     /// A-1 and A-2 (`SmokeTestRunner.cs:1293-1329`): the two captures that are not a region say so
