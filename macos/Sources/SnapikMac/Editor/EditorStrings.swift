@@ -91,7 +91,6 @@ enum EditorStrings {
     static func arrowStyle(_ language: String) -> String { text("Стиль стрелки", language: language) }
     static func arrowStraight(_ language: String) -> String { text("Прямая стрелка", language: language) }
     static func arrowCurved(_ language: String) -> String { text("Изогнутая стрелка", language: language) }
-    static func arrowBold(_ language: String) -> String { text("Толстая стрелка", language: language) }
     static func arrowWide(_ language: String) -> String { text("Широкая стрелка", language: language) }
 
     static func defaultText(_ language: String) -> String { text("Текст", language: language) }

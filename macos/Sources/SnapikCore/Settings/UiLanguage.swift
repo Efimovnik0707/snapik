@@ -159,11 +159,6 @@ public enum UiLanguage {
         ("К отметке", "To annotation"),
         ("Прямая стрелка", "Straight arrow"),
         ("Изогнутая стрелка", "Curved arrow"),
-        // SPEC-DELTA-5 §1.3: Windows has dropped this pair, and here it goes in the merge and not
-        // before — its two readers (`EditorStrings.arrowBold` and the arrow popover beside it) are
-        // taken out by the editor portion of this round. Taking the pair first would leave Russian
-        // words in the English interface.
-        ("Толстая стрелка", "Bold arrow"),
         ("Широкая стрелка", "Wide arrow"),
         ("Стиль стрелки", "Arrow style"),
         ("Фигура", "Shape"),
@@ -467,10 +462,6 @@ public enum UiLanguage {
         ("Не удалось снять экран", "The screen could not be captured"),
         ("весь экран", "whole screen"),
         ("мониторов: {0}", "monitors: {0}"),
-        // SPEC-DELTA-5 §1.3: both go in the merge, after the editor portion removes the scale
-        // switch and `EditorStrings.fitPercent` with it. There is nothing else reading them.
-        ("По ширине · {0} %", "Fit width · {0} %"),
-        ("По высоте · {0} %", "Fit height · {0} %"),
         ("Добавить цвет в свою палитру", "Add the colour to my palette"),
         // The strings of the 1.6.0 round: the drag handle of the markup panel and the words of the
         // properties block beside it. The three pairs Windows added about the taskbar icon left
