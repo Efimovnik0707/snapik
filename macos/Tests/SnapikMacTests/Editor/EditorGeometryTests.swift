@@ -13,21 +13,22 @@ final class EditorGeometryTests: XCTestCase {
     private let boxHeight: Double = 593
 
     func test_aCaptureOfTwoMonitorsIsFittedByItsWidth() {
-        let fit = EditorGeometry.fit(imageWidth: 3840, imageHeight: 1125, boxWidth: boxWidth, boxHeight: boxHeight)
-        XCTAssertEqual(EditorGeometry.FitBound.width, fit.boundBy)
-        XCTAssertEqual(0.312, fit.scale, accuracy: 0.0005)
+        XCTAssertEqual(
+            0.312,
+            EditorGeometry.fit(imageWidth: 3840, imageHeight: 1125, boxWidth: boxWidth, boxHeight: boxHeight),
+            accuracy: 0.0005)
     }
 
     func test_aTallImportedFileIsFittedByItsHeight() {
-        let fit = EditorGeometry.fit(imageWidth: 1080, imageHeight: 2400, boxWidth: boxWidth, boxHeight: boxHeight)
-        XCTAssertEqual(EditorGeometry.FitBound.height, fit.boundBy)
-        XCTAssertEqual(0.247, fit.scale, accuracy: 0.0005)
+        XCTAssertEqual(
+            0.247,
+            EditorGeometry.fit(imageWidth: 1080, imageHeight: 2400, boxWidth: boxWidth, boxHeight: boxHeight),
+            accuracy: 0.0005)
     }
 
-    func test_aCaptureThatFitsAsItIsHasNothingToSwitchBetween() {
-        let fit = EditorGeometry.fit(imageWidth: 100, imageHeight: 100, boxWidth: boxWidth, boxHeight: boxHeight)
-        XCTAssertEqual(EditorGeometry.FitBound.none, fit.boundBy)
-        XCTAssertEqual(1, fit.scale)
+    func test_aCaptureSmallerThanTheBoxIsNotScaled() {
+        XCTAssertEqual(
+            1, EditorGeometry.fit(imageWidth: 100, imageHeight: 100, boxWidth: boxWidth, boxHeight: boxHeight))
     }
 
     func test_theOffsetNeverLetsAnEdgeOfThePictureInsideTheViewport() {
@@ -72,5 +73,69 @@ final class EditorGeometryTests: XCTestCase {
         XCTAssertEqual(Double(before.x), Double(after.x), accuracy: 0.05)
         XCTAssertEqual(Double(before.y), Double(after.y), accuracy: 0.05)
         XCTAssertLessThanOrEqual(hypot(before.x - after.x, before.y - after.y), 0.5)
+    }
+
+    // MARK: - Where the capture stands (`EditorGeometryTests.cs:72-123`)
+
+    // The working area of a 1920×1080 monitor at 125 %, the one every number of this round was
+    // written against, and the panel one row tall and two rows tall.
+    private let work = CGRect(x: 0, y: 0, width: 1536, height: 824)
+    private let oneRowPanel = CGSize(width: 1000, height: 50)
+    private let twoRowPanel = CGSize(width: 780, height: 94)
+
+    func test_aCaptureThatFitsUnderThePanelOpensAtItsOwnSize() {
+        // 1420 fits 1536 - 16 and 700 fits 824 - 16 - 50 - 10: the capture that opened at 85 %.
+        let placed = EditorGeometry.placeCapture(
+            image: CGSize(width: 1420, height: 700), work: work, panel: oneRowPanel)
+        XCTAssertEqual(CGSize(width: 1420, height: 700), placed.size)
+    }
+
+    func test_aCaptureTooTallForTheRoomLeftByThePanelIsFittedByItsHeight() {
+        let placed = EditorGeometry.placeCapture(
+            image: CGSize(width: 1420, height: 900), work: work, panel: oneRowPanel)
+        XCTAssertEqual(748, Double(placed.height), accuracy: 0.001)
+        XCTAssertEqual(1420 * (748.0 / 900.0), Double(placed.width), accuracy: 0.001)
+    }
+
+    func test_aCaptureOfTwoMonitorsIsFittedByItsWidthIntoTheWorkingArea() {
+        let placed = EditorGeometry.placeCapture(
+            image: CGSize(width: 3840, height: 1125), work: work, panel: oneRowPanel)
+        XCTAssertEqual(1520, Double(placed.width), accuracy: 0.001)
+    }
+
+    func test_aSecondRowOfThePanelTakesTheCaptureOffItsOwnSize() {
+        // 720 fits under one row (824 - 16 - 50 - 10 = 748) and does not fit under two
+        // (824 - 16 - 94 - 10 = 704), which is the honest border between the two shapes.
+        XCTAssertEqual(
+            CGSize(width: 1420, height: 720),
+            EditorGeometry.placeCapture(
+                image: CGSize(width: 1420, height: 720), work: work, panel: oneRowPanel).size)
+        XCTAssertLessThan(
+            EditorGeometry.placeCapture(
+                image: CGSize(width: 1420, height: 720), work: work, panel: twoRowPanel).height, 720)
+    }
+
+    func test_theCommentsPanelTakesItsWidthOffTheCapture() {
+        // The working area the editor counts with the comments panel out: 797 wide.
+        let narrow = CGRect(x: 0, y: 0, width: 797, height: 576)
+        let placed = EditorGeometry.placeCapture(
+            image: CGSize(width: 900, height: 400), work: narrow, panel: oneRowPanel)
+        XCTAssertLessThan(placed.width, 900)
+        XCTAssertEqual(781, Double(placed.width), accuracy: 0.001)
+    }
+
+    func test_theCaptureKeepsItsMarginAndTheRoomThePanelNeeds() {
+        let images = [
+            CGSize(width: 1420, height: 700), CGSize(width: 3840, height: 1125),
+            CGSize(width: 1080, height: 2400), CGSize(width: 80, height: 60),
+        ]
+        for image in images {
+            let placed = EditorGeometry.placeCapture(image: image, work: work, panel: oneRowPanel)
+            XCTAssertGreaterThanOrEqual(Double(placed.minX), Double(work.minX) - 0.001)
+            XCTAssertLessThanOrEqual(Double(placed.maxX), Double(work.maxX) + 0.001)
+            XCTAssertGreaterThanOrEqual(Double(placed.minY), Double(work.minY) + 8 - 0.001)
+            XCTAssertLessThanOrEqual(
+                Double(placed.maxY) + 10 + Double(oneRowPanel.height), Double(work.maxY) + 0.001)
+        }
     }
 }
