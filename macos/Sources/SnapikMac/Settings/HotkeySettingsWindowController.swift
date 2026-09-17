@@ -593,6 +593,15 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
     /// buttons at the bottom: the number the tallest tab has to fit into.
     var smokeTabAreaHeight: CGFloat { tabContainer.bounds.height }
 
+    /// [A5-3] What a settings file carrying `stored` as its annotation palette is shown as and saved
+    /// back as: the pair of lines the defect lived on is walked here, the read of `populateFields`
+    /// and the write of `buildCandidateSettings`. A name the picker refused used to be written back
+    /// as `"standard"` by any save at all, and the palette chosen in the editor went with it.
+    func smokeRunPaletteProbe(_ stored: String) -> String {
+        appearanceTab.picker.selectedPalette = stored
+        return buildCandidateSettings().annotationPalette
+    }
+
     /// [A5-1, S5-2] The number beside the slider follows it, survives a change of language — the walk
     /// that relabels the window rewrites unbound captions, and this one is put back after it — and
     /// goes away with the sounds it belongs to, taking the tick it owed with it.

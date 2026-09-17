@@ -54,7 +54,7 @@ extension SmokeTestRunner {
         // is checked here, where it is on screen.
         picker.applyLanguage("en")
         let paletteTitles = picker.smokePaletteTitles
-        let paletteTranslated = paletteTitles == ["Standard", "Pastel", "Custom"]
+        let paletteTranslated = paletteTitles == ["Standard", "Pastel", "Neon", "Custom"]
         check(
             "the palette row translates"
                 + (paletteTranslated ? "" : ": \(paletteTitles.joined(separator: " · "))"),
@@ -71,6 +71,14 @@ extension SmokeTestRunner {
             "the settings offer the palettes of the editor in its order"
                 + (paletteOrderOk ? "" : ": \(offeredPalettes.joined(separator: ", "))"),
             paletteOrderOk)
+
+        // [A5-3] A file that carries the neon palette is shown as neon and saved back as neon, and a
+        // name nobody knows still falls back to the standard set.
+        check(
+            "a settings file carrying the neon palette keeps it",
+            settings.smokeRunPaletteProbe("neon") == "neon"
+                && settings.smokeRunPaletteProbe("telepathy") == "standard")
+        _ = settings.smokeRunPaletteProbe(coordinator.settings.annotationPalette)
 
         // The gallery opens on the first card, pages by one, and stops where the last card is whole.
         var galleryOk = picker.firstCard == 0

@@ -481,7 +481,7 @@ final class AppearancePickerView: NSView {
     /// four in another order is already a row that disagrees with the editor.
     var smokePaletteIds: [String] { Self.paletteIds }
 
-    /// The three captions of the palette row, in the language the control was last given. The wizard
+    /// The four captions of the palette row, in the language the control was last given. The wizard
     /// switches this row off (O-6), so the settings window is the one place it is on screen and the
     /// one place its translation is worth checking.
     var smokePaletteTitles: [String] { paletteButtons.map(\.title) }
