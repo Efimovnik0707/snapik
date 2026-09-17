@@ -281,26 +281,59 @@ public enum AnnotationPainter {
         guard let badge = badge(for: item, label: label, imageSize: imageSize, style: style, topMargin: topMargin) else { return }
         let accent = AccentPalette.flat
 
-        // A badge dragged away from its mark keeps one hair line back to it.
+        // A badge dragged away from its mark keeps one hair line back to it. The scale is one on
+        // screen and larger in the export, and everything that has to grow with the badge — the
+        // line, the dot of a comment and its rim — takes it from the one number
+        // (SPEC-DELTA-5-editor.md §1.3 E-9, E-10).
+        let scale = style == .export ? NoteBadgeGeometry.exportScale(label) : 1
+        let anchor = item.points.first.map { mapPoint($0, imageSize: imageSize) }
         if item.noteOffset != nil {
-            let all = item.getPathSegments().flatMap { $0 } + item.points
-            if let minX = all.map(\.x).min(), let minY = all.map(\.y).min(),
-                let maxX = all.map(\.x).max(), let maxY = all.map(\.y).max()
-            {
-                let outline = CGRect(
-                    x: CGFloat(minX) * imageSize.width, y: CGFloat(minY) * imageSize.height,
-                    width: CGFloat(maxX - minX) * imageSize.width, height: CGFloat(maxY - minY) * imageSize.height)
-                if let leader = NoteBadgeGeometry.leader(bounds: outline, badge: badge) {
-                    ctx.saveGState()
-                    ctx.setStrokeColor(accent.cgColor)
-                    ctx.setLineWidth(style == .export ? NoteBadgeGeometry.exportLeaderThickness(label) : 1)
-                    ctx.setLineDash(phase: 0, lengths: [])
-                    ctx.beginPath()
-                    ctx.move(to: leader.from)
-                    ctx.addLine(to: leader.to)
-                    ctx.strokePath()
-                    ctx.restoreGState()
+            // A comment is the dot it is pinned by: the leader starts on the rim of that dot, and
+            // the square of eight pixels its two points make is not asked for at all.
+            var outline: CGRect?
+            var fromRadius: CGFloat = 0
+            if item.kind == .comment {
+                if let anchor {
+                    outline = CGRect(origin: anchor, size: .zero)
+                    fromRadius = NoteBadgeGeometry.anchorRadius * scale
                 }
+            } else {
+                let all = item.getPathSegments().flatMap { $0 } + item.points
+                if let minX = all.map(\.x).min(), let minY = all.map(\.y).min(),
+                    let maxX = all.map(\.x).max(), let maxY = all.map(\.y).max()
+                {
+                    outline = CGRect(
+                        x: CGFloat(minX) * imageSize.width, y: CGFloat(minY) * imageSize.height,
+                        width: CGFloat(maxX - minX) * imageSize.width, height: CGFloat(maxY - minY) * imageSize.height)
+                }
+            }
+            if let outline, let leader = NoteBadgeGeometry.leader(bounds: outline, badge: badge, fromRadius: fromRadius) {
+                ctx.saveGState()
+                ctx.setStrokeColor(accent.cgColor)
+                ctx.setLineWidth(style == .export ? NoteBadgeGeometry.exportLeaderThickness(label) : 1)
+                ctx.setLineDash(phase: 0, lengths: [])
+                ctx.beginPath()
+                ctx.move(to: leader.from)
+                ctx.addLine(to: leader.to)
+                ctx.strokePath()
+                ctx.restoreGState()
+            }
+
+            // The dot itself, after the line so the line does not lie over it. On screen the canvas
+            // draws it with a reach of its own under the pointer; here there is no pointer, and the
+            // picture that goes into the chat and the file on disk both come through this one place
+            // (`WpfExportImageRenderer.cs:200-203`, `AnnotationCanvas.cs:858-866`).
+            if item.kind == .comment, let anchor {
+                let radius = NoteBadgeGeometry.anchorRadius * scale
+                let circle = CGRect(
+                    x: anchor.x - radius, y: anchor.y - radius, width: radius * 2, height: radius * 2)
+                ctx.saveGState()
+                ctx.setFillColor(accent.cgColor)
+                ctx.fillEllipse(in: circle)
+                ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+                ctx.setLineWidth(1.5 * scale)
+                ctx.strokeEllipse(in: circle)
+                ctx.restoreGState()
             }
         }
 

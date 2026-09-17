@@ -135,8 +135,11 @@ final class AnnotationCanvasView: NSView {
     private var badgeHoverId: SBGuid?
 
     /// Five pixels of circle and seven of reach: the circle grows to the reach under the pointer, so
-    /// what answers the press is what is seen at that moment (`AnnotationCanvas.cs:780-782`).
-    static let anchorRadius: CGFloat = 5
+    /// what answers the press is what is seen at that moment (`AnnotationCanvas.cs:780-782`). The
+    /// five live in `NoteBadgeGeometry`, where the exported dot and the leader read them too: the
+    /// line has to start on the rim of the dot in both drawers, and two copies of the number would
+    /// drift apart (SPEC-DELTA-5-editor.md §1.3 E-9).
+    static let anchorRadius: CGFloat = NoteBadgeGeometry.anchorRadius
     static let anchorHoverRadius: CGFloat = 7
 
     // Blur raster cache (SPEC §1.7)
