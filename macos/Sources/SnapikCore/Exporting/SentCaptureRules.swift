@@ -20,6 +20,20 @@ public enum SentCaptureRules {
         captures.filter { !isSent($0) }
     }
 
+    /// Whether a paste that has been noticed clears the strip. Port of
+    /// `PublishedPackage.ClearsTheStrip` (`src/Snapik.App/PublishedPackage.cs:36-40`), which lives
+    /// here and not beside `PreparedExport`: this is a rule about what the strip does with the
+    /// captures it has sent, and `ExportContracts` describes the shape of an export
+    /// (SPEC-DELTA-5 §2.2). There is no `PublishedPackage` on this side — the caller holds the
+    /// "the copy on the clipboard is one capture" flag itself.
+    ///
+    /// "Clear the strip after pasting" is about a package: it says that everything just sent may
+    /// go. A capture copied on its own sends one card out of many, and nobody pasted the rest —
+    /// they get the tick and nothing else, and the undo stack and the session stay where they are.
+    public static func clearsTheStrip(isSingleCapture: Bool, clearStackAfterPaste: Bool) -> Bool {
+        clearStackAfterPaste && !isSingleCapture
+    }
+
     /// Port of `StripLabels`: strip letters in capture order — A, B, … for captures still waiting,
     /// `nil` for sent ones.
     public static func stripLabels(_ sent: [Bool]) throws -> [String?] {
