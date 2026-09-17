@@ -1556,6 +1556,21 @@ public static class SmokeTestRunner
                 throw new InvalidOperationException($"The tabs of the settings window did not measure: {tallest:0} px is not a height.");
             if (tallest > window.Height)
                 throw new InvalidOperationException($"The settings window must be as tall as its tallest tab: {tallest:0} px does not fit into {window.Height:0} px.");
+
+            // D1 of the round. The number beside the slider follows it, and survives a change of
+            // language: the walk of UiLanguage.Apply rewrites unbound TextBlocks, and this one is
+            // rebuilt after the walk. The tick itself is a live check: a headless run has no sound.
+            window.VolumeSlider.Value = 60;
+            if (window.VolumeValueLabel.Text != "60 %")
+                throw new InvalidOperationException("The volume must say the number the slider holds.");
+            window.ApplyLanguage("en");
+            if (window.VolumeValueLabel.Text != "60 %")
+                throw new InvalidOperationException("The number of the volume must survive the language of the window.");
+            // Switching the sounds off drops the tick the change of value owed, so the run leaves no
+            // preview waiting on a window nobody opened.
+            window.SoundsBox.IsChecked = false;
+            if (window.VolumeRow.Visibility != Visibility.Collapsed)
+                throw new InvalidOperationException("The volume row must go away with the sounds it belongs to.");
         });
     }
 

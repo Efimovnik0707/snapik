@@ -32,7 +32,12 @@
     <CheckBox x:Name="SoundsBox" Content="{local:UiText Звуки}" Margin="0,0,0,8" ToolTip="Щелчок затвора при снимке и тихие тики ленты"/>
     <StackPanel x:Name="VolumeRow" Margin="22,0,0,16" ToolTip="Насколько громко звучит интерфейс">
      <TextBlock Text="Громкость" Margin="0,0,0,5"/>
-     <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Width="200" HorizontalAlignment="Left" AutomationProperties.Name="{local:UiText Громкость}"/>
+     <!-- The number beside the slider is built in code and carries no words, so it is the same in
+          both languages; the slider itself hands its value to a reader through RangeValuePattern. -->
+     <StackPanel Orientation="Horizontal">
+      <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Width="200" HorizontalAlignment="Left" AutomationProperties.Name="{local:UiText Громкость}"/>
+      <TextBlock x:Name="VolumeValueLabel" FontSize="12" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+     </StackPanel>
     </StackPanel>
     <TextBlock Text="Язык" Margin="0,4,0,7"/>
     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
