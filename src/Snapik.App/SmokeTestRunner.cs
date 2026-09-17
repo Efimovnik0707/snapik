@@ -345,7 +345,9 @@ public static class SmokeTestRunner
             // the chip of a card and the caption of the editor. The two of the scale switch left
             // with the switch itself.
             ("Пройти знакомство заново", "Take the tour again"), ("Светлая · Рассвет", "Light · Dawn"),
-            ("экран", "screen"), ("импорт", "import"), ("весь экран", "whole screen")
+            ("экран", "screen"), ("импорт", "import"), ("весь экран", "whole screen"),
+            // The single capture of the 1.7.0 round.
+            ("Копировать снимок", "Copy capture")
         })
             if (UiLanguage.Text(russian, "en") != english || UiLanguage.Text(english, "ru") != russian)
                 throw new InvalidOperationException($"Settings language switching failed for \"{russian}\".");

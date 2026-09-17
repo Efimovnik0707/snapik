@@ -94,6 +94,9 @@ internal static class UiLanguage
         ["Больше не спрашивать"] = "Do not ask again",
         ["Очищать ленту после вставки"] = "Clear the strip after pasting",
         ["Копировать пакет"] = "Copy package", ["Сохранить пакет…"] = "Save package…", ["Импортировать файл…"] = "Import file…",
+        // The single capture of the 1.7.0 round: the context menu of a card, the button of the editor and the two answers to them.
+        ["Копировать снимок"] = "Copy capture", ["Сохранить снимок…"] = "Save capture…",
+        ["Снимок {0} скопирован"] = "Capture {0} copied", ["Не удалось скопировать снимок"] = "Could not copy the capture",
         ["Вставить изображение из буфера"] = "Paste image from clipboard", ["Вернуть удалённый снимок"] = "Restore deleted capture",
         ["Сохранить пакет"] = "Save package", ["Куда"] = "Where", ["Обзор…"] = "Browse…",
         ["Имя папки"] = "Folder name", ["Создать подпапку"] = "Create a subfolder",
