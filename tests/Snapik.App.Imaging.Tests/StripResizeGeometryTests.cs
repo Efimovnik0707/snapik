@@ -172,6 +172,19 @@ public sealed class StripResizeGeometryTests
     public void The_list_is_as_tall_as_its_cards_up_to_the_ceiling(int count, double cap, double expected) =>
         Assert.Equal(expected, StripResizeGeometry.ListHeightForCount(count, cap));
 
+    [Theory]
+    // A height dragged by hand is kept whatever the list holds: three cards inside a list of 310
+    // leave empty space under the last one, fifteen of them scroll inside the same 310. Until the
+    // grip is dragged the stored number is the ceiling it has always been, and an empty strip is the
+    // hint of 92 either way — the list is hidden then, and the number comes back with the first card.
+    [InlineData(3, 310d, true, 310d)]
+    [InlineData(3, 310d, false, 160d)]
+    [InlineData(15, 310d, true, 310d)]
+    [InlineData(0, 310d, true, 310d)]
+    [InlineData(0, 310d, false, 92d)]
+    public void A_height_dragged_by_hand_is_the_height_of_the_list(int count, double stored, bool manual, double expected) =>
+        Assert.Equal(expected, StripResizeGeometry.ListHeight(count, stored, manual));
+
     [Fact]
     public void The_capsule_keeps_the_right_edge_of_the_strip_it_came_from() =>
         Assert.Equal(1664, StripResizeGeometry.CapsuleLeft(1600, 244, 180));

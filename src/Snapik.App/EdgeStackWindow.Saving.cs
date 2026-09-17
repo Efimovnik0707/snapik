@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -65,6 +66,45 @@ public partial class EdgeStackWindow
             SetStatus($"{UiLanguage.Text("Не удалось скопировать снимок")}: {ex.Message}", true);
         }
         finally { _clipboardPublicationGate.Release(); }
+    }
+
+    /// <summary>
+    /// One capture into a file the user picks. The picture is the one the editor writes with "Save to
+    /// computer" — the capture and its annotations, without the header and without the field the
+    /// carried badges stand in — while "Copy capture" goes through the export and has both. The same
+    /// asymmetry the package and that button of the editor already have.
+    /// </summary>
+    private async Task SaveSingleCaptureAsAsync(CaptureItem capture)
+    {
+        // The dialog of the editor, with the naming of the strip: the name offered is the one an
+        // autosave would have written, and the format follows the extension that comes back.
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = UiLanguage.Text("Сохранить снимок…"),
+            Filter = SaveNaming.ImageFilter(_settings.SaveFormat, UiLanguage.Text("Все поддерживаемые")),
+            FilterIndex = 1,
+            DefaultExt = _settings.SaveFormat == "jpeg" ? ".jpg" : ".png",
+            FileName = Path.GetFileNameWithoutExtension(LocalImageSave.NewPath(_settings)),
+            InitialDirectory = Directory.Exists(_settings.SaveDirectory) ? _settings.SaveDirectory : Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+        bool? picked;
+        using (SuspendTopmost()) picked = dialog.ShowDialog(this);
+        if (picked != true) return;
+        try
+        {
+            var extension = Path.GetExtension(dialog.FileName).ToLowerInvariant();
+            if (extension is not (".png" or ".jpg" or ".jpeg")) throw new InvalidOperationException(UiLanguage.Text("Выберите PNG или JPEG."));
+            var format = extension is ".jpg" or ".jpeg" ? "jpeg" : "png";
+            var canvas = new AnnotationCanvas { Image = capture.Image, Annotations = capture.Annotations };
+            await LocalImageSave.WriteAsync(canvas.RenderAnnotated(), dialog.FileName, format, _settings.JpegQuality, true);
+            NotifySaved();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"{UiLanguage.Text("Не удалось сохранить")}: {ex.Message}", true);
+        }
     }
 
     // The whole screen goes into the strip like any other capture, and the folder gets it from the

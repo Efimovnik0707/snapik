@@ -225,6 +225,7 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False"
                      VirtualizingPanel.IsVirtualizing="False"
                      PreviewMouseLeftButtonDown="OnCaptureListMouseDown" PreviewMouseMove="OnCaptureListMouseMove"
+                     PreviewMouseRightButtonUp="OnCaptureListRightClick"
                      PreviewMouseWheel="OnCaptureListMouseWheel" Drop="OnCaptureListDrop">
                 <!-- The template of the list is a bare viewer: everything the ListBox used to pass to it
                      implicitly is passed by hand here, because a property that stops arriving does so
@@ -260,8 +261,12 @@
                 </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border x:Name="ThumbCard" Margin="0,0,0,-48" Height="78" CornerRadius="11" Background="#242A33"
-                                    BorderBrush="#46505E" BorderThickness="1" MouseEnter="OnCaptureThumbMouseEnter">
+                            <!-- The card takes its two colours from the theme: the constants that used to
+                                 stand here were the elevated surface and its line of the dark palette
+                                 exactly, so the dark theme does not change by a pixel, and on the other
+                                 five the card stops being a dark bite out of the strip. -->
+                            <Border x:Name="ThumbCard" Margin="0,0,0,-48" Height="78" CornerRadius="11" Background="{DynamicResource ElevatedBrush}"
+                                    BorderBrush="{DynamicResource ElevatedLineBrush}" BorderThickness="1" MouseEnter="OnCaptureThumbMouseEnter">
                                 <!-- The shadow goes up (Direction 90 in WPF), onto the card above: the cards
                                      overlap by 48 px and the newer one is drawn over the older one, so the
                                      visible seam is the top edge of the card and the shadow falls into it.
@@ -283,18 +288,36 @@
                                                  below shows its upper 30 px and nothing else, and that strip has
                                                  to be the one that says which capture it is. The corners are cut
                                                  by the rounded clip of the grid above. -->
-                                            <Border VerticalAlignment="Top" Height="26" Background="#E6171A20">
+                                            <!-- Thirty, not twenty-six: the strip is the one the caption covers,
+                                                 and the gradient is the one of the reference — 55 % at the top,
+                                                 28 % at six tenths of it, nothing at the bottom. The
+                                                 transparent stop carries the same RGB as the other two, or the
+                                                 gradient would travel through grey on its way out. The capture
+                                                 is read under the letter, and the letter on a light capture. -->
+                                            <Border VerticalAlignment="Top" Height="30">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Offset="0" Color="#8C141E1E" />
+                                                        <GradientStop Offset="0.6" Color="#47141E1E" />
+                                                        <GradientStop Offset="1" Color="#00141E1E" />
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
                                                 <Grid Margin="7,0">
+                                                    <!-- One shadow under the group instead of one on every glyph: the
+                                                         white of the icon and of the counter has to hold on a light
+                                                         capture now that the plate behind it is see-through. -->
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                        <StackPanel.Effect><DropShadowEffect Color="#000000" BlurRadius="2" ShadowDepth="1" Direction="270" Opacity="0.6" /></StackPanel.Effect>
                                                         <Border x:Name="LabelBadge" Width="20" Height="20" CornerRadius="10" Background="{DynamicResource AccentBrush}">
+                                                            <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="3" ShadowDepth="1" Direction="270" Opacity="0.4" /></Border.Effect>
                                                             <Grid>
                                                                 <TextBlock x:Name="LabelText" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="11" FontWeight="Bold" Text="{Binding DisplayLabel}" />
                                                                 <Path x:Name="SentMark" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Width="11" Height="8" Stretch="Uniform"
                                                                       Stroke="White" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M1,4.5 L4,7.5 L10,1.5" />
                                                         </Grid>
                                                     </Border>
-                                                    <TextBlock Margin="7,0,4,0" VerticalAlignment="Center" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="#AEB8C7" Text="&#xE90A;" />
-                                                    <TextBlock VerticalAlignment="Center" Foreground="#DCE3ED" FontSize="11" Text="{Binding NoteCount}" />
+                                                    <TextBlock Margin="7,0,4,0" VerticalAlignment="Center" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="White" Text="&#xE90A;" />
+                                                    <TextBlock VerticalAlignment="Center" Foreground="White" FontSize="11" Text="{Binding NoteCount}" />
                                                     </StackPanel>
                                                     <!-- The kind of the capture, at the right end of the same bar: a
                                                          region says nothing, and the two that are not a region each
@@ -331,7 +354,7 @@
                                      on hover stays as bright as on any other capture. -->
                                 <DataTrigger Binding="{Binding IsSent}" Value="True">
                                     <Setter TargetName="ThumbContent" Property="Opacity" Value="0.45" />
-                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#333C49" />
+                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="{DynamicResource SurfaceLineBrush}" />
                                     <Setter TargetName="LabelBadge" Property="Background" Value="#4A5563" />
                                     <Setter TargetName="LabelText" Property="Visibility" Value="Collapsed" />
                                     <Setter TargetName="SentMark" Property="Visibility" Value="Visible" />
@@ -346,14 +369,41 @@
                                 <DataTrigger Binding="{Binding Kind}" Value="Import">
                                     <Setter TargetName="ImportChip" Property="Visibility" Value="Visible" />
                                 </DataTrigger>
-                                <!-- Neither the pointer nor the keyboard moves the card any more: the margin
-                                     they used to unfold it with is part of Measure, so the strip grew by
-                                     four pixels under the pointer and the height the list is given stopped
-                                     matching what it holds. What is left is a lighter border and the close
-                                     button, and the selection shows nothing at all: a card that came back
-                                     from the editor has to look like every other card. -->
+                                <!-- The card under the pointer unfolds to its whole 78 and pushes the cards
+                                     below it down by 48. The margin is part of Measure, and that is no longer
+                                     a reason not to animate it: ApplyListHeight writes the height of the list
+                                     from Captures.Count, so an unfolded card grows the extent of the scroll
+                                     and nothing else — the list stands where it stood, and the bottom of it
+                                     is reachable by scrolling. BeginTime is the delay of 150 ms the pointer
+                                     needs to mean it: until it is out, nothing on screen has moved, and a
+                                     pointer that only drove past takes the storyboard away with it. Folding
+                                     back has no delay. Margin appears in no setter of this template, so
+                                     nothing of the sort fights the animation for the property.
+                                     Only the pointer unfolds a card: selection and focus still show nothing
+                                     of the kind, a card that came back from the editor looks like the rest. -->
                                 <DataTrigger Binding="{Binding IsMouseOver, ElementName=ThumbCard}" Value="True">
-                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="#718096" />
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard x:Name="UnfoldCard">
+                                            <Storyboard>
+                                                <ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin"
+                                                                    To="0,0,0,0" BeginTime="0:0:0.15" Duration="0:0:0.13" FillBehavior="HoldEnd">
+                                                    <ThicknessAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></ThicknessAnimation.EasingFunction>
+                                                </ThicknessAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <StopStoryboard BeginStoryboardName="UnfoldCard" />
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <ThicknessAnimation Storyboard.TargetName="ThumbCard" Storyboard.TargetProperty="Margin"
+                                                                    To="0,0,0,-48" Duration="0:0:0.13" FillBehavior="HoldEnd">
+                                                    <ThicknessAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></ThicknessAnimation.EasingFunction>
+                                                </ThicknessAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.ExitActions>
+                                    <Setter TargetName="ThumbCard" Property="BorderBrush" Value="{DynamicResource TextFaintBrush}" />
                                     <Setter TargetName="DeleteButton" Property="Opacity" Value="1" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=ThumbCard}" Value="True">
@@ -445,6 +495,7 @@
          The window is not resizable by the system, and the strip has no MaxHeight any more: the
          ceiling comes from the working area of the monitor it is on. -->
     <Thumb x:Name="CornerGrip" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="16" Height="16" Margin="20,0,0,20" Cursor="SizeNESW"
+           PreviewMouseLeftButtonDown="OnCornerGripPress"
            DragStarted="OnCornerDragStarted" DragDelta="OnCornerDragDelta" DragCompleted="OnCornerDragCompleted">
         <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent" /></ControlTemplate></Thumb.Template>
     </Thumb>

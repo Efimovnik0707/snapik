@@ -33,7 +33,7 @@ public static class SmokeTestRunner
             AutoSaveCaptures = true, PlaySounds = false, SoundVolume = 35,
             CaptureEnabled = false, FullscreenSaveEnabled = true, FullscreenSaveId = "custom:4:44",
             RememberRegion = true, CaptureCursor = true, ShowNotifications = false, StackTopmost = false, StackWidth = 260, ClearStackAfterPaste = true,
-            ConfirmSessionDiscard = false, StackHeight = 300,
+            ConfirmSessionDiscard = false, StackHeight = 300, StackHeightManual = true,
             AnnotationColor = "#FF4D4F", AnnotationThickness = 9, AnnotationHighlightThickness = 22, AnnotationFontSize = 28,
             AnnotationPalette = "custom", AnnotationPencil = "highlight",
             SaveFormat = "jpeg", JpegQuality = 73, SaveDirectory = root, Language = "en",

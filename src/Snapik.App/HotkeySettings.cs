@@ -44,6 +44,14 @@ public sealed record HotkeySettings(string CaptureId, string PasteId)
     /// the window, so that all of it fits on that screen.
     /// </summary>
     public double StackHeight { get; init; } = Controls.StripResizeGeometry.DefaultListHeight;
+    /// <summary>
+    /// Whether the corner of the strip has been dragged by hand. While it has not,
+    /// <see cref="StackHeight"/> is the ceiling and the list stands as tall as what it holds; after
+    /// the first drag that same number becomes the height of the list, and the empty space under the
+    /// last card is the space the user dragged out for themselves. A file written before this key
+    /// reads as false, which is the behaviour of every build before this one.
+    /// </summary>
+    public bool StackHeightManual { get; init; }
     public bool ClearStackAfterPaste { get; init; }
     /// <summary>
     /// Whether clearing the strip and leaving the application ask before the captures of the session

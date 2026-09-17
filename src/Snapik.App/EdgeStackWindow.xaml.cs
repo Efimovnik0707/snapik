@@ -34,6 +34,7 @@ public partial class EdgeStackWindow : Window
     // after it stops. This is that second, and the bar it fades is found once, in the template.
     private readonly DispatcherTimer _scrollBarTimer;
     private System.Windows.Controls.Primitives.ScrollBar? _stripScrollBar;
+    private ScrollViewer? _stripScrollViewer;
     private readonly string _settingsPath;
     private readonly WinForms.NotifyIcon _trayIcon;
     private readonly IPasteIntentObserver _pasteIntentObserver;
@@ -316,16 +317,40 @@ public partial class EdgeStackWindow : Window
         bar.BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds)));
     }
 
+    // The viewer is the whole template of the list — the ListBox is retemplated into a bare
+    // ScrollViewer — so it is its only visual child, and it outlives every capture the strip holds:
+    // looked up once and kept, like the bar inside it.
+    private ScrollViewer? StripScrollViewer()
+    {
+        if (_stripScrollViewer is not null) return _stripScrollViewer;
+        if (CaptureList is null || VisualTreeHelper.GetChildrenCount(CaptureList) == 0) return null;
+        return _stripScrollViewer = VisualTreeHelper.GetChild(CaptureList, 0) as ScrollViewer;
+    }
+
     // The bar is part of the template of the viewer, which is part of the template of the list, so
     // it is looked up once and kept: the two templates outlive every capture the strip holds.
     private System.Windows.Controls.Primitives.ScrollBar? StripScrollBar()
     {
         if (_stripScrollBar is not null) return _stripScrollBar;
-        if (CaptureList is null || VisualTreeHelper.GetChildrenCount(CaptureList) == 0) return null;
-        if (VisualTreeHelper.GetChild(CaptureList, 0) is not ScrollViewer viewer) return null;
+        if (StripScrollViewer() is not { } viewer) return null;
         _stripScrollBar = viewer.Template.FindName("PART_VerticalScrollBar", viewer) as System.Windows.Controls.Primitives.ScrollBar;
         return _stripScrollBar;
     }
+
+    // The bottom of the strip, not the last card: the container of a card is 30 px tall — the
+    // overhang of 48 belongs to the panel — so ScrollIntoView would stop having shown 30 px of the
+    // 78 the card is drawn with. Called after the layout pass that added the card, and separately
+    // from the deferred call below so the probe of the strip can take the same path in one go.
+    private void ScrollStripToEndCore()
+    {
+        if (CaptureList is null || CaptureList.Visibility != Visibility.Visible) return;
+        CaptureList.UpdateLayout();
+        StripScrollViewer()?.ScrollToEnd();
+    }
+
+    // At Loaded priority: a capture is added and the strip is shown before the list has been given
+    // its new height, and a scroll asked for at that moment has nothing to scroll yet.
+    private void ScrollStripToEnd() => Dispatcher.InvokeAsync(ScrollStripToEndCore, DispatcherPriority.Loaded);
 
     private bool RegisterHotkeys()
     {
@@ -703,6 +728,11 @@ public partial class EdgeStackWindow : Window
         _ = SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0053);
         UiLanguage.Apply(this);
         AnimateStackIn();
+        // Every showing of the strip ends at its last capture: this is the one path all of them go
+        // through — a capture, the whole screen, a paste, the tray, the start and the way back from
+        // the editor. Renumber and UpdateEmptyState are deliberately left alone: they also run on a
+        // removal, a reorder and a capture marked as sent, where the bottom is the wrong place.
+        ScrollStripToEnd();
     }
 
     public void RevealStack() => ShowStackWithoutActivation();
@@ -826,16 +856,17 @@ public partial class EdgeStackWindow : Window
         return double.IsFinite(measured) && measured > 0 ? measured : Controls.StripResizeGeometry.EstimatedChromeHeight;
     }
 
-    // The height of the list is the height of what it holds, and the number the corner grip dragged
-    // into the settings is the ceiling it stops at. It is written here and nowhere else: every path
-    // that changes the strip goes through Renumber and UpdateEmptyState, so a capture added, removed,
-    // restored or reordered brings the window with it.
+    // The height of the list is the height of what it holds until the corner grip is dragged, and the
+    // height that was dragged after that; the stored number is the ceiling in the first case and the
+    // height itself in the second. It is written here and nowhere else: every path that changes the
+    // strip goes through Renumber and UpdateEmptyState, so a capture added, removed, restored or
+    // reordered brings the window with it.
     private void ApplyListHeight()
     {
         if (CaptureList is null) return;
-        var cap = Controls.StripResizeGeometry.ClampListHeight(
+        var stored = Controls.StripResizeGeometry.ClampListHeight(
             _settings.StackHeight, StackWorkArea().Height, StackChromeHeight());
-        CaptureList.Height = Controls.StripResizeGeometry.ListHeightForCount(Captures.Count, cap);
+        CaptureList.Height = Controls.StripResizeGeometry.ListHeight(Captures.Count, stored, _settings.StackHeightManual);
     }
 
     // The first placement of the strip: the edge of the monitor, the width from the settings and the
@@ -946,14 +977,26 @@ public partial class EdgeStackWindow : Window
         Height = _resizeStartChrome + listHeight;
     }
 
+    // A double click on the grip is the standard "size to content" gesture, and it gives the strip
+    // back to what it holds. Preview, not the ordinary event: a Thumb captures the mouse in its own
+    // MouseLeftButtonDown and MouseDoubleClick never arrives. It is the way the header skips a double
+    // click as well, see OnShellMouseDown.
+    private void OnCornerGripPress(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2) return;
+        e.Handled = true;
+        MutateSettings(stored => stored with { StackHeightManual = false });
+        ApplyListHeight();
+    }
+
     private void OnCornerDragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
     {
         SizeToContent = SizeToContent.Height;
         MinHeight = _resizeStartMinHeight;
-        MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.Height });
-        // The height dragged out is the ceiling, and the list sits back down on what it holds: the
-        // strip follows the pointer while the drag lasts, because a short list that does not move
-        // reads as a grip that does not work, and it settles the moment the grip is let go.
+        MutateSettings(stored => stored with { StackWidth = Width, StackHeight = CaptureList.Height, StackHeightManual = true });
+        // The strip stays where it was let go: the height that was dragged is the height of the list
+        // from now on, empty space under the last card included. The call below no longer settles it
+        // on anything — it writes back the same number and applies the clamps of the monitor to it.
         ApplyListHeight();
     }
 
@@ -1213,6 +1256,9 @@ public partial class EdgeStackWindow : Window
         if (failures.Count > 0) SetStatus($"{UiLanguage.Text("Не удалось добавить")}: {string.Join("; ", failures)}", true);
         else if (truncated) ShowToast(string.Format(UiLanguage.Text("В ленте максимум {0} снимков. Отправьте или удалите лишние"), SentCaptureRules.MaxStripCaptures));
         else if (saved) ShowToast(string.Format(UiLanguage.Text("Добавлено снимков: {0}"), imported));
+        // The import adds to the end of a strip that is already on screen, so it never passes
+        // through ShowStackWithoutActivation and asks for the bottom itself.
+        if (imported > 0) ScrollStripToEnd();
     }
 
     private async Task ImportClipboardAsync()
@@ -1226,6 +1272,7 @@ public partial class EdgeStackWindow : Window
         var saved = await SaveAsync();
         await RefreshOwnedClipboardAsync();
         if (saved) ShowToast(UiLanguage.Text("Изображение добавлено."));
+        ScrollStripToEnd();
     }
 
     // Copying and saving by hand are about the strip as a whole: they take every capture, sent ones
@@ -1897,6 +1944,24 @@ public partial class EdgeStackWindow : Window
         if (requestNext) await CaptureLoopAsync();
     }
 
+    // The right button takes nothing away from the two drags: the cards are dragged on
+    // PreviewMouseLeftButtonDown, the window on the left button of the panel. The menu is built here
+    // rather than in the markup, the way the menu of "•••" is: a ContextMenu is no part of the visual
+    // tree, and the language pass over the window would never reach it.
+    private void OnCaptureListRightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (FindAncestor<ContentPresenter>((DependencyObject)e.OriginalSource)?.Content is not CaptureItem capture) return;
+        var menu = new ContextMenu();
+        menu.Items.Add(MenuItem("Копировать снимок", async () => await CopySingleCaptureAsync(capture, capture.DisplayLabel)));
+        menu.Items.Add(MenuItem("Сохранить снимок…", async () => await SaveSingleCaptureAsAsync(capture)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuItem("Удалить", async () => await RemoveCapture(capture)));
+        menu.PlacementTarget = CaptureList;
+        UiLanguage.Apply(menu);
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
     private void OnCaptureListMouseDown(object sender, MouseButtonEventArgs e)
     {
         _dragStart = e.GetPosition(CaptureList);
@@ -1937,6 +2002,17 @@ public partial class EdgeStackWindow : Window
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
     {
         while (current is not null) { if (current is T target) return target; current = VisualTreeHelper.GetParent(current); }
+        return null;
+    }
+
+    // The way down, for the parts of a card: the template of an item has a namescope of its own, so
+    // the card of a container is reached by walking its visual children and not by FindName.
+    private static T? FindDescendant<T>(DependencyObject? current, string name) where T : FrameworkElement
+    {
+        if (current is null) return null;
+        if (current is T match && match.Name == name) return match;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(current); i++)
+            if (FindDescendant<T>(VisualTreeHelper.GetChild(current, i), name) is { } found) return found;
         return null;
     }
 
@@ -2033,11 +2109,7 @@ public partial class EdgeStackWindow : Window
                     throw new InvalidOperationException($"Five cards under a ceiling of 372 make a list of 220, not {window.CaptureList.Height}.");
                 if (viewer.ScrollableHeight > 0)
                     throw new InvalidOperationException($"A list that fits must not scroll: {viewer.ScrollableHeight} px of it are out of sight.");
-                var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
-                var last = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(window.Captures.Count - 1);
-                var cardBottom = last.TranslatePoint(new Point(0, 0), presenter).Y + Controls.StripResizeGeometry.CardHeight;
-                if (cardBottom > presenter.ActualHeight + 0.5)
-                    throw new InvalidOperationException($"The last card ends at {cardBottom} and the list at {presenter.ActualHeight}: the bottom of it is cut off.");
+                TheLastCardIsWhole(window, viewer);
             });
             ProbeStrip(12, (window, viewer) =>
             {
@@ -2048,6 +2120,34 @@ public partial class EdgeStackWindow : Window
                 var bar = window.StripScrollBar() ?? throw new InvalidOperationException("The template of the list must keep a PART_VerticalScrollBar.");
                 if (bar.Visibility != Visibility.Visible || bar.ActualWidth > 6)
                     throw new InvalidOperationException($"The bar of an overflowing strip is {bar.ActualWidth} px wide and {bar.Visibility}.");
+                // The path of the showing, taken by hand: the probe shows no window, and the
+                // deferred half of ScrollStripToEnd waits for a dispatcher nobody pumps here.
+                // The offset lands on the layout pass after the scroll, hence the second one.
+                window.ScrollStripToEndCore();
+                window.CaptureList.UpdateLayout();
+                if (Math.Abs(viewer.VerticalOffset - viewer.ScrollableHeight) > 0.5)
+                    throw new InvalidOperationException($"A strip that was shown stands at {viewer.VerticalOffset} of {viewer.ScrollableHeight}: the capture it just took is above the fold.");
+                TheLastCardIsWhole(window, viewer);
+            });
+            // The card that the pointer unfolds, unfolded by hand: the animation of the template is
+            // the only thing left out, and what it animates is this margin. The list keeps the
+            // height it was given, the 48 the card took go into the extent of the scroll, and the
+            // card itself does not move — the cards below it do.
+            ProbeStrip(5, (window, viewer) =>
+            {
+                var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
+                var third = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(2);
+                var topBefore = third.TranslatePoint(new Point(0, 0), presenter).Y;
+                var card = FindDescendant<Border>(third, "ThumbCard")
+                    ?? throw new InvalidOperationException("The template of a card must keep a border named ThumbCard.");
+                card.Margin = new Thickness(0);
+                window.CaptureList.UpdateLayout();
+                if (Math.Abs(window.CaptureList.Height - 220) > 0.5)
+                    throw new InvalidOperationException($"An unfolded card left the list at {window.CaptureList.Height} instead of the 220 five cards are given.");
+                if (Math.Abs(viewer.ScrollableHeight - Controls.StripResizeGeometry.CardOverlap) > 0.5)
+                    throw new InvalidOperationException($"An unfolded card adds 48 px to the extent, not {viewer.ScrollableHeight}.");
+                if (Math.Abs(third.TranslatePoint(new Point(0, 0), presenter).Y - topBefore) > 0.5)
+                    throw new InvalidOperationException("An unfolded card must stay where it was: the cards below it are the ones that move.");
             });
         }
         finally
@@ -2055,6 +2155,18 @@ public partial class EdgeStackWindow : Window
             if (application is not null) application.ShutdownMode = shutdown;
             UiLanguage.Current = language;
         }
+    }
+
+    // The bottom of the last card against the bottom of the field the cards stand in. It is the
+    // same question in both cases — a list that fits and a list scrolled to its end — and the
+    // overhang of 48 given to the items panel is what makes the answer yes.
+    private static void TheLastCardIsWhole(EdgeStackWindow window, ScrollViewer viewer)
+    {
+        var presenter = (ScrollContentPresenter)viewer.Template.FindName("PART_ScrollContentPresenter", viewer);
+        var last = (ListBoxItem)window.CaptureList.ItemContainerGenerator.ContainerFromIndex(window.Captures.Count - 1);
+        var cardBottom = last.TranslatePoint(new Point(0, 0), presenter).Y + Controls.StripResizeGeometry.CardHeight;
+        if (cardBottom > presenter.ActualHeight + 0.5)
+            throw new InvalidOperationException($"The last card ends at {cardBottom} and the list at {presenter.ActualHeight}: the bottom of it is cut off.");
     }
 
     // A strip of its own for every case: a list refilled in place keeps the extent of the list it
