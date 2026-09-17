@@ -532,6 +532,35 @@ public partial class OverlayEditorWindow : Window
             if (Math.Abs(window.Toolbar.Margin.Left - dragged.Left) > 0.5 || Math.Abs(window.Toolbar.Margin.Top - dragged.Top) > 0.5)
                 throw new InvalidOperationException($"A panel moved by hand must keep its place: {dragged} became {window.Toolbar.Margin}.");
             window._toolbarUserPosition = null;
+
+            // With a blur in the hand the properties block stands empty: the colours were hidden
+            // before, and the shape capsule went with 1.7.0, because choosing a shape from it with
+            // nothing selected armed the frame and the blur fell out of the hand. The block keeps its
+            // width — the loop above measures it for the blur among the other tools.
+            window.SelectToolMode(EditorTool.Blur);
+            if (window.ColorCapsule.Visibility != Visibility.Hidden || window.LineCapsule.Visibility != Visibility.Hidden)
+                throw new InvalidOperationException("With a blur in the hand both capsules of the properties block must be hidden.");
+            // The chevron of the frame is the one place a shape is picked from, and it arms the frame
+            // whatever was in the hand — a blur included. The menu is built and used without a popup
+            // on screen, the way the menus of the split buttons are checked elsewhere.
+            var shapeFromChevron = window.BuildShapeMenu(window.ShapeMenuButton);
+            shapeFromChevron.Items.OfType<MenuItem>().ElementAt(2).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            if (window.Surface.Tool != EditorTool.Rectangle ||
+                window.Surface.ActiveShape != Snapik.Core.Models.AnnotationShape.Ellipse)
+                throw new InvalidOperationException("A shape picked at the chevron of the frame must arm the frame and reach the active shape.");
+            // And the shape of the frame is the shape the next blur is drawn with: that is the whole
+            // of "an oval blur" now that the blur has no capsule of its own.
+            window.SelectToolMode(EditorTool.Blur);
+            window.Surface.Measure(new Size(window._cropRect.Width, window._cropRect.Height));
+            window.Surface.Arrange(new Rect(0, 0, window._cropRect.Width, window._cropRect.Height));
+            new System.Windows.Media.Imaging.RenderTargetBitmap(
+                (int)window._cropRect.Width, (int)window._cropRect.Height, 96, 96, PixelFormats.Pbgra32).Render(window.Surface);
+            window.Surface.BeginGesture(new Point(80, 60));
+            window.Surface.UpdateGesture(new Point(300, 240), pressed: true);
+            window.Surface.EndGesture();
+            if (window._capture!.Annotations.LastOrDefault(mark => mark.Kind == EditorTool.Blur) is not
+                { Shape: Snapik.Core.Models.AnnotationShape.Ellipse })
+                throw new InvalidOperationException("A blur drawn by hand must take the shape the frame carries.");
         }
         finally
         {
@@ -1342,7 +1371,8 @@ public partial class OverlayEditorWindow : Window
             if (Enum.TryParse<EditorTool>(button.Tag?.ToString(), out var tool) && EditorShortcuts.Find(tool) is { } shortcut)
                 Hint(button, shortcut.Name, shortcut.Caption);
         foreach (var (element, name) in new (FrameworkElement Element, string Name)[]
-                 { (UndoButton, "Отменить"), (RedoButton, "Повторить"), (SaveImageButton, "Сохранить на компьютер"), (DoneButton, "Готово") })
+                 { (UndoButton, "Отменить"), (RedoButton, "Повторить"), (SaveImageButton, "Сохранить на компьютер"),
+                   (CopyImageButton, "Копировать снимок"), (DoneButton, "Готово") })
             // A renamed action leaves the button without a capsule instead of throwing the editor
             // window away in its constructor.
             Hint(element, name, EditorShortcuts.Actions.FirstOrDefault(action => action.Name == name).Caption);
@@ -1428,6 +1458,11 @@ public partial class OverlayEditorWindow : Window
             // Nothing is written into ParentAnnotationId any more: a comment is a mark of its own,
             // and moving a frame no longer drags the notes that were put on top of it. The field is
             // still read, so a session of 1.5.0 keeps saying which mark its comments belong to.
+            // The second point is the rectangle of the comment and it stays where it is: the crop
+            // removes a mark whose box has no width (CaptureCropper.CropBox), the hit test and the
+            // double click that opens the pill reach through it, and the pill and the note button are
+            // laid out under it. Since 1.7.0 it is no part of the leader any more — the line is
+            // measured from Points[0] — so a session written before then draws like one written after.
             annotation.Points[1] = new Point(Math.Min(_capture.Image.PixelWidth, annotation.Points[0].X + 8), Math.Min(_capture.Image.PixelHeight, annotation.Points[0].Y + 8));
             // The tool stays in the hand, the way the frame and the arrow do: three comments in a row
             // without going back to the panel. It is put down by Escape, by "Select" and by arming
@@ -2199,6 +2234,9 @@ public partial class OverlayEditorWindow : Window
     private void OnWindowKeyDown(object sender, KeyEventArgs e)
     {
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S) { e.Handled = true; OnSaveImageClick(this, e); return; }
+        // Copying the capture reaches the same keys as saving it, from the note being typed as well.
+        // The comparison is strict, so "Done" on Ctrl+C is left alone: it is a different combination.
+        if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.C) { e.Handled = true; OnCopyImageClick(this, e); return; }
         if (Keyboard.FocusedElement is TextBox)
         {
             if (e.Key == Key.Escape) { Surface.Focus(); e.Handled = true; }
@@ -2256,6 +2294,7 @@ public partial class OverlayEditorWindow : Window
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S) { e.Handled = true; OnSaveImageClick(this, e); }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { OnUndoClick(this, e); e.Handled = true; }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y) { OnRedoClick(this, e); e.Handled = true; }
+        else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.C) { e.Handled = true; OnCopyImageClick(this, e); }
         else if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.C && _capture is not null) { e.Handled = true; Complete(false); }
         else if (Keyboard.Modifiers == ModifierKeys.None)
         {

@@ -502,6 +502,51 @@ public static class SmokeTestRunner
         var movedBadgePixel = PixelAt(noteProbeExport, (int)Math.Round(movedBadge.Center.X), (int)Math.Round(movedBadge.Center.Y));
         var noteOffsetTravelled = movedNote.NoteOffset is { X: > 1 } &&
             movedBadgePixel[0] == 255 && movedBadgePixel[1] == 140 && movedBadgePixel[2] == 47;
+        // The dot the leader of a comment starts at. Until 1.7.0 only the canvas drew it, and the
+        // line in the exported picture broke off in mid-air. The middle of Points[0] is the accent
+        // fill, and the rim of the dot is white; the rim is sampled across the leader, or the sample
+        // would land on the line. Both the dot and its rim grow with the badge, by ExportScale.
+        var notedComment = noteProbeCore.Annotations.Single(a => a.Id == movedNote.Id);
+        var noteProbeOrigin = WpfExportImageRenderer.CaptureOrigin(noteProbeMargin);
+        var dotCentre = new Point(
+            noteProbeOrigin.X + notedComment.Points[0].X * noteProbe.Image.PixelWidth,
+            noteProbeOrigin.Y + notedComment.Points[0].Y * noteProbe.Image.PixelHeight);
+        var dotRadius = Snapik.App.Imaging.NoteBadgeGeometry.AnchorRadius *
+            Snapik.App.Imaging.NoteBadgeGeometry.ExportScale(noteProbeLabel.DisplayLabel);
+        var towardsBadge = movedBadge.Center - dotCentre;
+        towardsBadge /= towardsBadge.Length;
+        var acrossLeader = new Vector(-towardsBadge.Y, towardsBadge.X);
+        var dotCentrePixel = PixelAt(noteProbeExport, (int)Math.Round(dotCentre.X), (int)Math.Round(dotCentre.Y));
+        if (dotCentrePixel[0] != 255 || dotCentrePixel[1] != 140 || dotCentrePixel[2] != 47)
+            throw new InvalidOperationException("The exported comment must show the dot its leader points at.");
+        var dotRimPixel = PixelAt(noteProbeExport,
+            (int)Math.Round(dotCentre.X + acrossLeader.X * dotRadius),
+            (int)Math.Round(dotCentre.Y + acrossLeader.Y * dotRadius));
+        if (dotRimPixel[0] < 200 || dotRimPixel[1] < 200 || dotRimPixel[2] < 200)
+            throw new InvalidOperationException("The dot of an exported comment must be drawn with a white rim around it.");
+        // A comment whose badge still sits on its point has neither leader nor dot, in the export as
+        // on screen. It is rendered as a picture of its own: a second comment beside the first would
+        // give this capture two notes, and everything above it is written for the one it has.
+        var stillAnchor = new Snapik.Core.Models.NormalizedPoint(.3, .62);
+        var stillCore = noteProbeCore with
+        {
+            Annotations = [Snapik.Core.Models.AnnotationItem.Create(
+                Snapik.Core.Models.AnnotationKind.Comment, [stillAnchor], note: "Бейдж остался на месте")]
+        };
+        await using var stillNotePng = new MemoryStream();
+        await new WpfExportImageRenderer().RenderAsync(stillCore,
+            new Snapik.Core.Exporting.ExportImageContext("A", 0, Path.GetFullPath(Path.Combine(workspace.SessionDirectory, noteProbe.SourcePath))),
+            stillNotePng, default);
+        stillNotePng.Position = 0;
+        var stillNoteExport = System.Windows.Media.Imaging.BitmapFrame.Create(stillNotePng,
+            System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+        var stillNoteOrigin = WpfExportImageRenderer.CaptureOrigin(
+            WpfExportImageRenderer.MarginsOf(stillCore, "A", noteProbe.Image.PixelWidth, noteProbe.Image.PixelHeight));
+        var stillNotePixel = PixelAt(stillNoteExport,
+            (int)Math.Round(stillNoteOrigin.X + stillAnchor.X * noteProbe.Image.PixelWidth),
+            (int)Math.Round(stillNoteOrigin.Y + stillAnchor.Y * noteProbe.Image.PixelHeight));
+        if (stillNotePixel[0] == 255 && stillNotePixel[1] == 140 && stillNotePixel[2] == 47)
+            throw new InvalidOperationException("A comment whose badge was never dragged must have no dot in the export.");
 
         await VerifyLineStyleReachesThePngAsync(captures[0], workspace.SessionDirectory);
 
@@ -1597,6 +1642,13 @@ public static class SmokeTestRunner
 
     private static void VerifyTz007Editor()
     {
-        // The editor track writes here.
+        // The two checks that need what they check are written beside it and run by this same pass:
+        // the dot of an exported comment beside the probe that renders a dragged badge into a PNG,
+        // and the empty properties block of the blur inside OverlayEditorWindow.PanelChecks, which
+        // reaches the private members of the window. What is left is the cheat sheet of the editor:
+        // the capture is copied by a key as well as by a button, and the sheet is where the user
+        // finds out. The pair of the caption travels both ways with the rest, above.
+        if (!EditorShortcuts.Actions.Contains(("Ctrl+Shift+C", "Копировать снимок")))
+            throw new InvalidOperationException("The cheat sheet of the editor must list Ctrl+Shift+C as the way to copy the capture.");
     }
 }

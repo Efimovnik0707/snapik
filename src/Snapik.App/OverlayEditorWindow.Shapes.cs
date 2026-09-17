@@ -50,7 +50,7 @@ public partial class OverlayEditorWindow
     {
         var menu = ToolMenu(target);
         var selected = Surface.SelectedAnnotation;
-        var current = selected is { Kind: EditorTool.Rectangle or EditorTool.Blur } ? selected.Shape : Surface.ActiveShape;
+        var current = selected is { Kind: EditorTool.Rectangle } ? selected.Shape : Surface.ActiveShape;
         Add(AnnotationShape.Rectangle, "Прямоугольник", new Rectangle { Width = 24, Height = 16, Stroke = Brushes.White, StrokeThickness = 1.4 });
         Add(AnnotationShape.Rounded, "Скруглённый прямоугольник", new Rectangle { Width = 24, Height = 16, RadiusX = 5, RadiusY = 5, Stroke = Brushes.White, StrokeThickness = 1.4 });
         Add(AnnotationShape.Ellipse, "Овал", new Ellipse { Width = 24, Height = 16, Stroke = Brushes.White, StrokeThickness = 1.4 });
@@ -59,9 +59,10 @@ public partial class OverlayEditorWindow
         void Add(AnnotationShape shape, string caption, UIElement icon) =>
             menu.Items.Add(MenuRow(icon, UiLanguage.Text(caption), current == shape, () =>
             {
-                // The shape belongs to the region and to the blur alike: a selected blur takes it
-                // without the tool switching out from under the hand.
-                if (Surface.SelectedAnnotation is not { Kind: EditorTool.Rectangle or EditorTool.Blur }) SelectToolMode(EditorTool.Rectangle);
+                // The shape belongs to the region alone: this menu is opened from the chevron of the
+                // frame, and with anything else selected — a blur included — it arms the frame, the
+                // way it does with any other mark. A blur is drawn with whatever shape the frame has.
+                if (Surface.SelectedAnnotation is not { Kind: EditorTool.Rectangle }) SelectToolMode(EditorTool.Rectangle);
                 ApplyAppearance(null, null, shape: shape);
             }));
     }

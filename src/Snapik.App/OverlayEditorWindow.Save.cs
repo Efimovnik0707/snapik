@@ -53,6 +53,22 @@ public partial class OverlayEditorWindow
         finally { _busyCrop = false; if (!_closed) { Topmost = wasTopmost; Activate(); } }
     }
 
+    /// <summary>
+    /// The capture that is open, alone on the clipboard: the same export and the same formats a whole
+    /// package is copied with, so a chat takes it the same way. The strip does the copying, because
+    /// the clipboard, the tick on the card and the line at the bottom of the strip all belong to it.
+    /// </summary>
+    private async void OnCopyImageClick(object sender, RoutedEventArgs e)
+    {
+        if (_capture is null || _busyCrop || _captureResizeCorner >= 0 || Surface.IsMouseCaptured) return;
+        // A caption that is still being typed is finished first, exactly as saving finishes it: while
+        // its text box is open the canvas leaves that caption out of the drawing, and the picture
+        // would reach the clipboard without the words that are on the screen.
+        CommitTextEdit();
+        if (Application.Current.MainWindow is EdgeStackWindow stack)
+            await stack.CopySingleCaptureAsync(_capture, _capture.DisplayLabel);
+    }
+
     private sealed record SavedRegion(int Left, int Top, int Width, int Height, double X, double Y, double W, double H);
 
     private void RememberCurrentRegion()

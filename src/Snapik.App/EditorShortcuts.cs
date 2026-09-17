@@ -38,6 +38,7 @@ internal static class EditorShortcuts
         ("Ctrl+Z", "Отменить"),
         ("Ctrl+Y", "Повторить"),
         ("Ctrl+S", "Сохранить на компьютер"),
+        ("Ctrl+Shift+C", "Копировать снимок"),
         ("Ctrl+C", "Готово"),
         ("Esc", "Отменить снимок"),
         ("Enter", "Закончить заметку"),

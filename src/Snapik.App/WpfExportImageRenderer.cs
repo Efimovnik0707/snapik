@@ -176,15 +176,31 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
             var badgeBrush = AccentPalette.Brush;
             var badge = ExportBadge(item, displayLabel, width, height, origin);
             // The pill the user dragged moved this badge: the picture the agent receives shows the
-            // same place, with one hair line back to the mark.
+            // same place, with one hair line back to the mark. A comment is led from the dot it is
+            // pinned by, the way the editor leads it, and the dot itself is drawn here: without it
+            // the line broke off in mid-air. Everything that has to grow with the badge grows by the
+            // one scale — the thickness of the line, the dot and its rim.
             if (item.NoteOffset is not null)
             {
-                var points = item.GetPathSegments().SelectMany(segment => segment).Concat(item.Points).ToArray();
-                var outline = new Rect(
-                    new Point(origin.X + points.Min(point => point.X) * width, origin.Y + points.Min(point => point.Y) * height),
-                    new Point(origin.X + points.Max(point => point.X) * width, origin.Y + points.Max(point => point.Y) * height));
-                if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to))
+                var isComment = item.Kind == AnnotationKind.Comment;
+                var scale = NoteBadgeGeometry.ExportScale(displayLabel);
+                var anchor = ExportAnchor(item, width, height, origin);
+                Rect outline;
+                if (isComment) outline = new Rect(anchor, anchor);
+                else
+                {
+                    var points = item.GetPathSegments().SelectMany(segment => segment).Concat(item.Points).ToArray();
+                    outline = new Rect(
+                        new Point(origin.X + points.Min(point => point.X) * width, origin.Y + points.Min(point => point.Y) * height),
+                        new Point(origin.X + points.Max(point => point.X) * width, origin.Y + points.Max(point => point.Y) * height));
+                }
+                if (NoteBadgeGeometry.TryLeader(outline, badge, out var from, out var to,
+                        isComment ? NoteBadgeGeometry.AnchorRadius * scale : 0))
                     dc.DrawLine(new Pen(badgeBrush, NoteBadgeGeometry.ExportLeaderThickness(displayLabel)), from, to);
+                // The dot after the line, as on screen, so the line does not lie over the circle.
+                if (isComment)
+                    dc.DrawEllipse(badgeBrush, new Pen(Brushes.White, 1.5 * scale), anchor,
+                        NoteBadgeGeometry.AnchorRadius * scale, NoteBadgeGeometry.AnchorRadius * scale);
             }
             dc.DrawEllipse(badgeBrush, null, badge.Center, badge.Radius, badge.Radius);
             var label = new FormattedText(displayLabel, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
@@ -201,10 +217,15 @@ public sealed class WpfExportImageRenderer : IExportImageRenderer
         catch (Exception) { return null; }
     }
 
+    // Where a mark is pinned, in the pixels of the exported picture. The badge hangs off this point
+    // and the dot of a comment is drawn on it; on two copies of the sum they would drift apart.
+    private static Point ExportAnchor(Snapik.Core.Models.AnnotationItem item, int width, int height, Point origin) =>
+        new(origin.X + item.Points[0].X * width, origin.Y + item.Points[0].Y * height);
+
     // The same circle the editor canvas shows, in the pixels of the exported picture.
     internal static NoteBadge ExportBadge(Snapik.Core.Models.AnnotationItem item, string displayLabel, int width, int height, Point origin)
     {
-        var anchor = new Point(origin.X + item.Points[0].X * width, origin.Y + item.Points[0].Y * height);
+        var anchor = ExportAnchor(item, width, height, origin);
         var offset = item.NoteOffset is { } shift ? new Vector(shift.X * width, shift.Y * height) : default;
         // Nothing holds the badge under the header any more: the field between the two is exactly
         // where a badge carried off the top of the capture is meant to go.
