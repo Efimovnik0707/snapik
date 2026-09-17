@@ -39,7 +39,13 @@ class SettingsTabView: NSView {
     /// declared number with another. A row that is switched off is not part of the measurement, the
     /// way a collapsed row is not part of a WPF stack.
     var smokeContentHeight: CGFloat {
-        guard let lowest = subviews.filter({ !$0.isHidden }).map({ $0.frame.minY }).min() else {
+        let shown = subviews.filter { !$0.isHidden }
+        guard let lowest = shown.map({ $0.frame.minY }).min(),
+            let highest = shown.map({ $0.frame.maxY }).max(), highest > 0
+        else {
+            // Nothing has a frame yet: a tab that was never laid out has to measure as nothing, so
+            // that the probe's "less than 200 px is not a measurement" catches it instead of reading
+            // the empty tab as one that fits exactly.
             return 0
         }
         return bounds.height - lowest
