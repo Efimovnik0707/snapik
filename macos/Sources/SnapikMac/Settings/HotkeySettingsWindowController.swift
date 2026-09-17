@@ -77,11 +77,13 @@ final class HotkeySettingsWindowController: NSWindowController, NSWindowDelegate
         self.tabButtons = [general, hotkeys, saving, look]
 
         let window = NSWindow(
-            // SPEC-DELTA-2B.md §E4: height grows from 480 to 520 to fit the two new checkboxes.
-            // The width is the one Windows gives the same dialog (`HotkeySettingsWindow.xaml:3`,
-            // 620x520): the "Вид" tab of SPEC-DELTA-3 G-3 fits in it whole, and its gallery pages by
-            // the chevrons on both builds alike, so nothing has to scroll here.
-            contentRect: NSRect(x: 0, y: 0, width: 620, height: 520),
+            // SPEC-DELTA-5 §5.4 S5-1: the height is the one the tallest tab asks for, and the tallest
+            // tab is "Вид" with its gallery and its row of palettes. The window neither scrolls nor
+            // resizes, so a tab that outgrows this number loses its bottom without a word — which is
+            // what 520 did — and the probe A5-1 measures all four tabs against the area they are
+            // given instead of comparing one number with another. The pair is the one Windows declares
+            // for the same dialog (`HotkeySettingsWindow.xaml:3`, 620x620).
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 620),
             styleMask: [.borderless], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear

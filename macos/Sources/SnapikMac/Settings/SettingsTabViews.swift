@@ -275,8 +275,9 @@ final class SavingTabView: SettingsTabView {
 }
 
 /// "Вид": the same control the wizard shows on its fourth step, with the row of annotation palettes
-/// the wizard does not show (G-3, G-4). It scrolls, because the tab is 338 px tall and the control
-/// with the palette row is taller than that.
+/// the wizard does not show (G-3, G-4). It scrolls, because the control with the palette row is
+/// taller than the tab whenever the window has to open shorter than the height it declares
+/// (SPEC-DELTA-5 §5.4 S5-1: 620 cures the cut content, not a monitor that cannot hold it).
 final class AppearanceTabView: SettingsTabView {
     let picker = AppearancePickerView(frame: .zero)
     private let scrollView = NSScrollView(frame: .zero)
